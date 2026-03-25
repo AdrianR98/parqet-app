@@ -1,11 +1,8 @@
-// Gemeinsame Format-Helfer fuer Zahlen und Darstellung.
+﻿import type { AssetSummary } from "./types";
 
-import type { AssetSummary } from "./types";
-
-// Diese Hilfsfunktion formatiert Zahlen als EUR.
-export function formatCurrency(value: number | null): string {
-    if (value === null || !Number.isFinite(value)) {
-        return "-";
+export function formatCurrency(value: number | null | undefined): string {
+    if (value == null || Number.isNaN(value)) {
+        return "—";
     }
 
     return new Intl.NumberFormat("de-DE", {
@@ -15,49 +12,82 @@ export function formatCurrency(value: number | null): string {
     }).format(value);
 }
 
-// Diese Hilfsfunktion formatiert Stueckzahlen.
-export function formatShares(value: number): string {
+export function formatNumber(
+    value: number | null | undefined,
+    digits = 2
+): string {
+    if (value == null || Number.isNaN(value)) {
+        return "—";
+    }
+
     return new Intl.NumberFormat("de-DE", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 4,
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
     }).format(value);
 }
 
-// Diese Hilfsfunktion liefert eine einfache CSS-Klasse fuer Gewinn/Verlust.
-export function getPnLClass(value: number | null): string {
-    if (value === null) {
+export function formatShares(value: number | null | undefined): string {
+    return formatNumber(value, 4);
+}
+
+export function getPnLClass(value: number | null | undefined): string {
+    if (value == null || Number.isNaN(value)) {
         return "";
     }
 
-    if (value > 0) {
-        return "parqet-positive";
-    }
-
-    if (value < 0) {
-        return "parqet-negative";
-    }
-
+    if (value > 0) return "positive";
+    if (value < 0) return "negative";
     return "";
 }
 
-// Vorlaeufiger Anzeigename fuer das Asset.
-// Bis wir echte Asset-Metadaten haben, verwenden wir die ISIN.
+// Name-Prioritaet:
+// 1. echter Name
+// 2. Symbol / Ticker
+// 3. ISIN
 export function getAssetDisplayName(asset: AssetSummary): string {
+    if (asset.name && asset.name.trim().length > 0) {
+        return asset.name;
+    }
+
+    if (asset.symbol && asset.symbol.trim().length > 0) {
+        return asset.symbol;
+    }
+
     return asset.isin;
 }
 
-// Baut die Logo-URL auf Basis der ISIN.
-export function getAssetLogoUrl(asset: AssetSummary): string {
-    return `https://assets.parqet.com/logos/isin/${asset.isin}?format=png`;
+export function getAssetSubtitle(asset: AssetSummary): string {
+    const parts = [asset.symbol, asset.wkn, asset.isin].filter(
+        (value): value is string => Boolean(value && value.trim())
+    );
+
+    return parts.join(" · ");
 }
 
-// Baut den Fallback-Text aus den ersten zwei Zeichen des Asset-Namens.
-export function getAssetInitials(asset: AssetSummary): string {
-    const name = getAssetDisplayName(asset).trim();
-
-    if (!name) {
-        return "??";
+// Korrigierter pragmatischer Parqet-Logo-Pfad auf ISIN-Basis.
+// Nicht als offiziell dokumentierte Connect-API-Funktion behandeln.
+export function getAssetLogoUrl(asset: AssetSummary): string | null {
+    if (!asset.isin) {
+        return null;
     }
 
-    return name.slice(0, 2).toUpperCase();
+    return `https://assets.parqet.com/logos/isin/${encodeURIComponent(
+        asset.isin
+    )}?format=png`;
+}
+
+// Fallback fuer das "Icon":
+// 1. Symbol / Ticker
+// 2. Name
+// 3. ISIN
+export function getAssetIconText(asset: AssetSummary): string {
+    if (asset.symbol && asset.symbol.trim().length > 0) {
+        return asset.symbol.trim().slice(0, 5).toUpperCase();
+    }
+
+    if (asset.name && asset.name.trim().length > 0) {
+        return asset.name.trim().slice(0, 2).toUpperCase();
+    }
+
+    return asset.isin.slice(0, 2).toUpperCase();
 }

@@ -1,5 +1,4 @@
-﻿"use client";
-
+﻿import styles from "./PortfolioFilter.module.css";
 import type { Portfolio } from "../../lib/types";
 
 type PortfolioFilterProps = {
@@ -23,47 +22,54 @@ export default function PortfolioFilter({
     onApply,
     onReset,
 }: PortfolioFilterProps) {
+    const selectedCount = selectedPortfolioIds.length;
+
     return (
-        <div className="parqet-portfolio-filter">
-            <button
-                className="parqet-filter-button"
-                onClick={onToggleOpen}
-                type="button"
-            >
-                <span>{selectedPortfolioIds.length} Portfolios</span>
-                <span className="parqet-filter-button-icon">▾</span>
-            </button>
+        <div className={styles.wrapper}>
+            <div className={styles.triggerRow}>
+                <button
+                    type="button"
+                    onClick={onToggleOpen}
+                    className={`${styles.trigger} ${isOpen ? styles.triggerActive : ""}`.trim()}
+                >
+                    <span>{selectedCount} Portfolios</span>
+                    <span className={styles.triggerIcon}>☰</span>
+                </button>
+            </div>
 
             {isOpen ? (
-                <div className="parqet-filter-dropdown">
-                    <div className="parqet-filter-list">
-                        {portfolios.map((portfolio) => (
-                            <label key={portfolio.id} className="parqet-filter-option">
-                                <input
-                                    type="checkbox"
-                                    checked={draftPortfolioIds.includes(portfolio.id)}
-                                    onChange={() => onToggleDraftPortfolio(portfolio.id)}
-                                />
-                                <span>{portfolio.name}</span>
-                            </label>
-                        ))}
+                <div className={styles.dropdown}>
+                    <div className={styles.list}>
+                        {portfolios.map((portfolio) => {
+                            const checked = draftPortfolioIds.includes(portfolio.id);
+
+                            return (
+                                <button
+                                    key={portfolio.id}
+                                    type="button"
+                                    className={`${styles.item} ${checked ? styles.itemChecked : ""}`.trim()}
+                                    onClick={() => onToggleDraftPortfolio(portfolio.id)}
+                                >
+                                    <div
+                                        className={`${styles.checkbox} ${checked ? styles.checkboxChecked : ""
+                                            }`.trim()}
+                                    >
+                                        ✓
+                                    </div>
+
+                                    <div className={styles.label}>{portfolio.name}</div>
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    <div className="parqet-filter-actions">
-                        <button
-                            type="button"
-                            className="parqet-filter-apply"
-                            onClick={onApply}
-                        >
+                    <div className={styles.footer}>
+                        <button type="button" className={styles.applyButton} onClick={onApply}>
                             Anwenden
                         </button>
 
-                        <button
-                            type="button"
-                            className="parqet-filter-reset"
-                            onClick={onReset}
-                        >
-                            Filter loeschen
+                        <button type="button" className={styles.resetButton} onClick={onReset}>
+                            Filter löschen
                         </button>
                     </div>
                 </div>

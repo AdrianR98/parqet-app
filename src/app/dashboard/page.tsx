@@ -1,16 +1,34 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import PortfolioFilter from "../../components/dashboard/PortfolioFilter";
 import AssetTable from "../../components/dashboard/AssetTable";
-import { formatCurrency, getPnLClass } from "../../lib/format";
+import HeaderBar from "../../components/dashboard/HeaderBar";
+import HeroSection from "../../components/dashboard/HeroSection";
+import StatsGrid from "../../components/dashboard/StatsGrid";
 import type {
     AssetSummary,
     AssetsApiResponse,
+    ConsistencyReport,
     DashboardStats,
     Portfolio,
     PortfoliosApiResponse,
 } from "../../lib/types";
+
+const CACHE_KEY = "parqet-dashboard-cache-v1";
+const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+
+type DashboardCache = {
+    activeAssets: AssetSummary[];
+    closedAssets: AssetSummary[];
+    rawActivityCount: number;
+    filteredActivityCount: number;
+    assetCount: number;
+    activeAssetCount: number;
+    closedAssetCount: number;
+    consistencyReport: ConsistencyReport | null;
+    lastUpdatedAt: string | null;
+    selectedPortfolioIds: string[];
+};
 
 export default function DashboardPage() {
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -19,17 +37,23 @@ export default function DashboardPage() {
     const [isPortfolioDropdownOpen, setIsPortfolioDropdownOpen] = useState(false);
     const portfolioDropdownRef = useRef<HTMLDivElement | null>(null);
 
-    const [assets, setAssets] = useState<AssetSummary[]>([]);
+    const [activeAssets, setActiveAssets] = useState<AssetSummary[]>([]);
+    const [closedAssets, setClosedAssets] = useState<AssetSummary[]>([]);
     const [rawActivityCount, setRawActivityCount] = useState(0);
     const [filteredActivityCount, setFilteredActivityCount] = useState(0);
     const [assetCount, setAssetCount] = useState(0);
+    const [activeAssetCount, setActiveAssetCount] = useState(0);
+    const [closedAssetCount, setClosedAssetCount] = useState(0);
+    const [consistencyReport, setConsistencyReport] =
+        useState<ConsistencyReport | null>(null);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
     const [loadingAssets, setLoadingAssets] = useState(false);
-
     const [theme, setTheme] = useState<"dark" | "light">("dark");
     const [errorMessage, setErrorMessage] = useState("");
 
+    // Portfolios werden beim Start geladen.
     useEffect(() => {
         async function loadPortfolios() {
             setLoadingPortfolios(true);
@@ -44,12 +68,34 @@ export default function DashboardPage() {
                     throw new Error(data.message || "Portfolios konnten nicht geladen werden.");
                 }
 
-                const items: Portfolio[] = data.portfolios?.items ?? [];
-                const allIds = items.map((item: Portfolio) => item.id);
+                const items = data.portfolios?.items ?? [];
+                const allIds = items.map((item) => item.id);
 
                 setPortfolios(items);
-                setSelectedPortfolioIds(allIds);
-                setDraftPortfolioIds(allIds);
+
+                // Zuerst aus Cache versuchen, sonst alle Portfolios vorauswählen.
+                const cachedRaw = localStorage.getItem(CACHE_KEY);
+
+                if (cachedRaw) {
+                    try {
+                        const cached: DashboardCache = JSON.parse(cachedRaw);
+                        const cachedIds = cached.selectedPortfolioIds ?? [];
+
+                        if (cachedIds.length > 0) {
+                            setSelectedPortfolioIds(cachedIds);
+                            setDraftPortfolioIds(cachedIds);
+                        } else {
+                            setSelectedPortfolioIds(allIds);
+                            setDraftPortfolioIds(allIds);
+                        }
+                    } catch {
+                        setSelectedPortfolioIds(allIds);
+                        setDraftPortfolioIds(allIds);
+                    }
+                } else {
+                    setSelectedPortfolioIds(allIds);
+                    setDraftPortfolioIds(allIds);
+                }
             } catch (error) {
                 setErrorMessage(
                     `Portfolios konnten nicht geladen werden: ${error instanceof Error ? error.message : String(error)
@@ -63,6 +109,37 @@ export default function DashboardPage() {
         loadPortfolios();
     }, []);
 
+    // Letzten Dashboard-Stand aus localStorage laden.
+    // Wichtig: Beim Oeffnen keine automatische Asset-API-Anfrage.
+    useEffect(() => {
+        try {
+            const cachedRaw = localStorage.getItem(CACHE_KEY);
+
+            if (!cachedRaw) {
+                return;
+            }
+
+            const cached: DashboardCache = JSON.parse(cachedRaw);
+
+            setActiveAssets(cached.activeAssets ?? []);
+            setClosedAssets(cached.closedAssets ?? []);
+            setRawActivityCount(cached.rawActivityCount ?? 0);
+            setFilteredActivityCount(cached.filteredActivityCount ?? 0);
+            setAssetCount(cached.assetCount ?? 0);
+            setActiveAssetCount(cached.activeAssetCount ?? 0);
+            setClosedAssetCount(cached.closedAssetCount ?? 0);
+            setConsistencyReport(cached.consistencyReport ?? null);
+            setLastUpdatedAt(cached.lastUpdatedAt ?? null);
+
+            if (cached.selectedPortfolioIds?.length) {
+                setSelectedPortfolioIds(cached.selectedPortfolioIds);
+                setDraftPortfolioIds(cached.selectedPortfolioIds);
+            }
+        } catch {
+            // Bei kaputtem Cache einfach ignorieren.
+        }
+    }, []);
+
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (
@@ -74,7 +151,6 @@ export default function DashboardPage() {
         }
 
         document.addEventListener("mousedown", handleClickOutside);
-
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
@@ -119,10 +195,36 @@ export default function DashboardPage() {
                 throw new Error(data.message || "Assets konnten nicht geladen werden.");
             }
 
-            setAssets(data.assets ?? []);
+            const nextActiveAssets = data.activeAssets ?? [];
+            const nextClosedAssets = data.closedAssets ?? [];
+            const nextLastUpdatedAt = data.generatedAt ?? new Date().toISOString();
+
+            setActiveAssets(nextActiveAssets);
+            setClosedAssets(nextClosedAssets);
             setRawActivityCount(data.rawActivityCount ?? 0);
             setFilteredActivityCount(data.filteredActivityCount ?? 0);
             setAssetCount(data.assetCount ?? 0);
+            setActiveAssetCount(data.activeAssetCount ?? nextActiveAssets.length);
+            setClosedAssetCount(data.closedAssetCount ?? nextClosedAssets.length);
+            setConsistencyReport(data.consistencyReport ?? null);
+            setLastUpdatedAt(nextLastUpdatedAt);
+
+            // Erfolgreichen Stand lokal speichern, damit beim naechsten Oeffnen
+            // nicht sofort wieder die API angefragt werden muss.
+            const cachePayload: DashboardCache = {
+                activeAssets: nextActiveAssets,
+                closedAssets: nextClosedAssets,
+                rawActivityCount: data.rawActivityCount ?? 0,
+                filteredActivityCount: data.filteredActivityCount ?? 0,
+                assetCount: data.assetCount ?? 0,
+                activeAssetCount: data.activeAssetCount ?? nextActiveAssets.length,
+                closedAssetCount: data.closedAssetCount ?? nextClosedAssets.length,
+                consistencyReport: data.consistencyReport ?? null,
+                lastUpdatedAt: nextLastUpdatedAt,
+                selectedPortfolioIds,
+            };
+
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cachePayload));
         } catch (error) {
             setErrorMessage(
                 `Assets konnten nicht geladen werden: ${error instanceof Error ? error.message : String(error)
@@ -139,12 +241,15 @@ export default function DashboardPage() {
         );
     }, [portfolios, selectedPortfolioIds]);
 
+    // Hero- und Stats-Werte sollen weiterhin auch geschlossene Assets historisch mitzählen.
     const stats: DashboardStats = useMemo(() => {
+        const allAssets = [...activeAssets, ...closedAssets];
+
         let totalDividendNet = 0;
         let totalPositionValue = 0;
         let totalUnrealizedPnL = 0;
 
-        for (const asset of assets) {
+        for (const asset of allAssets) {
             totalDividendNet += asset.totalDividendNet;
             totalPositionValue += asset.positionValue ?? 0;
             totalUnrealizedPnL += asset.unrealizedPnL ?? 0;
@@ -154,14 +259,24 @@ export default function DashboardPage() {
             rawActivityCount,
             filteredActivityCount,
             assetCount,
+            activeAssetCount,
+            closedAssetCount,
             totalDividendNet,
             totalPositionValue,
             totalUnrealizedPnL,
         };
-    }, [assets, rawActivityCount, filteredActivityCount, assetCount]);
+    }, [
+        activeAssets,
+        closedAssets,
+        rawActivityCount,
+        filteredActivityCount,
+        assetCount,
+        activeAssetCount,
+        closedAssetCount,
+    ]);
 
-    const sortedAssets = useMemo(() => {
-        return [...assets].sort((a, b) => {
+    const sortedActiveAssets = useMemo(() => {
+        return [...activeAssets].sort((a, b) => {
             const aValue = a.positionValue ?? 0;
             const bValue = b.positionValue ?? 0;
 
@@ -174,156 +289,87 @@ export default function DashboardPage() {
 
             return bTime - aTime;
         });
-    }, [assets]);
+    }, [activeAssets]);
+
+    const sortedClosedAssets = useMemo(() => {
+        return [...closedAssets].sort((a, b) => {
+            const aTime = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : 0;
+            const bTime = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : 0;
+
+            return bTime - aTime;
+        });
+    }, [closedAssets]);
+
+    const showStaleWarning = useMemo(() => {
+        if (!lastUpdatedAt) {
+            return false;
+        }
+
+        const age = Date.now() - new Date(lastUpdatedAt).getTime();
+        return age > FIVE_DAYS_MS;
+    }, [lastUpdatedAt]);
 
     return (
-        <div className={`parqet-shell ${theme}`}>
-            <aside className="parqet-sidebar">
-                <div className="parqet-logo">parqet</div>
+        <main className={`parqet-page theme-${theme}`}>
+            <HeaderBar
+                theme={theme}
+                onToggleTheme={() =>
+                    setTheme((current) => (current === "dark" ? "light" : "dark"))
+                }
+            />
 
-                <div className="parqet-sidebar-section">
-                    <div className="parqet-sidebar-label">Ansicht</div>
-                    <div className="parqet-sidebar-value">
-                        {selectedPortfolios.length === 1
-                            ? selectedPortfolios[0].name
-                            : `${selectedPortfolios.length} Portfolios`}
+            <div className="parqet-content" ref={portfolioDropdownRef}>
+                <HeroSection
+                    portfolios={portfolios}
+                    selectedPortfolioIds={selectedPortfolioIds}
+                    draftPortfolioIds={draftPortfolioIds}
+                    selectedPortfolioCount={selectedPortfolios.length}
+                    assetCount={assetCount}
+                    loadingAssets={loadingAssets}
+                    isPortfolioDropdownOpen={isPortfolioDropdownOpen}
+                    onToggleOpen={() => setIsPortfolioDropdownOpen((current) => !current)}
+                    onToggleDraftPortfolio={toggleDraftPortfolio}
+                    onApply={applyPortfolioFilter}
+                    onReset={resetPortfolioFilter}
+                    onLoadAssets={loadAssets}
+                    totalPositionValue={stats.totalPositionValue}
+                    totalUnrealizedPnL={stats.totalUnrealizedPnL}
+                    totalDividendNet={stats.totalDividendNet}
+                    consistencyWarningCount={consistencyReport?.warningCount ?? 0}
+                    lastUpdatedAt={lastUpdatedAt}
+                    showStaleWarning={showStaleWarning}
+                />
+
+                {loadingPortfolios ? (
+                    <div className="parqet-info-banner">Portfolios werden geladen...</div>
+                ) : null}
+
+                {errorMessage ? (
+                    <div className="parqet-error-banner">
+                        <strong>Fehler</strong>
+                        <div>{errorMessage}</div>
                     </div>
+                ) : null}
+
+                <StatsGrid stats={stats} />
+
+                <AssetTable
+                    assets={sortedActiveAssets}
+                    title="Wertpapiere"
+                    subtitle="Aktuell noch in Portfolios vorhandene Positionen"
+                />
+
+                {/* Geschlossene Assets separat darstellen.
+            Diese Assets waren historisch vorhanden, tauchen aktuell aber in keinem
+            Portfolio mehr als aktive Position auf. */}
+                <div style={{ marginTop: 18 }}>
+                    <AssetTable
+                        assets={sortedClosedAssets}
+                        title="Verkaufte Wertpapiere"
+                        subtitle="Historisch gehaltene Assets, die aktuell in keinem Portfolio mehr auftauchen"
+                    />
                 </div>
-
-                <nav className="parqet-nav">
-                    <button className="parqet-nav-item active">Dashboard</button>
-                    <button className="parqet-nav-item">Analyse</button>
-                    <button className="parqet-nav-item">Aktivitaeten</button>
-                    <button className="parqet-nav-item">Dividenden</button>
-                    <button className="parqet-nav-item">Portfolios</button>
-                </nav>
-
-                <div className="parqet-sidebar-footer">
-                    <button
-                        className="parqet-theme-toggle"
-                        onClick={() =>
-                            setTheme((current) => (current === "dark" ? "light" : "dark"))
-                        }
-                    >
-                        Theme: {theme === "dark" ? "Dark" : "Light"}
-                    </button>
-                </div>
-            </aside>
-
-            <div className="parqet-main">
-                <header className="parqet-header">
-                    <div className="parqet-search">Name, WKN, ISIN, ...</div>
-
-                    <div className="parqet-header-actions">
-                        <div className="parqet-user-badge">A</div>
-                        <div className="parqet-user-name">Adrian Roeschl</div>
-                    </div>
-                </header>
-
-                <main className="parqet-content">
-                    <section className="parqet-card parqet-hero-card">
-                        <div className="parqet-hero-left">
-                            <div className="parqet-donut-placeholder">
-                                <div className="parqet-donut-inner">
-                                    {selectedPortfolios.length}
-                                    <br />
-                                    PF
-                                </div>
-                            </div>
-
-                            <div>
-                                <h1 className="parqet-page-title">Konsolidierte Asset View</h1>
-                                <div className="parqet-subtitle">
-                                    {selectedPortfolios.length} Portfolio(s) · {assetCount} Assets · EUR
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="parqet-hero-right parqet-hero-controls" ref={portfolioDropdownRef}>
-                            <div className="parqet-toolbar-link">Verwalten</div>
-
-                            <PortfolioFilter
-                                portfolios={portfolios}
-                                selectedPortfolioIds={selectedPortfolioIds}
-                                draftPortfolioIds={draftPortfolioIds}
-                                isOpen={isPortfolioDropdownOpen}
-                                onToggleOpen={() =>
-                                    setIsPortfolioDropdownOpen((current) => !current)
-                                }
-                                onToggleDraftPortfolio={toggleDraftPortfolio}
-                                onApply={applyPortfolioFilter}
-                                onReset={resetPortfolioFilter}
-                            />
-
-                            <button className="parqet-primary-button" onClick={loadAssets}>
-                                {loadingAssets ? "Lade..." : "Assets laden"}
-                            </button>
-                        </div>
-                    </section>
-
-                    {errorMessage ? (
-                        <section className="parqet-card parqet-error-card">
-                            <div className="parqet-card-title">Fehler</div>
-                            <p>{errorMessage}</p>
-                        </section>
-                    ) : null}
-
-                    <section className="parqet-kpi-grid">
-                        <div className="parqet-card">
-                            <div className="parqet-card-title">Roh-Activities</div>
-                            <div className="parqet-kpi-value">{stats.rawActivityCount}</div>
-                            <div className="parqet-kpi-sub">Alle geladenen Rohdaten</div>
-                        </div>
-
-                        <div className="parqet-card">
-                            <div className="parqet-card-title">Bereinigte Activities</div>
-                            <div className="parqet-kpi-value">{stats.filteredActivityCount}</div>
-                            <div className="parqet-kpi-sub">Nur echte Security-Events</div>
-                        </div>
-
-                        <div className="parqet-card">
-                            <div className="parqet-card-title">Assets</div>
-                            <div className="parqet-kpi-value">{stats.assetCount}</div>
-                            <div className="parqet-kpi-sub">Nach ISIN gruppiert</div>
-                        </div>
-
-                        <div className="parqet-card">
-                            <div className="parqet-card-title">Dividenden netto</div>
-                            <div className="parqet-kpi-value">
-                                {formatCurrency(stats.totalDividendNet)}
-                            </div>
-                            <div className="parqet-kpi-sub">Aus bereinigten Asset-Daten</div>
-                        </div>
-                    </section>
-
-                    <section className="parqet-kpi-grid">
-                        <div className="parqet-card">
-                            <div className="parqet-card-title">Positionswert</div>
-                            <div className="parqet-kpi-value">
-                                {formatCurrency(stats.totalPositionValue)}
-                            </div>
-                            <div className="parqet-kpi-sub">Summe aus Kurs-Proxy</div>
-                        </div>
-
-                        <div className="parqet-card">
-                            <div className="parqet-card-title">Kursgewinn</div>
-                            <div
-                                className={`parqet-kpi-value ${getPnLClass(
-                                    stats.totalUnrealizedPnL
-                                )}`}
-                            >
-                                {formatCurrency(stats.totalUnrealizedPnL)}
-                            </div>
-                            <div className="parqet-kpi-sub">Unrealisiert auf Basis letzter Trades</div>
-                        </div>
-                    </section>
-
-                    <section className="parqet-card">
-                        <div className="parqet-card-title">Wertpapiere</div>
-                        <AssetTable assets={sortedAssets} />
-                    </section>
-                </main>
             </div>
-        </div>
+        </main>
     );
 }
