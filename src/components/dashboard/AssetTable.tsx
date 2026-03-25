@@ -1,13 +1,13 @@
-﻿import { useMemo, useState } from "react";
+﻿// src/components/dashboard/AssetTable.tsx
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { formatCurrency, formatShares, getPnLClass } from "../../lib/format";
 import {
-    formatCurrency,
-    formatShares,
     getAssetDisplayName,
-    getAssetIconText,
+    getAssetInitials,
     getAssetLogoUrl,
     getAssetSubtitle,
-    getPnLClass,
-} from "../../lib/format";
+} from "../../lib/asset-display";
 import type { AssetSummary } from "../../lib/types";
 import styles from "./AssetTable.module.css";
 
@@ -26,8 +26,7 @@ type SortKey =
     | "positionValue"
     | "unrealizedPnL"
     | "totalDividendNet"
-    | "portfolioCount"
-    | "latestActivityAt";
+    | "portfolioCount";
 
 type SortDirection = "asc" | "desc";
 
@@ -46,18 +45,44 @@ type ColumnConfig = {
     key: ColumnKey;
     label: string;
     sortKey?: SortKey;
+    align?: "left" | "right";
 };
 
 const ALL_COLUMNS: ColumnConfig[] = [
-    { key: "asset", label: "NAME", sortKey: "name" },
-    { key: "netShares", label: "ANTEILE", sortKey: "netShares" },
-    { key: "remainingCostBasis", label: "EINSTIEG\nPREIS", sortKey: "remainingCostBasis" },
-    { key: "avgBuyPrice", label: "Ø KAUF", sortKey: "avgBuyPrice" },
-    { key: "price", label: "POSITION\nKURS", sortKey: "price" },
-    { key: "positionValue", label: "POSITIONSWERT", sortKey: "positionValue" },
-    { key: "unrealizedPnL", label: "KURSGEWINN", sortKey: "unrealizedPnL" },
-    { key: "totalDividendNet", label: "DIVIDENDEN", sortKey: "totalDividendNet" },
-    { key: "portfolios", label: "PORTFOLIOS", sortKey: "portfolioCount" },
+    { key: "asset", label: "NAME", sortKey: "name", align: "left" },
+    { key: "netShares", label: "ANTEILE", sortKey: "netShares", align: "right" },
+    {
+        key: "remainingCostBasis",
+        label: "EINSTIEG\nPREIS",
+        sortKey: "remainingCostBasis",
+        align: "right",
+    },
+    { key: "avgBuyPrice", label: "Ø KAUF", sortKey: "avgBuyPrice", align: "right" },
+    { key: "price", label: "POSITION\nKURS", sortKey: "price", align: "right" },
+    {
+        key: "positionValue",
+        label: "POSITIONSWERT",
+        sortKey: "positionValue",
+        align: "right",
+    },
+    {
+        key: "unrealizedPnL",
+        label: "KURSGEWINN",
+        sortKey: "unrealizedPnL",
+        align: "right",
+    },
+    {
+        key: "totalDividendNet",
+        label: "DIVIDENDEN",
+        sortKey: "totalDividendNet",
+        align: "right",
+    },
+    {
+        key: "portfolios",
+        label: "PORTFOLIOS",
+        sortKey: "portfolioCount",
+        align: "left",
+    },
 ];
 
 const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
@@ -88,86 +113,122 @@ function getSortValue(asset: AssetSummary, sortKey: SortKey): string | number | 
     switch (sortKey) {
         case "name":
             return getAssetDisplayName(asset).toLowerCase();
+
         case "netShares":
             return asset.netShares;
+
         case "remainingCostBasis":
             return asset.remainingCostBasis;
+
         case "avgBuyPrice":
             return asset.avgBuyPrice;
+
         case "price":
             return asset.marketPrice ?? asset.latestTradePrice;
+
         case "positionValue":
             return asset.positionValue;
+
         case "unrealizedPnL":
             return asset.unrealizedPnL;
+
         case "totalDividendNet":
             return asset.totalDividendNet;
+
         case "portfolioCount":
             return asset.portfolioNames.length;
-        case "latestActivityAt":
-            return asset.latestActivityAt
-                ? new Date(asset.latestActivityAt).getTime()
-                : null;
+
         default:
             return null;
     }
 }
 
-function SortIndicator({
-    active,
-    direction,
-}: {
-    active: boolean;
-    direction: SortDirection;
-}) {
-    return (
-        <span className={styles.sortIndicator} aria-hidden="true">
-            <span
-                className={`${styles.sortTriangle} ${styles.sortTriangleUp} ${active && direction === "asc" ? styles.sortTriangleActive : ""
-                    }`.trim()}
-            />
-            <span
-                className={`${styles.sortTriangle} ${styles.sortTriangleDown} ${active && direction === "desc" ? styles.sortTriangleActive : ""
-                    }`.trim()}
-            />
-        </span>
-    );
+/**
+ * Keine sichtbaren Dreiecke.
+ * Der aktive Sort-Status wird nur ueber Farbe und Schriftgewicht im Header gezeigt.
+ */
+function getHeaderButtonClassName(
+    isActive: boolean,
+    align: "left" | "right" = "left"
+) {
+    const classes = [styles.thButton];
+
+    if (isActive) {
+        classes.push(styles.thButtonActive);
+    }
+
+    if (align === "right") {
+        classes.push(styles.thButtonRight);
+    }
+
+    return classes.join(" ");
 }
 
+/**
+ * Linke Asset-Zelle im kompakteren Parqet-aehnlichen Stil.
+ *
+ * Wichtig:
+ * - keine "Letzte Aktivitaet"-Zeile mehr
+ * - Titel und Subtitle bewusst enger zusammen
+ * - Subtitle bleibt robust ueber asset-display.ts
+ */
 function AssetIdentityCell({ asset }: { asset: AssetSummary }) {
     const [logoFailed, setLogoFailed] = useState(false);
 
     const displayName = getAssetDisplayName(asset);
     const subtitle = getAssetSubtitle(asset);
     const logoUrl = getAssetLogoUrl(asset);
-    const iconText = getAssetIconText(asset);
+    const initials = getAssetInitials(asset);
 
     return (
-        <div className={styles.assetCell}>
+        <div className={styles.assetIdentity}>
             <div className={styles.assetLogo}>
                 {logoUrl && !logoFailed ? (
                     <img
                         src={logoUrl}
-                        alt={displayName}
+                        alt={`${displayName} Logo`}
                         className={styles.assetLogoImage}
                         onError={() => setLogoFailed(true)}
                     />
                 ) : (
-                    <span className={styles.assetLogoFallback}>{iconText}</span>
+                    <div className={styles.assetLogoFallback} aria-hidden="true">
+                        {initials}
+                    </div>
                 )}
             </div>
 
             <div className={styles.assetText}>
-                <div className={styles.assetName}>{displayName}</div>
-                <div className={styles.assetMeta}>{subtitle || asset.isin}</div>
+                <div className={styles.assetHeadlineRow}>
+                    <span className={styles.assetCategory}>Aktie</span>
+                    <span className={styles.assetMetaDivider}>·</span>
+                    <span className={styles.assetSubtitleInline}>{subtitle}</span>
+                </div>
 
-                {asset.latestActivityAt ? (
-                    <div className={styles.assetMeta}>
-                        Letzte Aktivität:{" "}
-                        {new Date(asset.latestActivityAt).toLocaleDateString("de-DE")}
-                    </div>
-                ) : null}
+                <div className={styles.assetName}>{displayName}</div>
             </div>
+        </div>
+    );
+}
+
+/**
+ * Kompakter Portfolio-Hinweis.
+ *
+ * Solange noch kein echtes portfolioBreakdown vorhanden ist, zeigen wir
+ * die zugeordneten Portfolios bewusst schlank und zeilenbasiert statt
+ * als breite Badge-Wolke. Das wirkt naeher an Parqet und spart Hoehe.
+ */
+function PortfolioListCell({ asset }: { asset: AssetSummary }) {
+    if (asset.portfolioNames.length === 0) {
+        return <span className={styles.portfolioEmpty}>—</span>;
+    }
+
+    return (
+        <div className={styles.portfolioListCompact}>
+            {asset.portfolioNames.map((name) => (
+                <div key={name} className={styles.portfolioLine}>
+                    {name}
+                </div>
+            ))}
         </div>
     );
 }
@@ -182,6 +243,25 @@ export default function AssetTable({
     const [showColumnMenu, setShowColumnMenu] = useState(false);
     const [visibleColumns, setVisibleColumns] =
         useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
+
+    const columnMenuRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (
+                columnMenuRef.current &&
+                !columnMenuRef.current.contains(event.target as Node)
+            ) {
+                setShowColumnMenu(false);
+            }
+        }
+
+        document.addEventListener("mousedown", handleClickOutside);
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     function handleSort(nextSortKey: SortKey) {
         if (sortKey === nextSortKey) {
@@ -252,14 +332,15 @@ export default function AssetTable({
                 </div>
 
                 <div className={styles.headerRight}>
-                    <div className={styles.headerCount}>{sortedAssets.length} Positionen</div>
+                    <span className={styles.headerCount}>{sortedAssets.length} Positionen</span>
 
-                    <div className={styles.columnMenuWrap}>
+                    <div className={styles.columnMenuWrap} ref={columnMenuRef}>
                         <button
                             type="button"
                             className={styles.columnMenuButton}
                             onClick={() => setShowColumnMenu((current) => !current)}
                             aria-label="Spalten auswählen"
+                            aria-expanded={showColumnMenu}
                         >
                             ⚙
                         </button>
@@ -281,10 +362,12 @@ export default function AssetTable({
                                             >
                                                 <span
                                                     className={`${styles.columnCheckbox} ${checked ? styles.columnCheckboxChecked : ""
-                                                        }`.trim()}
+                                                        }`}
+                                                    aria-hidden="true"
                                                 >
                                                     ✓
                                                 </span>
+
                                                 <span>{column.label.replace("\n", " ")}</span>
                                             </button>
                                         );
@@ -304,13 +387,23 @@ export default function AssetTable({
                                 (column) => {
                                     const sortable = Boolean(column.sortKey);
                                     const active = column.sortKey === sortKey;
+                                    const align = column.align ?? "left";
 
                                     return (
-                                        <th key={column.key}>
+                                        <th
+                                            key={column.key}
+                                            aria-sort={
+                                                active
+                                                    ? sortDirection === "asc"
+                                                        ? "ascending"
+                                                        : "descending"
+                                                    : "none"
+                                            }
+                                        >
                                             {sortable ? (
                                                 <button
                                                     type="button"
-                                                    className={styles.thButton}
+                                                    className={getHeaderButtonClassName(active, align)}
                                                     onClick={() => handleSort(column.sortKey!)}
                                                 >
                                                     <span className={styles.thLabel}>
@@ -321,11 +414,6 @@ export default function AssetTable({
                                                             </span>
                                                         ))}
                                                     </span>
-
-                                                    <SortIndicator
-                                                        active={active}
-                                                        direction={active ? sortDirection : "desc"}
-                                                    />
                                                 </button>
                                             ) : (
                                                 <span className={styles.thLabel}>{column.label}</span>
@@ -349,52 +437,60 @@ export default function AssetTable({
                                         </td>
                                     ) : null}
 
-                                    {visibleColumnSet.has("netShares") ? <td>{formatShares(asset.netShares)}</td> : null}
-                                    {visibleColumnSet.has("remainingCostBasis") ? <td>{formatCurrency(asset.remainingCostBasis)}</td> : null}
-                                    {visibleColumnSet.has("avgBuyPrice") ? <td>{formatCurrency(asset.avgBuyPrice)}</td> : null}
-                                    {visibleColumnSet.has("price") ? <td>{formatCurrency(asset.marketPrice ?? asset.latestTradePrice)}</td> : null}
-                                    {visibleColumnSet.has("positionValue") ? <td>{formatCurrency(asset.positionValue)}</td> : null}
+                                    {visibleColumnSet.has("netShares") ? (
+                                        <td className={styles.tdRight}>{formatShares(asset.netShares)}</td>
+                                    ) : null}
+
+                                    {visibleColumnSet.has("remainingCostBasis") ? (
+                                        <td className={styles.tdRight}>
+                                            {formatCurrency(asset.remainingCostBasis)}
+                                        </td>
+                                    ) : null}
+
+                                    {visibleColumnSet.has("avgBuyPrice") ? (
+                                        <td className={styles.tdRight}>
+                                            {formatCurrency(asset.avgBuyPrice)}
+                                        </td>
+                                    ) : null}
+
+                                    {visibleColumnSet.has("price") ? (
+                                        <td className={styles.tdRight}>
+                                            {formatCurrency(asset.marketPrice ?? asset.latestTradePrice)}
+                                        </td>
+                                    ) : null}
+
+                                    {visibleColumnSet.has("positionValue") ? (
+                                        <td className={styles.tdRight}>
+                                            {formatCurrency(asset.positionValue)}
+                                        </td>
+                                    ) : null}
 
                                     {visibleColumnSet.has("unrealizedPnL") ? (
-                                        <td
-                                            className={
-                                                pnlClass === "positive"
-                                                    ? styles.positive
-                                                    : pnlClass === "negative"
-                                                        ? styles.negative
-                                                        : undefined
-                                            }
-                                        >
+                                        <td className={`${styles.tdRight} ${styles[pnlClass] ?? ""}`}>
                                             {formatCurrency(asset.unrealizedPnL)}
                                         </td>
                                     ) : null}
 
-                                    {visibleColumnSet.has("totalDividendNet") ? <td>{formatCurrency(asset.totalDividendNet)}</td> : null}
+                                    {visibleColumnSet.has("totalDividendNet") ? (
+                                        <td className={styles.tdRight}>
+                                            {formatCurrency(asset.totalDividendNet)}
+                                        </td>
+                                    ) : null}
 
                                     {visibleColumnSet.has("portfolios") ? (
                                         <td>
-                                            <div className={styles.badges}>
-                                                {asset.portfolioNames.map((name) => (
-                                                    <span key={name} className={styles.badge}>
-                                                        {name}
-                                                    </span>
-                                                ))}
-                                            </div>
+                                            <PortfolioListCell asset={asset} />
                                         </td>
                                     ) : null}
                                 </tr>
                             );
                         })}
-
-                        {sortedAssets.length === 0 ? (
-                            <tr>
-                                <td colSpan={visibleColumns.length}>
-                                    <div className={styles.empty}>Keine Positionen vorhanden.</div>
-                                </td>
-                            </tr>
-                        ) : null}
                     </tbody>
                 </table>
+
+                {sortedAssets.length === 0 ? (
+                    <div className={styles.empty}>Keine Positionen vorhanden.</div>
+                ) : null}
             </div>
         </section>
     );

@@ -67,7 +67,7 @@ export function buildConsistencyReport(
     const assetsWithWarnings = checks.filter((check) => check.warnings.length > 0);
 
     return {
-        checkedAssets: checks.length,
+        checkedAssets: assets.length,
         warningCount: assetsWithWarnings.length,
         assetsWithWarnings,
     };

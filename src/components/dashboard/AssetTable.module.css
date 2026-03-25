@@ -1,16 +1,30 @@
+/* src/components/dashboard/AssetTable.module.css */
+
+/*
+  AssetTable im kompakteren Parqet-aehnlichen Stil.
+
+  Ziele:
+  - kompaktere Asset-Hauptzeile
+  - keine "Letzte Aktivitaet"-Info mehr
+  - schlankere Portfolio-Darstellung
+  - themenfaehig ueber CSS-Variablen
+  - responsiv, aber weiterhin Desktop-first fuer echte Tabellendaten
+*/
+
 .card {
     border: 1px solid var(--panel-border);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--panel-bg);
     overflow: hidden;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 .header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
-    padding: 16px 18px;
+    gap: 16px;
+    padding: 18px 20px;
     border-bottom: 1px solid var(--panel-border);
 }
 
@@ -18,28 +32,34 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 0;
 }
 
 .headerTitle {
     margin: 0;
-    font-size: 1rem;
+    font-size: clamp(1rem, 0.95rem + 0.2vw, 1.08rem);
     font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.2;
 }
 
 .headerSubtitle {
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     color: var(--text-soft);
+    line-height: 1.4;
 }
 
 .headerRight {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-shrink: 0;
 }
 
 .headerCount {
     font-size: 0.8rem;
     color: var(--text-soft);
+    white-space: nowrap;
 }
 
 .columnMenuWrap {
@@ -47,24 +67,33 @@
 }
 
 .columnMenuButton {
-    width: 30px;
-    height: 30px;
-    border: 1px solid #2b4564;
-    border-radius: 6px;
-    background: #13243d;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    background: var(--page-bg-secondary);
     color: var(--text-main);
     cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, transform 140ms ease, opacity 140ms ease;
 }
+
+    .columnMenuButton:hover {
+        opacity: 0.9;
+    }
+
+    .columnMenuButton:active {
+        transform: translateY(1px);
+    }
 
 .columnMenu {
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    width: 240px;
-    border: 1px solid #2a4262;
+    width: min(240px, calc(100vw - 32px));
+    border: 1px solid var(--panel-border);
     border-radius: 10px;
-    background: #0b1730;
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+    background: var(--panel-bg);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
     overflow: hidden;
     z-index: 40;
 }
@@ -94,22 +123,24 @@
     text-align: left;
     cursor: pointer;
     font-size: 0.78rem;
+    transition: background 120ms ease;
 }
 
     .columnMenuItem:hover {
-        background: rgba(255, 255, 255, 0.03);
+        background: var(--page-bg-secondary);
     }
 
 .columnCheckbox {
     width: 15px;
     height: 15px;
-    border: 1px solid #516784;
+    border: 1px solid var(--panel-border);
     border-radius: 4px;
     display: grid;
     place-items: center;
     color: transparent;
     font-size: 0.68rem;
     font-weight: 700;
+    flex-shrink: 0;
 }
 
 .columnCheckboxChecked {
@@ -120,36 +151,55 @@
 
 .wrap {
     overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .table {
     width: 100%;
     min-width: 1120px;
+    border-collapse: collapse;
 }
 
     .table thead th {
         text-align: left;
         padding: 0;
-        font-size: 0.76rem;
+        font-size: 0.72rem;
         font-weight: 600;
         color: var(--text-soft);
         border-bottom: 1px solid var(--panel-border);
-        background: #12233b;
+        background: var(--page-bg-secondary);
         white-space: nowrap;
+        position: relative;
     }
 
 .thButton {
     width: 100%;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 8px;
-    padding: 14px 18px;
+    padding: 12px 16px;
     border: 0;
     background: transparent;
     color: inherit;
     cursor: pointer;
     text-align: left;
+    transition: color 120ms ease, opacity 120ms ease;
+}
+
+    .thButton:hover {
+        color: var(--text-main);
+    }
+
+.thButtonActive {
+    color: var(--text-main);
+    font-weight: 700;
+}
+
+.thButtonRight {
+    justify-content: flex-end;
+    text-align: right;
 }
 
 .thLabel {
@@ -157,64 +207,40 @@
     letter-spacing: 0.04em;
 }
 
-.sortIndicator {
-    width: 10px;
-    min-width: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-}
-
-.sortTriangle {
-    width: 0;
-    height: 0;
-    opacity: 0.55;
-}
-
-.sortTriangleUp {
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 5px solid #d9e4f7;
-}
-
-.sortTriangleDown {
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #d9e4f7;
-}
-
-.sortTriangleActive {
-    opacity: 1;
-}
-
 .table tbody td {
-    padding: 16px 18px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    vertical-align: top;
-    font-size: 0.86rem;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--panel-border);
+    vertical-align: middle;
+    font-size: 0.85rem;
+    color: var(--text-main);
 }
 
 .table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--page-bg-secondary);
 }
 
-.assetCell {
+.tdRight {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.assetIdentity {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
+    min-width: 0;
 }
 
 .assetLogo {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
     border-radius: 999px;
     overflow: hidden;
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, #213d69, #1aa9b4);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(135deg, var(--page-bg-secondary), var(--accent-cyan));
+    border: 1px solid var(--panel-border);
 }
 
 .assetLogoImage {
@@ -224,40 +250,64 @@
 }
 
 .assetLogoFallback {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     color: white;
 }
 
 .assetText {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.assetHeadlineRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.76rem;
+    color: var(--text-soft);
+    line-height: 1.2;
+}
+
+.assetCategory {
+    flex-shrink: 0;
+}
+
+.assetMetaDivider {
+    flex-shrink: 0;
+}
+
+.assetSubtitleInline {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .assetName {
     font-weight: 700;
-    margin-bottom: 4px;
     color: var(--text-main);
+    line-height: 1.22;
+    word-break: break-word;
 }
 
-.assetMeta {
-    font-size: 0.76rem;
-    color: var(--text-soft);
-    line-height: 1.45;
-}
-
-.badges {
+.portfolioListCompact {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-direction: column;
+    gap: 4px;
 }
 
-.badge {
-    padding: 5px 9px;
-    border-radius: 6px;
-    font-size: 0.72rem;
-    color: #d4e6ff;
-    background: #162845;
-    border: 1px solid #27405f;
+.portfolioLine {
+    font-size: 0.76rem;
+    line-height: 1.3;
+    color: var(--text-soft);
+}
+
+.portfolioEmpty {
+    color: var(--text-soft);
 }
 
 .positive {
@@ -271,7 +321,114 @@
 }
 
 .empty {
-    padding: 24px 0;
+    padding: 24px 16px;
     text-align: center;
     color: var(--text-soft);
+}
+
+/*
+  Tablet-Bereich:
+  - Header darf umbrechen
+  - Abstaende etwas reduzieren
+*/
+@media (max-width: 960px) {
+    .header {
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .headerRight {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .thButton {
+        padding: 11px 14px;
+    }
+
+    .table tbody td {
+        padding: 11px 14px;
+    }
+}
+
+/*
+  Kleine Screens:
+  - Header klar untereinander
+  - Menue darf nicht aus dem Viewport laufen
+  - Tabelle bleibt scrollbar
+  - kompaktere Asset-Darstellung
+*/
+@media (max-width: 640px) {
+    .card {
+        border-radius: 10px;
+    }
+
+    .header {
+        padding: 14px;
+        gap: 12px;
+    }
+
+    .headerTitle {
+        font-size: 0.98rem;
+    }
+
+    .headerSubtitle {
+        font-size: 0.78rem;
+    }
+
+    .headerRight {
+        gap: 10px;
+    }
+
+    .headerCount {
+        font-size: 0.76rem;
+    }
+
+    .columnMenu {
+        right: 0;
+        left: auto;
+        width: min(240px, calc(100vw - 28px));
+    }
+
+    .table thead th {
+        font-size: 0.7rem;
+    }
+
+    .thButton {
+        padding: 10px 12px;
+    }
+
+    .table tbody td {
+        padding: 10px 12px;
+        font-size: 0.8rem;
+    }
+
+    .assetIdentity {
+        gap: 10px;
+    }
+
+    .assetLogo {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+    }
+
+    .assetHeadlineRow {
+        font-size: 0.72rem;
+    }
+
+    .assetName {
+        font-size: 0.84rem;
+    }
+
+    .portfolioLine {
+        font-size: 0.72rem;
+    }
+
+    .empty {
+        padding: 20px 12px;
+        font-size: 0.82rem;
+    }
 }

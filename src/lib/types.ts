@@ -1,75 +1,94 @@
-// Zentrale Typen fuer Dashboard, API-Antworten und aggregierte Assets.
+// src/lib/types.ts
 
 export type Portfolio = {
     id: string;
     name: string;
-    currency: string | null;
-    createdAt: string | null;
-    distinctBrokers?: string[];
+    currency: string;
+    createdAt: string;
+    distinctBrokers: string[];
 };
 
-export type PortfoliosApiResponse = {
-    ok: boolean;
-    portfolios?: {
-        items: Portfolio[];
-    };
-    message?: string;
+export type AssetMetadata = {
+    name?: string | null;
+    assetName?: string | null;
+    displayName?: string | null;
+    title?: string | null;
+
+    symbol?: string | null;
+    ticker?: string | null;
+    tickerSymbol?: string | null;
+
+    wkn?: string | null;
+
+    marketPrice?: number | null;
+    marketPriceAt?: string | null;
+    marketPriceSource?: string | null;
+
+    currency?: string | null;
+    assetType?: string | null;
+    exchange?: string | null;
 };
 
 export type AssetSummary = {
-    // Primärer Schlüssel fuer die Aggregation ueber mehrere Portfolios hinweg
     isin: string;
 
-    // Metadaten aus Activities / externer Metadatenquelle
-    name: string | null;
-    symbol: string | null;
-    wkn: string | null;
-
-    // Kontext: In welchen Portfolios kommt das Asset aktuell vor?
     portfolioIds: string[];
     portfolioNames: string[];
 
-    // Einfache Zähler zur Kontrolle / Analyse
     activityCount: number;
     buyCount: number;
     sellCount: number;
     dividendCount: number;
 
-    // Mengen- und Investmentdaten
     totalBoughtShares: number;
     totalSoldShares: number;
     netShares: number;
+
     totalInvestedGross: number;
     remainingCostBasis: number;
     avgBuyPrice: number | null;
 
-    // Preisfelder
     latestTradePrice: number | null;
-    marketPrice: number | null;
-    marketPriceAt: string | null;
-    marketPriceSource: string | null;
+    marketPrice?: number | null;
+    marketPriceAt?: string | null;
+    marketPriceSource?: string | null;
 
-    // Bewertungsdaten
     positionValue: number | null;
     unrealizedPnL: number | null;
 
-    // Cashflow
     totalDividendNet: number;
 
-    // Letzte Aktivität fuer Sortierung / Anzeige
     latestActivityAt: string | null;
+
+    name?: string | null;
+    assetName?: string | null;
+    displayName?: string | null;
+    title?: string | null;
+
+    symbol?: string | null;
+    ticker?: string | null;
+    tickerSymbol?: string | null;
+
+    wkn?: string | null;
+
+    metadata?: Partial<AssetMetadata> | null;
+    externalMetadata?: Partial<AssetMetadata> | null;
+    assetMeta?: Partial<AssetMetadata> | null;
 };
 
 export type AssetConsistencyCheck = {
     isin: string;
-    name: string | null;
+    name?: string | null;
+
     reconstructedNetShares: number;
     remainingCostBasis: number;
+
     isNegativeShares: boolean;
     isNegativeCostBasis: boolean;
     hasZeroSharesButCostBasis: boolean;
     hasSharesButNoBuyHistory: boolean;
     soldMoreThanBought: boolean;
+
     warnings: string[];
 };
 
@@ -79,20 +98,34 @@ export type ConsistencyReport = {
     assetsWithWarnings: AssetConsistencyCheck[];
 };
 
+export type PortfoliosApiResponse = {
+    ok: boolean;
+    portfolios?: {
+        items: Portfolio[];
+    };
+    message?: string;
+    details?: string;
+};
+
 export type AssetsApiResponse = {
     ok: boolean;
-    activeAssets?: AssetSummary[];
-    closedAssets?: AssetSummary[];
+
     rawActivityCount?: number;
     filteredActivityCount?: number;
+
     assetCount?: number;
     activeAssetCount?: number;
     closedAssetCount?: number;
-    refreshed?: boolean;
-    requestedPortfolioIds?: string[];
-    consistencyReport?: ConsistencyReport;
+
+    assets?: AssetSummary[];
+    activeAssets?: AssetSummary[];
+    closedAssets?: AssetSummary[];
+
     generatedAt?: string;
+    consistencyReport?: ConsistencyReport;
+
     message?: string;
+    details?: string;
 };
 
 export type DashboardStats = {
