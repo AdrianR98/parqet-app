@@ -1,0 +1,155 @@
+.topbar {
+    height: 62px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 18px 0 20px;
+    border-bottom: 1px solid var(--panel-border);
+    background: #09162b;
+}
+
+.brand {
+    min-width: 170px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.brandLogo {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: white;
+    background: linear-gradient(135deg, var(--accent-cyan), #1794c9);
+}
+
+.brandText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.brandTitle {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.brandSubtitle {
+    font-size: 0.72rem;
+    color: var(--text-soft);
+    line-height: 1;
+}
+
+.searchWrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    max-width: 440px;
+    height: 38px;
+    border: 1px solid #1d2c47;
+    border-radius: 8px;
+    background: #0a1630;
+    overflow: hidden;
+}
+
+.searchIcon {
+    width: 38px;
+    display: grid;
+    place-items: center;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.searchInput {
+    flex: 1;
+    height: 100%;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--text-main);
+    padding-right: 10px;
+}
+
+    .searchInput::placeholder {
+        color: var(--text-muted);
+    }
+
+.right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.themeButton {
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #27405f;
+    border-radius: 8px;
+    background: #11203a;
+    color: var(--text-soft);
+    cursor: pointer;
+}
+
+.user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: white;
+    background: #5b6fd6;
+}
+
+.userText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.userBadge {
+    width: fit-content;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(19, 212, 154, 0.16);
+    color: var(--accent-green);
+    font-size: 0.62rem;
+    font-weight: 700;
+}
+
+.userName {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+@media (max-width: 900px) {
+    .topbar {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 12px;
+    }
+
+    .searchWrap {
+        order: 3;
+        max-width: none;
+        width: 100%;
+    }
+
+    .right {
+        margin-left: 0;
+    }
+}

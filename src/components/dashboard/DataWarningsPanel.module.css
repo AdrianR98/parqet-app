@@ -1,0 +1,55 @@
+﻿.card {
+    border: 1px solid #2a4262;
+    border-radius: 10px;
+    background: #10203a;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.title {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+}
+
+.item {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.assetName {
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.assetMeta {
+    font-size: 11px;
+    color: #8aa0b8;
+}
+
+.flag {
+    font-size: 11px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(255,157,46,0.1);
+    border: 1px solid rgba(255,157,46,0.3);
+}
+
+.metric {
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.warningItem {
+    font-size: 12px;
+    color: #8aa0b8;
+}

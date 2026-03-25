@@ -1,0 +1,225 @@
+.hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 18px 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.left {
+    display: flex;
+    gap: 22px;
+    align-items: center;
+}
+
+.ringPlaceholder {
+    width: 168px;
+    height: 168px;
+    min-width: 168px;
+    border-radius: 50%;
+    position: relative;
+    background: radial-gradient(circle at center, #10203a 0 56px, transparent 57px), conic-gradient( #2698bd 0deg 52deg, #6776c8 52deg 88deg, #7a66b7 88deg 116deg, #b15fa9 116deg 148deg, #f4667f 148deg 188deg, #ff8e3c 188deg 220deg, #ffbf24 220deg 246deg, #378cb9 246deg 276deg, #955fa8 276deg 308deg, #ef5d8f 308deg 338deg, #344964 338deg 360deg );
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.ringValue {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 0 22px;
+    text-align: center;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.copy {
+    min-width: 320px;
+}
+
+.title {
+    margin: 0 0 6px;
+    font-size: 1.08rem;
+    font-weight: 700;
+}
+
+.metaRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--text-soft);
+    font-size: 0.8rem;
+    margin-bottom: 14px;
+}
+
+.separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 12px 0 18px;
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(170px, 1fr));
+    gap: 24px;
+}
+
+.metricBlock {
+    min-width: 0;
+}
+
+.metricLabel {
+    font-size: 0.8rem;
+    color: var(--text-main);
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.metricMainValue {
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 10px;
+}
+
+.metricMainValueSmall {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 10px;
+}
+
+.positive {
+    color: var(--positive);
+}
+
+.metricRows {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.metricRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 0.78rem;
+    color: var(--text-soft);
+}
+
+.metricKey {
+    color: var(--text-soft);
+}
+
+.metricVal {
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.warningTileButton {
+    margin-top: 18px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    max-width: 420px;
+}
+
+.warningTile {
+    padding: 12px 14px;
+    border: 1px solid #2a4262;
+    border-radius: 10px;
+    background: #10203a;
+    transition: border-color 0.15s ease;
+}
+
+.warningTileButton:hover .warningTile {
+    border-color: var(--accent-cyan);
+}
+
+.warningTileLabel {
+    font-size: 0.76rem;
+    color: var(--text-soft);
+    margin-bottom: 6px;
+}
+
+.warningTileValue {
+    font-size: 0.92rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.warningTileOk {
+    color: var(--positive);
+}
+
+.warningTileAlert {
+    color: var(--accent-orange);
+}
+
+.warningTileHint {
+    font-size: 0.76rem;
+    color: var(--text-soft);
+    line-height: 1.45;
+}
+
+.right {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding-top: 6px;
+}
+
+.refreshWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.refreshButton {
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+    border: 1px solid #2b4564;
+    border-radius: 8px;
+    background: #13243d;
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+    .refreshButton:hover {
+        border-color: var(--accent-cyan);
+        color: white;
+    }
+
+.refreshStaleWarning {
+    font-size: 0.74rem;
+    color: var(--accent-orange);
+}
+
+@media (max-width: 1100px) {
+    .hero {
+        flex-direction: column;
+    }
+
+    .left {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .right {
+        flex-wrap: wrap;
+    }
+}
