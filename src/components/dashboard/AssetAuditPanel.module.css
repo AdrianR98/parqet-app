@@ -1,0 +1,175 @@
+﻿/* ============================================================
+   src/components/dashboard/AssetAuditPanel.module.css
+   ------------------------------------------------------------
+   Asset Audit Drawer
+   - voll ans globale Theme gekoppelt
+   - kein Blur, damit Lesbarkeit stabil bleibt
+   - funktioniert in Dark + Light ueber useTheme()
+   ============================================================ */
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(0, 0, 0, 0.28);
+    z-index: 60;
+}
+
+.panel {
+    width: min(760px, 100%);
+    height: 100%;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border-left: 1px solid var(--panel-border);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.eyebrow {
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+}
+
+.title {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.2;
+    color: var(--text-main);
+}
+
+.metaRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-soft);
+}
+
+.closeButton {
+    border: 1px solid var(--panel-border);
+    background: transparent;
+    color: var(--text-main);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+}
+
+    .closeButton:hover {
+        border-color: var(--accent-cyan);
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+.section {
+    margin-top: 28px;
+}
+
+.sectionTitle {
+    margin: 0 0 14px 0;
+    font-size: 18px;
+    color: var(--text-main);
+}
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.kpiCard {
+    border: 1px solid var(--panel-border);
+    background: transparent;
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.kpiLabel {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.warningCard {
+    border: 1px solid rgba(255, 102, 122, 0.35);
+    background: rgba(255, 102, 122, 0.08);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+}
+
+.warningSeverity {
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--negative);
+}
+
+.summaryRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--text-soft);
+}
+
+.activityList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.activityCard {
+    border: 1px solid var(--panel-border);
+    background: transparent;
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.activityTopRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: var(--text-main);
+}
+
+.activityGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.placeholder {
+    border: 1px dashed var(--panel-border);
+    border-radius: 12px;
+    padding: 14px;
+    color: var(--text-soft);
+}
+
+.errorBox {
+    border: 1px solid rgba(255, 102, 122, 0.45);
+    background: rgba(255, 102, 122, 0.08);
+    border-radius: 12px;
+    padding: 14px;
+    color: var(--negative);
+}

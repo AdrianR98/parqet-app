@@ -1,6 +1,15 @@
+// ============================================================
 // src/lib/activity-types.ts
+// ------------------------------------------------------------
+// Gemeinsame Typen fuer den Activity-/Parsing-Layer.
+//
+// Wichtig:
+// - tolerant gegen unterschiedliche Parqet-API-Formen
+// - zentrale Typnutzung aus src/lib/types.ts
+// - keine parallelen Metadata-Typdefinitionen
+// ============================================================
 
-import type { AssetMetadata as AssetMetadataRecord, AssetSummary } from "../types";
+import type { AssetMetadata, AssetSummary } from "../types";
 
 /**
  * Portfolio-Typ aus der Parqet Connect API.
@@ -52,6 +61,7 @@ export type Activity = {
     symbol?: string;
     wkn?: string;
     ticker?: string;
+    tickerSymbol?: string;
     displayName?: string;
 
     asset?: {
@@ -61,6 +71,7 @@ export type Activity = {
         symbol?: string;
         wkn?: string;
         ticker?: string;
+        tickerSymbol?: string;
         displayName?: string;
         shortName?: string;
         longName?: string;
@@ -74,6 +85,7 @@ export type Activity = {
         symbol?: string;
         wkn?: string;
         ticker?: string;
+        tickerSymbol?: string;
         displayName?: string;
         shortName?: string;
         longName?: string;
@@ -91,18 +103,12 @@ export type Activity = {
  */
 export type AssetAccumulator = AssetSummary;
 
-/**
- * Minimale Metadaten-Sicht pro ISIN fuer Parsing-/Mapping-Zwecke.
- *
- * Wir leiten den Typ bewusst aus dem zentralen AssetMetadata-Typ ab,
- * damit es keine parallelen, voneinander abweichenden Definitionen gibt.
- */
-export type AssetMetadata = Pick<
-    AssetMetadataRecord,
-    "name" | "symbol" | "wkn"
->;
+// ============================================================
+// Asset metadata map by ISIN
+// ------------------------------------------------------------
+// Zentrale Metadata-Struktur fuer serverseitiges Enrichment.
+// Nutzt denselben AssetMetadata-Typ wie UI und Cache,
+// damit keine Typabweichungen zwischen API und Frontend entstehen.
+// ============================================================
 
-/**
- * Nachschlageobjekt fuer Metadaten je ISIN.
- */
 export type AssetMetadataByIsin = Record<string, AssetMetadata>;

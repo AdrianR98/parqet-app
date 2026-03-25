@@ -1,0 +1,108 @@
+﻿/* ============================================================
+   src/components/dashboard/CollapsibleAssetTableSection.module.css
+   ------------------------------------------------------------
+   Parqet-nahe, schlanke Section fuer Asset-Tabellen
+   - kompakter Header
+   - minimaler Abstand zur Tabelle
+   - voll ans globale Theme gekoppelt
+   ============================================================ */
+
+.section {
+    width: 100%;
+}
+
+.header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 4px;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text-main);
+}
+
+.left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chevron {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-soft);
+    font-size: 18px;
+    line-height: 1;
+    transition: transform 0.18s ease, color 0.16s ease;
+}
+
+.header:hover .chevron {
+    color: var(--accent-cyan);
+}
+
+.chevronOpen {
+    transform: rotate(180deg);
+}
+
+.titleWrap {
+    min-width: 0;
+}
+
+.title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text-main);
+}
+
+.subtitle {
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--text-soft);
+}
+
+.right {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.value {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text-main);
+}
+
+.pnl {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.positive {
+    color: var(--positive);
+}
+
+.negative {
+    color: var(--negative);
+}
+
+.neutral {
+    color: var(--text-soft);
+}
+
+.content {
+    margin-top: 4px;
+}

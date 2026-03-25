@@ -11,9 +11,14 @@ export type Portfolio = {
     distinctBrokers: string[];
 };
 
-/**
- * Optionale Asset-Metadaten aus lokaler oder externer Quelle.
- */
+// ============================================================
+// Asset metadata
+// ------------------------------------------------------------
+// Lokale / externe Zusatzdaten zu einem Asset.
+// Diese Struktur wird sowohl im API-Enrichment als auch
+// im Client-Cache verwendet.
+// ============================================================
+
 export type AssetMetadata = {
     name?: string | null;
     assetName?: string | null;
@@ -33,6 +38,9 @@ export type AssetMetadata = {
     currency?: string | null;
     assetType?: string | null;
     exchange?: string | null;
+
+    csvName?: string | null;
+    metadataSource?: string | null;
 };
 
 /**
@@ -103,7 +111,7 @@ export type AssetSummary = {
     wkn?: string | null;
 
     metadata?: Partial<AssetMetadata> | null;
-    externalMetadata?: Partial<AssetMetadata> | null;
+    externalMetadata?: AssetMetadata | null;
     assetMeta?: Partial<AssetMetadata> | null;
 };
 

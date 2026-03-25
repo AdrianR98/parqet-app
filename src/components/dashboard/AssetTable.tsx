@@ -9,12 +9,15 @@ import {
     getAssetSubtitle,
 } from "../../lib/asset-display";
 import type { AssetSummary, PortfolioPosition } from "../../lib/types";
+import SyncedHorizontalScroll from "./SyncedHorizontalScroll";
 import styles from "./AssetTable.module.css";
 
 type AssetTableProps = {
     assets: AssetSummary[];
     title?: string;
     subtitle?: string;
+    onAuditAsset?: (asset: AssetSummary) => void;
+    hideHeader?: boolean;
 };
 
 type SortKey =
@@ -46,44 +49,54 @@ type ColumnConfig = {
     label: string;
     sortKey?: SortKey;
     align?: "left" | "right";
+    isFixed?: boolean;
+    width: number;
 };
 
 const ALL_COLUMNS: ColumnConfig[] = [
-    { key: "asset", label: "NAME", sortKey: "name", align: "left" },
-    { key: "netShares", label: "ANTEILE", sortKey: "netShares", align: "right" },
+    { key: "asset", label: "NAME", sortKey: "name", align: "left", isFixed: true, width: 360 },
+    { key: "netShares", label: "ANTEILE", sortKey: "netShares", align: "right", width: 120 },
     {
         key: "remainingCostBasis",
         label: "EINSTIEG\nPREIS",
         sortKey: "remainingCostBasis",
         align: "right",
+        width: 128,
     },
-    { key: "avgBuyPrice", label: "Ø KAUF", sortKey: "avgBuyPrice", align: "right" },
-    { key: "price", label: "POSITION\nKURS", sortKey: "price", align: "right" },
+    { key: "avgBuyPrice", label: "Ø KAUF", sortKey: "avgBuyPrice", align: "right", width: 110 },
+    { key: "price", label: "POSITION\nKURS", sortKey: "price", align: "right", width: 128 },
     {
         key: "positionValue",
         label: "POSITIONSWERT",
         sortKey: "positionValue",
         align: "right",
+        isFixed: true,
+        width: 140,
     },
     {
         key: "unrealizedPnL",
         label: "KURSGEWINN",
         sortKey: "unrealizedPnL",
         align: "right",
+        width: 122,
     },
     {
         key: "totalDividendNet",
         label: "DIVIDENDEN",
         sortKey: "totalDividendNet",
         align: "right",
+        width: 110,
     },
     {
         key: "portfolios",
         label: "PORTFOLIOS",
         sortKey: "portfolioCount",
         align: "left",
+        width: 150,
     },
 ];
+
+const FIXED_COLUMNS: ColumnKey[] = ["asset", "positionValue"];
 
 const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
     "asset",
@@ -96,6 +109,13 @@ const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
     "totalDividendNet",
     "portfolios",
 ];
+
+const EDIT_ACTION_WIDTH = 124;
+const EXPAND_ACTION_WIDTH = 52;
+
+// ============================================================
+// Safety helper for portfolio breakdown
+// ============================================================
 
 function getSafePortfolioBreakdown(asset: AssetSummary): PortfolioPosition[] {
     if (Array.isArray(asset.portfolioBreakdown)) {
@@ -213,15 +233,9 @@ function getPortfolioShareOfAsset(
 
 function AssetIdentityCell({
     asset,
-    isExpanded,
-    canExpand,
-    onToggleExpand,
     portfolioCount,
 }: {
     asset: AssetSummary;
-    isExpanded: boolean;
-    canExpand: boolean;
-    onToggleExpand: () => void;
     portfolioCount: number;
 }) {
     const [logoFailed, setLogoFailed] = useState(false);
@@ -233,26 +247,6 @@ function AssetIdentityCell({
 
     return (
         <div className={styles.assetIdentity}>
-            {canExpand ? (
-                <button
-                    type="button"
-                    className={styles.expandButton}
-                    onClick={onToggleExpand}
-                    aria-label={isExpanded ? "Portfolio-Details einklappen" : "Portfolio-Details aufklappen"}
-                    aria-expanded={isExpanded}
-                >
-                    <span
-                        className={`${styles.expandChevron} ${isExpanded ? styles.expandChevronOpen : ""
-                            }`}
-                        aria-hidden="true"
-                    >
-                        ▾
-                    </span>
-                </button>
-            ) : (
-                <div className={styles.expandSpacer} aria-hidden="true" />
-            )}
-
             <div className={styles.assetLogo}>
                 {logoUrl && !logoFailed ? (
                     <img
@@ -273,6 +267,7 @@ function AssetIdentityCell({
                     <span className={styles.assetCategory}>Aktie</span>
                     <span className={styles.assetMetaDivider}>·</span>
                     <span className={styles.assetSubtitleInline}>{subtitle}</span>
+
                     {portfolioCount > 1 ? (
                         <>
                             <span className={styles.assetMetaDivider}>·</span>
@@ -283,7 +278,9 @@ function AssetIdentityCell({
                     ) : null}
                 </div>
 
-                <div className={styles.assetName}>{displayName}</div>
+                <div className={styles.assetNameRow}>
+                    <div className={styles.assetName}>{displayName}</div>
+                </div>
             </div>
         </div>
     );
@@ -314,26 +311,6 @@ function PortfolioRowIdentityCell({
                 <div className={styles.portfolioName}>{portfolio.portfolioName}</div>
             </div>
         </div>
-    );
-}
-
-function renderMainAssetCell(
-    asset: AssetSummary,
-    expandedIsins: Set<string>,
-    toggleExpanded: (isin: string) => void
-) {
-    const portfolioBreakdown = getSafePortfolioBreakdown(asset);
-    const canExpand = portfolioBreakdown.length > 1;
-    const isExpanded = expandedIsins.has(asset.isin);
-
-    return (
-        <AssetIdentityCell
-            asset={asset}
-            isExpanded={isExpanded}
-            canExpand={canExpand}
-            onToggleExpand={() => toggleExpanded(asset.isin)}
-            portfolioCount={portfolioBreakdown.length}
-        />
     );
 }
 
@@ -370,8 +347,10 @@ function renderPortfolioListSummary(asset: AssetSummary) {
 
 export default function AssetTable({
     assets,
+    onAuditAsset,
     title = "Assets",
     subtitle = "Konsolidierte Positionen über alle ausgewählten Portfolios",
+    hideHeader = false,
 }: AssetTableProps) {
     const [sortKey, setSortKey] = useState<SortKey>("positionValue");
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -381,6 +360,7 @@ export default function AssetTable({
     const [expandedIsins, setExpandedIsins] = useState<Set<string>>(new Set());
 
     const columnMenuRef = useRef<HTMLDivElement | null>(null);
+    const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -410,18 +390,20 @@ export default function AssetTable({
     }
 
     function toggleColumn(columnKey: ColumnKey) {
+        if (FIXED_COLUMNS.includes(columnKey)) {
+            return;
+        }
+
         setVisibleColumns((current) => {
             if (current.includes(columnKey)) {
-                if (current.length === 1) {
-                    return current;
-                }
-
                 return current.filter((key) => key !== columnKey);
             }
 
-            return ALL_COLUMNS.filter((column) =>
-                [...current, columnKey].includes(column.key)
-            ).map((column) => column.key);
+            const merged = [...current, columnKey];
+
+            return ALL_COLUMNS.filter((column) => merged.includes(column.key)).map(
+                (column) => column.key
+            );
         });
     }
 
@@ -440,6 +422,29 @@ export default function AssetTable({
     }
 
     const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
+
+    const visibleColumnsConfig = useMemo(
+        () => ALL_COLUMNS.filter((column) => visibleColumnSet.has(column.key)),
+        [visibleColumnSet]
+    );
+
+    const selectableColumns = useMemo(
+        () => ALL_COLUMNS.filter((column) => !column.isFixed),
+        []
+    );
+
+    const tableMinWidth = useMemo(() => {
+        const visibleColumnsWidth = visibleColumnsConfig.reduce(
+            (sum, column) => sum + column.width,
+            0
+        );
+
+        const actionColumnsWidth = EDIT_ACTION_WIDTH + EXPAND_ACTION_WIDTH;
+
+        return visibleColumnsWidth + actionColumnsWidth;
+    }, [visibleColumnsConfig]);
+
+    const showTopScrollbar = tableMinWidth > 1100;
 
     const sortedAssets = useMemo(() => {
         const cloned = [...assets];
@@ -473,105 +478,129 @@ export default function AssetTable({
         return cloned;
     }, [assets, sortKey, sortDirection]);
 
-    return (
-        <section className={styles.card}>
-            <div className={styles.header}>
-                <div className={styles.headerTitleWrap}>
-                    <h2 className={styles.headerTitle}>{title}</h2>
-                    <div className={styles.headerSubtitle}>{subtitle}</div>
-                </div>
+    const controls = (
+        <div className={styles.headerRight}>
+            <div className={styles.columnMenuWrap} ref={columnMenuRef}>
+                <button
+                    type="button"
+                    className={styles.columnMenuButton}
+                    onClick={() => setShowColumnMenu((current) => !current)}
+                    aria-label="Spalten auswählen"
+                    aria-expanded={showColumnMenu}
+                >
+                    ⚙
+                </button>
 
-                <div className={styles.headerRight}>
-                    <span className={styles.headerCount}>{sortedAssets.length} Positionen</span>
+                {showColumnMenu ? (
+                    <div className={styles.columnMenu}>
+                        <div className={styles.columnMenuTitle}>Spalten</div>
 
-                    <div className={styles.columnMenuWrap} ref={columnMenuRef}>
-                        <button
-                            type="button"
-                            className={styles.columnMenuButton}
-                            onClick={() => setShowColumnMenu((current) => !current)}
-                            aria-label="Spalten auswählen"
-                            aria-expanded={showColumnMenu}
-                        >
-                            ⚙
-                        </button>
+                        <div className={styles.columnMenuList}>
+                            {selectableColumns.map((column) => {
+                                const checked = visibleColumnSet.has(column.key);
 
-                        {showColumnMenu ? (
-                            <div className={styles.columnMenu}>
-                                <div className={styles.columnMenuTitle}>Spalten</div>
+                                return (
+                                    <button
+                                        key={column.key}
+                                        type="button"
+                                        className={styles.columnMenuItem}
+                                        onClick={() => toggleColumn(column.key)}
+                                    >
+                                        <span
+                                            className={`${styles.columnCheckbox} ${checked ? styles.columnCheckboxChecked : ""
+                                                }`}
+                                            aria-hidden="true"
+                                        >
+                                            ✓
+                                        </span>
 
-                                <div className={styles.columnMenuList}>
-                                    {ALL_COLUMNS.map((column) => {
-                                        const checked = visibleColumnSet.has(column.key);
-
-                                        return (
-                                            <button
-                                                key={column.key}
-                                                type="button"
-                                                className={styles.columnMenuItem}
-                                                onClick={() => toggleColumn(column.key)}
-                                            >
-                                                <span
-                                                    className={`${styles.columnCheckbox} ${checked ? styles.columnCheckboxChecked : ""
-                                                        }`}
-                                                    aria-hidden="true"
-                                                >
-                                                    ✓
-                                                </span>
-
-                                                <span>{column.label.replace("\n", " ")}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ) : null}
+                                        <span>{column.label.replace("\n", " ")}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
+                ) : null}
             </div>
+        </div>
+    );
 
-            <div className={styles.wrap}>
-                <table className={styles.table}>
+    return (
+        <section
+            className={`${styles.tableShell} ${hideHeader ? styles.tableShellFlat : ""}`}
+        >
+            {!hideHeader ? (
+                <div className={styles.header}>
+                    <div className={styles.headerTitleWrap}>
+                        <h2 className={styles.headerTitle}>{title}</h2>
+                        <div className={styles.headerSubtitle}>{subtitle}</div>
+                    </div>
+
+                    {controls}
+                </div>
+            ) : (
+                <div className={styles.compactToolbar}>{controls}</div>
+            )}
+
+            {showTopScrollbar ? (
+                <SyncedHorizontalScroll scrollTargetRef={tableScrollRef} />
+            ) : null}
+
+            <div className={styles.wrap} ref={tableScrollRef}>
+                <table className={styles.table} style={{ minWidth: `${tableMinWidth}px` }}>
                     <thead>
                         <tr>
-                            {ALL_COLUMNS.filter((column) => visibleColumnSet.has(column.key)).map(
-                                (column) => {
-                                    const sortable = Boolean(column.sortKey);
-                                    const active = column.sortKey === sortKey;
-                                    const align = column.align ?? "left";
+                            {visibleColumnsConfig.map((column) => {
+                                const sortable = Boolean(column.sortKey);
+                                const active = column.sortKey === sortKey;
+                                const align = column.align ?? "left";
 
-                                    return (
-                                        <th
-                                            key={column.key}
-                                            aria-sort={
-                                                active
-                                                    ? sortDirection === "asc"
-                                                        ? "ascending"
-                                                        : "descending"
-                                                    : "none"
-                                            }
-                                        >
-                                            {sortable ? (
-                                                <button
-                                                    type="button"
-                                                    className={getHeaderButtonClassName(active, align)}
-                                                    onClick={() => handleSort(column.sortKey!)}
-                                                >
-                                                    <span className={styles.thLabel}>
-                                                        {column.label.split("\n").map((part, index, arr) => (
+                                return (
+                                    <th
+                                        key={column.key}
+                                        style={{ width: `${column.width}px` }}
+                                        aria-sort={
+                                            active
+                                                ? sortDirection === "asc"
+                                                    ? "ascending"
+                                                    : "descending"
+                                                : "none"
+                                        }
+                                    >
+                                        {sortable ? (
+                                            <button
+                                                type="button"
+                                                className={getHeaderButtonClassName(active, align)}
+                                                onClick={() => handleSort(column.sortKey!)}
+                                            >
+                                                <span className={styles.thLabel}>
+                                                    {column.label
+                                                        .split("\n")
+                                                        .map((part, index, arr) => (
                                                             <span key={`${column.key}-${index}`}>
                                                                 {part}
                                                                 {index < arr.length - 1 ? <br /> : null}
                                                             </span>
                                                         ))}
-                                                    </span>
-                                                </button>
-                                            ) : (
-                                                <span className={styles.thLabel}>{column.label}</span>
-                                            )}
-                                        </th>
-                                    );
-                                }
-                            )}
+                                                </span>
+                                            </button>
+                                        ) : (
+                                            <span className={styles.thLabel}>{column.label}</span>
+                                        )}
+                                    </th>
+                                );
+                            })}
+
+                            <th
+                                className={styles.editHeaderCell}
+                                style={{ width: `${EDIT_ACTION_WIDTH}px` }}
+                                aria-label="Bearbeiten"
+                            />
+                            <th
+                                className={styles.actionsHeaderCell}
+                                style={{ width: `${EXPAND_ACTION_WIDTH}px` }}
+                                aria-label="Aufklappen"
+                            />
                         </tr>
                     </thead>
 
@@ -587,12 +616,17 @@ export default function AssetTable({
                                     <tr className={styles.assetMainRow}>
                                         {visibleColumnSet.has("asset") ? (
                                             <td>
-                                                {renderMainAssetCell(asset, expandedIsins, toggleExpanded)}
+                                                <AssetIdentityCell
+                                                    asset={asset}
+                                                    portfolioCount={portfolioBreakdown.length}
+                                                />
                                             </td>
                                         ) : null}
 
                                         {visibleColumnSet.has("netShares") ? (
-                                            <td className={styles.tdRight}>{formatShares(asset.netShares)}</td>
+                                            <td className={styles.tdRight}>
+                                                {formatShares(asset.netShares)}
+                                            </td>
                                         ) : null}
 
                                         {visibleColumnSet.has("remainingCostBasis") ? (
@@ -609,7 +643,9 @@ export default function AssetTable({
 
                                         {visibleColumnSet.has("price") ? (
                                             <td className={styles.tdRight}>
-                                                {formatCurrency(asset.marketPrice ?? asset.latestTradePrice)}
+                                                {formatCurrency(
+                                                    asset.marketPrice ?? asset.latestTradePrice
+                                                )}
                                             </td>
                                         ) : null}
 
@@ -634,11 +670,51 @@ export default function AssetTable({
                                         {visibleColumnSet.has("portfolios") ? (
                                             <td>{renderPortfolioListSummary(asset)}</td>
                                         ) : null}
+
+                                        <td className={styles.editCell}>
+                                            {onAuditAsset ? (
+                                                <button
+                                                    type="button"
+                                                    className={styles.auditButton}
+                                                    onClick={() => onAuditAsset(asset)}
+                                                >
+                                                    Bearbeiten
+                                                </button>
+                                            ) : null}
+                                        </td>
+
+                                        <td className={styles.actionsCell}>
+                                            {portfolioBreakdown.length > 1 ? (
+                                                <button
+                                                    type="button"
+                                                    className={styles.expandButton}
+                                                    onClick={() => toggleExpanded(asset.isin)}
+                                                    aria-label={
+                                                        isExpanded
+                                                            ? "Portfolio-Details einklappen"
+                                                            : "Portfolio-Details aufklappen"
+                                                    }
+                                                    aria-expanded={isExpanded}
+                                                >
+                                                    <span
+                                                        className={`${styles.expandChevron} ${isExpanded ? styles.expandChevronOpen : ""
+                                                            }`}
+                                                        aria-hidden="true"
+                                                    >
+                                                        ▾
+                                                    </span>
+                                                </button>
+                                            ) : (
+                                                <div className={styles.expandSpacer} aria-hidden="true" />
+                                            )}
+                                        </td>
                                     </tr>
 
                                     {showPortfolioRows
                                         ? portfolioBreakdown.map((portfolio) => {
-                                            const portfolioPnLClass = getPnLClass(portfolio.unrealizedPnL);
+                                            const portfolioPnLClass = getPnLClass(
+                                                portfolio.unrealizedPnL
+                                            );
 
                                             return (
                                                 <tr
@@ -647,7 +723,10 @@ export default function AssetTable({
                                                 >
                                                     {visibleColumnSet.has("asset") ? (
                                                         <td>
-                                                            <PortfolioRowIdentityCell portfolio={portfolio} asset={asset} />
+                                                            <PortfolioRowIdentityCell
+                                                                portfolio={portfolio}
+                                                                asset={asset}
+                                                            />
                                                         </td>
                                                     ) : null}
 
@@ -672,7 +751,8 @@ export default function AssetTable({
                                                     {visibleColumnSet.has("price") ? (
                                                         <td className={`${styles.tdRight} ${styles.subtleValue}`}>
                                                             {formatCurrency(
-                                                                portfolio.marketPrice ?? portfolio.latestTradePrice
+                                                                portfolio.marketPrice ??
+                                                                portfolio.latestTradePrice
                                                             )}
                                                         </td>
                                                     ) : null}
@@ -705,6 +785,9 @@ export default function AssetTable({
                                                             </span>
                                                         </td>
                                                     ) : null}
+
+                                                    <td className={styles.editCell} />
+                                                    <td className={styles.actionsCell} />
                                                 </tr>
                                             );
                                         })

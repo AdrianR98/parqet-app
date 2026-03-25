@@ -124,6 +124,13 @@ export async function GET(req: Request) {
                     return {
                         ...asset,
 
+                        // ====================================================
+                        // Name Prioritaet:
+                        // 1) CSV / lokale Metadata
+                        // 2) bereits erkannter Activity-Name
+                        // 3) sonstige Fallbacks
+                        // ====================================================
+
                         name:
                             metadata?.name ??
                             asset.name ??
@@ -148,9 +155,11 @@ export async function GET(req: Request) {
                         externalMetadata: {
                             ...(asset.externalMetadata ?? {}),
                             ...(metadata ?? {}),
+                            metadataSource: metadata?.name ? "csv" : "activity",
                         },
                     };
                 }
+         
             );
 
             const activeAssets = enrichedAssets.filter(

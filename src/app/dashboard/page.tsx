@@ -1,24 +1,55 @@
+// ============================================================
 // src/app/page.tsx
+// ------------------------------------------------------------
+// Dashboard Root Page
+//
+// Verantwortlichkeiten:
+// - Komposition der UI-Komponenten
+// - Verbindung von Hooks (State + Daten)
+// - KEINE Business-Logik
+//
+// Datenfluss:
+// useDashboardData()
+//   -> liefert alle aggregierten Daten + Handler
+//
+// useTheme()
+//   -> UI Theme Steuerung
+//
+// WICHTIG:
+// - Assets werden bereits im Hook gefiltert / sortiert
+// - Diese Seite rendert nur noch
+// ============================================================
 
 "use client";
 
-import AssetTable from "../../components/dashboard/AssetTable";
-import DataWarningsPanel from "../../components/dashboard/DataWarningsPanel";
 import HeaderBar from "../../components/dashboard/HeaderBar";
 import HeroSection from "../../components/dashboard/HeroSection";
 import StatsGrid from "../../components/dashboard/StatsGrid";
+import DataWarningsPanel from "../../components/dashboard/DataWarningsPanel";
+import CollapsibleAssetTableSection from "../../components/dashboard/CollapsibleAssetTableSection";
+import AssetAuditPanel from "../../components/dashboard/AssetAuditPanel";
+
 import { useDashboardData } from "../../hooks/use-dashboard-data";
 import { useTheme } from "../../hooks/use-theme";
+import { useAssetAudit } from "../../hooks/use-asset-audit";
 
-/**
- * Dashboard-Seite.
- *
- * Die Seite konzentriert sich auf Rendering und Komposition.
- * Datenlogik liegt im Hook useDashboardData(),
- * Theme-Logik liegt im Hook useTheme().
- */
+import { useState } from "react";
+import type { AssetSummary } from "../../lib/types";
+
+// ============================================================
+// Component
+// ============================================================
+
 export default function DashboardPage() {
+    // ========================================================
+    // Theme
+    // ========================================================
+
     const { theme, toggleTheme, themeStyle } = useTheme();
+
+    // ========================================================
+    // Dashboard Data (zentrale Quelle)
+    // ========================================================
 
     const {
         portfolios,
@@ -53,15 +84,61 @@ export default function DashboardPage() {
         loadAssets,
     } = useDashboardData();
 
+    // ========================================================
+    // Asset Audit State (Detailansicht / Debugging)
+    // ========================================================
+
+    const [auditAsset, setAuditAsset] = useState<AssetSummary | null>(null);
+
+    const {
+        data: auditData,
+        loading: loadingAudit,
+        error: auditError,
+        loadAudit,
+        resetAudit,
+    } = useAssetAudit();
+
+    // ========================================================
+    // Handler: Asset Audit öffnen
+    // ========================================================
+
+    async function handleAuditAsset(asset: AssetSummary) {
+        setAuditAsset(asset);
+
+        await loadAudit({
+            isin: asset.isin,
+            portfolioIds: selectedPortfolioIds,
+        });
+    }
+
+    // ========================================================
+    // Handler: Asset Audit schließen
+    // ========================================================
+
+    function handleCloseAudit() {
+        setAuditAsset(null);
+        resetAudit();
+    }
+
+    // ========================================================
+    // Render
+    // ========================================================
+
     return (
         <main
             className={`parqet-page theme-${theme}`}
             style={themeStyle}
             data-theme={theme}
         >
+            {/* ====================================================
+               Header / Theme Toggle
+            ==================================================== */}
             <HeaderBar theme={theme} onToggleTheme={toggleTheme} />
 
             <div className="parqet-content" ref={portfolioDropdownRef}>
+                {/* ====================================================
+                   Hero Section (Portfolio Auswahl + KPIs)
+                ==================================================== */}
                 <HeroSection
                     portfolios={portfolios}
                     selectedPortfolioIds={selectedPortfolioIds}
@@ -70,7 +147,9 @@ export default function DashboardPage() {
                     assetCount={assetCount}
                     loadingAssets={loadingAssets}
                     isPortfolioDropdownOpen={isPortfolioDropdownOpen}
-                    onToggleOpen={() => setIsPortfolioDropdownOpen((current) => !current)}
+                    onToggleOpen={() =>
+                        setIsPortfolioDropdownOpen((current) => !current)
+                    }
                     onToggleDraftPortfolio={toggleDraftPortfolio}
                     onApply={applyPortfolioFilter}
                     onReset={resetPortfolioFilter}
@@ -83,11 +162,19 @@ export default function DashboardPage() {
                     lastUpdatedAt={lastUpdatedAt}
                     showStaleWarning={showStaleWarning}
                     showWarningsPanel={showWarningsPanel}
-                    onToggleWarningsPanel={() => setShowWarningsPanel((current) => !current)}
+                    onToggleWarningsPanel={() =>
+                        setShowWarningsPanel((current) => !current)
+                    }
                 />
 
+                {/* ====================================================
+                   Ladezustand / Fehler
+                ==================================================== */}
+
                 {loadingPortfolios ? (
-                    <div className="parqet-info-banner">Portfolios werden geladen...</div>
+                    <div className="parqet-info-banner">
+                        Portfolios werden geladen...
+                    </div>
                 ) : null}
 
                 {errorMessage ? (
@@ -96,6 +183,10 @@ export default function DashboardPage() {
                         <div>{errorMessage}</div>
                     </div>
                 ) : null}
+
+                {/* ====================================================
+                   Warnings Panel (Reconciliation + Consistency)
+                ==================================================== */}
 
                 {showWarningsPanel ? (
                     <div style={{ marginBottom: 18 }}>
@@ -106,22 +197,60 @@ export default function DashboardPage() {
                     </div>
                 ) : null}
 
+                {/* ====================================================
+                   KPI Grid
+                ==================================================== */}
+
                 <StatsGrid stats={stats} />
 
-                <AssetTable
+                {/* ====================================================
+                   ACTIVE ASSETS
+                   ----------------------------------------------------
+                   Offene Positionen (netShares > 0)
+                ==================================================== */}
+
+                <CollapsibleAssetTableSection
+                    title="Wertpapiere"
+                    subtitle="Offene Positionen über alle ausgewählten Portfolios"
                     assets={sortedActiveAssets}
-                    title="Assets"
-                    subtitle="Aktuell noch in Portfolios vorhandene Positionen"
+                    defaultExpanded={true}
+                    onAuditAssetAction={handleAuditAsset}
                 />
 
-                <div style={{ marginTop: 18 }}>
-                    <AssetTable
+                {/* ====================================================
+                   CLOSED ASSETS
+                   ----------------------------------------------------
+                   Historische / verkaufte Positionen (netShares <= 0)
+                ==================================================== */}
+
+                <div style={{ marginTop: 20 }}>
+                    <CollapsibleAssetTableSection
+                        title="Geschlossene Wertpapiere"
+                        subtitle="Positionen ohne aktuellen Bestand"
                         assets={sortedClosedAssets}
-                        title="Geschlossene Assets"
-                        subtitle="Historisch gehaltene Assets, die aktuell in keinem Portfolio mehr auftauchen"
+                        defaultExpanded={false}
+                        onAuditAssetAction={handleAuditAsset}
                     />
                 </div>
             </div>
+
+            {/* ====================================================
+               ASSET AUDIT PANEL (Overlay)
+               ----------------------------------------------------
+               Detailansicht für:
+               - Activities
+               - Reconciliation Issues
+               - zukünftige Overrides
+            ==================================================== */}
+
+            <AssetAuditPanel
+                asset={auditAsset}
+                data={auditData}
+                loading={loadingAudit}
+                error={auditError}
+                isOpen={Boolean(auditAsset)}
+                onCloseAction={handleCloseAudit}
+            />
         </main>
     );
 }

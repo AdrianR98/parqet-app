@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 // GENERATED FILE - DO NOT EDIT MANUALLY
 // Source: Deine Gesamtansicht-20260324-214212.csv
-// Generated at: 2026-03-25T18:44:41.375Z
+// Generated at: 2026-03-25T18:54:04.823Z
 // ============================================================
 
 import type { AssetMetadata } from "../types";

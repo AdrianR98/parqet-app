@@ -1,15 +1,15 @@
 ﻿// ============================================================
 // scripts/generate-asset-metadata-from-csv.mjs
 // ------------------------------------------------------------
-// Erzeugt aus einer lokalen CSV-Datei eine generierte
-// TypeScript-Mapping-Datei:
+// Erzeugt aus einer lokalen CSV-Datei:
 //
-//   ISIN -> { name: holdingName }
+// 1) src/lib/generated/csv-asset-metadata.ts
+// 2) src/lib/generated/csv-asset-metadata-report.ts
 //
 // Ziel:
+// - lokale ISIN -> Name Mapping-Datei
+// - transparenter Validierungsreport
 // - keine externe API notwendig
-// - reproduzierbarer Build-Schritt
-// - gleiche Metadata-Quelle für Server + Client
 // ============================================================
 
 import fs from "node:fs";
@@ -17,12 +17,6 @@ import path from "node:path";
 
 // ============================================================
 // Konfiguration
-// ------------------------------------------------------------
-// Lege deine CSV lokal hier ab:
-// data/Deine Gesamtansicht-20260324-214212.csv
-//
-// Die generierte TS-Datei landet hier:
-// src/lib/generated/csv-asset-metadata.ts
 // ============================================================
 
 const INPUT_FILE = path.resolve(
@@ -30,13 +24,18 @@ const INPUT_FILE = path.resolve(
     "data/Deine Gesamtansicht-20260324-214212.csv"
 );
 
-const OUTPUT_FILE = path.resolve(
+const OUTPUT_METADATA_FILE = path.resolve(
     process.cwd(),
     "src/lib/generated/csv-asset-metadata.ts"
 );
 
+const OUTPUT_REPORT_FILE = path.resolve(
+    process.cwd(),
+    "src/lib/generated/csv-asset-metadata-report.ts"
+);
+
 // ============================================================
-// Hilfsfunktionen
+// Helper
 // ============================================================
 
 function normalizeIsin(value) {
@@ -50,13 +49,17 @@ function normalizeIsin(value) {
         return null;
     }
 
-    // Einfache ISIN-Prüfung:
-    // 2 Buchstaben + 9 alphanumerische Zeichen + 1 Prüfziffer
-    if (!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(normalized)) {
-        return null;
+    return normalized;
+}
+
+function isValidIsin(value) {
+    const normalized = normalizeIsin(value);
+
+    if (!normalized) {
+        return false;
     }
 
-    return normalized;
+    return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(normalized);
 }
 
 function sanitizeName(value) {
@@ -79,10 +82,6 @@ function sanitizeName(value) {
     return normalized;
 }
 
-/**
- * Parst eine einzelne CSV-Zeile mit Semikolon-Trennung
- * und Unterstützung für doppelte Quotes.
- */
 function parseSemicolonCsvLine(line) {
     const result = [];
     let current = "";
@@ -146,6 +145,11 @@ function parseCsv(content) {
     return rows;
 }
 
+function writeTsFile(filePath, content) {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content, "utf8");
+}
+
 // ============================================================
 // Hauptlogik
 // ============================================================
@@ -164,24 +168,45 @@ function main() {
     const metadataByIsin = new Map();
     const conflicts = [];
 
-    for (const row of rows) {
-        const isin = normalizeIsin(row.identifier);
-        const holdingName = sanitizeName(row.holdingname);
+    let skippedRowsMissingIdentifier = 0;
+    let skippedRowsInvalidIdentifier = 0;
+    let skippedRowsMissingHoldingName = 0;
+    let usableRows = 0;
 
-        if (!isin || !holdingName) {
+    for (const row of rows) {
+        const rawIdentifier = row.identifier;
+        const rawHoldingName = row.holdingname;
+
+        const normalizedIsin = normalizeIsin(rawIdentifier);
+        const holdingName = sanitizeName(rawHoldingName);
+
+        if (!normalizedIsin) {
+            skippedRowsMissingIdentifier += 1;
             continue;
         }
 
-        const existing = metadataByIsin.get(isin);
+        if (!isValidIsin(normalizedIsin)) {
+            skippedRowsInvalidIdentifier += 1;
+            continue;
+        }
+
+        if (!holdingName) {
+            skippedRowsMissingHoldingName += 1;
+            continue;
+        }
+
+        usableRows += 1;
+
+        const existing = metadataByIsin.get(normalizedIsin);
 
         if (!existing) {
-            metadataByIsin.set(isin, holdingName);
+            metadataByIsin.set(normalizedIsin, holdingName);
             continue;
         }
 
         if (existing !== holdingName) {
             conflicts.push({
-                isin,
+                isin: normalizedIsin,
                 existing,
                 incoming: holdingName,
             });
@@ -192,11 +217,23 @@ function main() {
         a.localeCompare(b, "en")
     );
 
-    const objectLiteral = Object.fromEntries(
+    const metadataObject = Object.fromEntries(
         sortedEntries.map(([isin, name]) => [isin, { name }])
     );
 
-    const fileContent = `// ============================================================
+    const reportObject = {
+        sourceFileName: path.basename(INPUT_FILE),
+        generatedAt: new Date().toISOString(),
+        totalRows: rows.length,
+        usableRows,
+        uniqueIsins: sortedEntries.length,
+        skippedRowsMissingIdentifier,
+        skippedRowsInvalidIdentifier,
+        skippedRowsMissingHoldingName,
+        conflictingIsins: conflicts,
+    };
+
+    const metadataFileContent = `// ============================================================
 // src/lib/generated/csv-asset-metadata.ts
 // ------------------------------------------------------------
 // GENERATED FILE - DO NOT EDIT MANUALLY
@@ -207,20 +244,67 @@ function main() {
 import type { AssetMetadata } from "../types";
 
 export const CSV_ASSET_METADATA: Record<string, AssetMetadata> = ${JSON.stringify(
-        objectLiteral,
+        metadataObject,
         null,
         4
     )};
 `;
 
-    fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
-    fs.writeFileSync(OUTPUT_FILE, fileContent, "utf8");
+    const reportFileContent = `// ============================================================
+// src/lib/generated/csv-asset-metadata-report.ts
+// ------------------------------------------------------------
+// GENERATED FILE - DO NOT EDIT MANUALLY
+// Source: ${path.basename(INPUT_FILE)}
+// Generated at: ${new Date().toISOString()}
+// ============================================================
 
-    console.log(`Generated metadata entries: ${sortedEntries.length}`);
+export type CsvAssetMetadataReport = {
+    sourceFileName: string;
+    generatedAt: string;
+    totalRows: number;
+    usableRows: number;
+    uniqueIsins: number;
+    skippedRowsMissingIdentifier: number;
+    skippedRowsInvalidIdentifier: number;
+    skippedRowsMissingHoldingName: number;
+    conflictingIsins: Array<{
+        isin: string;
+        existing: string;
+        incoming: string;
+    }>;
+};
 
-    if (conflicts.length > 0) {
-        console.warn("Conflicting holding names detected for some ISINs:");
-        console.warn(JSON.stringify(conflicts, null, 2));
+export const CSV_ASSET_METADATA_REPORT: CsvAssetMetadataReport = ${JSON.stringify(
+        reportObject,
+        null,
+        4
+    )};
+`;
+
+    writeTsFile(OUTPUT_METADATA_FILE, metadataFileContent);
+    writeTsFile(OUTPUT_REPORT_FILE, reportFileContent);
+
+    // ========================================================
+    // Konsolenreport
+    // ========================================================
+
+    console.log("============================================================");
+    console.log("CSV Asset Metadata Generation Report");
+    console.log("============================================================");
+    console.log(`Source file:                  ${reportObject.sourceFileName}`);
+    console.log(`Generated at:                 ${reportObject.generatedAt}`);
+    console.log(`Total rows:                   ${reportObject.totalRows}`);
+    console.log(`Usable rows:                  ${reportObject.usableRows}`);
+    console.log(`Unique ISINs:                 ${reportObject.uniqueIsins}`);
+    console.log(`Missing identifier rows:      ${reportObject.skippedRowsMissingIdentifier}`);
+    console.log(`Invalid identifier rows:      ${reportObject.skippedRowsInvalidIdentifier}`);
+    console.log(`Missing holdingName rows:     ${reportObject.skippedRowsMissingHoldingName}`);
+    console.log(`Conflicting ISINs:            ${reportObject.conflictingIsins.length}`);
+    console.log("============================================================");
+
+    if (reportObject.conflictingIsins.length > 0) {
+        console.warn("Conflicts detected:");
+        console.warn(JSON.stringify(reportObject.conflictingIsins, null, 2));
     } else {
         console.log("No ISIN name conflicts detected.");
     }

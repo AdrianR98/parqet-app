@@ -65,3 +65,16 @@ img {
     display: block;
     max-width: 100%;
 }
+.parqet-content {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 20px 28px;
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    .parqet-content {
+        padding: 0 12px 20px;
+    }
+}

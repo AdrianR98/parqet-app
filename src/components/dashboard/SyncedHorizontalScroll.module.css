@@ -1,0 +1,18 @@
+﻿/* ============================================================
+   src/components/dashboard/SyncedHorizontalScroll.module.css
+   ------------------------------------------------------------
+   Theme-basierte obere Scrollbar fuer breite Tabellen
+   ============================================================ */
+
+.topScroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 14px;
+    margin-bottom: 8px;
+    border-radius: 999px;
+    scrollbar-color: var(--panel-border) transparent;
+}
+
+.topScrollContent {
+    height: 1px;
+}
