@@ -1,159 +1,280 @@
-﻿/* src/components/dashboard/DataWarningsPanel.module.css */
+/* ============================================================
+   src/components/dashboard/DataWarningsPanel.module.css
+   ------------------------------------------------------------
+   Warnings Drawer
+   - analog zur Bearbeiten-Logik als rechter Drawer
+   - kompakter, ruhiger, parqet-naeher
+   ============================================================ */
 
-/* -------------------------------------------------------------------------- */
-/* Basis Panel                                                                */
-/* -------------------------------------------------------------------------- */
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(6, 11, 20, 0.34);
+    cursor: default;
+}
 
 .panel {
-    border: 1px solid var(--panel-border);
-    border-radius: 10px;
+    position: relative;
+    width: min(620px, 100%);
+    height: 100%;
+    overflow-y: auto;
+    padding: 22px 22px 28px;
+    border-left: 1px solid var(--panel-border);
     background: var(--panel-bg);
-    overflow: hidden;
+    box-shadow: var(--shadow-soft);
 }
-
-/* -------------------------------------------------------------------------- */
-/* Header                                                                     */
-/* -------------------------------------------------------------------------- */
 
 .header {
-    padding: 16px 18px;
-    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
 }
 
-.title {
-    font-size: 0.95rem;
+.eyebrow {
+    margin-bottom: 6px;
+    font-size: 0.68rem;
     font-weight: 700;
-    margin-bottom: 4px;
-}
-
-.subtitle {
-    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--text-soft);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Sections (Reconciliation / Consistency)                                    */
-/* -------------------------------------------------------------------------- */
+.title {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.2;
+    color: var(--text-main);
+}
+
+.subtitle {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-soft);
+}
+
+.closeButton {
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.closeButton:hover {
+    border-color: var(--accent-cyan);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.summaryBar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.summaryItem {
+    padding: 12px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.summaryLabel {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.72rem;
+    color: var(--text-soft);
+}
+
+.summaryValue {
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.emptyState {
+    padding: 16px;
+    border: 1px dashed var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.emptyStateTitle {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.emptyStateText {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-soft);
+}
 
 .section {
-    border-top: 1px solid rgba(255,255,255,0.04);
+    margin-top: 18px;
 }
 
 .sectionHeader {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 12px 18px;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
 }
 
 .sectionTitle {
-    font-size: 0.82rem;
+    margin: 0;
+    font-size: 0.9rem;
     font-weight: 700;
+    color: var(--text-main);
 }
 
-.sectionCount {
-    font-size: 0.72rem;
+.sectionSubtitle {
+    margin-top: 4px;
+    font-size: 0.74rem;
+    line-height: 1.45;
     color: var(--text-soft);
 }
 
-/* -------------------------------------------------------------------------- */
-/* List + Rows                                                                */
-/* -------------------------------------------------------------------------- */
+.sectionCount {
+    min-width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
 
 .list {
     display: flex;
     flex-direction: column;
+    gap: 10px;
 }
 
-.row {
-    padding: 14px 18px;
-    border-top: 1px solid rgba(255,255,255,0.04);
+.item {
+    padding: 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
 }
 
-.rowMain {
+.itemTopRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.itemAssetBlock {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
+    min-width: 0;
 }
 
-.rowHeadline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.rowText {
-    font-size: 0.78rem;
-    color: var(--text-soft);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Asset / ISIN                                                               */
-/* -------------------------------------------------------------------------- */
-
-.assetName {
-    font-weight: 700;
+.itemAssetPrimary {
     font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-main);
+    word-break: break-word;
 }
 
-.isinMeta {
-    font-size: 0.7rem;
+.itemAssetSecondary {
+    font-size: 0.72rem;
     color: var(--text-soft);
 }
 
-.isinLabel {
+.itemText {
+    margin-top: 8px;
     font-size: 0.78rem;
-    font-weight: 600;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Metrics                                                                    */
-/* -------------------------------------------------------------------------- */
-
-.metrics {
-    display: flex;
-    gap: 12px;
-    font-size: 0.74rem;
+    line-height: 1.55;
     color: var(--text-soft);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Warning List                                                               */
-/* -------------------------------------------------------------------------- */
+.metricRow {
+    margin-top: 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.76rem;
+    color: var(--text-soft);
+}
+
+.metricRow strong {
+    color: var(--text-main);
+}
 
 .warningList {
-    margin: 6px 0 0;
-    padding-left: 16px;
-    font-size: 0.74rem;
+    margin: 10px 0 0;
+    padding-left: 18px;
+    font-size: 0.76rem;
+    line-height: 1.55;
     color: var(--text-soft);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Severity Badges                                                            */
-/* -------------------------------------------------------------------------- */
+.warningList li + li {
+    margin-top: 4px;
+}
 
 .severityBadge {
-    font-size: 0.65rem;
-    padding: 3px 6px;
-    border-radius: 6px;
+    flex: 0 0 auto;
+    font-size: 0.66rem;
+    font-weight: 700;
+    padding: 4px 7px;
+    border-radius: 7px;
     border: 1px solid;
 }
 
 .severityError {
-    background: rgba(255, 80, 80, 0.1);
-    border-color: rgba(255, 80, 80, 0.4);
-    color: #ff6b6b;
+    background: rgba(255, 102, 122, 0.1);
+    border-color: rgba(255, 102, 122, 0.4);
+    color: var(--negative);
 }
 
 .severityWarning {
     background: rgba(255, 157, 46, 0.1);
     border-color: rgba(255, 157, 46, 0.4);
-    color: #ff9d2e;
+    color: var(--accent-orange);
 }
 
 .severityInfo {
-    background: rgba(100, 160, 255, 0.1);
-    border-color: rgba(100, 160, 255, 0.4);
+    background: rgba(122, 162, 255, 0.1);
+    border-color: rgba(122, 162, 255, 0.4);
     color: #7aa2ff;
+}
+
+@media (max-width: 700px) {
+    .panel {
+        padding: 18px 14px 24px;
+    }
+
+    .summaryBar {
+        grid-template-columns: 1fr;
+    }
+
+    .header,
+    .itemTopRow {
+        flex-direction: column;
+    }
 }

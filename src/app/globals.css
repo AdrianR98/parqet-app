@@ -1,10 +1,11 @@
-﻿/* Globale Basis:
+/* ============================================================
+   Globale Basis
+   ------------------------------------------------------------
    - Reset
    - Theme-Variablen
-   - Grundlayout fuer die ganze App
-
-   Alles Komponenten-spezifische wandert in CSS-Module.
-*/
+   - globale Layout-Rails
+   - kompaktere, parqet-orientierte Flächen
+   ============================================================ */
 
 :root {
     --page-bg: #081325;
@@ -65,16 +66,61 @@ img {
     display: block;
     max-width: 100%;
 }
+
+.parqet-page {
+    min-height: 100vh;
+    background: linear-gradient(180deg, var(--page-bg), var(--page-bg-2));
+    color: var(--text-main);
+}
+
 .parqet-content {
     width: 100%;
-    max-width: 1600px;
+    max-width: 1520px;
     margin: 0 auto;
-    padding: 0 20px 28px;
-    box-sizing: border-box;
+    padding: 16px 24px 28px;
+}
+
+.parqet-dashboard-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.parqet-section-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.parqet-info-banner,
+.parqet-error-banner {
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--panel-border);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.parqet-info-banner {
+    color: var(--text-soft);
+}
+
+.parqet-error-banner {
+    color: var(--text-main);
+    border-color: rgba(255, 102, 122, 0.35);
+    background: rgba(255, 102, 122, 0.08);
 }
 
 @media (max-width: 768px) {
     .parqet-content {
-        padding: 0 12px 20px;
+        padding: 12px 12px 20px;
+    }
+
+    .parqet-dashboard-stack {
+        gap: 10px;
+    }
+
+    .parqet-section-stack {
+        gap: 12px;
     }
 }

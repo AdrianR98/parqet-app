@@ -185,10 +185,6 @@ export function useDashboardData(): UseDashboardDataResult {
         setConsistencyReport(cached.consistencyReport ?? null);
         setLastUpdatedAt(cached.lastUpdatedAt ?? null);
 
-        if ((cached.consistencyReport?.warningCount ?? 0) > 0) {
-            setShowWarningsPanel(true);
-        }
-
         if (cached.selectedPortfolioIds?.length) {
             hydratePortfolioSelection(cached.selectedPortfolioIds);
         }
@@ -246,13 +242,6 @@ export function useDashboardData(): UseDashboardDataResult {
             setConsistencyReport(data.consistencyReport ?? null);
             setReconciliationWarnings(data.reconciliationWarnings ?? []);
             setLastUpdatedAt(nextLastUpdatedAt);
-
-            if (
-                (data.consistencyReport?.warningCount ?? 0) > 0 ||
-                (data.reconciliationWarnings?.length ?? 0) > 0
-            ) {
-                setShowWarningsPanel(true);
-            }
 
             const cachePayload: DashboardCache = {
                 activeAssets: nextActiveAssets,

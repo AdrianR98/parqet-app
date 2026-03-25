@@ -1,11 +1,11 @@
 .topbar {
-    height: 62px;
+    height: 56px;
     display: flex;
     align-items: center;
-    gap: 18px;
-    padding: 0 18px 0 20px;
+    gap: 16px;
+    padding: 0 20px;
     border-bottom: 1px solid var(--panel-border);
-    background: #09162b;
+    background: rgba(0, 0, 0, 0.12);
 }
 
 .brand {
@@ -16,13 +16,13 @@
 }
 
 .brandLogo {
-    width: 28px;
-    height: 28px;
-    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
     display: grid;
     place-items: center;
     font-weight: 700;
-    font-size: 0.92rem;
+    font-size: 0.82rem;
     color: white;
     background: linear-gradient(135deg, var(--accent-cyan), #1794c9);
 }
@@ -34,13 +34,13 @@
 }
 
 .brandTitle {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 700;
     line-height: 1;
 }
 
 .brandSubtitle {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     color: var(--text-soft);
     line-height: 1;
 }
@@ -49,20 +49,20 @@
     flex: 1;
     display: flex;
     align-items: center;
-    max-width: 440px;
-    height: 38px;
-    border: 1px solid #1d2c47;
+    max-width: 420px;
+    height: 34px;
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
-    background: #0a1630;
+    background: rgba(255, 255, 255, 0.03);
     overflow: hidden;
 }
 
 .searchIcon {
-    width: 38px;
+    width: 34px;
     display: grid;
     place-items: center;
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
 }
 
 .searchInput {
@@ -75,9 +75,9 @@
     padding-right: 10px;
 }
 
-    .searchInput::placeholder {
-        color: var(--text-muted);
-    }
+.searchInput::placeholder {
+    color: var(--text-muted);
+}
 
 .right {
     margin-left: auto;
@@ -87,13 +87,18 @@
 }
 
 .themeButton {
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid #27405f;
+    height: 32px;
+    padding: 0 11px;
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
-    background: #11203a;
+    background: rgba(255, 255, 255, 0.03);
     color: var(--text-soft);
     cursor: pointer;
+}
+
+.themeButton:hover {
+    border-color: var(--accent-cyan);
+    color: var(--text-main);
 }
 
 .user {
@@ -126,12 +131,12 @@
     border-radius: 999px;
     background: rgba(19, 212, 154, 0.16);
     color: var(--accent-green);
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     font-weight: 700;
 }
 
 .userName {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-main);
 }

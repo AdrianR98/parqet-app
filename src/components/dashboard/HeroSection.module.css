@@ -1,324 +1,236 @@
 .hero {
     display: flex;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 18px 10px 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
 }
 
-.left {
+.topRow {
     display: flex;
-    gap: 22px;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.titleBlock {
+    min-width: 0;
+}
+
+.eyebrow {
+    margin-bottom: 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+}
+
+.title {
+    margin: 0;
+    font-size: 1.28rem;
+    line-height: 1.2;
+    color: var(--text-main);
+}
+
+.subtitle {
+    margin: 8px 0 0;
+    max-width: 760px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--text-soft);
+}
+
+.topActions {
+    display: flex;
+    gap: 10px;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
-.ringPlaceholder {
-    width: 168px;
-    height: 168px;
-    min-width: 168px;
-    border-radius: 50%;
-    position: relative;
-    background: radial-gradient(circle at center, #10203a 0 56px, transparent 57px), conic-gradient( #2698bd 0deg 52deg, #6776c8 52deg 88deg, #7a66b7 88deg 116deg, #b15fa9 116deg 148deg, #f4667f 148deg 188deg, #ff8e3c 188deg 220deg, #ffbf24 220deg 246deg, #378cb9 246deg 276deg, #955fa8 276deg 308deg, #ef5d8f 308deg 338deg, #344964 338deg 360deg );
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+.loadButton {
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
 }
 
-.ringValue {
-    position: absolute;
-    inset: 0;
+.loadButton:hover:not(:disabled) {
+    border-color: var(--accent-cyan);
+}
+
+.loadButton:disabled {
+    opacity: 0.7;
+    cursor: progress;
+}
+
+.summaryRow {
     display: grid;
-    place-items: center;
-    padding: 0 22px;
-    text-align: center;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.summaryCard {
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.summaryLabel {
+    font-size: 0.72rem;
+    color: var(--text-soft);
+    margin-bottom: 7px;
+}
+
+.summaryValue {
     font-size: 0.98rem;
     font-weight: 700;
     color: var(--text-main);
 }
 
-.copy {
-    min-width: 320px;
-}
-
-.title {
-    margin: 0 0 6px;
-    font-size: 1.08rem;
-    font-weight: 700;
-}
-
-.metaRow {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    color: var(--text-soft);
-    font-size: 0.8rem;
-    margin-bottom: 14px;
-}
-
-.separator {
-    height: 1px;
-    background: rgba(255, 255, 255, 0.06);
-    margin: 12px 0 18px;
-}
-
-.metrics {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(170px, 1fr));
-    gap: 24px;
-}
-
-.metricBlock {
-    min-width: 0;
-}
-
-.metricLabel {
-    font-size: 0.8rem;
-    color: var(--text-main);
-    margin-bottom: 6px;
-    font-weight: 600;
-}
-
-.metricMainValue {
-    font-size: 1.02rem;
-    font-weight: 700;
-    color: var(--text-main);
-    margin-bottom: 10px;
-}
-
-.metricMainValueSmall {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--text-main);
-    margin-bottom: 10px;
-}
-
-.positive {
-    color: var(--positive);
-}
-
-.metricRows {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.metricRow {
-    display: flex;
-    justify-content: space-between;
-    gap: 14px;
-    font-size: 0.78rem;
-    color: var(--text-soft);
-}
-
-.metricKey {
-    color: var(--text-soft);
-}
-
-.metricVal {
-    color: var(--text-main);
-    font-weight: 600;
-}
-
-.warningTileButton {
-    margin-top: 18px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    width: 100%;
-    max-width: 420px;
-}
-
-.warningTile {
-    padding: 12px 14px;
-    border: 1px solid #2a4262;
-    border-radius: 10px;
-    background: #10203a;
-    transition: border-color 0.15s ease;
-}
-
-.warningTileButton:hover .warningTile {
-    border-color: var(--accent-cyan);
-}
-
-.warningTileLabel {
-    font-size: 0.76rem;
-    color: var(--text-soft);
-    margin-bottom: 6px;
-}
-
-.warningTileValue {
-    font-size: 0.92rem;
-    font-weight: 700;
-    margin-bottom: 6px;
-}
-
-.warningTileOk {
-    color: var(--positive);
-}
-
-.warningTileAlert {
-    color: var(--accent-orange);
-}
-
-.warningTileHint {
-    font-size: 0.76rem;
-    color: var(--text-soft);
+.summaryMeta {
+    margin-top: 6px;
+    font-size: 0.72rem;
     line-height: 1.45;
+    color: var(--text-soft);
 }
-
-.right {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding-top: 6px;
-}
-
-.refreshWrap {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.refreshButton {
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 14px;
-    border: 1px solid #2b4564;
-    border-radius: 8px;
-    background: #13243d;
-    color: var(--text-main);
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-    .refreshButton:hover {
-        border-color: var(--accent-cyan);
-        color: white;
-    }
-
-.refreshStaleWarning {
-    font-size: 0.74rem;
-    color: var(--accent-orange);
-}
-
-@media (max-width: 1100px) {
-    .hero {
-        flex-direction: column;
-    }
-
-    .left {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .metrics {
-        grid-template-columns: 1fr;
-    }
-
-    .right {
-        flex-wrap: wrap;
-    }
-}
-/* -------------------------------------------------------------------------- */
-/* Neue Warning-Struktur (Reconciliation + Consistency kombiniert)            */
-/* -------------------------------------------------------------------------- */
 
 .statusRow {
-    display: flex;
-    gap: 16px;
-    margin-top: 18px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(320px, 1.3fr) minmax(260px, 0.8fr);
+    gap: 10px;
+}
+
+.warningCard,
+.updateCard {
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .warningCard {
-    padding: 14px 16px;
-    border-radius: 10px;
-    border: 1px solid var(--panel-border);
-    background: var(--panel-bg);
     cursor: pointer;
-    transition: border-color 0.15s ease;
-    min-width: 240px;
+    text-align: left;
 }
 
-    .warningCard:hover {
-        border-color: var(--accent-cyan);
-    }
+.warningCard:hover {
+    border-color: var(--accent-cyan);
+}
 
 .warningCardActive {
     border-color: var(--accent-orange);
 }
 
-.warningTitle {
-    font-size: 0.75rem;
+.warningHeaderRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+}
+
+.warningTitle,
+.updateLabel {
+    font-size: 0.74rem;
     color: var(--text-soft);
-    margin-bottom: 6px;
+}
+
+.warningAction {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
 }
 
 .warningCountRow {
     display: flex;
     align-items: baseline;
     gap: 6px;
+    margin-top: 8px;
 }
 
 .warningCount {
-    font-size: 1.1rem;
+    font-size: 1.12rem;
     font-weight: 700;
+    color: var(--text-main);
 }
 
 .warningCountLabel {
-    font-size: 0.7rem;
+    font-size: 0.74rem;
     color: var(--text-soft);
 }
 
 .warningBreakdown {
-    margin-top: 6px;
-    font-size: 0.72rem;
-    color: var(--text-soft);
+    margin-top: 8px;
     display: flex;
-    gap: 10px;
-}
-
-.warningFooter {
-    margin-top: 6px;
-    font-size: 0.7rem;
-    color: var(--accent-cyan);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Update Card                                                                */
-/* -------------------------------------------------------------------------- */
-
-.updateCard {
-    padding: 14px 16px;
-    border-radius: 10px;
-    border: 1px solid var(--panel-border);
-    background: var(--panel-bg);
-    min-width: 240px;
-}
-
-.updateLabel {
-    font-size: 0.75rem;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.73rem;
     color: var(--text-soft);
-    margin-bottom: 4px;
 }
 
 .updateValue {
+    margin-top: 8px;
     font-size: 0.9rem;
     font-weight: 700;
+    color: var(--text-main);
 }
 
 .updateHint {
-    font-size: 0.7rem;
+    margin-top: 8px;
+    font-size: 0.72rem;
     color: var(--text-soft);
-    margin-top: 6px;
 }
 
 .staleWarning {
-    font-size: 0.7rem;
+    margin-top: 8px;
+    font-size: 0.72rem;
     color: var(--accent-orange);
-    margin-top: 6px;
+}
+
+@media (max-width: 1200px) {
+    .summaryRow {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .topRow,
+    .statusRow {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+    }
+
+    .topRow {
+        display: flex;
+    }
+
+    .topActions {
+        justify-content: flex-start;
+    }
+
+    .summaryRow {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .hero {
+        padding: 14px;
+    }
+
+    .summaryRow {
+        grid-template-columns: 1fr;
+    }
 }
