@@ -1,4 +1,21 @@
-﻿import { NextResponse } from "next/server";
+﻿// ============================================================
+// src/app/api/parqet/assets/route.ts
+// ------------------------------------------------------------
+// Diese Route orchestriert:
+//
+// - Token pruefen
+// - Portfolios / Activities laden
+// - filtern
+// - normalisieren
+// - Overrides anwenden
+// - Reconciliation-Warnungen bauen
+// - bereinigte Assets erzeugen
+// - lokale CSV-Metadaten anreichern
+// - aktive / geschlossene Assets trennen
+// - Konsistenzreport berechnen
+// ============================================================
+
+import { NextResponse } from "next/server";
 import type { AssetSummary } from "../../../../lib/types";
 import {
     getCookieValue,
@@ -14,17 +31,10 @@ import { applyOverrides } from "../../../../lib/parqet-assets/overrides";
 import { buildReconciliationWarnings } from "../../../../lib/parqet-assets/reconciliation";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 
-// Diese Route orchestriert:
-// - Token pruefen
-// - Portfolios / Activities laden
-// - filtern
-// - normalisieren
-// - Overrides anwenden
-// - Reconciliation-Warnungen bauen
-// - bereinigte Assets erzeugen
-// - Metadaten anreichern
-// - aktive / geschlossene Assets trennen
-// - Konsistenzreport berechnen
+// ============================================================
+// GET /api/parqet/assets
+// ============================================================
+
 export async function GET(req: Request) {
     try {
         const url = new URL(req.url);
@@ -55,6 +65,10 @@ export async function GET(req: Request) {
             );
         }
 
+        // ========================================================
+        // Zentrale Build-Pipeline
+        // ========================================================
+
         async function buildAssetView(currentAccessToken: string) {
             const portfolios = await fetchAuthorizedPortfolios(currentAccessToken);
             const portfolioNameById = new Map<string, string>();
@@ -70,19 +84,34 @@ export async function GET(req: Request) {
 
             const filteredActivities = allActivities.filter(isRealSecurityActivity);
 
-            /**
-             * Neue bereinigte Pipeline:
-             * - Rohdaten filtern
-             * - normalisieren
-             * - manuelle Overrides anwenden
-             * - Reconciliation-Warnungen berechnen
-             * - erst danach bereinigte Assets erzeugen
-             */
+            // ====================================================
+            // Bereinigte Datenpipeline
+            // ----------------------------------------------------
+            // Reihenfolge ist bewusst:
+            // 1) filtern
+            // 2) normalisieren
+            // 3) Overrides anwenden
+            // 4) Reconciliation-Warnungen erzeugen
+            // 5) bereinigte Assets daraus bauen
+            // ====================================================
+
             const normalized = normalizeActivities(filteredActivities);
             const corrected = applyOverrides(normalized);
             const warnings = buildReconciliationWarnings(corrected);
 
             const correctedAssets = buildCorrectedAssets(corrected, portfolioNameById);
+
+            // ====================================================
+            // Lokale Metadaten laden
+            // ----------------------------------------------------
+            // Diese Quelle kommt jetzt aus:
+            // - generierter CSV-Mapping-Datei
+            // - optionalem lokalem Seed
+            //
+            // WICHTIG:
+            // Beim Namen gilt bewusst:
+            // CSV-Metadata -> Activity-Name -> Fallback
+            // ====================================================
 
             const metadataByIsin = await loadAssetMetadataByIsin(
                 correctedAssets.map((asset: AssetSummary) => asset.isin)
@@ -94,9 +123,32 @@ export async function GET(req: Request) {
 
                     return {
                         ...asset,
-                        name: asset.name ?? metadata?.name ?? null,
-                        symbol: asset.symbol ?? metadata?.symbol ?? null,
-                        wkn: asset.wkn ?? metadata?.wkn ?? null,
+
+                        name:
+                            metadata?.name ??
+                            asset.name ??
+                            asset.assetName ??
+                            asset.displayName ??
+                            asset.title ??
+                            asset.symbol ??
+                            asset.ticker ??
+                            asset.tickerSymbol ??
+                            asset.wkn ??
+                            asset.isin,
+
+                        assetName: asset.assetName ?? metadata?.name ?? null,
+                        displayName: asset.displayName ?? metadata?.name ?? null,
+                        title: asset.title ?? metadata?.name ?? null,
+
+                        symbol: metadata?.symbol ?? asset.symbol ?? null,
+                        ticker: asset.ticker ?? metadata?.ticker ?? null,
+                        tickerSymbol: asset.tickerSymbol ?? metadata?.tickerSymbol ?? null,
+                        wkn: metadata?.wkn ?? asset.wkn ?? null,
+
+                        externalMetadata: {
+                            ...(asset.externalMetadata ?? {}),
+                            ...(metadata ?? {}),
+                        },
                     };
                 }
             );
@@ -125,6 +177,10 @@ export async function GET(req: Request) {
             };
         }
 
+        // ========================================================
+        // Erster Versuch mit aktuellem Access Token
+        // ========================================================
+
         try {
             const result = await buildAssetView(accessToken);
 
@@ -138,6 +194,10 @@ export async function GET(req: Request) {
             if (!refreshToken) {
                 throw error;
             }
+
+            // ====================================================
+            // Fallback: Token erneuern und erneut versuchen
+            // ====================================================
 
             const refreshed = await refreshParqetAccessToken(refreshToken);
 
