@@ -1,4 +1,4 @@
-ï»¿// src/lib/types.ts
+// src/lib/types.ts
 
 /**
  * Portfolio aus /api/parqet/portfolios
@@ -56,7 +56,7 @@ export type PortfolioPosition = {
 };
 
 /**
- * Konsolidierte Asset-Sicht Ã¼ber mehrere Portfolios.
+ * Konsolidierte Asset-Sicht über mehrere Portfolios.
  */
 export type AssetSummary = {
     isin: string;
@@ -108,7 +108,7 @@ export type AssetSummary = {
 };
 
 /**
- * Einzelne Konsistenzwarnung fÃ¼r ein Asset.
+ * Einzelne Konsistenzwarnung für ein Asset.
  */
 export type AssetConsistencyCheck = {
     isin: string;
@@ -127,7 +127,7 @@ export type AssetConsistencyCheck = {
 };
 
 /**
- * Konsistenzreport fÃ¼r das gesamte Dashboard.
+ * Konsistenzreport für das gesamte Dashboard.
  */
 export type ConsistencyReport = {
     checkedAssets: number;
@@ -143,8 +143,8 @@ export type ConsistencyReport = {
  * - Severity
  * - menschenlesbare Nachricht
  *
- * SpÃ¤ter kann hier problemlos z. B. eine ruleId, status, note oder overrideId
- * ergÃ¤nzt werden.
+ * Später kann hier problemlos z. B. eine ruleId, status, note oder overrideId
+ * ergänzt werden.
  */
 export type ReconciliationWarning = {
     isin: string;
@@ -169,22 +169,28 @@ export type PortfoliosApiResponse = {
  */
 export type AssetsApiResponse = {
     ok: boolean;
+
+    rawActivityCount?: number;
+    filteredActivityCount?: number;
+
+    assetCount?: number;
+    activeAssetCount?: number;
+    closedAssetCount?: number;
+
     assets?: AssetSummary[];
-    activeAssets: AssetSummary[];
-    closedAssets: AssetSummary[];
-    rawActivityCount: number;
-    filteredActivityCount: number;
-    assetCount: number;
-    activeAssetCount: number;
-    closedAssetCount: number;
-    consistencyReport: ConsistencyReport | null;
-    reconciliationWarnings?: ReconciliationWarning[]; // NEU
-    generatedAt: string;
+    activeAssets?: AssetSummary[];
+    closedAssets?: AssetSummary[];
+
+    generatedAt?: string;
+    consistencyReport?: ConsistencyReport;
+    reconciliationWarnings?: ReconciliationWarning[];
+
     message?: string;
     details?: string;
 };
+
 /**
- * Kennzahlen fÃ¼r Header / Hero / StatsGrid.
+ * Kennzahlen für Header / Hero / StatsGrid.
  */
 export type DashboardStats = {
     rawActivityCount: number;
@@ -198,11 +204,11 @@ export type DashboardStats = {
 };
 
 /**
- * Audit-/AktivitÃ¤tenansicht:
- * vereinheitlichte Typen fÃ¼r die UI.
+ * Audit-/Aktivitätenansicht:
+ * vereinheitlichte Typen für die UI.
  *
  * Wichtig:
- * Diese Ebene soll kÃ¼nftig auch mit DB gespeicherten Activities kompatibel bleiben.
+ * Diese Ebene soll künftig auch mit DB gespeicherten Activities kompatibel bleiben.
  */
 export type AuditActivityType =
     | "buy"

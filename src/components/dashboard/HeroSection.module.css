@@ -223,3 +223,102 @@
         flex-wrap: wrap;
     }
 }
+/* -------------------------------------------------------------------------- */
+/* Neue Warning-Struktur (Reconciliation + Consistency kombiniert)            */
+/* -------------------------------------------------------------------------- */
+
+.statusRow {
+    display: flex;
+    gap: 16px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+
+.warningCard {
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+    min-width: 240px;
+}
+
+    .warningCard:hover {
+        border-color: var(--accent-cyan);
+    }
+
+.warningCardActive {
+    border-color: var(--accent-orange);
+}
+
+.warningTitle {
+    font-size: 0.75rem;
+    color: var(--text-soft);
+    margin-bottom: 6px;
+}
+
+.warningCountRow {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.warningCount {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.warningCountLabel {
+    font-size: 0.7rem;
+    color: var(--text-soft);
+}
+
+.warningBreakdown {
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: var(--text-soft);
+    display: flex;
+    gap: 10px;
+}
+
+.warningFooter {
+    margin-top: 6px;
+    font-size: 0.7rem;
+    color: var(--accent-cyan);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Update Card                                                                */
+/* -------------------------------------------------------------------------- */
+
+.updateCard {
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    min-width: 240px;
+}
+
+.updateLabel {
+    font-size: 0.75rem;
+    color: var(--text-soft);
+    margin-bottom: 4px;
+}
+
+.updateValue {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.updateHint {
+    font-size: 0.7rem;
+    color: var(--text-soft);
+    margin-top: 6px;
+}
+
+.staleWarning {
+    font-size: 0.7rem;
+    color: var(--accent-orange);
+    margin-top: 6px;
+}

@@ -1,55 +1,159 @@
-﻿.card {
-    border: 1px solid #2a4262;
+﻿/* src/components/dashboard/DataWarningsPanel.module.css */
+
+/* -------------------------------------------------------------------------- */
+/* Basis Panel                                                                */
+/* -------------------------------------------------------------------------- */
+
+.panel {
+    border: 1px solid var(--panel-border);
     border-radius: 10px;
-    background: #10203a;
+    background: var(--panel-bg);
+    overflow: hidden;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Header                                                                     */
+/* -------------------------------------------------------------------------- */
+
 .header {
-    display: flex;
-    justify-content: space-between;
-    padding: 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--panel-border);
 }
 
 .title {
-    font-size: 14px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.subtitle {
+    font-size: 0.78rem;
+    color: var(--text-soft);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sections (Reconciliation / Consistency)                                    */
+/* -------------------------------------------------------------------------- */
+
+.section {
+    border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+}
+
+.sectionTitle {
+    font-size: 0.82rem;
     font-weight: 700;
 }
+
+.sectionCount {
+    font-size: 0.72rem;
+    color: var(--text-soft);
+}
+
+/* -------------------------------------------------------------------------- */
+/* List + Rows                                                                */
+/* -------------------------------------------------------------------------- */
 
 .list {
     display: flex;
     flex-direction: column;
 }
 
-.item {
-    padding: 14px 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+.row {
+    padding: 14px 18px;
+    border-top: 1px solid rgba(255,255,255,0.04);
 }
+
+.rowMain {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rowHeadline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rowText {
+    font-size: 0.78rem;
+    color: var(--text-soft);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Asset / ISIN                                                               */
+/* -------------------------------------------------------------------------- */
 
 .assetName {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 0.82rem;
 }
 
-.assetMeta {
-    font-size: 11px;
-    color: #8aa0b8;
+.isinMeta {
+    font-size: 0.7rem;
+    color: var(--text-soft);
 }
 
-.flag {
-    font-size: 11px;
-    padding: 4px 6px;
+.isinLabel {
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Metrics                                                                    */
+/* -------------------------------------------------------------------------- */
+
+.metrics {
+    display: flex;
+    gap: 12px;
+    font-size: 0.74rem;
+    color: var(--text-soft);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Warning List                                                               */
+/* -------------------------------------------------------------------------- */
+
+.warningList {
+    margin: 6px 0 0;
+    padding-left: 16px;
+    font-size: 0.74rem;
+    color: var(--text-soft);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Severity Badges                                                            */
+/* -------------------------------------------------------------------------- */
+
+.severityBadge {
+    font-size: 0.65rem;
+    padding: 3px 6px;
     border-radius: 6px;
-    background: rgba(255,157,46,0.1);
-    border: 1px solid rgba(255,157,46,0.3);
+    border: 1px solid;
 }
 
-.metric {
-    margin-top: 8px;
-    font-size: 12px;
+.severityError {
+    background: rgba(255, 80, 80, 0.1);
+    border-color: rgba(255, 80, 80, 0.4);
+    color: #ff6b6b;
 }
 
-.warningItem {
-    font-size: 12px;
-    color: #8aa0b8;
+.severityWarning {
+    background: rgba(255, 157, 46, 0.1);
+    border-color: rgba(255, 157, 46, 0.4);
+    color: #ff9d2e;
+}
+
+.severityInfo {
+    background: rgba(100, 160, 255, 0.1);
+    border-color: rgba(100, 160, 255, 0.4);
+    color: #7aa2ff;
 }

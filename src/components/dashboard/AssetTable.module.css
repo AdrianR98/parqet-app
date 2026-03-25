@@ -1,16 +1,5 @@
 /* src/components/dashboard/AssetTable.module.css */
 
-/*
-  AssetTable im kompakteren Parqet-aehnlichen Stil.
-
-  Ziele:
-  - kompaktere Asset-Hauptzeile
-  - keine "Letzte Aktivitaet"-Info mehr
-  - schlankere Portfolio-Darstellung
-  - themenfaehig ueber CSS-Variablen
-  - responsiv, aber weiterhin Desktop-first fuer echte Tabellendaten
-*/
-
 .card {
     border: 1px solid var(--panel-border);
     border-radius: 12px;
@@ -215,13 +204,31 @@
     color: var(--text-main);
 }
 
-.table tbody tr:hover {
-    background: var(--page-bg-secondary);
+.assetMainRow {
+    background: transparent;
 }
+
+    .assetMainRow:hover {
+        background: var(--page-bg-secondary);
+    }
+
+.portfolioSubRow {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+    .portfolioSubRow td {
+        padding-top: 9px;
+        padding-bottom: 9px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
 
 .tdRight {
     text-align: right;
     white-space: nowrap;
+}
+
+.subtleValue {
+    opacity: 0.88;
 }
 
 .assetIdentity {
@@ -229,6 +236,40 @@
     align-items: center;
     gap: 12px;
     min-width: 0;
+}
+
+.expandButton {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    border: 0;
+    background: transparent;
+    color: var(--text-soft);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+}
+
+    .expandButton:hover {
+        color: var(--text-main);
+    }
+
+.expandSpacer {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+}
+
+.expandChevron {
+    display: inline-block;
+    transition: transform 160ms ease;
+    font-size: 0.82rem;
+    line-height: 1;
+}
+
+.expandChevronOpen {
+    transform: rotate(180deg);
 }
 
 .assetLogo {
@@ -270,6 +311,7 @@
     font-size: 0.76rem;
     color: var(--text-soft);
     line-height: 1.2;
+    flex-wrap: wrap;
 }
 
 .assetCategory {
@@ -282,9 +324,10 @@
 
 .assetSubtitleInline {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+}
+
+.assetPortfolioCount {
+    color: var(--text-soft);
 }
 
 .assetName {
@@ -294,20 +337,88 @@
     word-break: break-word;
 }
 
-.portfolioListCompact {
+.portfolioIdentity {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.portfolioIndent {
+    width: 72px;
+    min-width: 72px;
+    height: 1px;
+}
+
+.portfolioText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.portfolioPrefixRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.portfolioPrefix {
+    font-size: 0.7rem;
+    color: var(--text-soft);
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.portfolioShareBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--page-bg-secondary);
+    border: 1px solid var(--panel-border);
+    color: var(--text-soft);
+    font-size: 0.68rem;
+    line-height: 1;
+    font-weight: 700;
+}
+
+.portfolioName {
+    font-size: 0.79rem;
+    color: var(--text-main);
+    line-height: 1.2;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.portfolioSubRowLabel {
+    font-size: 0.72rem;
+    color: var(--text-soft);
+}
+
+.portfolioSummaryStack {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.portfolioLine {
+.portfolioSummaryLine {
     font-size: 0.76rem;
     line-height: 1.3;
     color: var(--text-soft);
 }
 
+.portfolioMoreLine {
+    font-size: 0.72rem;
+    line-height: 1.25;
+    color: var(--text-soft);
+}
+
+.portfolioSingleName,
 .portfolioEmpty {
     color: var(--text-soft);
+    font-size: 0.76rem;
 }
 
 .positive {
@@ -326,11 +437,6 @@
     color: var(--text-soft);
 }
 
-/*
-  Tablet-Bereich:
-  - Header darf umbrechen
-  - Abstaende etwas reduzieren
-*/
 @media (max-width: 960px) {
     .header {
         flex-wrap: wrap;
@@ -351,15 +457,13 @@
     .table tbody td {
         padding: 11px 14px;
     }
+
+    .portfolioIndent {
+        width: 58px;
+        min-width: 58px;
+    }
 }
 
-/*
-  Kleine Screens:
-  - Header klar untereinander
-  - Menue darf nicht aus dem Viewport laufen
-  - Tabelle bleibt scrollbar
-  - kompaktere Asset-Darstellung
-*/
 @media (max-width: 640px) {
     .card {
         border-radius: 10px;
@@ -423,8 +527,25 @@
         font-size: 0.84rem;
     }
 
-    .portfolioLine {
+    .portfolioIndent {
+        width: 52px;
+        min-width: 52px;
+    }
+
+    .portfolioPrefix {
+        font-size: 0.66rem;
+    }
+
+    .portfolioName,
+    .portfolioSubRowLabel,
+    .portfolioSummaryLine,
+    .portfolioSingleName {
         font-size: 0.72rem;
+    }
+
+    .portfolioMoreLine,
+    .portfolioShareBadge {
+        font-size: 0.68rem;
     }
 
     .empty {

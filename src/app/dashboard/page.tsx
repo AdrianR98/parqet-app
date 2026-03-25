@@ -13,16 +13,12 @@ import { useTheme } from "../../hooks/use-theme";
 /**
  * Dashboard-Seite.
  *
- * Die Seite konzentriert sich jetzt auf Rendering und Komposition.
+ * Die Seite konzentriert sich auf Rendering und Komposition.
  * Datenlogik liegt im Hook useDashboardData(),
  * Theme-Logik liegt im Hook useTheme().
  */
 export default function DashboardPage() {
-    const {
-        theme,
-        toggleTheme,
-        themeStyle,
-    } = useTheme();
+    const { theme, toggleTheme, themeStyle } = useTheme();
 
     const {
         portfolios,
@@ -35,6 +31,7 @@ export default function DashboardPage() {
 
         assetCount,
         consistencyReport,
+        reconciliationWarnings,
         lastUpdatedAt,
 
         loadingPortfolios,
@@ -62,10 +59,7 @@ export default function DashboardPage() {
             style={themeStyle}
             data-theme={theme}
         >
-            <HeaderBar
-                theme={theme}
-                onToggleTheme={toggleTheme}
-            />
+            <HeaderBar theme={theme} onToggleTheme={toggleTheme} />
 
             <div className="parqet-content" ref={portfolioDropdownRef}>
                 <HeroSection
@@ -85,6 +79,7 @@ export default function DashboardPage() {
                     totalUnrealizedPnL={stats.totalUnrealizedPnL}
                     totalDividendNet={stats.totalDividendNet}
                     consistencyWarningCount={consistencyReport?.warningCount ?? 0}
+                    reconciliationWarningCount={reconciliationWarnings.length}
                     lastUpdatedAt={lastUpdatedAt}
                     showStaleWarning={showStaleWarning}
                     showWarningsPanel={showWarningsPanel}
@@ -106,6 +101,7 @@ export default function DashboardPage() {
                     <div style={{ marginBottom: 18 }}>
                         <DataWarningsPanel
                             warnings={consistencyReport?.assetsWithWarnings ?? []}
+                            reconciliationWarnings={reconciliationWarnings}
                         />
                     </div>
                 ) : null}

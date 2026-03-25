@@ -5,11 +5,11 @@ import type { AssetSummary, ConsistencyReport } from "./types";
 /**
  * Zentraler localStorage-Key fuer den Dashboard-Cache.
  *
- * Wichtig:
- * Wenn sich die Struktur des Cache-Payloads spaeter aendert,
- * sollte die Versionsnummer im Key erhoeht werden.
+ * WICHTIG:
+ * Version auf v2 erhoeht, weil sich die Asset-Struktur geaendert hat
+ * und nun portfolioBreakdown erwartet wird.
  */
-export const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v1";
+export const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v2";
 
 /**
  * Ab wann der Datenstand als veraltet markiert werden soll.
@@ -19,11 +19,6 @@ export const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
 
 /**
  * Struktur des localStorage-Caches fuer das Dashboard.
- *
- * Ziel:
- * - letzte geladene Assets wiederherstellen
- * - Kennzahlen direkt nach Reload anzeigen
- * - zuletzt ausgewaehlte Portfolios merken
  */
 export type DashboardCache = {
     activeAssets: AssetSummary[];
@@ -47,11 +42,60 @@ function isBrowser(): boolean {
 }
 
 /**
+ * Validiert grob, ob ein Asset bereits die neue Struktur besitzt.
+ *
+ * Entscheidend ist hier vor allem:
+ * - portfolioBreakdown muss vorhanden und ein Array sein
+ *
+ * Hintergrund:
+ * Aeltere Cache-Eintraege aus v1 enthalten dieses Feld nicht.
+ * Diese Daten duerfen nicht mehr wiederhergestellt werden, weil die
+ * neue AssetTable sonst nur Fallback-Zeilen mit 0-Werten anzeigt.
+ */
+function isCacheAssetCompatible(asset: unknown): asset is AssetSummary {
+    if (!asset || typeof asset !== "object") {
+        return false;
+    }
+
+    const candidate = asset as Partial<AssetSummary>;
+
+    return (
+        typeof candidate.isin === "string" &&
+        Array.isArray(candidate.portfolioIds) &&
+        Array.isArray(candidate.portfolioNames) &&
+        Array.isArray(candidate.portfolioBreakdown)
+    );
+}
+
+/**
+ * Validiert grob die geladene Cache-Struktur.
+ *
+ * Wenn die neue Struktur nicht vorhanden ist, wird der Cache komplett
+ * verworfen, damit die App sauber frische Daten vom Server holt.
+ */
+function isDashboardCacheCompatible(cache: unknown): cache is DashboardCache {
+    if (!cache || typeof cache !== "object") {
+        return false;
+    }
+
+    const candidate = cache as Partial<DashboardCache>;
+
+    if (!Array.isArray(candidate.activeAssets) || !Array.isArray(candidate.closedAssets)) {
+        return false;
+    }
+
+    const activeAssetsValid = candidate.activeAssets.every(isCacheAssetCompatible);
+    const closedAssetsValid = candidate.closedAssets.every(isCacheAssetCompatible);
+
+    return activeAssetsValid && closedAssetsValid;
+}
+
+/**
  * Liest den Dashboard-Cache aus localStorage.
  *
  * Rueckgabe:
  * - DashboardCache bei gueltigen Daten
- * - null bei leerem oder defektem Cache
+ * - null bei leerem, defektem oder veraltetem Cache
  */
 export function loadDashboardCache(): DashboardCache | null {
     if (!isBrowser()) {
@@ -65,7 +109,13 @@ export function loadDashboardCache(): DashboardCache | null {
             return null;
         }
 
-        return JSON.parse(raw) as DashboardCache;
+        const parsed = JSON.parse(raw) as unknown;
+
+        if (!isDashboardCacheCompatible(parsed)) {
+            return null;
+        }
+
+        return parsed;
     } catch {
         return null;
     }
@@ -91,7 +141,6 @@ export function saveDashboardCache(cache: DashboardCache): void {
 
 /**
  * Entfernt den Dashboard-Cache komplett.
- * Praktisch fuer spaetere Reset-/Debug-Faelle.
  */
 export function clearDashboardCache(): void {
     if (!isBrowser()) {

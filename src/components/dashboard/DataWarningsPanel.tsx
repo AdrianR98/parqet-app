@@ -1,96 +1,165 @@
-﻿import styles from "./DataWarningsPanel.module.css";
-import type { AssetConsistencyCheck } from "../../lib/types";
+﻿// src/components/dashboard/DataWarningsPanel.tsx
+
+import type {
+    AssetConsistencyCheck,
+    ReconciliationWarning,
+} from "../../lib/types";
+import styles from "./DataWarningsPanel.module.css";
+
+/**
+ * ---------------------------------------------------------------------------
+ * Props
+ * ---------------------------------------------------------------------------
+ */
 
 type DataWarningsPanelProps = {
     warnings: AssetConsistencyCheck[];
+    reconciliationWarnings?: ReconciliationWarning[];
 };
+
+/**
+ * ---------------------------------------------------------------------------
+ * Lokale Helper
+ * ---------------------------------------------------------------------------
+ */
+
+function getSeverityClassName(severity: ReconciliationWarning["severity"]): string {
+    if (severity === "error") {
+        return styles.severityError;
+    }
+
+    if (severity === "warning") {
+        return styles.severityWarning;
+    }
+
+    return styles.severityInfo;
+}
+
+function getSeverityLabel(severity: ReconciliationWarning["severity"]): string {
+    if (severity === "error") {
+        return "Fehler";
+    }
+
+    if (severity === "warning") {
+        return "Warnung";
+    }
+
+    return "Info";
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * Komponente
+ * ---------------------------------------------------------------------------
+ */
 
 export default function DataWarningsPanel({
     warnings,
+    reconciliationWarnings = [],
 }: DataWarningsPanelProps) {
+    const hasConsistencyWarnings = warnings.length > 0;
+    const hasReconciliationWarnings = reconciliationWarnings.length > 0;
+    const hasAnyWarnings = hasConsistencyWarnings || hasReconciliationWarnings;
+
+    if (!hasAnyWarnings) {
+        return (
+            <section className={styles.panel}>
+                <div className={styles.header}>
+                    <h3 className={styles.title}>Datenwarnungen</h3>
+                    <div className={styles.subtitle}>Aktuell wurden keine Auffälligkeiten erkannt.</div>
+                </div>
+            </section>
+        );
+    }
+
     return (
-        <section className={styles.card}>
+        <section className={styles.panel}>
+            {/* ------------------------------------------------------------------ */}
+            {/* Kopfbereich                                                        */}
+            {/* ------------------------------------------------------------------ */}
             <div className={styles.header}>
-                <div>
-                    <h2 className={styles.title}>Datenwarnungen</h2>
-                    <div className={styles.subtitle}>
-                        Auffälligkeiten in der rekonstruierten Bestands- und Kostenbasislogik
+                <h3 className={styles.title}>Datenwarnungen</h3>
+                <div className={styles.subtitle}>
+                    Konsistenz- und Reconciliation-Hinweise aus der bereinigten Pipeline
+                </div>
+            </div>
+
+            {/* ------------------------------------------------------------------ */}
+            {/* Reconciliation-Warnungen                                            */}
+            {/* ------------------------------------------------------------------ */}
+            {hasReconciliationWarnings ? (
+                <div className={styles.section}>
+                    <div className={styles.sectionHeader}>
+                        <h4 className={styles.sectionTitle}>Reconciliation-Probleme</h4>
+                        <span className={styles.sectionCount}>
+                            {reconciliationWarnings.length}
+                        </span>
+                    </div>
+
+                    <div className={styles.list}>
+                        {reconciliationWarnings.map((warning, index) => (
+                            <div
+                                key={`${warning.isin}-${warning.severity}-${index}`}
+                                className={styles.row}
+                            >
+                                <div className={styles.rowMain}>
+                                    <div className={styles.rowHeadline}>
+                                        <span className={styles.isinLabel}>{warning.isin}</span>
+
+                                        <span
+                                            className={`${styles.severityBadge} ${getSeverityClassName(
+                                                warning.severity
+                                            )}`}
+                                        >
+                                            {getSeverityLabel(warning.severity)}
+                                        </span>
+                                    </div>
+
+                                    <div className={styles.rowText}>{warning.message}</div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
+            ) : null}
 
-                <div className={styles.count}>{warnings.length} Asset(s)</div>
-            </div>
+            {/* ------------------------------------------------------------------ */}
+            {/* Konsistenzwarnungen                                                 */}
+            {/* ------------------------------------------------------------------ */}
+            {hasConsistencyWarnings ? (
+                <div className={styles.section}>
+                    <div className={styles.sectionHeader}>
+                        <h4 className={styles.sectionTitle}>Konsistenzwarnungen</h4>
+                        <span className={styles.sectionCount}>{warnings.length}</span>
+                    </div>
 
-            <div className={styles.list}>
-                {warnings.map((warning) => (
-                    <article key={warning.isin} className={styles.item}>
-                        <div className={styles.itemTop}>
-                            <div>
-                                <div className={styles.assetName}>
-                                    {warning.name ?? warning.isin}
-                                </div>
-                                <div className={styles.assetMeta}>{warning.isin}</div>
-                            </div>
+                    <div className={styles.list}>
+                        {warnings.map((warning) => (
+                            <div key={warning.isin} className={styles.row}>
+                                <div className={styles.rowMain}>
+                                    <div className={styles.rowHeadline}>
+                                        <span className={styles.assetName}>
+                                            {warning.name ?? warning.isin}
+                                        </span>
+                                        <span className={styles.isinMeta}>{warning.isin}</span>
+                                    </div>
 
-                            <div className={styles.flags}>
-                                {warning.isNegativeShares ? (
-                                    <span className={styles.flag}>Negativer Bestand</span>
-                                ) : null}
+                                    <div className={styles.metrics}>
+                                        <span>Bestand: {warning.reconstructedNetShares}</span>
+                                        <span>Kostenbasis: {warning.remainingCostBasis.toFixed(2)} €</span>
+                                    </div>
 
-                                {warning.isNegativeCostBasis ? (
-                                    <span className={styles.flag}>Negative Kostenbasis</span>
-                                ) : null}
-
-                                {warning.hasZeroSharesButCostBasis ? (
-                                    <span className={styles.flag}>Null-Bestand mit Kostenbasis</span>
-                                ) : null}
-
-                                {warning.hasSharesButNoBuyHistory ? (
-                                    <span className={styles.flag}>Bestand ohne Käufe</span>
-                                ) : null}
-
-                                {warning.soldMoreThanBought ? (
-                                    <span className={styles.flag}>Mehr verkauft als gekauft</span>
-                                ) : null}
-                            </div>
-                        </div>
-
-                        <div className={styles.metrics}>
-                            <div className={styles.metric}>
-                                <div className={styles.metricLabel}>Rekonstruierter Bestand</div>
-                                <div className={styles.metricValue}>
-                                    {warning.reconstructedNetShares.toLocaleString("de-DE", {
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 6,
-                                    })}
+                                    <ul className={styles.warningList}>
+                                        {warning.warnings.map((text: string, index: number) => (
+                                            <li key={`${warning.isin}-${index}`}>{text}</li>
+                                        ))}
+                                    </ul>
                                 </div>
                             </div>
-
-                            <div className={styles.metric}>
-                                <div className={styles.metricLabel}>Verbleibende Kostenbasis</div>
-                                <div className={styles.metricValue}>
-                                    {warning.remainingCostBasis.toLocaleString("de-DE", {
-                                        style: "currency",
-                                        currency: "EUR",
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-
-                        <ul className={styles.warningList}>
-                            {warning.warnings.map((text) => (
-                                <li key={text} className={styles.warningItem}>
-                                    {text}
-                                </li>
-                            ))}
-                        </ul>
-                    </article>
-                ))}
-
-                {warnings.length === 0 ? (
-                    <div className={styles.empty}>Keine Datenwarnungen vorhanden.</div>
-                ) : null}
-            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
         </section>
     );
 }

@@ -1,4 +1,5 @@
 ﻿import { NextResponse } from "next/server";
+import type { AssetSummary } from "../../../../lib/types";
 import {
     getCookieValue,
     refreshParqetAccessToken,
@@ -6,16 +7,21 @@ import {
 import { fetchAuthorizedPortfolios } from "../../../../lib/parqet-assets/fetch-portfolios";
 import { loadActivitiesForPortfolios } from "../../../../lib/parqet-assets/fetch-activities";
 import { isRealSecurityActivity } from "../../../../lib/parqet-assets/filters";
-import { groupActivitiesByIsin } from "../../../../lib/parqet-assets/grouping";
 import { loadAssetMetadataByIsin } from "../../../../lib/parqet-assets/metadata";
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
+import { normalizeActivities } from "../../../../lib/parqet-assets/normalization";
+import { applyOverrides } from "../../../../lib/parqet-assets/overrides";
+import { buildReconciliationWarnings } from "../../../../lib/parqet-assets/reconciliation";
+import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 
-
-// Diese Route orchestriert nur:
+// Diese Route orchestriert:
 // - Token pruefen
 // - Portfolios / Activities laden
 // - filtern
-// - aggregieren
+// - normalisieren
+// - Overrides anwenden
+// - Reconciliation-Warnungen bauen
+// - bereinigte Assets erzeugen
 // - Metadaten anreichern
 // - aktive / geschlossene Assets trennen
 // - Konsistenzreport berechnen
@@ -64,33 +70,43 @@ export async function GET(req: Request) {
 
             const filteredActivities = allActivities.filter(isRealSecurityActivity);
 
-            const groupedAssets = groupActivitiesByIsin(
-                filteredActivities,
-                portfolioNameById
-            );
+            /**
+             * Neue bereinigte Pipeline:
+             * - Rohdaten filtern
+             * - normalisieren
+             * - manuelle Overrides anwenden
+             * - Reconciliation-Warnungen berechnen
+             * - erst danach bereinigte Assets erzeugen
+             */
+            const normalized = normalizeActivities(filteredActivities);
+            const corrected = applyOverrides(normalized);
+            const warnings = buildReconciliationWarnings(corrected);
+
+            const correctedAssets = buildCorrectedAssets(corrected, portfolioNameById);
 
             const metadataByIsin = await loadAssetMetadataByIsin(
-                groupedAssets.map((asset: import("../../../../lib/types").AssetSummary) => asset.isin)
+                correctedAssets.map((asset: AssetSummary) => asset.isin)
             );
 
-            const enrichedAssets = groupedAssets.map(
-                (asset: import("../../../../lib/types").AssetSummary) => {
-                const metadata = metadataByIsin[asset.isin];
+            const enrichedAssets: AssetSummary[] = correctedAssets.map(
+                (asset: AssetSummary) => {
+                    const metadata = metadataByIsin[asset.isin];
 
-                return {
-                    ...asset,
-                    name: asset.name ?? metadata?.name ?? null,
-                    symbol: asset.symbol ?? metadata?.symbol ?? null,
-                    wkn: asset.wkn ?? metadata?.wkn ?? null,
-                };
-            });
+                    return {
+                        ...asset,
+                        name: asset.name ?? metadata?.name ?? null,
+                        symbol: asset.symbol ?? metadata?.symbol ?? null,
+                        wkn: asset.wkn ?? metadata?.wkn ?? null,
+                    };
+                }
+            );
 
             const activeAssets = enrichedAssets.filter(
-                (asset: import("../../../../lib/types").AssetSummary) => asset.netShares > 0
+                (asset: AssetSummary) => asset.netShares > 0
             );
 
             const closedAssets = enrichedAssets.filter(
-                (asset: import("../../../../lib/types").AssetSummary) => asset.netShares <= 0
+                (asset: AssetSummary) => asset.netShares <= 0
             );
 
             const consistencyReport = buildConsistencyReport(enrichedAssets);
@@ -104,6 +120,7 @@ export async function GET(req: Request) {
                 activeAssets,
                 closedAssets,
                 consistencyReport,
+                reconciliationWarnings: warnings,
                 generatedAt: new Date().toISOString(),
             };
         }

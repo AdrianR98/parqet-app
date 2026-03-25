@@ -25,6 +25,7 @@ import type {
     DashboardStats,
     Portfolio,
     PortfoliosApiResponse,
+    ReconciliationWarning,
 } from "../lib/types";
 import { usePortfolioFilter } from "./use-portfolio-filter";
 
@@ -48,6 +49,7 @@ type UseDashboardDataResult = {
     activeAssetCount: number;
     closedAssetCount: number;
     consistencyReport: ConsistencyReport | null;
+    reconciliationWarnings: ReconciliationWarning[];
     lastUpdatedAt: string | null;
 
     loadingPortfolios: boolean;
@@ -100,6 +102,9 @@ export function useDashboardData(): UseDashboardDataResult {
     const [closedAssetCount, setClosedAssetCount] = useState(0);
     const [consistencyReport, setConsistencyReport] =
         useState<ConsistencyReport | null>(null);
+    const [reconciliationWarnings, setReconciliationWarnings] = useState<
+        ReconciliationWarning[]
+    >([]);
     const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
@@ -158,6 +163,10 @@ export function useDashboardData(): UseDashboardDataResult {
      * Die geladenen Cache-Assets werden direkt noch einmal mit lokaler
      * Metadata-Enrichment-Logik angereichert, damit Seed-/Cache-Metadaten
      * sofort sichtbar sind.
+     *
+     * Reconciliation-Warnungen werden nicht aus dem Cache rehydriert,
+     * weil diese jetzt aus der neuen bereinigten Pipeline stammen und
+     * moeglichst frisch vom Server kommen sollen.
      */
     useEffect(() => {
         const cached = loadDashboardCache();
@@ -225,6 +234,7 @@ export function useDashboardData(): UseDashboardDataResult {
             ]);
 
             console.log("Fehlende Asset-Metadaten:", missingMetadataIsins);
+            console.log("Reconciliation-Warnungen:", data.reconciliationWarnings ?? []);
 
             setActiveAssets(nextActiveAssets);
             setClosedAssets(nextClosedAssets);
@@ -234,9 +244,13 @@ export function useDashboardData(): UseDashboardDataResult {
             setActiveAssetCount(data.activeAssetCount ?? nextActiveAssets.length);
             setClosedAssetCount(data.closedAssetCount ?? nextClosedAssets.length);
             setConsistencyReport(data.consistencyReport ?? null);
+            setReconciliationWarnings(data.reconciliationWarnings ?? []);
             setLastUpdatedAt(nextLastUpdatedAt);
 
-            if ((data.consistencyReport?.warningCount ?? 0) > 0) {
+            if (
+                (data.consistencyReport?.warningCount ?? 0) > 0 ||
+                (data.reconciliationWarnings?.length ?? 0) > 0
+            ) {
                 setShowWarningsPanel(true);
             }
 
@@ -346,6 +360,7 @@ export function useDashboardData(): UseDashboardDataResult {
         activeAssetCount,
         closedAssetCount,
         consistencyReport,
+        reconciliationWarnings,
         lastUpdatedAt,
 
         loadingPortfolios,

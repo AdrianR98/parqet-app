@@ -1,7 +1,15 @@
-﻿import PortfolioFilter from "./PortfolioFilter";
+﻿// src/components/dashboard/HeroSection.tsx
+
+import PortfolioFilter from "./PortfolioFilter";
 import styles from "./HeroSection.module.css";
 import type { Portfolio } from "../../lib/types";
 import { formatCurrency } from "../../lib/format";
+
+/**
+ * ---------------------------------------------------------------------------
+ * Props
+ * ---------------------------------------------------------------------------
+ */
 
 type HeroSectionProps = {
     portfolios: Portfolio[];
@@ -20,11 +28,51 @@ type HeroSectionProps = {
     totalUnrealizedPnL?: number;
     totalDividendNet?: number;
     consistencyWarningCount?: number;
+    reconciliationWarningCount?: number;
     lastUpdatedAt?: string | null;
     showStaleWarning?: boolean;
     showWarningsPanel?: boolean;
     onToggleWarningsPanel: () => void;
 };
+
+/**
+ * ---------------------------------------------------------------------------
+ * Lokale Helper
+ * ---------------------------------------------------------------------------
+ */
+
+function formatDateTime(value: string | null | undefined): string {
+    if (!value) {
+        return "—";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return "—";
+    }
+
+    return new Intl.DateTimeFormat("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(date);
+}
+
+function getTotalWarningCount(
+    consistencyWarningCount?: number,
+    reconciliationWarningCount?: number
+): number {
+    return (consistencyWarningCount ?? 0) + (reconciliationWarningCount ?? 0);
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * Komponente
+ * ---------------------------------------------------------------------------
+ */
 
 export default function HeroSection({
     portfolios,
@@ -43,119 +91,130 @@ export default function HeroSection({
     totalUnrealizedPnL = 0,
     totalDividendNet = 0,
     consistencyWarningCount = 0,
+    reconciliationWarningCount = 0,
     lastUpdatedAt = null,
     showStaleWarning = false,
     showWarningsPanel = false,
     onToggleWarningsPanel,
 }: HeroSectionProps) {
-    const investedAmount = totalPositionValue - totalUnrealizedPnL;
+    const totalWarningCount = getTotalWarningCount(
+        consistencyWarningCount,
+        reconciliationWarningCount
+    );
 
     return (
         <section className={styles.hero}>
-            <div className={styles.left}>
-                <div className={styles.ringPlaceholder}>
-                    <div className={styles.ringValue}>
-                        {formatCurrency(totalPositionValue)}
+            {/* ------------------------------------------------------------------ */}
+            {/* Linker Inhaltsbereich                                               */}
+            {/* ------------------------------------------------------------------ */}
+            <div className={styles.content}>
+                <div className={styles.topRow}>
+                    <div>
+                        <div className={styles.eyebrow}>Parqet Connect Dashboard</div>
+                        <h1 className={styles.title}>Portfolioübergreifende Asset-Sicht</h1>
+                        <p className={styles.subtitle}>
+                            Konsolidierte Bestände, Erträge und Prüfhinweise über alle ausgewählten
+                            Portfolios.
+                        </p>
+                    </div>
+
+                    <div className={styles.actions}>
+                        <button
+                            type="button"
+                            className={styles.loadButton}
+                            onClick={onLoadAssets}
+                            disabled={loadingAssets}
+                        >
+                            {loadingAssets ? "Daten werden geladen..." : "Assets laden"}
+                        </button>
                     </div>
                 </div>
 
-                <div className={styles.copy}>
-                    <h1 className={styles.title}>Deine Gesamtansicht</h1>
-
-                    <div className={styles.metaRow}>
-                        <span>{assetCount} Assets gesamt</span>
-                        <span>·</span>
-                        <span>{selectedPortfolioCount} Portfolios</span>
-                        <span>·</span>
-                        <span>EUR</span>
-                        {lastUpdatedAt ? (
-                            <>
-                                <span>·</span>
-                                <span>
-                                    Stand: {new Date(lastUpdatedAt).toLocaleString("de-DE")}
-                                </span>
-                            </>
-                        ) : null}
-                    </div>
-
-                    <div className={styles.separator} />
-
-                    <div className={styles.metrics}>
-                        <div className={styles.metricBlock}>
-                            <div className={styles.metricLabel}>Portfoliowert</div>
-                            <div className={styles.metricMainValue}>
-                                {formatCurrency(totalPositionValue)}
-                            </div>
-
-                            <div className={styles.metricRows}>
-                                <div className={styles.metricRow}>
-                                    <span className={styles.metricKey}>Investiert</span>
-                                    <span className={styles.metricVal}>
-                                        {formatCurrency(investedAmount)}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={styles.metricBlock}>
-                            <div className={styles.metricLabel}>Kursgewinn</div>
-                            <div className={`${styles.metricMainValue} ${styles.positive}`}>
-                                {formatCurrency(totalUnrealizedPnL)}
-                            </div>
-
-                            <div className={styles.metricRows}>
-                                <div className={styles.metricRow}>
-                                    <span className={styles.metricKey}>Dividenden</span>
-                                    <span className={styles.metricVal}>
-                                        {formatCurrency(totalDividendNet)}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={styles.metricBlock}>
-                            <div className={styles.metricLabel}>Ansicht</div>
-                            <div className={styles.metricMainValueSmall}>ISIN-konsolidiert</div>
-
-                            <div className={styles.metricRows}>
-                                <div className={styles.metricRow}>
-                                    <span className={styles.metricKey}>Aktive Portfolios</span>
-                                    <span className={styles.metricVal}>
-                                        {selectedPortfolioCount}
-                                    </span>
-                                </div>
-                            </div>
+                {/* ------------------------------------------------------------------ */}
+                {/* KPI-Zeile                                                          */}
+                {/* ------------------------------------------------------------------ */}
+                <div className={styles.kpiGrid}>
+                    <div className={styles.kpiCard}>
+                        <div className={styles.kpiLabel}>Portfolios</div>
+                        <div className={styles.kpiValue}>{selectedPortfolioCount}</div>
+                        <div className={styles.kpiMeta}>
+                            von {portfolios.length} autorisierten Portfolios
                         </div>
                     </div>
 
+                    <div className={styles.kpiCard}>
+                        <div className={styles.kpiLabel}>Assets</div>
+                        <div className={styles.kpiValue}>{assetCount}</div>
+                        <div className={styles.kpiMeta}>konsolidierte Positionen</div>
+                    </div>
+
+                    <div className={styles.kpiCard}>
+                        <div className={styles.kpiLabel}>Positionswert</div>
+                        <div className={styles.kpiValue}>{formatCurrency(totalPositionValue)}</div>
+                        <div className={styles.kpiMeta}>über alle geladenen Assets</div>
+                    </div>
+
+                    <div className={styles.kpiCard}>
+                        <div className={styles.kpiLabel}>Kursgewinn</div>
+                        <div className={styles.kpiValue}>{formatCurrency(totalUnrealizedPnL)}</div>
+                        <div className={styles.kpiMeta}>unrealisiert</div>
+                    </div>
+
+                    <div className={styles.kpiCard}>
+                        <div className={styles.kpiLabel}>Dividenden</div>
+                        <div className={styles.kpiValue}>{formatCurrency(totalDividendNet)}</div>
+                        <div className={styles.kpiMeta}>netto erfasst</div>
+                    </div>
+                </div>
+
+                {/* ------------------------------------------------------------------ */}
+                {/* Warnungs- und Statusbereich                                        */}
+                {/* ------------------------------------------------------------------ */}
+                <div className={styles.statusRow}>
                     <button
                         type="button"
-                        className={styles.warningTileButton}
+                        className={`${styles.warningCard} ${totalWarningCount > 0 ? styles.warningCardActive : ""
+                            }`}
                         onClick={onToggleWarningsPanel}
                     >
-                        <div className={styles.warningTile}>
-                            <div className={styles.warningTileLabel}>Datenkonsistenz</div>
-                            <div
-                                className={`${styles.warningTileValue} ${consistencyWarningCount > 0
-                                        ? styles.warningTileAlert
-                                        : styles.warningTileOk
-                                    }`.trim()}
-                            >
-                                {consistencyWarningCount > 0
-                                    ? `${consistencyWarningCount} Warnung(en)`
-                                    : "Keine Warnungen"}
-                            </div>
-                            <div className={styles.warningTileHint}>
-                                {showWarningsPanel
-                                    ? "Detailansicht ausblenden"
-                                    : "Detailansicht einblenden"}
-                            </div>
+                        <div className={styles.warningTitle}>Datenwarnungen</div>
+
+                        <div className={styles.warningCountRow}>
+                            <span className={styles.warningCount}>{totalWarningCount}</span>
+                            <span className={styles.warningCountLabel}>
+                                {totalWarningCount === 1 ? "Hinweis" : "Hinweise"}
+                            </span>
+                        </div>
+
+                        <div className={styles.warningBreakdown}>
+                            <span>Konsistenz: {consistencyWarningCount}</span>
+                            <span>Reconciliation: {reconciliationWarningCount}</span>
+                        </div>
+
+                        <div className={styles.warningFooter}>
+                            {showWarningsPanel ? "Panel ausblenden" : "Panel anzeigen"}
                         </div>
                     </button>
+
+                    <div className={styles.updateCard}>
+                        <div className={styles.updateLabel}>Letztes Update</div>
+                        <div className={styles.updateValue}>{formatDateTime(lastUpdatedAt)}</div>
+
+                        {showStaleWarning ? (
+                            <div className={styles.staleWarning}>
+                                Achtung: Die angezeigten Daten sind älter als 5 Tage.
+                            </div>
+                        ) : (
+                            <div className={styles.updateHint}>Datenstand aus letzter erfolgreicher Ladung</div>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            <div className={styles.right}>
+            {/* -------------------------------------------------------------------- */}
+            {/* Rechter Filterbereich                                                */}
+            {/* -------------------------------------------------------------------- */}
+            <div className={styles.filterPanel}>
                 <PortfolioFilter
                     portfolios={portfolios}
                     selectedPortfolioIds={selectedPortfolioIds}
@@ -166,22 +225,6 @@ export default function HeroSection({
                     onApply={onApply}
                     onReset={onReset}
                 />
-
-                <div className={styles.refreshWrap}>
-                    <button
-                        type="button"
-                        className={styles.refreshButton}
-                        onClick={onLoadAssets}
-                    >
-                        {loadingAssets ? "Lade..." : "Aktualisieren"}
-                    </button>
-
-                    {showStaleWarning ? (
-                        <div className={styles.refreshStaleWarning}>
-                            Letzte Aktualisierung älter als 5 Tage
-                        </div>
-                    ) : null}
-                </div>
             </div>
         </section>
     );
