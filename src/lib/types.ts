@@ -168,6 +168,8 @@ export type PortfoliosApiResponse = {
     portfolios?: {
         items: Portfolio[];
     };
+    authRequired?: boolean;
+    reconnectUrl?: string;
     message?: string;
     details?: string;
 };
@@ -186,8 +188,10 @@ export type AssetsApiResponse = {
     activeAssetCount: number;
     closedAssetCount: number;
     consistencyReport: ConsistencyReport | null;
-    reconciliationWarnings?: ReconciliationWarning[]; // NEU
+    reconciliationWarnings?: ReconciliationWarning[];
     generatedAt: string;
+    authRequired?: boolean;
+    reconnectUrl?: string;
     message?: string;
     details?: string;
 };
@@ -245,6 +249,10 @@ export type ActivitiesAuditItem = {
     amountNet: number;
 
     warningMessages: string[];
+
+    hasOverrides?: boolean;
+    overrideFlags?: AppliedOverrideMap;
+    overrideCount?: number;
 };
 
 export type ActivitiesAuditSummary = {
@@ -264,6 +272,59 @@ export type ActivitiesAuditApiResponse = {
     items: ActivitiesAuditItem[];
     reconciliationWarnings: ReconciliationWarning[];
     summary: ActivitiesAuditSummary;
+    authRequired?: boolean;
+    reconnectUrl?: string;
+    message?: string;
+    details?: string;
+};
+
+/**
+ * Override-System:
+ * manuelle Korrekturen einzelner normalisierter Activities.
+ *
+ * Wichtig:
+ * - Originaldaten aus Parqet bleiben unverändert
+ * - Overrides werden feldbasiert gespeichert
+ * - die Pipeline arbeitet danach mit korrigierten Werten
+ */
+export type ActivityOverrideField =
+    | "type"
+    | "datetime"
+    | "shares"
+    | "price"
+    | "amount"
+    | "amountNet"
+    | "portfolioId"
+    | "portfolioName"
+    | "isin"
+    | "name"
+    | "symbol"
+    | "wkn";
+
+export type ActivityOverrideValue = string | number | null;
+
+export type ActivityOverride = {
+    id: string;
+    activityId: string;
+    field: ActivityOverrideField;
+    value: ActivityOverrideValue;
+    reason?: string | null;
+    createdAt: string;
+    source: "manual";
+};
+
+export type AppliedOverrideMap = Partial<Record<ActivityOverrideField, true>>;
+
+export type ActivityOverridesApiResponse = {
+    ok: boolean;
+    items: ActivityOverride[];
+    message?: string;
+    details?: string;
+};
+
+export type SaveActivityOverrideApiResponse = {
+    ok: boolean;
+    item?: ActivityOverride;
     message?: string;
     details?: string;
 };

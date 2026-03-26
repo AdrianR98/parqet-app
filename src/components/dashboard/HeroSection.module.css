@@ -1,7 +1,7 @@
-.hero {
+﻿.hero {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     padding: 18px 18px 16px;
     border: 1px solid var(--panel-border);
     border-radius: 14px;
@@ -51,26 +51,43 @@
     justify-content: flex-end;
 }
 
-.loadButton {
-    height: 34px;
-    padding: 0 14px;
-    border: 1px solid var(--panel-border);
+.actionButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text-main);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
     cursor: pointer;
-    font-size: 0.78rem;
-    font-weight: 700;
-    white-space: nowrap;
+    transition: all 0.15s ease;
 }
 
-.loadButton:hover:not(:disabled) {
-    border-color: var(--accent-cyan);
+    .actionButton:hover {
+        background: var(--color-surface-hover);
+        border-color: var(--color-border-strong);
+    }
+
+.actionButton:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(15, 30, 55, 0.98);
+    transform: translateY(-1px);
 }
 
-.loadButton:disabled {
-    opacity: 0.7;
+.actionButton:disabled {
+    opacity: 0.72;
     cursor: progress;
+}
+
+.actionButtonAlert {
+    color: var(--text-main);
+}
+
+.actionButtonActive {
+    border-color: var(--accent-cyan);
 }
 
 .summaryRow {
@@ -108,11 +125,10 @@
 
 .statusRow {
     display: grid;
-    grid-template-columns: minmax(320px, 1.3fr) minmax(260px, 0.8fr);
+    grid-template-columns: 1fr;
     gap: 10px;
 }
 
-.warningCard,
 .updateCard {
     min-width: 0;
     padding: 12px 14px;
@@ -121,62 +137,8 @@
     background: rgba(255, 255, 255, 0.02);
 }
 
-.warningCard {
-    cursor: pointer;
-    text-align: left;
-}
-
-.warningCard:hover {
-    border-color: var(--accent-cyan);
-}
-
-.warningCardActive {
-    border-color: var(--accent-orange);
-}
-
-.warningHeaderRow {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    align-items: center;
-}
-
-.warningTitle,
 .updateLabel {
     font-size: 0.74rem;
-    color: var(--text-soft);
-}
-
-.warningAction {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--accent-cyan);
-}
-
-.warningCountRow {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.warningCount {
-    font-size: 1.12rem;
-    font-weight: 700;
-    color: var(--text-main);
-}
-
-.warningCountLabel {
-    font-size: 0.74rem;
-    color: var(--text-soft);
-}
-
-.warningBreakdown {
-    margin-top: 8px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 0.73rem;
     color: var(--text-soft);
 }
 
@@ -185,6 +147,15 @@
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text-main);
+}
+
+.updateMetaRow {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.73rem;
+    color: var(--text-soft);
 }
 
 .updateHint {
@@ -206,14 +177,8 @@
 }
 
 @media (max-width: 900px) {
-    .topRow,
-    .statusRow {
-        grid-template-columns: 1fr;
-        flex-direction: column;
-    }
-
     .topRow {
-        display: flex;
+        flex-direction: column;
     }
 
     .topActions {
@@ -232,5 +197,10 @@
 
     .summaryRow {
         grid-template-columns: 1fr;
+    }
+
+    .actionButton {
+        width: 100%;
+        justify-content: center;
     }
 }

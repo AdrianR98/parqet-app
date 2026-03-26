@@ -127,37 +127,6 @@ function PortfolioRowIdentityCell({
     );
 }
 
-function renderPortfolioListSummary(asset: AssetSummary) {
-    const portfolioBreakdown = getSafePortfolioBreakdown(asset);
-
-    if (portfolioBreakdown.length === 0) {
-        return <span className={styles.portfolioEmpty}>—</span>;
-    }
-
-    if (portfolioBreakdown.length === 1) {
-        return (
-            <span className={styles.portfolioSingleName}>
-                {portfolioBreakdown[0].portfolioName}
-            </span>
-        );
-    }
-
-    return (
-        <div className={styles.portfolioSummaryStack}>
-            {portfolioBreakdown.slice(0, 2).map((portfolio) => (
-                <div key={portfolio.portfolioId} className={styles.portfolioSummaryLine}>
-                    {portfolio.portfolioName}
-                </div>
-            ))}
-            {portfolioBreakdown.length > 2 ? (
-                <div className={styles.portfolioMoreLine}>
-                    +{portfolioBreakdown.length - 2} weitere
-                </div>
-            ) : null}
-        </div>
-    );
-}
-
 function AssetValueCells({
     asset,
     visibleColumnSet,
@@ -208,8 +177,6 @@ function AssetValueCells({
             {visibleColumnSet.has("totalDividendNet") ? (
                 <td className={styles.tdRight}>{formatCurrency(asset.totalDividendNet)}</td>
             ) : null}
-
-            {visibleColumnSet.has("portfolios") ? <td>{renderPortfolioListSummary(asset)}</td> : null}
         </>
     );
 }
@@ -277,12 +244,6 @@ function PortfolioValueCells({
                     {formatCurrency(portfolio.totalDividendNet)}
                 </td>
             ) : null}
-
-            {visibleColumnSet.has("portfolios") ? (
-                <td>
-                    <span className={styles.portfolioSubRowLabel}>Anteil am Asset</span>
-                </td>
-            ) : null}
         </>
     );
 }
@@ -344,11 +305,11 @@ export function AssetTableBody({
                                             }`}
                                             aria-hidden="true"
                                         >
-                                            ▾
+                                            ⌄
                                         </span>
                                     </button>
                                 ) : (
-                                    <div className={styles.expandSpacer} aria-hidden="true" />
+                                    <span className={styles.expandSpacer} aria-hidden="true" />
                                 )}
                             </td>
                         </tr>
@@ -364,6 +325,7 @@ export function AssetTableBody({
                                           asset={asset}
                                           visibleColumnSet={visibleColumnSet}
                                       />
+
                                       <td className={styles.editCell} />
                                       <td className={styles.actionsCell} />
                                   </tr>

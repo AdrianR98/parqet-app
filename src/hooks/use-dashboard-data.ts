@@ -1,6 +1,4 @@
-﻿// src/hooks/use-dashboard-data.ts
-
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -55,6 +53,8 @@ type UseDashboardDataResult = {
     loadingPortfolios: boolean;
     loadingAssets: boolean;
     errorMessage: string;
+    authRequired: boolean;
+    reconnectUrl: string;
 
     stats: DashboardStats;
     showStaleWarning: boolean;
@@ -66,17 +66,9 @@ type UseDashboardDataResult = {
     applyPortfolioFilter: () => void;
     resetPortfolioFilter: () => void;
     loadAssets: () => Promise<void>;
+    startReconnect: () => void;
 };
 
-/**
- * Kapselt die komplette Daten- und Zustandslogik des Dashboards.
- *
- * Ziel:
- * - page.tsx auf Rendering reduzieren
- * - API-Loading, Cache und Ableitungen zentral halten
- * - Portfolio-Filter-Logik separat wiederverwenden
- * - spaetere Erweiterungen an einer Stelle konzentrieren
- */
 export function useDashboardData(): UseDashboardDataResult {
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [showWarningsPanel, setShowWarningsPanel] = useState(false);
@@ -110,11 +102,26 @@ export function useDashboardData(): UseDashboardDataResult {
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
     const [loadingAssets, setLoadingAssets] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
+    const [authRequired, setAuthRequired] = useState(false);
+    const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
 
-    /**
-     * Laedt die autorisierten Portfolios und uebernimmt dabei moeglichst
-     * die zuletzt gespeicherte Portfolio-Auswahl aus dem Cache.
-     */
+    function applyAuthState(message?: string, url?: string) {
+        setAuthRequired(true);
+        setReconnectUrl(url || "/api/auth/start");
+        setErrorMessage(
+            message || "Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden."
+        );
+    }
+
+    function clearAuthState() {
+        setAuthRequired(false);
+        setReconnectUrl("/api/auth/start");
+    }
+
+    function startReconnect() {
+        window.location.href = reconnectUrl || "/api/auth/start";
+    }
+
     useEffect(() => {
         async function loadPortfolios() {
             setLoadingPortfolios(true);
@@ -126,8 +133,15 @@ export function useDashboardData(): UseDashboardDataResult {
                 const data: PortfoliosApiResponse = JSON.parse(rawText);
 
                 if (!data.ok) {
+                    if (data.authRequired) {
+                        applyAuthState(data.message, data.reconnectUrl);
+                        return;
+                    }
+
                     throw new Error(data.message || "Portfolios konnten nicht geladen werden.");
                 }
+
+                clearAuthState();
 
                 const items = data.portfolios?.items ?? [];
                 const allIds = items.map((item) => item.id);
@@ -155,19 +169,6 @@ export function useDashboardData(): UseDashboardDataResult {
         loadPortfolios();
     }, [hydratePortfolioSelection]);
 
-    /**
-     * Stellt beim ersten Rendern den zuletzt bekannten Dashboard-Stand aus
-     * dem Browser-Cache wieder her.
-     *
-     * Wichtig:
-     * Die geladenen Cache-Assets werden direkt noch einmal mit lokaler
-     * Metadata-Enrichment-Logik angereichert, damit Seed-/Cache-Metadaten
-     * sofort sichtbar sind.
-     *
-     * Reconciliation-Warnungen werden nicht aus dem Cache rehydriert,
-     * weil diese jetzt aus der neuen bereinigten Pipeline stammen und
-     * moeglichst frisch vom Server kommen sollen.
-     */
     useEffect(() => {
         const cached = loadDashboardCache();
 
@@ -190,13 +191,6 @@ export function useDashboardData(): UseDashboardDataResult {
         }
     }, [hydratePortfolioSelection]);
 
-    /**
-     * Laedt die Asset-Sicht fuer die aktuell ausgewaehlten Portfolios.
-     *
-     * Nach dem API-Call werden die Assets zusaetzlich mit lokaler Metadata-
-     * Enrichment-Logik angereichert, damit spaetere Name-/Ticker-/WKN-Daten
-     * sofort in der UI zur Verfuegung stehen.
-     */
     async function loadAssets() {
         setLoadingAssets(true);
         setErrorMessage("");
@@ -213,17 +207,20 @@ export function useDashboardData(): UseDashboardDataResult {
             const data: AssetsApiResponse = JSON.parse(rawText);
 
             if (!data.ok) {
+                if (data.authRequired) {
+                    applyAuthState(data.message, data.reconnectUrl);
+                    return;
+                }
+
                 throw new Error(data.message || "Assets konnten nicht geladen werden.");
             }
+
+            clearAuthState();
 
             const nextActiveAssets = enrichAssetsWithMetadata(data.activeAssets ?? []);
             const nextClosedAssets = enrichAssetsWithMetadata(data.closedAssets ?? []);
             const nextLastUpdatedAt = data.generatedAt ?? new Date().toISOString();
 
-            /**
-             * Liste der ISINs, fuer die aktuell noch keine guten Metadaten vorliegen.
-             * Das ist spaeter die ideale Grundlage fuer einen echten Metadata-Fetcher.
-             */
             const missingMetadataIsins = getMissingMetadataIsins([
                 ...nextActiveAssets,
                 ...nextClosedAssets,
@@ -267,27 +264,17 @@ export function useDashboardData(): UseDashboardDataResult {
         }
     }
 
-    /**
-     * Setzt die temporaere Auswahl auf alle verfuegbaren Portfolios zurueck.
-     * Die eigentliche Zustandspflege bleibt im Portfolio-Filter-Hook.
-     */
     function resetPortfolioFilter() {
         const allIds = portfolios.map((portfolio) => portfolio.id);
         resetPortfolioFilterInternal(allIds);
     }
 
-    /**
-     * Anzahl der aktuell aktiv ausgewaehlten Portfolios, rein fuer Anzeigezwecke.
-     */
     const selectedPortfolioCount = useMemo(() => {
         return portfolios.filter((portfolio) =>
             selectedPortfolioIds.includes(portfolio.id)
         ).length;
     }, [portfolios, selectedPortfolioIds]);
 
-    /**
-     * Zentrale Kennzahlen fuer Hero- und Stats-Komponenten.
-     */
     const stats: DashboardStats = useMemo(() => {
         return buildDashboardStats({
             activeAssets,
@@ -308,23 +295,14 @@ export function useDashboardData(): UseDashboardDataResult {
         closedAssetCount,
     ]);
 
-    /**
-     * Sortierte aktive Assets fuer die Haupttabelle.
-     */
     const sortedActiveAssets = useMemo(() => {
         return sortActiveAssets(activeAssets);
     }, [activeAssets]);
 
-    /**
-     * Sortierte geschlossene Assets fuer die Historien-Tabelle.
-     */
     const sortedClosedAssets = useMemo(() => {
         return sortClosedAssets(closedAssets);
     }, [closedAssets]);
 
-    /**
-     * Kennzeichnet veraltete Datenstaende fuer die UI.
-     */
     const showStaleWarning = useMemo(() => {
         return isDashboardDataStale(lastUpdatedAt);
     }, [lastUpdatedAt]);
@@ -355,6 +333,8 @@ export function useDashboardData(): UseDashboardDataResult {
         loadingPortfolios,
         loadingAssets,
         errorMessage,
+        authRequired,
+        reconnectUrl,
 
         stats,
         showStaleWarning,
@@ -366,5 +346,6 @@ export function useDashboardData(): UseDashboardDataResult {
         applyPortfolioFilter,
         resetPortfolioFilter,
         loadAssets,
+        startReconnect,
     };
 }

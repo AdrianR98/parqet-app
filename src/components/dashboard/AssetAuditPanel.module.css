@@ -1,13 +1,4 @@
-﻿/* ============================================================
-   src/components/dashboard/AssetAuditPanel.module.css
-   ------------------------------------------------------------
-   Asset Audit Drawer
-   - voll ans globale Theme gekoppelt
-   - kein Blur, damit Lesbarkeit stabil bleibt
-   - funktioniert in Dark + Light ueber useTheme()
-   ============================================================ */
-
-.overlay {
+﻿.overlay {
     position: fixed;
     inset: 0;
     display: flex;
@@ -17,7 +8,7 @@
 }
 
 .panel {
-    width: min(760px, 100%);
+    width: min(860px, 100%);
     height: 100%;
     overflow-y: auto;
     padding: 24px;
@@ -60,19 +51,37 @@
     color: var(--text-soft);
 }
 
-.closeButton {
+.closeButton,
+.secondaryButton,
+.primaryButton {
     border: 1px solid var(--panel-border);
-    background: transparent;
-    color: var(--text-main);
     border-radius: 10px;
     padding: 10px 14px;
     cursor: pointer;
     transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
 
-    .closeButton:hover {
+.closeButton,
+.secondaryButton {
+    background: transparent;
+    color: var(--text-main);
+}
+
+    .closeButton:hover,
+    .secondaryButton:hover {
         border-color: var(--accent-cyan);
         background: rgba(255, 255, 255, 0.02);
+    }
+
+.primaryButton {
+    background: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+    color: #ffffff;
+}
+
+    .primaryButton:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
     }
 
 .section {
@@ -117,7 +126,18 @@
     margin-bottom: 4px;
     font-size: 12px;
     font-weight: 700;
+}
+
+.warningSeverityError {
     color: var(--negative);
+}
+
+.warningSeverityWarning {
+    color: #d97706;
+}
+
+.warningSeverityInfo {
+    color: var(--accent-cyan);
 }
 
 .summaryRow {
@@ -151,12 +171,89 @@
     color: var(--text-main);
 }
 
+.activityIdentity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .activityGrid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px 14px;
     font-size: 13px;
     color: var(--text-main);
+}
+
+.overrideBadge,
+.overrideFieldBadge {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.overrideFieldRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.editCard {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--panel-border);
+}
+
+.editHeaderRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.editGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.fieldGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.reasonField {
+    grid-column: 1 / -1;
+}
+
+.fieldLabel {
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.fieldInput {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 12px;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-main);
+}
+
+.editActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
 }
 
 .placeholder {
@@ -166,10 +263,22 @@
     color: var(--text-soft);
 }
 
-.errorBox {
+.errorBox,
+.inlineError {
     border: 1px solid rgba(255, 102, 122, 0.45);
     background: rgba(255, 102, 122, 0.08);
     border-radius: 12px;
     padding: 14px;
     color: var(--negative);
+}
+
+.inlineError {
+    margin-top: 12px;
+    padding: 10px 12px;
+}
+
+.inlineActions {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
 }

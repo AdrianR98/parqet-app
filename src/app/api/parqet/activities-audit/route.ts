@@ -1,267 +1,256 @@
-// src/lib/types.ts
+ï»¿// src/app/api/parqet/activities-audit/route.ts
 
-/**
- * Portfolio aus /api/parqet/portfolios
- */
-export type Portfolio = {
-    id: string;
-    name: string;
-    currency: string;
-    createdAt: string;
-    distinctBrokers: string[];
-};
+import { NextResponse } from "next/server";
+import {
+    getCookieValue,
+    refreshParqetAccessToken,
+} from "../../../../lib/parqet";
+import { fetchAuthorizedPortfolios } from "../../../../lib/parqet-assets/fetch-portfolios";
+import { loadActivitiesForPortfolios } from "../../../../lib/parqet-assets/fetch-activities";
+import { isRealSecurityActivity } from "../../../../lib/parqet-assets/filters";
+import { normalizeActivities } from "../../../../lib/parqet-assets/normalization";
+import { applyOverrides } from "../../../../lib/parqet-assets/overrides";
+import { buildReconciliationWarnings } from "../../../../lib/parqet-assets/reconciliation";
+import { toNumber } from "../../../../lib/parqet-assets/activity-utils";
+import type {
+    ActivitiesAuditApiResponse,
+    ActivitiesAuditItem,
+    ActivitiesAuditSummary,
+} from "../../../../lib/types";
+import { readActivityOverrides } from "../../../../lib/parqet-assets/override-store";
 
-/**
- * Optionale Asset-Metadaten aus lokaler oder externer Quelle.
- */
-export type AssetMetadata = {
-    name?: string | null;
-    assetName?: string | null;
-    displayName?: string | null;
-    title?: string | null;
+function getMonthKey(value: string): string {
+    return value.slice(0, 7);
+}
 
-    symbol?: string | null;
-    ticker?: string | null;
-    tickerSymbol?: string | null;
+function getMonthLabel(value: string): string {
+    const date = new Date(value);
 
-    wkn?: string | null;
+    if (Number.isNaN(date.getTime())) {
+        return value.slice(0, 7);
+    }
 
-    marketPrice?: number | null;
-    marketPriceAt?: string | null;
-    marketPriceSource?: string | null;
+    return new Intl.DateTimeFormat("de-DE", {
+        month: "long",
+        year: "numeric",
+    }).format(date);
+}
 
-    currency?: string | null;
-    assetType?: string | null;
-    exchange?: string | null;
-};
-
-/**
- * Positionswerte je Portfolio innerhalb eines aggregierten Assets.
- */
-export type PortfolioPosition = {
-    portfolioId: string;
-    portfolioName: string;
-
-    netShares: number;
-    remainingCostBasis: number;
-    avgBuyPrice: number | null;
-
-    latestTradePrice: number | null;
-    marketPrice: number | null;
-
-    positionValue: number | null;
-    unrealizedPnL: number | null;
-
-    totalDividendNet: number;
-};
-
-/**
- * Konsolidierte Asset-Sicht über mehrere Portfolios.
- */
-export type AssetSummary = {
-    isin: string;
-
-    portfolioIds: string[];
-    portfolioNames: string[];
-
-    portfolioBreakdown: PortfolioPosition[];
-
-    activityCount: number;
-    buyCount: number;
-    sellCount: number;
-    dividendCount: number;
-
-    totalBoughtShares: number;
-    totalSoldShares: number;
-    netShares: number;
-
-    totalInvestedGross: number;
-    remainingCostBasis: number;
-    avgBuyPrice: number | null;
-
-    latestTradePrice: number | null;
-    marketPrice: number | null;
-    marketPriceAt: string | null;
-    marketPriceSource: string | null;
-
-    positionValue: number | null;
-    unrealizedPnL: number | null;
-
-    totalDividendNet: number;
-
-    latestActivityAt: string | null;
-
-    name?: string | null;
-    assetName?: string | null;
-    displayName?: string | null;
-    title?: string | null;
-
-    symbol?: string | null;
-    ticker?: string | null;
-    tickerSymbol?: string | null;
-
-    wkn?: string | null;
-
-    metadata?: Partial<AssetMetadata> | null;
-    externalMetadata?: Partial<AssetMetadata> | null;
-    assetMeta?: Partial<AssetMetadata> | null;
-};
-
-/**
- * Einzelne Konsistenzwarnung für ein Asset.
- */
-export type AssetConsistencyCheck = {
-    isin: string;
-    name?: string | null;
-
-    reconstructedNetShares: number;
-    remainingCostBasis: number;
-
-    isNegativeShares: boolean;
-    isNegativeCostBasis: boolean;
-    hasZeroSharesButCostBasis: boolean;
-    hasSharesButNoBuyHistory: boolean;
-    soldMoreThanBought: boolean;
-
-    warnings: string[];
-};
-
-/**
- * Konsistenzreport für das gesamte Dashboard.
- */
-export type ConsistencyReport = {
-    checkedAssets: number;
-    warningCount: number;
-    assetsWithWarnings: AssetConsistencyCheck[];
-};
-
-/**
- * Reconciliation-Warnung auf Activity-/Asset-Ebene.
- *
- * Diese Struktur ist bewusst DB-ready:
- * - eindeutige ISIN
- * - Severity
- * - menschenlesbare Nachricht
- *
- * Später kann hier problemlos z. B. eine ruleId, status, note oder overrideId
- * ergänzt werden.
- */
-export type ReconciliationWarning = {
-    isin: string;
-    message: string;
-    severity: "info" | "warning" | "error";
-};
-
-/**
- * Antwort von /api/parqet/portfolios
- */
-export type PortfoliosApiResponse = {
-    ok: boolean;
-    portfolios?: {
-        items: Portfolio[];
+function buildAuditSummary(items: ActivitiesAuditItem[]): ActivitiesAuditSummary {
+    return {
+        total: items.length,
+        buyCount: items.filter((item) => item.type === "buy").length,
+        sellCount: items.filter((item) => item.type === "sell").length,
+        dividendCount: items.filter((item) => item.type === "dividend").length,
+        transferInCount: items.filter((item) => item.type === "transfer_in").length,
+        transferOutCount: items.filter((item) => item.type === "transfer_out").length,
+        unknownCount: items.filter((item) => item.type === "unknown").length,
     };
-    message?: string;
-    details?: string;
-};
+}
 
-/**
- * Antwort von /api/parqet/assets
- */
-export type AssetsApiResponse = {
-    ok: boolean;
+export async function GET(req: Request) {
+    try {
+        const url = new URL(req.url);
+        const portfolioIds = url.searchParams.getAll("portfolioId");
 
-    rawActivityCount?: number;
-    filteredActivityCount?: number;
+        if (portfolioIds.length === 0) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    generatedAt: new Date().toISOString(),
+                    portfolios: [],
+                    items: [],
+                    reconciliationWarnings: [],
+                    summary: {
+                        total: 0,
+                        buyCount: 0,
+                        sellCount: 0,
+                        dividendCount: 0,
+                        transferInCount: 0,
+                        transferOutCount: 0,
+                        unknownCount: 0,
+                    },
+                    message: "No portfolioId parameters provided.",
+                } satisfies ActivitiesAuditApiResponse,
+                { status: 400 }
+            );
+        }
 
-    assetCount?: number;
-    activeAssetCount?: number;
-    closedAssetCount?: number;
+        const cookieHeader = req.headers.get("cookie") || "";
 
-    assets?: AssetSummary[];
-    activeAssets?: AssetSummary[];
-    closedAssets?: AssetSummary[];
+        let accessToken = getCookieValue(cookieHeader, "parqet_access_token");
+        const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
-    generatedAt?: string;
-    consistencyReport?: ConsistencyReport;
-    reconciliationWarnings?: ReconciliationWarning[];
+        if (!accessToken) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    generatedAt: new Date().toISOString(),
+                    portfolios: [],
+                    items: [],
+                    reconciliationWarnings: [],
+                    summary: {
+                        total: 0,
+                        buyCount: 0,
+                        sellCount: 0,
+                        dividendCount: 0,
+                        transferInCount: 0,
+                        transferOutCount: 0,
+                        unknownCount: 0,
+                    },
+                    message: "No access token found.",
+                } satisfies ActivitiesAuditApiResponse,
+                { status: 401 }
+            );
+        }
 
-    message?: string;
-    details?: string;
-};
+        async function buildAuditView(
+            currentAccessToken: string
+        ): Promise<ActivitiesAuditApiResponse> {
+            const portfolios = await fetchAuthorizedPortfolios(currentAccessToken);
+            const portfolioNameById = new Map<string, string>();
 
-/**
- * Kennzahlen für Header / Hero / StatsGrid.
- */
-export type DashboardStats = {
-    rawActivityCount: number;
-    filteredActivityCount: number;
-    assetCount: number;
-    activeAssetCount: number;
-    closedAssetCount: number;
-    totalDividendNet: number;
-    totalPositionValue: number;
-    totalUnrealizedPnL: number;
-};
+            for (const portfolio of portfolios) {
+                portfolioNameById.set(portfolio.id, portfolio.name);
+            }
 
-/**
- * Audit-/Aktivitätenansicht:
- * vereinheitlichte Typen für die UI.
- *
- * Wichtig:
- * Diese Ebene soll künftig auch mit DB gespeicherten Activities kompatibel bleiben.
- */
-export type AuditActivityType =
-    | "buy"
-    | "sell"
-    | "dividend"
-    | "transfer_in"
-    | "transfer_out"
-    | "unknown";
+            const allActivities = await loadActivitiesForPortfolios(
+                currentAccessToken,
+                portfolioIds
+            );
 
-export type ActivitiesAuditItem = {
-    id: string;
-    datetime: string;
+            const filteredActivities = allActivities.filter(isRealSecurityActivity);
+            const normalized = normalizeActivities(filteredActivities);
+            const overrides = await readActivityOverrides();
+            const corrected = applyOverrides(normalized, overrides);
+            const warnings = buildReconciliationWarnings(corrected);
 
-    year: number;
-    monthKey: string;
-    monthLabel: string;
+            const items: ActivitiesAuditItem[] = corrected
+                .map((activity) => {
+                    const datetime = activity.datetime ?? "";
+                    const isin = (activity.isin ?? "").trim().toUpperCase();
 
-    portfolioId: string | null;
-    portfolioName: string;
+                    return {
+                        id: activity.id,
+                        datetime,
+                        year: new Date(datetime).getFullYear(),
+                        monthKey: getMonthKey(datetime),
+                        monthLabel: getMonthLabel(datetime),
 
-    isin: string;
-    name: string | null;
-    symbol: string | null;
-    wkn: string | null;
+                        portfolioId: activity.portfolioId ?? null,
+                        portfolioName: activity.portfolioId
+                            ? portfolioNameById.get(activity.portfolioId) ?? activity.portfolioId
+                            : "Unknown Portfolio",
 
-    type: AuditActivityType;
-    rawType: string;
+                        isin,
+                        name: activity.name ?? activity.symbol ?? activity.wkn ?? isin,
+                        symbol: activity.symbol ?? null,
+                        wkn: activity.wkn ?? null,
 
-    shares: number;
-    price: number;
-    amount: number;
-    amountNet: number;
+                        type: activity.type ?? "unknown",
+                        rawType: activity.rawType ?? activity.type ?? "unknown",
 
-    warningMessages: string[];
-};
+                        shares: toNumber(activity.shares),
+                        price: toNumber(activity.price),
+                        amount: toNumber(activity.amount),
+                        amountNet: toNumber(activity.amountNet),
 
-export type ActivitiesAuditSummary = {
-    total: number;
-    buyCount: number;
-    sellCount: number;
-    dividendCount: number;
-    transferInCount: number;
-    transferOutCount: number;
-    unknownCount: number;
-};
+                        warningMessages: warnings
+                            .filter((warning) => warning.isin === isin)
+                            .map((warning) => warning.message),
 
-export type ActivitiesAuditApiResponse = {
-    ok: boolean;
-    generatedAt: string;
-    portfolios: Portfolio[];
-    items: ActivitiesAuditItem[];
-    reconciliationWarnings: ReconciliationWarning[];
-    summary: ActivitiesAuditSummary;
-    message?: string;
-    details?: string;
-};
+                        hasOverrides: activity.hasOverrides,
+                        overrideFlags: activity.overrideFlags,
+                        overrideCount: activity.appliedOverrides?.length ?? 0,
+                    };
+                })
+                .sort((a, b) => b.datetime.localeCompare(a.datetime));
+
+            return {
+                ok: true,
+                generatedAt: new Date().toISOString(),
+                portfolios,
+                items,
+                reconciliationWarnings: warnings,
+                summary: buildAuditSummary(items),
+            };
+        }
+
+        try {
+            const result = await buildAuditView(accessToken);
+            return NextResponse.json(result);
+        } catch (error) {
+            if (!refreshToken) {
+                throw error;
+            }
+
+            const refreshed = await refreshParqetAccessToken(refreshToken);
+
+            if (!refreshed.accessToken) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        generatedAt: new Date().toISOString(),
+                        portfolios: [],
+                        items: [],
+                        reconciliationWarnings: [],
+                        summary: {
+                            total: 0,
+                            buyCount: 0,
+                            sellCount: 0,
+                            dividendCount: 0,
+                            transferInCount: 0,
+                            transferOutCount: 0,
+                            unknownCount: 0,
+                        },
+                        message: "Access token expired and refresh failed.",
+                    } satisfies ActivitiesAuditApiResponse,
+                    { status: 401 }
+                );
+            }
+
+            accessToken = refreshed.accessToken;
+            const result = await buildAuditView(accessToken);
+
+            const response = NextResponse.json(result);
+
+            response.cookies.set("parqet_access_token", accessToken, {
+                httpOnly: true,
+                sameSite: "lax",
+                path: "/",
+            });
+
+            if (refreshed.newRefreshToken) {
+                response.cookies.set("parqet_refresh_token", refreshed.newRefreshToken, {
+                    httpOnly: true,
+                    sameSite: "lax",
+                    path: "/",
+                });
+            }
+
+            return response;
+        }
+    } catch (error: unknown) {
+        return NextResponse.json(
+            {
+                ok: false,
+                generatedAt: new Date().toISOString(),
+                portfolios: [],
+                items: [],
+                reconciliationWarnings: [],
+                summary: {
+                    total: 0,
+                    buyCount: 0,
+                    sellCount: 0,
+                    dividendCount: 0,
+                    transferInCount: 0,
+                    transferOutCount: 0,
+                    unknownCount: 0,
+                },
+                message: "Activities audit route failed.",
+                details: error instanceof Error ? error.message : String(error),
+            } satisfies ActivitiesAuditApiResponse,
+            { status: 500 }
+        );
+    }
+}

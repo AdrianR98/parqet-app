@@ -1,67 +1,28 @@
-﻿/* ============================================================
-   src/components/dashboard/AssetTable.module.css
-   ------------------------------------------------------------
-   Asset Table
-   - flache Darstellung innerhalb der schlanken Section
-   - Top-Scrollbar nur bei Bedarf
-   - feste Spalten nicht im Menü
-   - global ans Theme gekoppelt
-   ============================================================ */
-
-.tableShell {
-    border: 1px solid var(--panel-border);
-    border-radius: 18px;
-    background: var(--panel-bg);
-    color: var(--text-main);
-    overflow: hidden;
-}
-
-.tableShellFlat {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    overflow: visible;
-}
-
-.header {
+﻿.section {
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toolbar {
+    display: flex;
     justify-content: space-between;
-    gap: 16px;
-    padding: 16px 18px;
-    border-bottom: 1px solid var(--panel-border);
+    gap: 12px;
+    align-items: center;
 }
 
-.compactToolbar {
-    display: flex;
-    justify-content: flex-end;
-    padding: 4px 0 6px;
-}
-
-.headerTitleWrap {
-    min-width: 0;
-}
-
-.headerTitle {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1.2;
-    color: var(--text-main);
-}
-
-.headerSubtitle {
-    margin-top: 4px;
-    font-size: 14px;
-    line-height: 1.35;
-    color: var(--text-soft);
-}
-
-.headerRight {
+.toolbarMeta {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
+    gap: 10px;
+    color: var(--text-soft);
+    font-size: 12px;
+}
+
+.toolbarActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .columnMenuWrap {
@@ -69,42 +30,43 @@
 }
 
 .columnMenuButton {
-    width: 32px;
-    height: 32px;
+    height: 34px;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 8px;
+    padding: 0 12px;
     border: 1px solid var(--panel-border);
-    border-radius: 10px;
+    border-radius: 8px;
     background: transparent;
     color: var(--text-main);
     cursor: pointer;
     transition: border-color 0.16s ease, background-color 0.16s ease;
 }
 
-    .columnMenuButton:hover {
-        border-color: var(--accent-cyan);
-        background: rgba(255, 255, 255, 0.03);
-    }
+.columnMenuButton:hover,
+.columnMenuButtonActive {
+    border-color: var(--accent-cyan);
+    background: rgba(255, 255, 255, 0.03);
+}
 
 .columnMenu {
     position: absolute;
-    top: calc(100% + 10px);
     right: 0;
-    z-index: 20;
-    min-width: 220px;
-    padding: 12px;
+    top: calc(100% + 8px);
+    width: 260px;
+    padding: 8px;
     border: 1px solid var(--panel-border);
-    border-radius: 14px;
+    border-radius: 12px;
     background: var(--panel-bg);
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+    z-index: 30;
 }
 
-.columnMenuTitle {
-    margin-bottom: 10px;
-    font-size: 12px;
+.columnMenuHeader {
+    padding: 6px 8px 10px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-soft);
 }
@@ -112,7 +74,7 @@
 .columnMenuList {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 2px;
 }
 
 .columnMenuItem {
@@ -130,9 +92,9 @@
     transition: background-color 0.16s ease;
 }
 
-    .columnMenuItem:hover {
-        background: rgba(255, 255, 255, 0.03);
-    }
+.columnMenuItem:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
 
 .columnCheckbox {
     width: 16px;
@@ -160,29 +122,48 @@
 
 .table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0 8px;
     table-layout: fixed;
 }
 
-    .table thead th {
-        height: 54px;
-        padding: 0 12px;
-        vertical-align: middle;
-        border-bottom: 1px solid var(--panel-border);
-        text-align: left;
-        background: rgba(255, 255, 255, 0.02);
-    }
-
-.tableShellFlat .table thead th {
+.table thead th {
+    height: 42px;
+    padding: 0 12px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--panel-border);
+    text-align: left;
     background: transparent;
 }
 
 .table tbody td {
     padding: 14px 12px;
     vertical-align: middle;
-    border-bottom: 1px solid var(--panel-border);
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.022);
+    transition: background 0.15s ease, transform 0.05s ease;
 }
 
+.table tbody td:first-child {
+    border-left: 1px solid rgba(255, 255, 255, 0.04);
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+}
+
+.table tbody td:last-child {
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+    .table tbody tr:hover {
+        background: var(--color-surface-hover);
+    }
+
+    .table tbody tr + tr {
+        border-top: 1px solid var(--color-border-subtle);
+    }
 .editHeaderCell {
     width: 124px;
 }
@@ -206,9 +187,9 @@
     transition: color 0.16s ease;
 }
 
-    .thButton:hover {
-        color: var(--text-main);
-    }
+.thButton:hover {
+    color: var(--text-main);
+}
 
 .thButtonRight {
     justify-content: flex-end;
@@ -234,12 +215,26 @@
     background: transparent;
 }
 
-    .assetMainRow:hover {
-        background: rgba(255, 255, 255, 0.02);
-    }
+.assetMainRow td {
+    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
 
-.portfolioSubRow {
-    background: rgba(255, 255, 255, 0.015);
+.assetMainRow:hover td {
+    background: rgba(255, 255, 255, 0.055);
+    border-top-color: rgba(255, 255, 255, 0.1);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.assetMainRow:hover td:first-child {
+    border-left-color: rgba(255, 255, 255, 0.1);
+}
+
+.assetMainRow:hover td:last-child {
+    border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+.portfolioSubRow td {
+    background: rgba(255, 255, 255, 0.035);
 }
 
 .tdRight {
@@ -364,11 +359,11 @@
     transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
 }
 
-    .auditButton:hover {
-        border-color: var(--accent-cyan);
-        color: var(--text-main);
-        background: rgba(255, 255, 255, 0.03);
-    }
+.auditButton:hover {
+    border-color: var(--accent-cyan);
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.03);
+}
 
 .actionsCell {
     width: 52px;
@@ -391,9 +386,9 @@
     transition: color 0.16s ease;
 }
 
-    .expandButton:hover {
-        color: var(--text-main);
-    }
+.expandButton:hover {
+    color: var(--text-main);
+}
 
 .expandChevron {
     display: inline-flex;
@@ -499,4 +494,10 @@
 .empty {
     padding: 18px 20px;
     color: var(--text-soft);
+}
+.container {
+    margin-top: 0;
+}
+.sectionWrapper {
+    margin-top: 0;
 }

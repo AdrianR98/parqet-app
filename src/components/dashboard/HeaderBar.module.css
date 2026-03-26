@@ -1,30 +1,35 @@
 .topbar {
-    height: 56px;
-    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: auto minmax(260px, 1fr) auto;
     align-items: center;
-    gap: 16px;
-    padding: 0 20px;
-    border-bottom: 1px solid var(--panel-border);
-    background: rgba(0, 0, 0, 0.12);
+    gap: 18px;
+    min-height: 64px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--surface-border);
+    background: var(--surface-header);
+    backdrop-filter: blur(16px);
 }
 
 .brand {
-    min-width: 170px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    min-width: 0;
 }
 
 .brandLogo {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
     display: grid;
     place-items: center;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-cyan-strong));
+    color: #fff;
     font-weight: 700;
-    font-size: 0.82rem;
-    color: white;
-    background: linear-gradient(135deg, var(--accent-cyan), #1794c9);
+    font-size: 0.95rem;
 }
 
 .brandText {
@@ -34,45 +39,40 @@
 }
 
 .brandTitle {
-    font-size: 0.9rem;
+    color: var(--text-main);
+    font-size: 0.95rem;
     font-weight: 700;
-    line-height: 1;
+    line-height: 1.1;
 }
 
 .brandSubtitle {
-    font-size: 0.68rem;
     color: var(--text-soft);
-    line-height: 1;
+    font-size: 0.76rem;
+    line-height: 1.1;
 }
 
 .searchWrap {
-    flex: 1;
     display: flex;
     align-items: center;
-    max-width: 420px;
-    height: 34px;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    overflow: hidden;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-panel);
 }
 
 .searchIcon {
-    width: 34px;
-    display: grid;
-    place-items: center;
     color: var(--text-muted);
     font-size: 0.9rem;
 }
 
 .searchInput {
-    flex: 1;
-    height: 100%;
+    width: 100%;
     border: 0;
-    outline: none;
+    outline: 0;
     background: transparent;
     color: var(--text-main);
-    padding-right: 10px;
 }
 
 .searchInput::placeholder {
@@ -80,43 +80,39 @@
 }
 
 .right {
-    margin-left: auto;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 12px;
 }
 
 .themeButton {
-    height: 32px;
-    padding: 0 11px;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text-soft);
-    cursor: pointer;
-}
-
-.themeButton:hover {
-    border-color: var(--accent-cyan);
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-panel);
     color: var(--text-main);
+    cursor: pointer;
 }
 
 .user {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
 }
 
 .avatar {
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
     border-radius: 999px;
     display: grid;
     place-items: center;
-    font-size: 0.75rem;
+    background: var(--avatar-bg);
+    color: #fff;
+    font-size: 0.9rem;
     font-weight: 700;
-    color: white;
-    background: #5b6fd6;
 }
 
 .userText {
@@ -126,35 +122,24 @@
 }
 
 .userBadge {
-    width: fit-content;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: rgba(19, 212, 154, 0.16);
-    color: var(--accent-green);
-    font-size: 0.6rem;
-    font-weight: 700;
+    color: var(--text-soft);
+    font-size: 0.72rem;
 }
 
 .userName {
-    font-size: 0.8rem;
-    font-weight: 600;
     color: var(--text-main);
+    font-size: 0.84rem;
+    font-weight: 600;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
     .topbar {
-        flex-wrap: wrap;
-        height: auto;
+        grid-template-columns: 1fr;
+        gap: 10px;
         padding: 12px;
     }
 
-    .searchWrap {
-        order: 3;
-        max-width: none;
-        width: 100%;
-    }
-
     .right {
-        margin-left: 0;
+        justify-content: space-between;
     }
 }

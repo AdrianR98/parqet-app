@@ -30,7 +30,44 @@ import { normalizeActivities } from "../../../../lib/parqet-assets/normalization
 import { applyOverrides } from "../../../../lib/parqet-assets/overrides";
 import { buildReconciliationWarnings } from "../../../../lib/parqet-assets/reconciliation";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
+import { readActivityOverrides } from "../../../../lib/parqet-assets/override-store";
+function buildReconnectResponse(message: string) {
+    const response = NextResponse.json(
+        {
+            ok: false,
+            activeAssets: [],
+            closedAssets: [],
+            rawActivityCount: 0,
+            filteredActivityCount: 0,
+            assetCount: 0,
+            activeAssetCount: 0,
+            closedAssetCount: 0,
+            consistencyReport: null,
+            reconciliationWarnings: [],
+            generatedAt: new Date().toISOString(),
+            authRequired: true,
+            reconnectUrl: "/api/auth/start",
+            message,
+        },
+        { status: 401 }
+    );
 
+    response.cookies.set("parqet_access_token", "", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+    });
+
+    response.cookies.set("parqet_refresh_token", "", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+    });
+
+    return response;
+}
 // ============================================================
 // GET /api/parqet/assets
 // ============================================================
@@ -56,13 +93,7 @@ export async function GET(req: Request) {
         const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
         if (!accessToken) {
-            return NextResponse.json(
-                {
-                    ok: false,
-                    message: "No access token found.",
-                },
-                { status: 401 }
-            );
+            return buildReconnectResponse("Parqet-Verbindung nicht vorhanden oder abgelaufen.");
         }
 
         // ========================================================
@@ -96,7 +127,8 @@ export async function GET(req: Request) {
             // ====================================================
 
             const normalized = normalizeActivities(filteredActivities);
-            const corrected = applyOverrides(normalized);
+            const overrides = await readActivityOverrides();
+            const corrected = applyOverrides(normalized, overrides);
             const warnings = buildReconciliationWarnings(corrected);
 
             const correctedAssets = buildCorrectedAssets(corrected, portfolioNameById);
@@ -211,13 +243,7 @@ export async function GET(req: Request) {
             const refreshed = await refreshParqetAccessToken(refreshToken);
 
             if (!refreshed.accessToken) {
-                return NextResponse.json(
-                    {
-                        ok: false,
-                        message: "Access token expired and refresh failed.",
-                    },
-                    { status: 401 }
-                );
+                return buildReconnectResponse("Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.");
             }
 
             accessToken = refreshed.accessToken;

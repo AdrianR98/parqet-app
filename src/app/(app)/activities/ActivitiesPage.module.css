@@ -1,4 +1,4 @@
-.page {
+﻿.page {
     padding: 28px 30px 40px;
 }
 
@@ -315,6 +315,13 @@
     .activityNumberBlock {
         text-align: left;
     }
+
+}
+
+.bannerActions {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
 }
 
 @media (max-width: 640px) {

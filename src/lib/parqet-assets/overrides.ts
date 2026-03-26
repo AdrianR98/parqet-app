@@ -1,47 +1,122 @@
-﻿import type { NormalizedActivity, NormalizedActivityType } from "./normalization";
+﻿import type {
+    ActivityOverride,
+    ActivityOverrideField,
+    AppliedOverrideMap,
+} from "../types";
 
-export type ActivityOverride = {
-    activityId: string;
-    overrideType?: NormalizedActivityType;
-    ignore?: boolean;
+type OverrideCapableActivity = {
+    id: string;
+    type?: string | null;
+    datetime?: string | null;
+    shares?: number | null;
+    price?: number | null;
+    amount?: number | null;
+    amountNet?: number | null;
+    portfolioId?: string | null;
+    portfolioName?: string | null;
+    isin?: string | null;
+    name?: string | null;
+    symbol?: string | null;
+    wkn?: string | null;
 };
 
-/**
- * Platzhalter für manuelle Korrekturen.
- *
- * Heute:
- * - file/code-basiert
- *
- * Später:
- * - 1:1 in DB-Tabelle überführbar
- */
-const overrides: ActivityOverride[] = [
-    // Beispiel:
-    // {
-    //   activityId: "abc123",
-    //   overrideType: "transfer_in",
-    // },
+export type CorrectedActivity<T extends OverrideCapableActivity> = T & {
+    hasOverrides: boolean;
+    overrideFlags: AppliedOverrideMap;
+    appliedOverrides: ActivityOverride[];
+};
+
+const NUMERIC_FIELDS: ActivityOverrideField[] = [
+    "shares",
+    "price",
+    "amount",
+    "amountNet",
 ];
 
-export function applyOverrides(
-    activities: NormalizedActivity[]
-): NormalizedActivity[] {
-    return activities
-        .map((activity) => {
-            const override = overrides.find((entry) => entry.activityId === activity.id);
+function toNullableNumber(value: unknown): number | null {
+    if (value === null || value === undefined || value === "") {
+        return null;
+    }
 
-            if (!override) {
-                return activity;
-            }
+    const parsed = Number(value);
 
-            if (override.ignore) {
-                return null;
-            }
+    return Number.isFinite(parsed) ? parsed : null;
+}
 
+function toNullableString(value: unknown): string | null {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    return String(value);
+}
+
+function applySingleOverride<T extends OverrideCapableActivity>(
+    activity: T,
+    override: ActivityOverride
+): T {
+    const field = override.field;
+
+    if (NUMERIC_FIELDS.includes(field)) {
+        return {
+            ...activity,
+            [field]: toNullableNumber(override.value),
+        };
+    }
+
+    return {
+        ...activity,
+        [field]: toNullableString(override.value),
+    };
+}
+
+function buildOverrideIndex(overrides: ActivityOverride[]) {
+    const index = new Map<string, ActivityOverride[]>();
+
+    for (const item of overrides) {
+        const list = index.get(item.activityId) ?? [];
+        list.push(item);
+        index.set(item.activityId, list);
+    }
+
+    return index;
+}
+
+export function applyOverrides<T extends OverrideCapableActivity>(
+    activities: T[],
+    overrides: ActivityOverride[] = []
+): CorrectedActivity<T>[] {
+    if (activities.length === 0) {
+        return [];
+    }
+
+    const overrideIndex = buildOverrideIndex(overrides);
+
+    return activities.map((activity) => {
+        const activityOverrides = overrideIndex.get(activity.id) ?? [];
+
+        if (activityOverrides.length === 0) {
             return {
                 ...activity,
-                type: override.overrideType ?? activity.type,
+                hasOverrides: false,
+                overrideFlags: {},
+                appliedOverrides: [],
             };
-        })
-        .filter((entry): entry is NormalizedActivity => entry !== null);
+        }
+
+        let corrected = { ...activity };
+        const overrideFlags: AppliedOverrideMap = {};
+
+        for (const override of activityOverrides) {
+            corrected = applySingleOverride(corrected, override);
+            overrideFlags[override.field] = true;
+        }
+
+        return {
+            ...corrected,
+            hasOverrides: true,
+            overrideFlags,
+            appliedOverrides: activityOverrides,
+        };
+    });
 }

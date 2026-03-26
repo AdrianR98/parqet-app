@@ -22,8 +22,7 @@ export type ColumnKey =
     | "price"
     | "positionValue"
     | "unrealizedPnL"
-    | "totalDividendNet"
-    | "portfolios";
+    | "totalDividendNet";
 
 export type ColumnConfig = {
     key: ColumnKey;
@@ -36,44 +35,37 @@ export type ColumnConfig = {
 
 export const ALL_COLUMNS: ColumnConfig[] = [
     { key: "asset", label: "NAME", sortKey: "name", align: "left", isFixed: true, width: 360 },
-    { key: "netShares", label: "ANTEILE", sortKey: "netShares", align: "right", width: 120 },
+    { key: "netShares", label: "ANTEILE", sortKey: "netShares", align: "right", width: 108 },
     {
         key: "remainingCostBasis",
-        label: "EINSTIEG\nPREIS",
+        label: "INVESTIERT",
         sortKey: "remainingCostBasis",
         align: "right",
-        width: 128,
+        width: 132,
     },
-    { key: "avgBuyPrice", label: "Ø KAUF", sortKey: "avgBuyPrice", align: "right", width: 110 },
-    { key: "price", label: "POSITION\nKURS", sortKey: "price", align: "right", width: 128 },
+    { key: "avgBuyPrice", label: "Ø KAUF", sortKey: "avgBuyPrice", align: "right", width: 108 },
+    { key: "price", label: "KURS", sortKey: "price", align: "right", width: 110 },
     {
         key: "positionValue",
         label: "POSITIONSWERT",
         sortKey: "positionValue",
         align: "right",
         isFixed: true,
-        width: 140,
+        width: 136,
     },
     {
         key: "unrealizedPnL",
         label: "KURSGEWINN",
         sortKey: "unrealizedPnL",
         align: "right",
-        width: 122,
+        width: 118,
     },
     {
         key: "totalDividendNet",
         label: "DIVIDENDEN",
         sortKey: "totalDividendNet",
         align: "right",
-        width: 110,
-    },
-    {
-        key: "portfolios",
-        label: "PORTFOLIOS",
-        sortKey: "portfolioCount",
-        align: "left",
-        width: 150,
+        width: 112,
     },
 ];
 
@@ -88,11 +80,10 @@ export const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
     "positionValue",
     "unrealizedPnL",
     "totalDividendNet",
-    "portfolios",
 ];
 
-export const EDIT_ACTION_WIDTH = 124;
-export const EXPAND_ACTION_WIDTH = 52;
+export const EDIT_ACTION_WIDTH = 116;
+export const EXPAND_ACTION_WIDTH = 44;
 
 export function getSafePortfolioBreakdown(asset: AssetSummary): PortfolioPosition[] {
     if (Array.isArray(asset.portfolioBreakdown)) {

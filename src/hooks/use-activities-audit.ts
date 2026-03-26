@@ -1,6 +1,6 @@
-"use client";
+ï»¿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
     ActivitiesAuditApiResponse,
     ActivitiesAuditItem,
@@ -10,39 +10,41 @@ import type {
     ReconciliationWarning,
 } from "../lib/types";
 
-type AuditMonthGroup = {
-    monthKey: string;
-    monthLabel: string;
-    items: ActivitiesAuditItem[];
-};
-
-type AuditYearGroup = {
-    year: number;
-    items: ActivitiesAuditItem[];
-    months: AuditMonthGroup[];
-};
-
 type UseActivitiesAuditResult = {
+    portfolios: Portfolio[];
+    items: ActivitiesAuditItem[];
+    filteredItems: ActivitiesAuditItem[];
+    filteredSummary: ActivitiesAuditSummary;
+    reconciliationWarnings: ReconciliationWarning[];
+    generatedAt: string;
     loading: boolean;
     errorMessage: string;
-    generatedAt: string | null;
-
-    portfolios: Portfolio[];
-    reconciliationWarnings: ReconciliationWarning[];
-
+    authRequired: boolean;
+    reconnectUrl: string;
     selectedPortfolioIds: string[];
     selectedTypes: AuditActivityType[];
     searchTerm: string;
-
+    showPortfolioMenu: boolean;
+    showTypeMenu: boolean;
+    selectedPortfolioLabel: string;
+    selectedTypeLabel: string;
+    groupedYears: Array<{
+        year: number;
+        items: ActivitiesAuditItem[];
+        months: Array<{
+            monthKey: string;
+            monthLabel: string;
+            items: ActivitiesAuditItem[];
+        }>;
+    }>;
     setSearchTerm: (value: string) => void;
+    setShowPortfolioMenu: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowTypeMenu: React.Dispatch<React.SetStateAction<boolean>>;
     togglePortfolio: (portfolioId: string) => void;
     toggleType: (type: AuditActivityType) => void;
     clearFilters: () => void;
     reload: () => Promise<void>;
-
-    filteredItems: ActivitiesAuditItem[];
-    filteredSummary: ActivitiesAuditSummary;
-    groupedYears: AuditYearGroup[];
+    startReconnect: () => void;
 };
 
 const ALL_TYPES: AuditActivityType[] = [
@@ -54,214 +56,254 @@ const ALL_TYPES: AuditActivityType[] = [
     "unknown",
 ];
 
-/**
- * Baut Summary-Werte auf Basis der aktuell gefilterten Items.
- */
-function buildSummary(items: ActivitiesAuditItem[]): ActivitiesAuditSummary {
-    let buyCount = 0;
-    let sellCount = 0;
-    let dividendCount = 0;
-    let transferInCount = 0;
-    let transferOutCount = 0;
-    let unknownCount = 0;
-
-    for (const item of items) {
-        if (item.type === "buy") buyCount += 1;
-        else if (item.type === "sell") sellCount += 1;
-        else if (item.type === "dividend") dividendCount += 1;
-        else if (item.type === "transfer_in") transferInCount += 1;
-        else if (item.type === "transfer_out") transferOutCount += 1;
-        else unknownCount += 1;
-    }
-
+function emptySummary(): ActivitiesAuditSummary {
     return {
-        total: items.length,
-        buyCount,
-        sellCount,
-        dividendCount,
-        transferInCount,
-        transferOutCount,
-        unknownCount,
+        total: 0,
+        buyCount: 0,
+        sellCount: 0,
+        dividendCount: 0,
+        transferInCount: 0,
+        transferOutCount: 0,
+        unknownCount: 0,
     };
 }
 
-/**
- * Gruppiert die gefilterten Aktivitäten nach Jahr und Monat.
- */
-function groupByYearAndMonth(items: ActivitiesAuditItem[]): AuditYearGroup[] {
-    const yearMap = new Map<number, Map<string, AuditMonthGroup>>();
-
-    for (const item of items) {
-        if (!yearMap.has(item.year)) {
-            yearMap.set(item.year, new Map<string, AuditMonthGroup>());
-        }
-
-        const monthMap = yearMap.get(item.year)!;
-
-        if (!monthMap.has(item.monthKey)) {
-            monthMap.set(item.monthKey, {
-                monthKey: item.monthKey,
-                monthLabel: item.monthLabel,
-                items: [],
-            });
-        }
-
-        monthMap.get(item.monthKey)!.items.push(item);
-    }
-
-    return Array.from(yearMap.entries())
-        .sort((a, b) => b[0] - a[0])
-        .map(([year, monthMap]) => ({
-            year,
-            items: Array.from(monthMap.values()).flatMap((group) => group.items),
-            months: Array.from(monthMap.values()).sort((a, b) =>
-                b.monthKey.localeCompare(a.monthKey)
-            ),
-        }));
+function buildSummary(items: ActivitiesAuditItem[]): ActivitiesAuditSummary {
+    return {
+        total: items.length,
+        buyCount: items.filter((item) => item.type === "buy").length,
+        sellCount: items.filter((item) => item.type === "sell").length,
+        dividendCount: items.filter((item) => item.type === "dividend").length,
+        transferInCount: items.filter((item) => item.type === "transfer_in").length,
+        transferOutCount: items.filter((item) => item.type === "transfer_out").length,
+        unknownCount: items.filter((item) => item.type === "unknown").length,
+    };
 }
 
 export function useActivitiesAudit(): UseActivitiesAuditResult {
-    const [loading, setLoading] = useState(true);
-    const [errorMessage, setErrorMessage] = useState("");
-    const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-    const [allItems, setAllItems] = useState<ActivitiesAuditItem[]>([]);
-    const [reconciliationWarnings, setReconciliationWarnings] = useState<
-        ReconciliationWarning[]
-    >([]);
+    const [items, setItems] = useState<ActivitiesAuditItem[]>([]);
+    const [reconciliationWarnings, setReconciliationWarnings] = useState<ReconciliationWarning[]>([]);
+    const [generatedAt, setGeneratedAt] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
+    const [authRequired, setAuthRequired] = useState(false);
+    const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
 
     const [selectedPortfolioIds, setSelectedPortfolioIds] = useState<string[]>([]);
-    const [selectedTypes, setSelectedTypes] = useState<AuditActivityType[]>([]);
+    const [selectedTypes, setSelectedTypes] = useState<AuditActivityType[]>(ALL_TYPES);
     const [searchTerm, setSearchTerm] = useState("");
+    const [showPortfolioMenu, setShowPortfolioMenu] = useState(false);
+    const [showTypeMenu, setShowTypeMenu] = useState(false);
 
-    async function reload() {
+    const load = useCallback(async () => {
         setLoading(true);
         setErrorMessage("");
 
         try {
-            const res = await fetch("/api/parqet/activities-audit");
-            const data: ActivitiesAuditApiResponse = await res.json();
+            const params = new URLSearchParams();
 
-            if (!data.ok) {
-                throw new Error(data.message || "Aktivitäten konnten nicht geladen werden.");
+            for (const portfolioId of selectedPortfolioIds) {
+                params.append("portfolioId", portfolioId);
             }
 
-            setGeneratedAt(data.generatedAt ?? null);
-            setPortfolios(data.portfolios ?? []);
-            setAllItems(data.items ?? []);
-            setReconciliationWarnings(data.reconciliationWarnings ?? []);
+            const response = await fetch(`/api/parqet/activities-audit?${params.toString()}`);
+            const json = (await response.json()) as ActivitiesAuditApiResponse;
 
-            /**
-             * Initial standardmäßig alle Portfolios aktiv schalten,
-             * falls der Benutzer noch keine Auswahl getroffen hat.
-             */
-            setSelectedPortfolioIds((current) => {
-                if (current.length > 0) {
-                    return current;
+            if (!response.ok || !json.ok) {
+                if (json.authRequired) {
+                    setAuthRequired(true);
+                    setReconnectUrl(json.reconnectUrl || "/api/auth/start");
+                    setErrorMessage(
+                        json.message ||
+                        "Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden."
+                    );
+                    setPortfolios([]);
+                    setItems([]);
+                    setReconciliationWarnings([]);
+                    setGeneratedAt("");
+                    return;
                 }
 
-                return (data.portfolios ?? []).map((portfolio) => portfolio.id);
-            });
-        } catch (error) {
+                throw new Error(json.message || "AktivitÃ¤ten konnten nicht geladen werden.");
+            }
+
+            setAuthRequired(false);
+            setReconnectUrl("/api/auth/start");
+            setPortfolios(json.portfolios ?? []);
+            setItems(json.items ?? []);
+            setReconciliationWarnings(json.reconciliationWarnings ?? []);
+            setGeneratedAt(json.generatedAt ?? "");
+        } catch (error: unknown) {
             setErrorMessage(
-                `Aktivitäten konnten nicht geladen werden: ${error instanceof Error ? error.message : String(error)
-                }`
+                error instanceof Error
+                    ? error.message
+                    : "AktivitÃ¤ten konnten nicht geladen werden."
             );
+            setPortfolios([]);
+            setItems([]);
+            setReconciliationWarnings([]);
+            setGeneratedAt("");
         } finally {
             setLoading(false);
         }
-    }
+    }, [selectedPortfolioIds]);
 
     useEffect(() => {
-        reload();
-    }, []);
+        load();
+    }, [load]);
+
+    useEffect(() => {
+        if (portfolios.length === 0 || selectedPortfolioIds.length > 0) {
+            return;
+        }
+
+        setSelectedPortfolioIds(portfolios.map((portfolio) => portfolio.id));
+    }, [portfolios, selectedPortfolioIds.length]);
+
+    const filteredItems = useMemo(() => {
+        const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
+        return items.filter((item) => {
+            const matchesPortfolio =
+                selectedPortfolioIds.length === 0 ||
+                selectedPortfolioIds.includes(item.portfolioId ?? "");
+
+            const matchesType = selectedTypes.includes(item.type);
+
+            const matchesSearch =
+                normalizedSearchTerm.length === 0 ||
+                [
+                    item.name,
+                    item.isin,
+                    item.symbol,
+                    item.wkn,
+                    item.portfolioName,
+                ]
+                    .filter(Boolean)
+                    .some((value) =>
+                        String(value).toLowerCase().includes(normalizedSearchTerm)
+                    );
+
+            return matchesPortfolio && matchesType && matchesSearch;
+        });
+    }, [items, searchTerm, selectedPortfolioIds, selectedTypes]);
+
+    const filteredSummary = useMemo(() => buildSummary(filteredItems), [filteredItems]);
+
+    const selectedPortfolioLabel = useMemo(() => {
+        if (selectedPortfolioIds.length === 0 || selectedPortfolioIds.length === portfolios.length) {
+            return "Alle Portfolios";
+        }
+
+        if (selectedPortfolioIds.length === 1) {
+            const current = portfolios.find((portfolio) => portfolio.id === selectedPortfolioIds[0]);
+            return current?.name ?? "1 Portfolio";
+        }
+
+        return `${selectedPortfolioIds.length} Portfolios`;
+    }, [portfolios, selectedPortfolioIds]);
+
+    const selectedTypeLabel = useMemo(() => {
+        if (selectedTypes.length === ALL_TYPES.length) {
+            return "Alle Typen";
+        }
+
+        if (selectedTypes.length === 1) {
+            return selectedTypes[0];
+        }
+
+        return `${selectedTypes.length} Typen`;
+    }, [selectedTypes]);
+
+    const groupedYears = useMemo(() => {
+        const yearMap = new Map<number, ActivitiesAuditItem[]>();
+
+        for (const item of filteredItems) {
+            const current = yearMap.get(item.year) ?? [];
+            current.push(item);
+            yearMap.set(item.year, current);
+        }
+
+        return Array.from(yearMap.entries())
+            .sort((a, b) => b[0] - a[0])
+            .map(([year, yearItems]) => {
+                const monthMap = new Map<string, ActivitiesAuditItem[]>();
+
+                for (const item of yearItems) {
+                    const current = monthMap.get(item.monthKey) ?? [];
+                    current.push(item);
+                    monthMap.set(item.monthKey, current);
+                }
+
+                const months = Array.from(monthMap.entries())
+                    .sort((a, b) => b[0].localeCompare(a[0]))
+                    .map(([monthKey, monthItems]) => ({
+                        monthKey,
+                        monthLabel: monthItems[0]?.monthLabel ?? monthKey,
+                        items: monthItems,
+                    }));
+
+                return {
+                    year,
+                    items: yearItems,
+                    months,
+                };
+            });
+    }, [filteredItems]);
 
     function togglePortfolio(portfolioId: string) {
-        setSelectedPortfolioIds((current) => {
-            if (current.includes(portfolioId)) {
-                return current.filter((id) => id !== portfolioId);
-            }
-
-            return [...current, portfolioId];
-        });
+        setSelectedPortfolioIds((current) =>
+            current.includes(portfolioId)
+                ? current.filter((id) => id !== portfolioId)
+                : [...current, portfolioId]
+        );
     }
 
     function toggleType(type: AuditActivityType) {
-        setSelectedTypes((current) => {
-            if (current.includes(type)) {
-                return current.filter((entry) => entry !== type);
-            }
-
-            return [...current, type];
-        });
+        setSelectedTypes((current) =>
+            current.includes(type)
+                ? current.filter((entry) => entry !== type)
+                : [...current, type]
+        );
     }
 
     function clearFilters() {
         setSelectedPortfolioIds(portfolios.map((portfolio) => portfolio.id));
-        setSelectedTypes([]);
+        setSelectedTypes(ALL_TYPES);
         setSearchTerm("");
     }
 
-    const filteredItems = useMemo(() => {
-        const normalizedSearch = searchTerm.trim().toLowerCase();
-
-        return allItems.filter((item) => {
-            const portfolioMatch =
-                selectedPortfolioIds.length === 0 ||
-                (item.portfolioId != null && selectedPortfolioIds.includes(item.portfolioId));
-
-            const typeMatch =
-                selectedTypes.length === 0 || selectedTypes.includes(item.type);
-
-            const searchMatch =
-                normalizedSearch.length === 0 ||
-                [
-                    item.name ?? "",
-                    item.symbol ?? "",
-                    item.wkn ?? "",
-                    item.isin,
-                    item.portfolioName,
-                    item.rawType,
-                ]
-                    .join(" ")
-                    .toLowerCase()
-                    .includes(normalizedSearch);
-
-            return portfolioMatch && typeMatch && searchMatch;
-        });
-    }, [allItems, searchTerm, selectedPortfolioIds, selectedTypes]);
-
-    const filteredSummary = useMemo(() => {
-        return buildSummary(filteredItems);
-    }, [filteredItems]);
-
-    const groupedYears = useMemo(() => {
-        return groupByYearAndMonth(filteredItems);
-    }, [filteredItems]);
+    function startReconnect() {
+        window.location.href = reconnectUrl || "/api/auth/start";
+    }
 
     return {
+        portfolios,
+        items,
+        filteredItems,
+        filteredSummary,
+        reconciliationWarnings,
+        generatedAt,
         loading,
         errorMessage,
-        generatedAt,
-
-        portfolios,
-        reconciliationWarnings,
-
+        authRequired,
+        reconnectUrl,
         selectedPortfolioIds,
         selectedTypes,
         searchTerm,
-
+        showPortfolioMenu,
+        showTypeMenu,
+        selectedPortfolioLabel,
+        selectedTypeLabel,
+        groupedYears,
         setSearchTerm,
+        setShowPortfolioMenu,
+        setShowTypeMenu,
         togglePortfolio,
         toggleType,
         clearFilters,
-        reload,
-
-        filteredItems,
-        filteredSummary,
-        groupedYears,
+        reload: load,
+        startReconnect,
     };
 }
-
-export { ALL_TYPES };

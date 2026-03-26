@@ -1,0 +1,151 @@
+.sidebar {
+    width: 252px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 18px 10px 18px 12px;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(180deg, rgba(10, 23, 43, 0.96), rgba(11, 22, 41, 0.98));
+}
+
+.brandBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 4px 8px 0;
+}
+
+.brandRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logoMark {
+    width: 36px;
+    height: 36px;
+    border-radius: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 8px);
+    grid-template-rows: repeat(2, 8px);
+    gap: 3px;
+    align-content: center;
+    justify-content: center;
+    background: #18b8bb;
+}
+
+.logoTile {
+    width: 8px;
+    height: 8px;
+    display: block;
+    background: rgba(255, 255, 255, 0.9);
+    transform: rotate(45deg);
+}
+
+.brandText {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.brandTitle {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--text-main);
+}
+
+.brandSubtitle {
+    font-size: 0.74rem;
+    color: var(--text-soft);
+}
+
+.viewBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.viewLabel {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+}
+
+.viewValue {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.navItem {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--text-main);
+    transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.navItem:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.navItemActive {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.navItemDisabled {
+    color: var(--text-soft);
+    opacity: 0.92;
+}
+
+.itemIcon {
+    width: 22px;
+    flex-shrink: 0;
+    display: inline-flex;
+    justify-content: center;
+    font-size: 0.95rem;
+    color: var(--text-soft);
+}
+
+.navItemActive .itemIcon,
+.navItem:hover .itemIcon {
+    color: var(--text-main);
+}
+
+.itemLabel {
+    font-size: 0.98rem;
+    font-weight: 600;
+}
+
+.itemBadge {
+    margin-left: auto;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: rgba(30, 199, 195, 0.14);
+    color: var(--accent-cyan);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+@media (max-width: 1100px) {
+    .sidebar {
+        width: 220px;
+    }
+}
+
+@media (max-width: 900px) {
+    .sidebar {
+        display: none;
+    }
+}

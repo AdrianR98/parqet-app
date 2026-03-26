@@ -4,6 +4,34 @@ import {
     refreshParqetAccessToken,
 } from "../../../../lib/parqet";
 
+function buildReconnectResponse(message: string) {
+    const response = NextResponse.json(
+        {
+            ok: false,
+            authRequired: true,
+            reconnectUrl: "/api/auth/start",
+            message,
+        },
+        { status: 401 }
+    );
+
+    response.cookies.set("parqet_access_token", "", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+    });
+
+    response.cookies.set("parqet_refresh_token", "", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+    });
+
+    return response;
+}
+
 // Diese Route laedt die autorisierten Portfolios von Parqet.
 // Wenn der Access Token abgelaufen ist, wird automatisch ein Refresh versucht.
 export async function GET(req: Request) {
@@ -14,13 +42,7 @@ export async function GET(req: Request) {
         const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
         if (!accessToken) {
-            return NextResponse.json(
-                {
-                    ok: false,
-                    message: "No access token found in cookies.",
-                },
-                { status: 401 }
-            );
+            return buildReconnectResponse("Parqet-Verbindung nicht vorhanden oder abgelaufen.");
         }
 
         async function fetchPortfolios(currentAccessToken: string) {
@@ -38,13 +60,7 @@ export async function GET(req: Request) {
             const refreshed = await refreshParqetAccessToken(refreshToken);
 
             if (!refreshed.accessToken) {
-                return NextResponse.json(
-                    {
-                        ok: false,
-                        message: "Access token expired and refresh failed.",
-                    },
-                    { status: 401 }
-                );
+                return buildReconnectResponse("Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.");
             }
 
             accessToken = refreshed.accessToken;
@@ -53,6 +69,10 @@ export async function GET(req: Request) {
             const rawText = await portfoliosRes.text();
 
             if (!portfoliosRes.ok) {
+                if (portfoliosRes.status === 401) {
+                    return buildReconnectResponse("Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.");
+                }
+
                 return NextResponse.json(
                     {
                         ok: false,
@@ -92,6 +112,10 @@ export async function GET(req: Request) {
         const rawText = await portfoliosRes.text();
 
         if (!portfoliosRes.ok) {
+            if (portfoliosRes.status === 401) {
+                return buildReconnectResponse("Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.");
+            }
+
             return NextResponse.json(
                 {
                     ok: false,

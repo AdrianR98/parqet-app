@@ -33,10 +33,6 @@ type HeroSectionProps = {
     onToggleWarningsPanel: () => void;
 };
 
-// ============================================================
-// Lokale Helper
-// ============================================================
-
 function formatDateTime(value: string | null | undefined): string {
     if (!value) {
         return "—";
@@ -63,10 +59,6 @@ function getTotalWarningCount(
 ): number {
     return (consistencyWarningCount ?? 0) + (reconciliationWarningCount ?? 0);
 }
-
-// ============================================================
-// Komponente
-// ============================================================
 
 export default function HeroSection({
     portfolios,
@@ -122,7 +114,19 @@ export default function HeroSection({
 
                     <button
                         type="button"
-                        className={styles.loadButton}
+                        className={`${styles.actionButton} ${
+                            totalWarningCount > 0 ? styles.actionButtonAlert : ""
+                        }`.trim()}
+                        onClick={onToggleWarningsPanel}
+                    >
+                        Warnungen ({totalWarningCount})
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`${styles.actionButton} ${
+                            showWarningsPanel ? styles.actionButtonActive : ""
+                        }`.trim()}
                         onClick={onLoadAssets}
                         disabled={loadingAssets}
                     >
@@ -172,36 +176,13 @@ export default function HeroSection({
             </div>
 
             <div className={styles.statusRow}>
-                <button
-                    type="button"
-                    className={`${styles.warningCard} ${
-                        totalWarningCount > 0 ? styles.warningCardActive : ""
-                    }`.trim()}
-                    onClick={onToggleWarningsPanel}
-                >
-                    <div className={styles.warningHeaderRow}>
-                        <span className={styles.warningTitle}>Datenwarnungen</span>
-                        <span className={styles.warningAction}>
-                            {showWarningsPanel ? "Ansicht geöffnet" : "Öffnen"}
-                        </span>
-                    </div>
-
-                    <div className={styles.warningCountRow}>
-                        <span className={styles.warningCount}>{totalWarningCount}</span>
-                        <span className={styles.warningCountLabel}>
-                            {totalWarningCount === 1 ? "Hinweis" : "Hinweise"}
-                        </span>
-                    </div>
-
-                    <div className={styles.warningBreakdown}>
-                        <span>Konsistenz: {consistencyWarningCount}</span>
-                        <span>Reconciliation: {reconciliationWarningCount}</span>
-                    </div>
-                </button>
-
                 <div className={styles.updateCard}>
                     <div className={styles.updateLabel}>Letztes Update</div>
                     <div className={styles.updateValue}>{formatDateTime(lastUpdatedAt)}</div>
+                    <div className={styles.updateMetaRow}>
+                        <span>Konsistenz: {consistencyWarningCount}</span>
+                        <span>Reconciliation: {reconciliationWarningCount}</span>
+                    </div>
 
                     {showStaleWarning ? (
                         <div className={styles.staleWarning}>
