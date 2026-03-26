@@ -1,503 +1,210 @@
-﻿.section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+﻿.container {
+    margin-top: 0;
 }
+
+.topScrollbarWrap {
+    margin-bottom: 8px;
+}
+
+.tableScroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    background: var(--panel-bg);
+}
+
+.tableShell {
+    width: 100%;
+}
+
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--panel-bg);
+        color: var(--text-soft);
+        font-size: 12px;
+        font-weight: 600;
+        text-align: left;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--panel-border);
+        white-space: nowrap;
+    }
+
+    .table tbody tr {
+        transition: background-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+        .table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .table tbody tr + tr td {
+            border-top: 1px solid var(--panel-border);
+        }
+
+    .table td {
+        padding: 12px 14px;
+        font-size: 13px;
+        color: var(--text-main);
+        vertical-align: middle;
+        white-space: nowrap;
+    }
 
 .toolbar {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--panel-border);
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.toolbarLeft,
+.toolbarRight {
+    display: flex;
     align-items: center;
+    gap: 8px;
+}
+
+.toolbarTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
 }
 
 .toolbarMeta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-soft);
     font-size: 12px;
-}
-
-.toolbarActions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    color: var(--text-soft);
 }
 
 .columnMenuWrap {
     position: relative;
 }
 
-.columnMenuButton {
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 12px;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text-main);
-    cursor: pointer;
-    transition: border-color 0.16s ease, background-color 0.16s ease;
-}
-
-.columnMenuButton:hover,
-.columnMenuButtonActive {
-    border-color: var(--accent-cyan);
-    background: rgba(255, 255, 255, 0.03);
-}
-
 .columnMenu {
     position: absolute;
-    right: 0;
     top: calc(100% + 8px);
-    width: 260px;
-    padding: 8px;
+    right: 0;
+    z-index: 20;
+    min-width: 240px;
+    padding: 10px;
     border: 1px solid var(--panel-border);
-    border-radius: 12px;
+    border-radius: 14px;
     background: var(--panel-bg);
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
-    z-index: 30;
-}
-
-.columnMenuHeader {
-    padding: 6px 8px 10px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-soft);
+    box-shadow: var(--shadow-soft);
 }
 
 .columnMenuList {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
 }
 
 .columnMenuItem {
-    width: 100%;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
-    border: 0;
+    min-height: 34px;
+    padding: 4px 6px;
     border-radius: 10px;
-    background: transparent;
     color: var(--text-main);
-    cursor: pointer;
-    text-align: left;
-    transition: background-color 0.16s ease;
 }
 
-.columnMenuItem:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.columnCheckbox {
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--panel-border);
-    border-radius: 4px;
-    color: transparent;
-    font-size: 11px;
-    line-height: 1;
-    flex-shrink: 0;
-}
-
-.columnCheckboxChecked {
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-}
-
-.wrap {
-    overflow-x: auto;
-    overflow-y: hidden;
-}
-
-.table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0 8px;
-    table-layout: fixed;
-}
-
-.table thead th {
-    height: 42px;
-    padding: 0 12px;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--panel-border);
-    text-align: left;
-    background: transparent;
-}
-
-.table tbody td {
-    padding: 14px 12px;
-    vertical-align: middle;
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    background: rgba(255, 255, 255, 0.022);
-    transition: background 0.15s ease, transform 0.05s ease;
-}
-
-.table tbody td:first-child {
-    border-left: 1px solid rgba(255, 255, 255, 0.04);
-    border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
-}
-
-.table tbody td:last-child {
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
-    border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
-}
-
-    .table tbody tr:hover {
-        background: var(--color-surface-hover);
+    .columnMenuItem:hover {
+        background: rgba(255, 255, 255, 0.04);
     }
-
-    .table tbody tr + tr {
-        border-top: 1px solid var(--color-border-subtle);
-    }
-.editHeaderCell {
-    width: 124px;
-}
-
-.actionsHeaderCell {
-    width: 52px;
-}
-
-.thButton {
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--text-soft);
-    font: inherit;
-    cursor: pointer;
-    text-align: left;
-    transition: color 0.16s ease;
-}
-
-.thButton:hover {
-    color: var(--text-main);
-}
-
-.thButtonRight {
-    justify-content: flex-end;
-    text-align: right;
-}
-
-.thButtonActive {
-    color: var(--text-main);
-}
-
-.thLabel {
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.08;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    white-space: normal;
-    vertical-align: middle;
-}
-
-.assetMainRow {
-    background: transparent;
-}
-
-.assetMainRow td {
-    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
-}
-
-.assetMainRow:hover td {
-    background: rgba(255, 255, 255, 0.055);
-    border-top-color: rgba(255, 255, 255, 0.1);
-    border-bottom-color: rgba(255, 255, 255, 0.1);
-}
-
-.assetMainRow:hover td:first-child {
-    border-left-color: rgba(255, 255, 255, 0.1);
-}
-
-.assetMainRow:hover td:last-child {
-    border-right-color: rgba(255, 255, 255, 0.1);
-}
-
-.portfolioSubRow td {
-    background: rgba(255, 255, 255, 0.035);
-}
-
-.tdRight {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-
-.subtleValue {
-    color: var(--text-soft);
-}
-
-.positive {
-    color: var(--positive);
-}
-
-.negative {
-    color: var(--negative);
-}
-
-.neutral {
-    color: var(--text-main);
-}
 
 .assetIdentity {
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
-.assetLogo {
-    width: 38px;
-    height: 38px;
-    flex-shrink: 0;
-    border-radius: 999px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.assetLogoImage {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-
-.assetLogoFallback {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-main);
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.assetText {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-width: 0;
-    flex: 1;
-}
-
-.assetHeadlineRow {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 3px;
-    font-size: 12px;
-    line-height: 1.2;
-    color: var(--text-soft);
-}
-
-.assetCategory,
-.assetMetaDivider,
-.assetSubtitleInline,
-.assetPortfolioCount {
-    color: var(--text-soft);
-}
-
-.assetNameRow {
-    display: flex;
-    align-items: center;
     gap: 10px;
     min-width: 0;
 }
 
-.assetName {
-    min-width: 0;
-    color: var(--text-main);
-    font-size: 14px;
-    font-weight: 700;
-    line-height: 1.2;
-    word-break: break-word;
-}
-
-.editCell {
-    width: 124px;
-    text-align: right;
-    padding-right: 8px;
-}
-
-.auditButton {
-    width: 110px;
-    max-width: 100%;
-    padding: 8px 12px;
-    border: 1px solid var(--panel-border);
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-soft);
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1;
-    cursor: pointer;
-    transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
-}
-
-.auditButton:hover {
-    border-color: var(--accent-cyan);
-    color: var(--text-main);
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.actionsCell {
-    width: 52px;
-    padding-left: 0;
-    padding-right: 8px;
-    text-align: right;
-}
-
-.expandButton {
-    width: 36px;
-    height: 36px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--text-soft);
-    cursor: pointer;
-    transition: color 0.16s ease;
-}
-
-.expandButton:hover {
-    color: var(--text-main);
-}
-
-.expandChevron {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    line-height: 1;
-    transform: rotate(-90deg);
-    transition: transform 0.18s ease;
-}
-
-.expandChevronOpen {
-    transform: rotate(0deg);
-}
-
-.expandSpacer {
-    width: 36px;
-    height: 36px;
-    display: inline-block;
-}
-
-.portfolioIdentity {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
-.portfolioIndent {
-    width: 38px;
-    height: 38px;
+.assetLogo {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
     flex-shrink: 0;
 }
 
-.portfolioText {
+.assetIdentityText {
     min-width: 0;
 }
 
-.portfolioPrefixRow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 3px;
-}
-
-.portfolioPrefix {
-    font-size: 12px;
-    color: var(--text-soft);
-}
-
-.portfolioShareBadge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px 8px;
-    border: 1px solid var(--panel-border);
-    border-radius: 999px;
-    font-size: 11px;
-    color: var(--text-soft);
-}
-
-.portfolioName {
-    color: var(--text-main);
+.assetName {
     font-size: 13px;
     font-weight: 600;
-    line-height: 1.2;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.portfolioEmpty {
-    color: var(--text-soft);
-}
-
-.portfolioSingleName {
-    color: var(--text-soft);
-    font-size: 13px;
-    line-height: 1.25;
-}
-
-.portfolioSummaryStack {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.portfolioSummaryLine {
-    color: var(--text-soft);
-    font-size: 13px;
-    line-height: 1.25;
-}
-
-.portfolioMoreLine {
-    color: var(--text-soft);
+.assetMeta {
+    margin-top: 2px;
     font-size: 12px;
-    line-height: 1.25;
-    opacity: 0.9;
+    color: var(--text-soft);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.portfolioSubRowLabel {
-    color: var(--text-soft);
+.actionCell {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.expandedRow td {
+    padding-top: 0;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.breakdownCard {
+    margin: 0 14px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+}
+
+.breakdownHeader {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--panel-border);
     font-size: 12px;
-}
-
-.empty {
-    padding: 18px 20px;
     color: var(--text-soft);
 }
-.container {
-    margin-top: 0;
+
+.breakdownRow {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-main);
 }
-.sectionWrapper {
-    margin-top: 0;
+
+    .breakdownRow + .breakdownRow {
+        border-top: 1px solid var(--panel-border);
+    }
+
+@media (max-width: 900px) {
+    .toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }

@@ -30,7 +30,7 @@ export default function AppLayout({
             <AppSidebar activeItem={activeView} />
 
             <div className={styles.main}>
-                <HeaderBar theme={theme} onToggleTheme={toggleTheme} />
+                <HeaderBar theme={theme} onToggleThemeAction={toggleTheme} />
 
                 <div className={styles.content}>{children}</div>
             </div>

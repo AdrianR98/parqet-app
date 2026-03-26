@@ -1,123 +1,142 @@
-// ============================================================
-// src/components/dashboard/AssetTable.tsx
-// ------------------------------------------------------------
-// Schlanke Orchestrierungs-Komponente fuer die Asset-Tabelle.
-//
-// Ziele dieses Refactors:
-// - Render-Logik, Konfiguration und Tabellenzeilen trennen
-// - Datei deutlich kuerzer und wartbarer machen
-// - bestehende Optik/Funktionalitaet beibehalten
-// ============================================================
+﻿// src/components/dashboard/AssetTable.tsx
+
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AssetSummary } from "../../lib/types";
-import SyncedHorizontalScroll from "./SyncedHorizontalScroll";
 import styles from "./AssetTable.module.css";
+import SyncedHorizontalScroll from "./SyncedHorizontalScroll";
+import AssetTableHeader from "./AssetTableHeader";
+import AssetTableRows from "./AssetTableRows";
+import type { AssetSummary } from "../../lib/types";
 import {
-    ALL_COLUMNS,
-    compareNullableNumbers,
     DEFAULT_VISIBLE_COLUMNS,
-    EDIT_ACTION_WIDTH,
-    EXPAND_ACTION_WIDTH,
     FIXED_COLUMNS,
-    getSortValue,
-    type ColumnKey,
-    type SortDirection,
-    type SortKey,
+    type AssetSortKey,
+    type VisibleColumnKey,
+    getColumnMinWidth,
+    sortAssets,
 } from "./asset-table-config";
-import { AssetTableBody } from "./AssetTableRows";
-import { AssetTableHead, AssetTableShellHeader } from "./AssetTableHeader";
-import { getAssetDisplayName } from "../../lib/asset-display";
 
 type AssetTableProps = {
     assets: AssetSummary[];
-    title?: string;
-    subtitle?: string;
-    onAuditAsset?: (asset: AssetSummary) => void;
-    hideHeader?: boolean;
+    onAuditAssetAction?: (asset: AssetSummary) => void | Promise<void>;
 };
 
+/**
+ * ============================================================
+ * COMPONENT: ASSET TABLE
+ * ============================================================
+ *
+ * Wichtig:
+ * - Prop-Namen enden bewusst auf "Action"
+ * - das reduziert die Next TS71007 Hinweise in Client-Entry-Dateien
+ *
+ * Typische Erweiterungspunkte:
+ * - persistente Spaltenprofile
+ * - serverseitige Sortierung
+ * - zusätzliche Tabellenaktionen
+ */
 export default function AssetTable({
     assets,
-    onAuditAsset,
-    title = "Assets",
-    subtitle = "Konsolidierte Positionen über alle ausgewählten Portfolios",
-    hideHeader = false,
+    onAuditAssetAction,
 }: AssetTableProps) {
-    const [sortKey, setSortKey] = useState<SortKey>("positionValue");
-    const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-    const [showColumnMenu, setShowColumnMenu] = useState(false);
     const [visibleColumns, setVisibleColumns] =
-        useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
-    const [expandedIsins, setExpandedIsins] = useState<Set<string>>(new Set());
+        useState<VisibleColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
+    const [sortKey, setSortKey] = useState<AssetSortKey>("positionValue");
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+    const [expandedIsins, setExpandedIsins] = useState<string[]>([]);
+    const [showColumnMenu, setShowColumnMenu] = useState(false);
     const [showTopScrollbar, setShowTopScrollbar] = useState(false);
 
-    const columnMenuRef = useRef<HTMLDivElement | null>(null);
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
+    const columnMenuRef = useRef<HTMLDivElement | null>(null);
 
+    const normalizedVisibleColumns = useMemo(() => {
+        const next = [...FIXED_COLUMNS];
+
+        for (const key of visibleColumns) {
+            if (!next.includes(key)) {
+                next.push(key);
+            }
+        }
+
+        return next;
+    }, [visibleColumns]);
+
+    const tableMinWidth = useMemo(() => {
+        return normalizedVisibleColumns.reduce((sum, key) => {
+            return sum + getColumnMinWidth(key);
+        }, 0);
+    }, [normalizedVisibleColumns]);
+
+    const sortedAssets = useMemo(() => {
+        return sortAssets(assets, sortKey, sortDirection);
+    }, [assets, sortKey, sortDirection]);
+
+    /**
+     * ------------------------------------------------------------
+     * OVERFLOW-CHECK
+     * ------------------------------------------------------------
+     */
+    useEffect(() => {
+        const node = tableScrollRef.current;
+        if (!node) return;
+
+        function updateOverflowState() {
+            const currentNode = tableScrollRef.current;
+            if (!currentNode) return;
+
+            const hasOverflow = currentNode.scrollWidth > currentNode.clientWidth + 1;
+            setShowTopScrollbar(hasOverflow);
+        }
+
+        updateOverflowState();
+
+        const observer = new ResizeObserver(() => {
+            updateOverflowState();
+        });
+
+        observer.observe(node);
+
+        return () => observer.disconnect();
+    }, [normalizedVisibleColumns, sortedAssets]);
+
+    /**
+     * ------------------------------------------------------------
+     * OUTSIDE CLICK COLUMN MENU
+     * ------------------------------------------------------------
+     */
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (
-                columnMenuRef.current &&
-                !columnMenuRef.current.contains(event.target as Node)
-            ) {
+            const target = event.target as Node;
+
+            if (!columnMenuRef.current?.contains(target)) {
                 setShowColumnMenu(false);
             }
         }
 
-        document.addEventListener("mousedown", handleClickOutside);
+        if (showColumnMenu) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
 
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, []);
+    }, [showColumnMenu]);
 
-    const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
-
-    const visibleColumnsConfig = useMemo(
-        () => ALL_COLUMNS.filter((column) => visibleColumnSet.has(column.key)),
-        [visibleColumnSet]
-    );
-
-    const selectableColumns = useMemo(
-        () => ALL_COLUMNS.filter((column) => !column.isFixed),
-        []
-    );
-
-    const tableMinWidth = useMemo(() => {
-        const visibleColumnsWidth = visibleColumnsConfig.reduce(
-            (sum, column) => sum + column.width,
-            0
-        );
-
-        return visibleColumnsWidth + EDIT_ACTION_WIDTH + EXPAND_ACTION_WIDTH;
-    }, [visibleColumnsConfig]);
-
-    useEffect(() => {
-        const element = tableScrollRef.current;
-
-        if (!element) {
+    function toggleColumnAction(key: VisibleColumnKey) {
+        if (FIXED_COLUMNS.includes(key)) {
             return;
         }
 
-        const updateOverflowState = () => {
-            setShowTopScrollbar(element.scrollWidth > element.clientWidth + 1);
-        };
+        setVisibleColumns((current) =>
+            current.includes(key)
+                ? current.filter((entry) => entry !== key)
+                : [...current, key]
+        );
+    }
 
-        updateOverflowState();
-
-        const resizeObserver = new ResizeObserver(() => {
-            updateOverflowState();
-        });
-
-        resizeObserver.observe(element);
-
-        return () => {
-            resizeObserver.disconnect();
-        };
-    }, [tableMinWidth, assets.length, visibleColumnsConfig.length]);
-
-    function handleSort(nextSortKey: SortKey) {
+    function sortAction(nextSortKey: AssetSortKey) {
         if (sortKey === nextSortKey) {
             setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
             return;
@@ -127,109 +146,46 @@ export default function AssetTable({
         setSortDirection("desc");
     }
 
-    function toggleColumn(columnKey: ColumnKey) {
-        if (FIXED_COLUMNS.includes(columnKey)) {
-            return;
-        }
-
-        setVisibleColumns((current) => {
-            if (current.includes(columnKey)) {
-                return current.filter((key) => key !== columnKey);
-            }
-
-            const merged = [...current, columnKey];
-
-            return ALL_COLUMNS.filter((column) => merged.includes(column.key)).map(
-                (column) => column.key
-            );
-        });
+    function toggleExpandedAction(isin: string) {
+        setExpandedIsins((current) =>
+            current.includes(isin)
+                ? current.filter((entry) => entry !== isin)
+                : [...current, isin]
+        );
     }
-
-    function toggleExpanded(isin: string) {
-        setExpandedIsins((current) => {
-            const next = new Set(current);
-
-            if (next.has(isin)) {
-                next.delete(isin);
-            } else {
-                next.add(isin);
-            }
-
-            return next;
-        });
-    }
-
-    const sortedAssets = useMemo(() => {
-        const cloned = [...assets];
-
-        cloned.sort((a, b) => {
-            const aValue = getSortValue(a, sortKey);
-            const bValue = getSortValue(b, sortKey);
-
-            let result = 0;
-
-            if (typeof aValue === "string" && typeof bValue === "string") {
-                result = aValue.localeCompare(bValue, "de");
-            } else {
-                result = compareNullableNumbers(
-                    typeof aValue === "number" ? aValue : null,
-                    typeof bValue === "number" ? bValue : null
-                );
-            }
-
-            if (result === 0) {
-                result = compareNullableNumbers(a.positionValue, b.positionValue);
-            }
-
-            if (result === 0) {
-                result = getAssetDisplayName(a).localeCompare(getAssetDisplayName(b), "de");
-            }
-
-            return sortDirection === "asc" ? result : result * -1;
-        });
-
-        return cloned;
-    }, [assets, sortKey, sortDirection]);
 
     return (
-        <section className={`${styles.tableShell} ${hideHeader ? styles.tableShellFlat : ""}`}>
-            <AssetTableShellHeader
-                title={title}
-                subtitle={subtitle}
-                hideHeader={hideHeader}
-                showColumnMenu={showColumnMenu}
-                onToggleColumnMenu={() => setShowColumnMenu((current) => !current)}
-                columnMenuRef={columnMenuRef}
-                selectableColumns={selectableColumns}
-                visibleColumnSet={visibleColumnSet}
-                onToggleColumn={toggleColumn}
-            />
-
+        <div className={styles.container}>
             {showTopScrollbar ? (
-                <SyncedHorizontalScroll scrollTargetRef={tableScrollRef} />
+                <div className={styles.topScrollbarWrap}>
+                    <SyncedHorizontalScroll scrollTargetRef={tableScrollRef} />
+                </div>
             ) : null}
 
-            <div ref={tableScrollRef} className={styles.wrap}>
-                <table className={styles.table} style={{ minWidth: tableMinWidth }}>
-                    <AssetTableHead
-                        visibleColumnsConfig={visibleColumnsConfig}
+            <div ref={tableScrollRef} className={styles.tableScroll}>
+                <div className={styles.tableShell} style={{ minWidth: tableMinWidth }}>
+                    <AssetTableHeader
+                        visibleColumns={normalizedVisibleColumns}
                         sortKey={sortKey}
-                        onSort={handleSort}
+                        sortDirection={sortDirection}
+                        showColumnMenu={showColumnMenu}
+                        columnMenuRef={columnMenuRef}
+                        onToggleColumnMenuAction={() =>
+                            setShowColumnMenu((current) => !current)
+                        }
+                        onToggleColumnAction={toggleColumnAction}
+                        onSortAction={sortAction}
                     />
 
-                    <AssetTableBody
+                    <AssetTableRows
                         assets={sortedAssets}
-                        visibleColumnSet={visibleColumnSet}
+                        visibleColumns={normalizedVisibleColumns}
                         expandedIsins={expandedIsins}
-                        onToggleExpanded={toggleExpanded}
-                        onAuditAsset={onAuditAsset}
+                        onToggleExpandedAction={toggleExpandedAction}
+                        onAuditAssetAction={onAuditAssetAction}
                     />
-                </table>
-
-                {sortedAssets.length === 0 ? (
-                    <div className={styles.empty}>Keine Positionen vorhanden.</div>
-                ) : null}
+                </div>
             </div>
-        </section>
+        </div>
     );
 }

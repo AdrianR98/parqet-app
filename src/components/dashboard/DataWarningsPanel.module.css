@@ -1,35 +1,20 @@
-/* ============================================================
-   src/components/dashboard/DataWarningsPanel.module.css
-   ------------------------------------------------------------
-   Warnings Drawer
-   - analog zur Bearbeiten-Logik als rechter Drawer
-   - kompakter, ruhiger, parqet-naeher
-   ============================================================ */
-
-.overlay {
+﻿.overlay {
     position: fixed;
     inset: 0;
-    z-index: 70;
     display: flex;
     justify-content: flex-end;
-}
-
-.backdrop {
-    position: absolute;
-    inset: 0;
-    border: 0;
-    background: rgba(6, 11, 20, 0.34);
-    cursor: default;
+    background: rgba(0, 0, 0, 0.28);
+    z-index: 60;
 }
 
 .panel {
-    position: relative;
-    width: min(620px, 100%);
+    width: min(760px, 100%);
     height: 100%;
     overflow-y: auto;
-    padding: 22px 22px 28px;
-    border-left: 1px solid var(--panel-border);
+    padding: 24px;
     background: var(--panel-bg);
+    color: var(--text-main);
+    border-left: 1px solid var(--panel-border);
     box-shadow: var(--shadow-soft);
 }
 
@@ -38,12 +23,12 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 16px;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
 }
 
 .eyebrow {
     margin-bottom: 6px;
-    font-size: 0.68rem;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -52,84 +37,54 @@
 
 .title {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 24px;
     line-height: 1.2;
     color: var(--text-main);
 }
 
-.subtitle {
-    margin-top: 8px;
-    font-size: 0.8rem;
-    line-height: 1.5;
-    color: var(--text-soft);
-}
-
-.closeButton {
-    height: 34px;
-    padding: 0 12px;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text-main);
-    cursor: pointer;
-}
-
-.closeButton:hover {
-    border-color: var(--accent-cyan);
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.summaryBar {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+.metaRow {
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
-    margin-bottom: 18px;
-}
-
-.summaryItem {
-    padding: 12px 14px;
-    border: 1px solid var(--panel-border);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.summaryLabel {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 0.72rem;
-    color: var(--text-soft);
-}
-
-.summaryValue {
-    font-size: 1rem;
-    color: var(--text-main);
-}
-
-.emptyState {
-    padding: 16px;
-    border: 1px dashed var(--panel-border);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.emptyStateTitle {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-main);
-}
-
-.emptyStateText {
-    margin-top: 6px;
-    font-size: 0.78rem;
-    line-height: 1.5;
+    margin-top: 10px;
+    font-size: 13px;
     color: var(--text-soft);
 }
 
 .section {
-    margin-top: 18px;
+    margin-top: 22px;
 }
 
 .sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.sectionTitle {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text-main);
+}
+
+.sectionMeta {
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.warningCard {
+    padding: 14px;
+}
+
+.warningTop {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -137,144 +92,75 @@
     margin-bottom: 10px;
 }
 
-.sectionTitle {
-    margin: 0;
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--text-main);
-}
-
-.sectionSubtitle {
-    margin-top: 4px;
-    font-size: 0.74rem;
-    line-height: 1.45;
-    color: var(--text-soft);
-}
-
-.sectionCount {
-    min-width: 28px;
-    height: 28px;
-    display: inline-flex;
+.warningIdentity {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 0 8px;
-    border-radius: 999px;
-    border: 1px solid var(--panel-border);
-    background: rgba(255, 255, 255, 0.03);
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--text-main);
-}
-
-.list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.item {
-    padding: 14px;
-    border: 1px solid var(--panel-border);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.itemTopRow {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    align-items: flex-start;
-}
-
-.itemAssetBlock {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-wrap: wrap;
+    gap: 8px;
     min-width: 0;
 }
 
-.itemAssetPrimary {
-    font-size: 0.82rem;
-    font-weight: 700;
+.warningMeta {
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.flagGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+    margin-bottom: 12px;
+    font-size: 13px;
     color: var(--text-main);
-    word-break: break-word;
 }
 
-.itemAssetSecondary {
-    font-size: 0.72rem;
-    color: var(--text-soft);
-}
-
-.itemText {
-    margin-top: 8px;
-    font-size: 0.78rem;
-    line-height: 1.55;
-    color: var(--text-soft);
-}
-
-.metricRow {
-    margin-top: 8px;
+.messageList {
     display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 0.76rem;
-    color: var(--text-soft);
+    flex-direction: column;
+    gap: 8px;
 }
 
-.metricRow strong {
+.messageItem {
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    font-size: 13px;
     color: var(--text-main);
-}
-
-.warningList {
-    margin: 10px 0 0;
-    padding-left: 18px;
-    font-size: 0.76rem;
-    line-height: 1.55;
-    color: var(--text-soft);
-}
-
-.warningList li + li {
-    margin-top: 4px;
 }
 
 .severityBadge {
-    flex: 0 0 auto;
-    font-size: 0.66rem;
-    font-weight: 700;
-    padding: 4px 7px;
-    border-radius: 7px;
-    border: 1px solid;
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    font-size: 12px;
+    text-transform: lowercase;
 }
 
 .severityError {
-    background: rgba(255, 102, 122, 0.1);
-    border-color: rgba(255, 102, 122, 0.4);
     color: var(--negative);
+    border-color: rgba(255, 102, 122, 0.35);
 }
 
 .severityWarning {
-    background: rgba(255, 157, 46, 0.1);
-    border-color: rgba(255, 157, 46, 0.4);
     color: var(--accent-orange);
 }
 
 .severityInfo {
-    background: rgba(122, 162, 255, 0.1);
-    border-color: rgba(122, 162, 255, 0.4);
-    color: #7aa2ff;
+    color: var(--accent-cyan);
 }
 
-@media (max-width: 700px) {
-    .panel {
-        padding: 18px 14px 24px;
-    }
-
-    .summaryBar {
+@media (max-width: 720px) {
+    .flagGrid {
         grid-template-columns: 1fr;
     }
 
     .header,
-    .itemTopRow {
+    .sectionHeader {
         flex-direction: column;
+        align-items: flex-start;
     }
 }

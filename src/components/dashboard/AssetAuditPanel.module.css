@@ -15,7 +15,7 @@
     background: var(--panel-bg);
     color: var(--text-main);
     border-left: 1px solid var(--panel-border);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+    box-shadow: var(--shadow-soft);
 }
 
 .header {
@@ -51,39 +51,6 @@
     color: var(--text-soft);
 }
 
-.closeButton,
-.secondaryButton,
-.primaryButton {
-    border: 1px solid var(--panel-border);
-    border-radius: 10px;
-    padding: 10px 14px;
-    cursor: pointer;
-    transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
-}
-
-.closeButton,
-.secondaryButton {
-    background: transparent;
-    color: var(--text-main);
-}
-
-    .closeButton:hover,
-    .secondaryButton:hover {
-        border-color: var(--accent-cyan);
-        background: rgba(255, 255, 255, 0.02);
-    }
-
-.primaryButton {
-    background: var(--accent-cyan);
-    border-color: var(--accent-cyan);
-    color: #ffffff;
-}
-
-    .primaryButton:disabled {
-        opacity: 0.65;
-        cursor: not-allowed;
-    }
-
 .section {
     margin-top: 28px;
 }
@@ -101,9 +68,6 @@
 }
 
 .kpiCard {
-    border: 1px solid var(--panel-border);
-    background: transparent;
-    border-radius: 14px;
     padding: 14px;
 }
 
@@ -156,9 +120,6 @@
 }
 
 .activityCard {
-    border: 1px solid var(--panel-border);
-    background: transparent;
-    border-radius: 14px;
     padding: 14px;
 }
 
@@ -239,16 +200,6 @@
     color: var(--text-soft);
 }
 
-.fieldInput {
-    width: 100%;
-    min-height: 40px;
-    padding: 9px 12px;
-    border: 1px solid var(--panel-border);
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-main);
-}
-
 .editActions {
     display: flex;
     justify-content: flex-end;
@@ -256,29 +207,17 @@
     margin-top: 14px;
 }
 
-.placeholder {
-    border: 1px dashed var(--panel-border);
-    border-radius: 12px;
-    padding: 14px;
-    color: var(--text-soft);
-}
-
-.errorBox,
-.inlineError {
-    border: 1px solid rgba(255, 102, 122, 0.45);
-    background: rgba(255, 102, 122, 0.08);
-    border-radius: 12px;
-    padding: 14px;
-    color: var(--negative);
-}
-
-.inlineError {
-    margin-top: 12px;
-    padding: 10px 12px;
-}
-
 .inlineActions {
     margin-top: 12px;
     display: flex;
     gap: 10px;
+}
+
+.inlineError {
+    margin-top: 12px;
+    border: 1px solid rgba(255, 102, 122, 0.45);
+    background: rgba(255, 102, 122, 0.08);
+    border-radius: 12px;
+    padding: 10px 12px;
+    color: var(--negative);
 }

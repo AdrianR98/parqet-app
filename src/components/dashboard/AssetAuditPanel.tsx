@@ -23,6 +23,17 @@ type AssetAuditPanelProps = {
     onOverridesSavedAction?: () => Promise<void> | void;
 };
 
+const DEBUG_ASSET_AUDIT_PANEL = true;
+
+function debugLog(message: string, payload?: unknown) {
+    if (!DEBUG_ASSET_AUDIT_PANEL) return;
+    console.debug(`[asset-audit-panel] ${message}`, payload ?? "");
+}
+
+function debugError(message: string, error: unknown) {
+    console.error(`[asset-audit-panel] ${message}`, error);
+}
+
 const EDITABLE_FIELDS: Array<{
     field: ActivityOverrideField;
     label: string;
@@ -73,9 +84,7 @@ function formatAuditType(value: string) {
 }
 
 function formatDateTime(value: string) {
-    if (!value) {
-        return "-";
-    }
+    if (!value) return "-";
 
     const date = new Date(value);
 
@@ -93,14 +102,8 @@ function formatDateTime(value: string) {
 }
 
 function getSeverityClass(severity: "info" | "warning" | "error") {
-    if (severity === "error") {
-        return styles.warningSeverityError;
-    }
-
-    if (severity === "warning") {
-        return styles.warningSeverityWarning;
-    }
-
+    if (severity === "error") return styles.warningSeverityError;
+    if (severity === "warning") return styles.warningSeverityWarning;
     return styles.warningSeverityInfo;
 }
 
@@ -126,6 +129,12 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
         setSaveError(null);
 
         try {
+            debugLog("saving audit override", {
+                activityId: item.id,
+                field: activeField,
+                draftValue,
+            });
+
             const response = await fetch("/api/parqet/activity-overrides", {
                 method: "POST",
                 headers: {
@@ -151,6 +160,7 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
                 await onSavedAction();
             }
         } catch (err) {
+            debugError("saving audit override failed", err);
             setSaveError(err instanceof Error ? err.message : String(err));
         } finally {
             setSaving(false);
@@ -178,7 +188,7 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
                 <label className={styles.fieldGroup}>
                     <span className={styles.fieldLabel}>Feld</span>
                     <select
-                        className={styles.fieldInput}
+                        className="ui-select"
                         value={activeField}
                         onChange={(event) =>
                             handleFieldChange(event.target.value as ActivityOverrideField)
@@ -197,7 +207,7 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
 
                     {activeConfig.inputType === "select" ? (
                         <select
-                            className={styles.fieldInput}
+                            className="ui-select"
                             value={draftValue}
                             onChange={(event) => setDraftValue(event.target.value)}
                         >
@@ -209,7 +219,7 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
                         </select>
                     ) : (
                         <input
-                            className={styles.fieldInput}
+                            className="ui-input"
                             type={activeConfig.inputType}
                             step={activeConfig.inputType === "number" ? "any" : undefined}
                             value={draftValue}
@@ -221,7 +231,7 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
                 <label className={`${styles.fieldGroup} ${styles.reasonField}`}>
                     <span className={styles.fieldLabel}>Grund</span>
                     <input
-                        className={styles.fieldInput}
+                        className="ui-input"
                         type="text"
                         placeholder="Optionaler Kommentar zur Korrektur"
                         value={reason}
@@ -235,7 +245,7 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
             <div className={styles.editActions}>
                 <button
                     type="button"
-                    className={styles.secondaryButton}
+                    className="ui-btn ui-btn-secondary"
                     onClick={() => {
                         setDraftValue(getFieldValue(item, activeField));
                         setReason("");
@@ -247,7 +257,7 @@ function ActivityEditForm({ item, onSavedAction }: ActivityEditFormProps) {
 
                 <button
                     type="button"
-                    className={styles.primaryButton}
+                    className="ui-btn ui-btn-primary"
                     onClick={handleSave}
                     disabled={saving}
                 >
@@ -292,7 +302,7 @@ export default function AssetAuditPanel({
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className={styles.closeButton}
+                        className="ui-btn ui-btn-secondary"
                     >
                         Schließen
                     </button>
@@ -302,22 +312,22 @@ export default function AssetAuditPanel({
                     <h3 className={styles.sectionTitle}>Asset Snapshot</h3>
 
                     <div className={styles.kpiGrid}>
-                        <div className={styles.kpiCard}>
+                        <div className={`ui-surface-soft ${styles.kpiCard}`}>
                             <span className={styles.kpiLabel}>Net Shares</span>
                             <strong>{asset?.netShares ?? 0}</strong>
                         </div>
 
-                        <div className={styles.kpiCard}>
+                        <div className={`ui-surface-soft ${styles.kpiCard}`}>
                             <span className={styles.kpiLabel}>Remaining Cost Basis</span>
                             <strong>{formatCurrency(asset?.remainingCostBasis ?? 0)}</strong>
                         </div>
 
-                        <div className={styles.kpiCard}>
+                        <div className={`ui-surface-soft ${styles.kpiCard}`}>
                             <span className={styles.kpiLabel}>Position Value</span>
                             <strong>{formatCurrency(asset?.positionValue ?? 0)}</strong>
                         </div>
 
-                        <div className={styles.kpiCard}>
+                        <div className={`ui-surface-soft ${styles.kpiCard}`}>
                             <span className={styles.kpiLabel}>Dividends</span>
                             <strong>{formatCurrency(asset?.totalDividendNet ?? 0)}</strong>
                         </div>
@@ -327,16 +337,17 @@ export default function AssetAuditPanel({
                 <section className={styles.section}>
                     <h3 className={styles.sectionTitle}>Reconciliation Warnings</h3>
 
-                    {loading ? <div className={styles.placeholder}>Lade Audit-Daten...</div> : null}
+                    {loading ? <div className="ui-banner ui-banner-info">Lade Audit-Daten...</div> : null}
+
                     {error ? (
-                        <div className={styles.errorBox}>
+                        <div className="ui-banner ui-banner-error">
                             <div>{error}</div>
 
                             {authRequired && onReconnectAction ? (
                                 <div className={styles.inlineActions}>
                                     <button
                                         type="button"
-                                        className={styles.secondaryButton}
+                                        className="ui-btn ui-btn-secondary"
                                         onClick={onReconnectAction}
                                     >
                                         Erneut verbinden
@@ -347,7 +358,7 @@ export default function AssetAuditPanel({
                     ) : null}
 
                     {!loading && !error && (data?.reconciliationWarnings?.length ?? 0) === 0 ? (
-                        <div className={styles.placeholder}>Keine Warnings für dieses Asset.</div>
+                        <div className="ui-banner ui-banner-info">Keine Warnings für dieses Asset.</div>
                     ) : null}
 
                     {!loading &&
@@ -378,10 +389,10 @@ export default function AssetAuditPanel({
                     </div>
 
                     <div className={styles.activityList}>
-                        {loading ? <div className={styles.placeholder}>Lade Activities...</div> : null}
+                        {loading ? <div className="ui-banner ui-banner-info">Lade Activities...</div> : null}
 
                         {!loading && !error && (data?.items.length ?? 0) === 0 ? (
-                            <div className={styles.placeholder}>
+                            <div className="ui-banner ui-banner-info">
                                 Keine Activities für dieses Asset gefunden.
                             </div>
                         ) : null}
@@ -389,7 +400,7 @@ export default function AssetAuditPanel({
                         {!loading &&
                             !error &&
                             data?.items.map((item) => (
-                                <article key={item.id} className={styles.activityCard}>
+                                <article key={item.id} className={`ui-surface-soft ${styles.activityCard}`}>
                                     <div className={styles.activityTopRow}>
                                         <div className={styles.activityIdentity}>
                                             <strong>{formatAuditType(item.type)}</strong>

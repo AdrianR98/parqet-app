@@ -1,18 +1,27 @@
 ﻿import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
-    theme: "dark" | "light";
-    onToggleTheme: () => void;
+    theme: "light" | "dark";
+    onToggleThemeAction: () => void;
 };
 
+/**
+ * ============================================================
+ * COMPONENT: HEADER BAR
+ * ============================================================
+ *
+ * Wichtig:
+ * - Callback-Prop endet auf "Action"
+ * - kein CSS-Module-:global Hack mehr nötig
+ */
 export default function HeaderBar({
     theme,
-    onToggleTheme,
+    onToggleThemeAction,
 }: HeaderBarProps) {
     return (
-        <header className={styles.topbar}>
-            <div className={styles.brand}>
-                <div className={styles.brandLogo}>P</div>
+        <header className={styles.header}>
+            <div className={styles.left}>
+                <div className={styles.brandMark}>A</div>
 
                 <div className={styles.brandText}>
                     <div className={styles.brandTitle}>Asset View</div>
@@ -20,31 +29,34 @@ export default function HeaderBar({
                 </div>
             </div>
 
-            <div className={styles.searchWrap}>
-                <div className={styles.searchIcon}>⌕</div>
-                <input
-                    className={styles.searchInput}
-                    placeholder="Name, WKN, ISIN, ..."
-                    aria-label="Suche"
-                />
+            <div className={styles.center}>
+                <div className={styles.searchShell}>
+                    <span className={styles.searchIcon}>⌕</span>
+                    <input
+                        className={`ui-input ${styles.searchInput}`}
+                        type="text"
+                        placeholder="Name, WKN, ISIN, ..."
+                        aria-label="Globale Suche"
+                    />
+                </div>
             </div>
 
             <div className={styles.right}>
                 <button
-                    className={styles.themeButton}
                     type="button"
-                    onClick={onToggleTheme}
+                    className="ui-btn ui-btn-ghost"
+                    onClick={onToggleThemeAction}
                 >
                     {theme === "dark" ? "Dark" : "Light"}
                 </button>
 
-                <div className={styles.user}>
-                    <div className={styles.avatar}>A</div>
+                <button type="button" className="ui-icon-btn" aria-label="Profil">
+                    A
+                </button>
 
-                    <div className={styles.userText}>
-                        <div className={styles.userBadge}>Plus</div>
-                        <div className={styles.userName}>Adrian Roeschl</div>
-                    </div>
+                <div className={styles.userBlock}>
+                    <div className={styles.userPlan}>Plus</div>
+                    <div className={styles.userName}>Adrian Roeschl</div>
                 </div>
             </div>
         </header>

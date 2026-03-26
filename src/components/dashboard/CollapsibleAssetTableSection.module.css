@@ -1,50 +1,73 @@
 ﻿.section {
-    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .header {
-    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
+    gap: 14px;
+    width: 100%;
+    padding: 4px 0;
     background: transparent;
     border: none;
-    cursor: pointer;
     text-align: left;
+    cursor: pointer;
 }
 
-.left {
+.headerLeft {
+    min-width: 0;
+}
+
+.titleRow {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 0;
     flex-wrap: wrap;
+    gap: 8px;
 }
 
 .title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-text-primary);
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
 }
 
 .count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
     font-size: 12px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
+    color: var(--text-soft);
 }
 
 .subtitle {
+    margin-top: 4px;
     font-size: 12px;
-    color: var(--color-text-secondary);
+    color: var(--text-soft);
 }
 
 .chevron {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    transition: transform 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    color: var(--text-soft);
+    transition: transform 0.16s ease, background-color 0.16s ease, color 0.16s ease;
     flex-shrink: 0;
+}
+
+.header:hover .chevron {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
 }
 
 .open {
@@ -52,5 +75,5 @@
 }
 
 .content {
-    margin-top: 4px;
+    margin-top: 2px;
 }

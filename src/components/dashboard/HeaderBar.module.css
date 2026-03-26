@@ -1,145 +1,115 @@
-.topbar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
+﻿.header {
     display: grid;
     grid-template-columns: auto minmax(260px, 1fr) auto;
     align-items: center;
-    gap: 18px;
-    min-height: 64px;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--surface-border);
-    background: var(--surface-header);
-    backdrop-filter: blur(16px);
+    gap: 16px;
+    min-height: 72px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--panel-border);
+    background: rgba(8, 19, 37, 0.78);
+    backdrop-filter: blur(10px);
 }
 
-.brand {
+.left {
     display: flex;
     align-items: center;
     gap: 12px;
     min-width: 0;
 }
 
-.brandLogo {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-cyan-strong));
-    color: #fff;
+.brandMark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-main);
+    font-size: 14px;
     font-weight: 700;
-    font-size: 0.95rem;
+    flex-shrink: 0;
 }
 
 .brandText {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    min-width: 0;
 }
 
 .brandTitle {
-    color: var(--text-main);
-    font-size: 0.95rem;
+    font-size: 14px;
     font-weight: 700;
-    line-height: 1.1;
+    color: var(--text-main);
+    white-space: nowrap;
 }
 
 .brandSubtitle {
+    margin-top: 2px;
+    font-size: 12px;
     color: var(--text-soft);
-    font-size: 0.76rem;
-    line-height: 1.1;
+    white-space: nowrap;
 }
 
-.searchWrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 40px;
-    padding: 0 12px;
-    border: 1px solid var(--surface-border);
-    border-radius: 10px;
-    background: var(--surface-panel);
+.center {
+    min-width: 0;
+}
+
+.searchShell {
+    position: relative;
+    max-width: 520px;
+    width: 100%;
 }
 
 .searchIcon {
-    color: var(--text-muted);
-    font-size: 0.9rem;
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--text-soft);
+    pointer-events: none;
 }
 
 .searchInput {
-    width: 100%;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--text-main);
-}
-
-.searchInput::placeholder {
-    color: var(--text-muted);
+    padding-left: 34px;
 }
 
 .right {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-}
-
-.themeButton {
-    min-height: 40px;
-    padding: 0 12px;
-    border-radius: 10px;
-    border: 1px solid var(--surface-border);
-    background: var(--surface-panel);
-    color: var(--text-main);
-    cursor: pointer;
-}
-
-.user {
-    display: flex;
-    align-items: center;
     gap: 10px;
+    justify-content: flex-end;
     min-width: 0;
 }
 
-.avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    display: grid;
-    place-items: center;
-    background: var(--avatar-bg);
-    color: #fff;
-    font-size: 0.9rem;
-    font-weight: 700;
+.userBlock {
+    min-width: 0;
+    text-align: left;
 }
 
-.userText {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.userBadge {
+.userPlan {
+    font-size: 12px;
     color: var(--text-soft);
-    font-size: 0.72rem;
+    line-height: 1.1;
 }
 
 .userName {
-    color: var(--text-main);
-    font-size: 0.84rem;
+    font-size: 14px;
     font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
 }
 
-@media (max-width: 960px) {
-    .topbar {
+@media (max-width: 1000px) {
+    .header {
         grid-template-columns: 1fr;
-        gap: 10px;
-        padding: 12px;
+        gap: 12px;
+    }
+
+    .center {
+        order: 3;
     }
 
     .right {
-        justify-content: space-between;
+        justify-content: flex-start;
     }
 }

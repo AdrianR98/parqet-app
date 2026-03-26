@@ -1,156 +1,218 @@
-import { getAssetDisplayName } from "../../lib/asset-display";
+﻿// src/components/dashboard/asset-table-config.ts
+
 import type { AssetSummary, PortfolioPosition } from "../../lib/types";
 
-export type SortKey =
+/**
+ * ============================================================
+ * TABELLENKONFIGURATION
+ * ============================================================
+ *
+ * Zentraler Ort für:
+ * - Spaltenkeys
+ * - fixe Spalten
+ * - Default-Spalten
+ * - Spaltenbreiten
+ * - Sortierung
+ *
+ * Typische Erweiterungspunkte:
+ * - weitere Spalten
+ * - persistente Spaltenprofile
+ * - zusätzliche Sortiermodi
+ */
+
+export type VisibleColumnKey =
     | "name"
-    | "netShares"
-    | "remainingCostBasis"
-    | "avgBuyPrice"
-    | "price"
     | "positionValue"
+    | "netShares"
+    | "avgBuyPrice"
+    | "latestTradePrice"
     | "unrealizedPnL"
     | "totalDividendNet"
-    | "portfolioCount";
+    | "latestActivityAt"
+    | "actions";
 
-export type SortDirection = "asc" | "desc";
-
-export type ColumnKey =
-    | "asset"
-    | "netShares"
-    | "remainingCostBasis"
-    | "avgBuyPrice"
-    | "price"
+export type AssetSortKey =
+    | "name"
     | "positionValue"
+    | "netShares"
+    | "avgBuyPrice"
+    | "latestTradePrice"
     | "unrealizedPnL"
-    | "totalDividendNet";
+    | "totalDividendNet"
+    | "latestActivityAt";
 
-export type ColumnConfig = {
-    key: ColumnKey;
-    label: string;
-    sortKey?: SortKey;
-    align?: "left" | "right";
-    isFixed?: boolean;
-    width: number;
-};
+export const FIXED_COLUMNS: VisibleColumnKey[] = ["name", "positionValue"];
 
-export const ALL_COLUMNS: ColumnConfig[] = [
-    { key: "asset", label: "NAME", sortKey: "name", align: "left", isFixed: true, width: 360 },
-    { key: "netShares", label: "ANTEILE", sortKey: "netShares", align: "right", width: 108 },
-    {
-        key: "remainingCostBasis",
-        label: "INVESTIERT",
-        sortKey: "remainingCostBasis",
-        align: "right",
-        width: 132,
-    },
-    { key: "avgBuyPrice", label: "Ø KAUF", sortKey: "avgBuyPrice", align: "right", width: 108 },
-    { key: "price", label: "KURS", sortKey: "price", align: "right", width: 110 },
-    {
-        key: "positionValue",
-        label: "POSITIONSWERT",
-        sortKey: "positionValue",
-        align: "right",
-        isFixed: true,
-        width: 136,
-    },
-    {
-        key: "unrealizedPnL",
-        label: "KURSGEWINN",
-        sortKey: "unrealizedPnL",
-        align: "right",
-        width: 118,
-    },
-    {
-        key: "totalDividendNet",
-        label: "DIVIDENDEN",
-        sortKey: "totalDividendNet",
-        align: "right",
-        width: 112,
-    },
-];
-
-export const FIXED_COLUMNS: ColumnKey[] = ["asset", "positionValue"];
-
-export const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
-    "asset",
-    "netShares",
-    "remainingCostBasis",
-    "avgBuyPrice",
-    "price",
+export const DEFAULT_VISIBLE_COLUMNS: VisibleColumnKey[] = [
+    "name",
     "positionValue",
+    "netShares",
+    "avgBuyPrice",
+    "latestTradePrice",
     "unrealizedPnL",
     "totalDividendNet",
+    "latestActivityAt",
+    "actions",
 ];
 
-export const EDIT_ACTION_WIDTH = 116;
-export const EXPAND_ACTION_WIDTH = 44;
+/**
+ * ============================================================
+ * SPALTENBREITEN
+ * ============================================================
+ */
+const COLUMN_MIN_WIDTH: Record<VisibleColumnKey, number> = {
+    name: 320,
+    positionValue: 150,
+    netShares: 120,
+    avgBuyPrice: 120,
+    latestTradePrice: 120,
+    unrealizedPnL: 140,
+    totalDividendNet: 130,
+    latestActivityAt: 150,
+    actions: 110,
+};
 
-export function getSafePortfolioBreakdown(asset: AssetSummary): PortfolioPosition[] {
-    if (Array.isArray(asset.portfolioBreakdown)) {
-        return asset.portfolioBreakdown;
-    }
-
-    const portfolioIds = Array.isArray(asset.portfolioIds) ? asset.portfolioIds : [];
-    const portfolioNames = Array.isArray(asset.portfolioNames) ? asset.portfolioNames : [];
-
-    if (portfolioNames.length === 0 && portfolioIds.length === 0) {
-        return [];
-    }
-
-    const maxLength = Math.max(portfolioIds.length, portfolioNames.length);
-
-    return Array.from({ length: maxLength }, (_, index) => ({
-        portfolioId: portfolioIds[index] ?? `fallback-portfolio-${index}`,
-        portfolioName: portfolioNames[index] ?? portfolioIds[index] ?? `Portfolio ${index + 1}`,
-        netShares: 0,
-        remainingCostBasis: 0,
-        avgBuyPrice: null,
-        latestTradePrice: null,
-        marketPrice: null,
-        positionValue: null,
-        unrealizedPnL: null,
-        totalDividendNet: 0,
-    }));
+export function getColumnMinWidth(key: VisibleColumnKey): number {
+    return COLUMN_MIN_WIDTH[key];
 }
 
-export function compareNullableNumbers(
-    a: number | null | undefined,
-    b: number | null | undefined
-) {
-    const left = a ?? Number.NEGATIVE_INFINITY;
-    const right = b ?? Number.NEGATIVE_INFINITY;
-
-    if (left < right) return -1;
-    if (left > right) return 1;
-    return 0;
-}
-
-export function getSortValue(
-    asset: AssetSummary,
-    sortKey: SortKey
-): string | number | null {
-    const portfolioBreakdown = getSafePortfolioBreakdown(asset);
-
-    switch (sortKey) {
+/**
+ * ============================================================
+ * SPALTENLABELS
+ * ============================================================
+ */
+export function getColumnLabel(key: VisibleColumnKey): string {
+    switch (key) {
         case "name":
-            return getAssetDisplayName(asset).toLowerCase();
-        case "netShares":
-            return asset.netShares;
-        case "remainingCostBasis":
-            return asset.remainingCostBasis;
-        case "avgBuyPrice":
-            return asset.avgBuyPrice;
-        case "price":
-            return asset.marketPrice ?? asset.latestTradePrice;
+            return "Name";
         case "positionValue":
-            return asset.positionValue;
+            return "Positionswert";
+        case "netShares":
+            return "Bestand";
+        case "avgBuyPrice":
+            return "Ø Kaufpreis";
+        case "latestTradePrice":
+            return "Letzter Preis";
         case "unrealizedPnL":
-            return asset.unrealizedPnL;
+            return "Unrealisiert";
         case "totalDividendNet":
-            return asset.totalDividendNet;
-        case "portfolioCount":
-            return portfolioBreakdown.length;
+            return "Dividenden";
+        case "latestActivityAt":
+            return "Letzte Aktivität";
+        case "actions":
+            return "Aktionen";
         default:
-            return null;
+            return key;
     }
+}
+
+/**
+ * ============================================================
+ * FORMAT / SAFETY
+ * ============================================================
+ */
+export function getSafePortfolioBreakdown(asset: AssetSummary): PortfolioPosition[] {
+    return Array.isArray(asset.portfolioBreakdown) ? asset.portfolioBreakdown : [];
+}
+
+/**
+ * ============================================================
+ * SORTIERUNG
+ * ============================================================
+ */
+function normalizeNullableNumber(value: number | null | undefined): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeNullableString(value: string | null | undefined): string {
+    return (value ?? "").toLowerCase();
+}
+
+function compareValues(
+    left: number | string,
+    right: number | string,
+    direction: "asc" | "desc"
+): number {
+    let result = 0;
+
+    if (typeof left === "number" && typeof right === "number") {
+        result = left - right;
+    } else {
+        result = String(left).localeCompare(String(right), "de");
+    }
+
+    return direction === "asc" ? result : result * -1;
+}
+
+export function sortAssets(
+    assets: AssetSummary[],
+    sortKey: AssetSortKey,
+    sortDirection: "asc" | "desc"
+): AssetSummary[] {
+    const next = [...assets];
+
+    next.sort((a, b) => {
+        switch (sortKey) {
+            case "name":
+                return compareValues(
+                    normalizeNullableString(a.name ?? a.assetName ?? a.isin),
+                    normalizeNullableString(b.name ?? b.assetName ?? b.isin),
+                    sortDirection
+                );
+
+            case "positionValue":
+                return compareValues(
+                    normalizeNullableNumber(a.positionValue),
+                    normalizeNullableNumber(b.positionValue),
+                    sortDirection
+                );
+
+            case "netShares":
+                return compareValues(
+                    normalizeNullableNumber(a.netShares),
+                    normalizeNullableNumber(b.netShares),
+                    sortDirection
+                );
+
+            case "avgBuyPrice":
+                return compareValues(
+                    normalizeNullableNumber(a.avgBuyPrice),
+                    normalizeNullableNumber(b.avgBuyPrice),
+                    sortDirection
+                );
+
+            case "latestTradePrice":
+                return compareValues(
+                    normalizeNullableNumber(a.latestTradePrice),
+                    normalizeNullableNumber(b.latestTradePrice),
+                    sortDirection
+                );
+
+            case "unrealizedPnL":
+                return compareValues(
+                    normalizeNullableNumber(a.unrealizedPnL),
+                    normalizeNullableNumber(b.unrealizedPnL),
+                    sortDirection
+                );
+
+            case "totalDividendNet":
+                return compareValues(
+                    normalizeNullableNumber(a.totalDividendNet),
+                    normalizeNullableNumber(b.totalDividendNet),
+                    sortDirection
+                );
+
+            case "latestActivityAt":
+                return compareValues(
+                    normalizeNullableString(a.latestActivityAt),
+                    normalizeNullableString(b.latestActivityAt),
+                    sortDirection
+                );
+
+            default:
+                return 0;
+        }
+    });
+
+    return next;
 }

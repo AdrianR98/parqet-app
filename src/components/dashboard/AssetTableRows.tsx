@@ -1,339 +1,242 @@
-import { Fragment, useState } from "react";
-import { formatCurrency, formatShares, getPnLClass } from "../../lib/format";
-import {
-    getAssetDisplayName,
-    getAssetInitials,
-    getAssetLogoUrl,
-    getAssetSubtitle,
-} from "../../lib/asset-display";
-import type { AssetSummary, PortfolioPosition } from "../../lib/types";
-import styles from "./AssetTable.module.css";
-import type { ColumnKey } from "./asset-table-config";
-import { getSafePortfolioBreakdown } from "./asset-table-config";
+﻿// src/components/dashboard/AssetTableRows.tsx
 
-type SharedRowProps = {
-    visibleColumnSet: Set<ColumnKey>;
+"use client";
+
+import Image from "next/image";
+import styles from "./AssetTable.module.css";
+import type { AssetSummary } from "../../lib/types";
+import { formatCurrency } from "../../lib/format";
+import {
+    getSafePortfolioBreakdown,
+    type VisibleColumnKey,
+} from "./asset-table-config";
+
+type AssetTableRowsProps = {
+    assets: AssetSummary[];
+    visibleColumns: VisibleColumnKey[];
+    expandedIsins: string[];
+    onToggleExpandedAction: (isin: string) => void;
+    onAuditAssetAction?: (asset: AssetSummary) => void | Promise<void>;
 };
 
-function formatPercentage(value: number | null | undefined): string {
-    if (value == null || Number.isNaN(value)) {
-        return "—";
+/**
+ * ============================================================
+ * COMPONENT: ASSET TABLE ROWS
+ * ============================================================
+ *
+ * Wichtig:
+ * - Callback-Props enden bewusst auf "Action"
+ * - Asset-Icon-Logik ist hier zentralisiert
+ *
+ * Typische Erweiterungspunkte:
+ * - echte Logoquelle aus Metadata
+ * - Thumbnail-Fallbacks
+ * - Status-Badges
+ */
+
+function formatDate(value: string | null | undefined): string {
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
     }
 
-    return new Intl.NumberFormat("de-DE", {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-    }).format(value);
+    return new Intl.DateTimeFormat("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    }).format(date);
 }
 
-function getPortfolioShareOfAsset(
-    portfolio: PortfolioPosition,
-    asset: AssetSummary
-): number | null {
-    const totalPositionValue = asset.positionValue ?? null;
-    const portfolioPositionValue = portfolio.positionValue ?? null;
+function getDisplayName(asset: AssetSummary): string {
+    return asset.name ?? asset.assetName ?? asset.displayName ?? asset.title ?? asset.isin;
+}
 
-    if (
-        totalPositionValue == null ||
-        portfolioPositionValue == null ||
-        totalPositionValue <= 0
-    ) {
-        return null;
+function getLogoUrl(asset: AssetSummary): string | null {
+    const candidates = [
+        asset.metadata as Record<string, unknown> | undefined,
+        asset.externalMetadata as Record<string, unknown> | undefined,
+        asset.assetMeta as Record<string, unknown> | undefined,
+    ];
+
+    for (const candidate of candidates) {
+        const value = candidate?.logoUrl;
+        if (typeof value === "string" && value.trim().length > 0) {
+            return value;
+        }
     }
 
-    return (portfolioPositionValue / totalPositionValue) * 100;
+    return null;
 }
 
-function AssetIdentityCell({
-    asset,
-    portfolioCount,
-}: {
-    asset: AssetSummary;
-    portfolioCount: number;
-}) {
-    const [logoFailed, setLogoFailed] = useState(false);
+function getInitials(asset: AssetSummary): string {
+    const label = getDisplayName(asset).trim();
 
-    const displayName = getAssetDisplayName(asset);
-    const subtitle = getAssetSubtitle(asset);
-    const logoUrl = getAssetLogoUrl(asset);
-    const initials = getAssetInitials(asset);
+    if (!label) {
+        return asset.isin.slice(0, 2).toUpperCase();
+    }
 
-    return (
-        <div className={styles.assetIdentity}>
-            <div className={styles.assetLogo}>
-                {logoUrl && !logoFailed ? (
-                    <img
-                        src={logoUrl}
-                        alt={`${displayName} Logo`}
-                        className={styles.assetLogoImage}
-                        onError={() => setLogoFailed(true)}
-                    />
-                ) : (
-                    <div className={styles.assetLogoFallback} aria-hidden="true">
-                        {initials}
-                    </div>
-                )}
-            </div>
+    const words = label.split(/\s+/).filter(Boolean);
 
-            <div className={styles.assetText}>
-                <div className={styles.assetHeadlineRow}>
-                    <span className={styles.assetCategory}>Aktie</span>
-                    <span className={styles.assetMetaDivider}>·</span>
-                    <span className={styles.assetSubtitleInline}>{subtitle}</span>
+    if (words.length >= 2) {
+        return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase();
+    }
 
-                    {portfolioCount > 1 ? (
-                        <>
-                            <span className={styles.assetMetaDivider}>·</span>
-                            <span className={styles.assetPortfolioCount}>
-                                {portfolioCount} Portfolios
+    return label.slice(0, 2).toUpperCase();
+}
+
+function renderCell(asset: AssetSummary, columnKey: VisibleColumnKey) {
+    switch (columnKey) {
+        case "name": {
+            const logoUrl = getLogoUrl(asset);
+            const displayName = getDisplayName(asset);
+
+            return (
+                <div className={styles.assetIdentity}>
+                    <div className={styles.assetLogo}>
+                        {logoUrl ? (
+                            <Image
+                                src={logoUrl}
+                                alt={displayName}
+                                width={28}
+                                height={28}
+                                className={styles.assetLogoImage}
+                            />
+                        ) : (
+                            <span className={styles.assetLogoFallback}>
+                                {getInitials(asset)}
                             </span>
-                        </>
-                    ) : null}
+                        )}
+                    </div>
+
+                    <div className={styles.assetIdentityText}>
+                        <div className={styles.assetName}>{displayName}</div>
+                        <div className={styles.assetMeta}>
+                            {asset.isin}
+                            {asset.symbol ? ` · ${asset.symbol}` : ""}
+                            {asset.wkn ? ` · ${asset.wkn}` : ""}
+                        </div>
+                    </div>
                 </div>
+            );
+        }
 
-                <div className={styles.assetNameRow}>
-                    <div className={styles.assetName}>{displayName}</div>
-                </div>
-            </div>
-        </div>
-    );
+        case "positionValue":
+            return formatCurrency(asset.positionValue ?? 0);
+
+        case "netShares":
+            return asset.netShares ?? 0;
+
+        case "avgBuyPrice":
+            return formatCurrency(asset.avgBuyPrice ?? 0);
+
+        case "latestTradePrice":
+            return formatCurrency(asset.latestTradePrice ?? 0);
+
+        case "unrealizedPnL":
+            return formatCurrency(asset.unrealizedPnL ?? 0);
+
+        case "totalDividendNet":
+            return formatCurrency(asset.totalDividendNet ?? 0);
+
+        case "latestActivityAt":
+            return formatDate(asset.latestActivityAt);
+
+        case "actions":
+            return null;
+
+        default:
+            return "—";
+    }
 }
 
-function PortfolioRowIdentityCell({
-    portfolio,
-    asset,
-}: {
-    portfolio: PortfolioPosition;
-    asset: AssetSummary;
-}) {
-    const share = getPortfolioShareOfAsset(portfolio, asset);
-
-    return (
-        <div className={styles.portfolioIdentity}>
-            <div className={styles.portfolioIndent} aria-hidden="true" />
-            <div className={styles.portfolioText}>
-                <div className={styles.portfolioPrefixRow}>
-                    <span className={styles.portfolioPrefix}>Aus Portfolio</span>
-                    {share !== null ? (
-                        <span className={styles.portfolioShareBadge}>
-                            {formatPercentage(share)} %
-                        </span>
-                    ) : null}
-                </div>
-
-                <div className={styles.portfolioName}>{portfolio.portfolioName}</div>
-            </div>
-        </div>
-    );
-}
-
-function AssetValueCells({
-    asset,
-    visibleColumnSet,
-}: {
-    asset: AssetSummary;
-} & SharedRowProps) {
-    const pnlClass = getPnLClass(asset.unrealizedPnL);
-
-    return (
-        <>
-            {visibleColumnSet.has("asset") ? (
-                <td>
-                    <AssetIdentityCell
-                        asset={asset}
-                        portfolioCount={getSafePortfolioBreakdown(asset).length}
-                    />
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("netShares") ? (
-                <td className={styles.tdRight}>{formatShares(asset.netShares)}</td>
-            ) : null}
-
-            {visibleColumnSet.has("remainingCostBasis") ? (
-                <td className={styles.tdRight}>{formatCurrency(asset.remainingCostBasis)}</td>
-            ) : null}
-
-            {visibleColumnSet.has("avgBuyPrice") ? (
-                <td className={styles.tdRight}>{formatCurrency(asset.avgBuyPrice)}</td>
-            ) : null}
-
-            {visibleColumnSet.has("price") ? (
-                <td className={styles.tdRight}>
-                    {formatCurrency(asset.marketPrice ?? asset.latestTradePrice)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("positionValue") ? (
-                <td className={styles.tdRight}>{formatCurrency(asset.positionValue)}</td>
-            ) : null}
-
-            {visibleColumnSet.has("unrealizedPnL") ? (
-                <td className={`${styles.tdRight} ${styles[pnlClass] ?? ""}`}>
-                    {formatCurrency(asset.unrealizedPnL)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("totalDividendNet") ? (
-                <td className={styles.tdRight}>{formatCurrency(asset.totalDividendNet)}</td>
-            ) : null}
-        </>
-    );
-}
-
-function PortfolioValueCells({
-    portfolio,
-    asset,
-    visibleColumnSet,
-}: {
-    portfolio: PortfolioPosition;
-    asset: AssetSummary;
-} & SharedRowProps) {
-    const portfolioPnLClass = getPnLClass(portfolio.unrealizedPnL);
-
-    return (
-        <>
-            {visibleColumnSet.has("asset") ? (
-                <td>
-                    <PortfolioRowIdentityCell portfolio={portfolio} asset={asset} />
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("netShares") ? (
-                <td className={`${styles.tdRight} ${styles.subtleValue}`}>
-                    {formatShares(portfolio.netShares)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("remainingCostBasis") ? (
-                <td className={`${styles.tdRight} ${styles.subtleValue}`}>
-                    {formatCurrency(portfolio.remainingCostBasis)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("avgBuyPrice") ? (
-                <td className={`${styles.tdRight} ${styles.subtleValue}`}>
-                    {formatCurrency(portfolio.avgBuyPrice)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("price") ? (
-                <td className={`${styles.tdRight} ${styles.subtleValue}`}>
-                    {formatCurrency(portfolio.marketPrice ?? portfolio.latestTradePrice)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("positionValue") ? (
-                <td className={`${styles.tdRight} ${styles.subtleValue}`}>
-                    {formatCurrency(portfolio.positionValue)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("unrealizedPnL") ? (
-                <td
-                    className={`${styles.tdRight} ${styles.subtleValue} ${
-                        styles[portfolioPnLClass] ?? ""
-                    }`}
-                >
-                    {formatCurrency(portfolio.unrealizedPnL)}
-                </td>
-            ) : null}
-
-            {visibleColumnSet.has("totalDividendNet") ? (
-                <td className={`${styles.tdRight} ${styles.subtleValue}`}>
-                    {formatCurrency(portfolio.totalDividendNet)}
-                </td>
-            ) : null}
-        </>
-    );
-}
-
-type AssetTableBodyProps = {
-    assets: AssetSummary[];
-    expandedIsins: Set<string>;
-    onToggleExpanded: (isin: string) => void;
-    onAuditAsset?: (asset: AssetSummary) => void;
-} & SharedRowProps;
-
-export function AssetTableBody({
+export default function AssetTableRows({
     assets,
-    visibleColumnSet,
+    visibleColumns,
     expandedIsins,
-    onToggleExpanded,
-    onAuditAsset,
-}: AssetTableBodyProps) {
+    onToggleExpandedAction,
+    onAuditAssetAction,
+}: AssetTableRowsProps) {
     return (
-        <tbody>
-            {assets.map((asset) => {
-                const portfolioBreakdown = getSafePortfolioBreakdown(asset);
-                const isExpanded = expandedIsins.has(asset.isin);
-                const showPortfolioRows = isExpanded && portfolioBreakdown.length > 1;
+        <table className={styles.table}>
+            <tbody>
+                {assets.map((asset) => {
+                    const isExpanded = expandedIsins.includes(asset.isin);
+                    const breakdown = getSafePortfolioBreakdown(asset);
 
-                return (
-                    <Fragment key={asset.isin}>
-                        <tr className={styles.assetMainRow}>
-                            <AssetValueCells asset={asset} visibleColumnSet={visibleColumnSet} />
+                    return (
+                        <>
+                            <tr key={asset.isin}>
+                                {visibleColumns.map((columnKey) => {
+                                    if (columnKey === "actions") {
+                                        return (
+                                            <td
+                                                key={`${asset.isin}-${columnKey}`}
+                                                className={styles.actionCell}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="ui-btn ui-btn-ghost"
+                                                    onClick={() => onAuditAssetAction?.(asset)}
+                                                >
+                                                    Bearbeiten
+                                                </button>
 
-                            <td className={styles.editCell}>
-                                {onAuditAsset ? (
-                                    <button
-                                        type="button"
-                                        className={styles.auditButton}
-                                        onClick={() => onAuditAsset(asset)}
-                                    >
-                                        Bearbeiten
-                                    </button>
-                                ) : null}
-                            </td>
+                                                <button
+                                                    type="button"
+                                                    className="ui-btn ui-btn-ghost"
+                                                    onClick={() =>
+                                                        onToggleExpandedAction(asset.isin)
+                                                    }
+                                                >
+                                                    {isExpanded ? "▾" : "▸"}
+                                                </button>
+                                            </td>
+                                        );
+                                    }
 
-                            <td className={styles.actionsCell}>
-                                {portfolioBreakdown.length > 1 ? (
-                                    <button
-                                        type="button"
-                                        className={styles.expandButton}
-                                        onClick={() => onToggleExpanded(asset.isin)}
-                                        aria-label={
-                                            isExpanded
-                                                ? "Portfolio-Details einklappen"
-                                                : "Portfolio-Details aufklappen"
-                                        }
-                                        aria-expanded={isExpanded}
-                                    >
-                                        <span
-                                            className={`${styles.expandChevron} ${
-                                                isExpanded ? styles.expandChevronOpen : ""
-                                            }`}
-                                            aria-hidden="true"
-                                        >
-                                            ⌄
-                                        </span>
-                                    </button>
-                                ) : (
-                                    <span className={styles.expandSpacer} aria-hidden="true" />
-                                )}
-                            </td>
-                        </tr>
+                                    return (
+                                        <td key={`${asset.isin}-${columnKey}`}>
+                                            {renderCell(asset, columnKey)}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
 
-                        {showPortfolioRows
-                            ? portfolioBreakdown.map((portfolio) => (
-                                  <tr
-                                      key={`${asset.isin}-${portfolio.portfolioId}`}
-                                      className={styles.portfolioSubRow}
-                                  >
-                                      <PortfolioValueCells
-                                          portfolio={portfolio}
-                                          asset={asset}
-                                          visibleColumnSet={visibleColumnSet}
-                                      />
+                            {isExpanded ? (
+                                <tr key={`${asset.isin}-expanded`} className={styles.expandedRow}>
+                                    <td colSpan={visibleColumns.length}>
+                                        <div className={styles.breakdownCard}>
+                                            <div className={styles.breakdownHeader}>
+                                                <span>Portfolio</span>
+                                                <span>Bestand</span>
+                                                <span>Ø Kaufpreis</span>
+                                                <span>Positionswert</span>
+                                                <span>Dividenden</span>
+                                            </div>
 
-                                      <td className={styles.editCell} />
-                                      <td className={styles.actionsCell} />
-                                  </tr>
-                              ))
-                            : null}
-                    </Fragment>
-                );
-            })}
-        </tbody>
+                                            {breakdown.map((entry) => (
+                                                <div
+                                                    key={`${asset.isin}-${entry.portfolioId}`}
+                                                    className={styles.breakdownRow}
+                                                >
+                                                    <span>{entry.portfolioName}</span>
+                                                    <span>{entry.netShares}</span>
+                                                    <span>{formatCurrency(entry.avgBuyPrice ?? 0)}</span>
+                                                    <span>{formatCurrency(entry.positionValue ?? 0)}</span>
+                                                    <span>{formatCurrency(entry.totalDividendNet ?? 0)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : null}
+                        </>
+                    );
+                })}
+            </tbody>
+        </table>
     );
 }

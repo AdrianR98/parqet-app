@@ -10,6 +10,21 @@ import { useAssetAudit } from "../../../hooks/use-asset-audit";
 import { useState } from "react";
 import type { AssetSummary } from "../../../lib/types";
 
+/**
+ * ============================================================
+ * PAGE: DASHBOARD
+ * ============================================================
+ *
+ * Verantwortlichkeiten:
+ * - Seite orchestriert Daten + Panels
+ * - Hero, Stats und Sections bleiben getrennte UI-Bausteine
+ * - globale Layout-Utilities kommen aus globals.css
+ *
+ * Typische Erweiterungspunkte:
+ * - persistente Filterzustände
+ * - weitere Section-Typen
+ * - zusätzliche Drawer / Sidepanels
+ */
 export default function DashboardPage() {
     const {
         portfolios,
@@ -74,78 +89,84 @@ export default function DashboardPage() {
 
     return (
         <>
-            <div className="parqet-content" ref={portfolioDropdownRef}>
-                <HeroSection
-                    portfolios={portfolios}
-                    selectedPortfolioIds={selectedPortfolioIds}
-                    draftPortfolioIds={draftPortfolioIds}
-                    selectedPortfolioCount={selectedPortfolioCount}
-                    assetCount={assetCount}
-                    loadingAssets={loadingAssets}
-                    isPortfolioDropdownOpen={isPortfolioDropdownOpen}
-                    onToggleOpen={() =>
-                        setIsPortfolioDropdownOpen((current) => !current)
-                    }
-                    onToggleDraftPortfolio={toggleDraftPortfolio}
-                    onApply={applyPortfolioFilter}
-                    onReset={resetPortfolioFilter}
-                    onLoadAssets={loadAssets}
-                    totalPositionValue={stats.totalPositionValue}
-                    totalUnrealizedPnL={stats.totalUnrealizedPnL}
-                    totalDividendNet={stats.totalDividendNet}
-                    consistencyWarningCount={consistencyReport?.warningCount ?? 0}
-                    reconciliationWarningCount={reconciliationWarnings.length}
-                    lastUpdatedAt={lastUpdatedAt}
-                    showStaleWarning={showStaleWarning}
-                    showWarningsPanel={showWarningsPanel}
-                    onToggleWarningsPanel={() =>
-                        setShowWarningsPanel((current) => !current)
-                    }
-                />
-
-                {loadingPortfolios ? (
-                    <div className="parqet-info-banner">
-                        Portfolios werden geladen...
-                    </div>
-                ) : null}
-
-                {errorMessage ? (
-                    <div className="parqet-error-banner">
-                        <strong>{authRequired ? "Parqet-Verbindung abgelaufen" : "Fehler"}</strong>
-                        <div>{errorMessage}</div>
-
-                        {authRequired ? (
-                            <div className="parqet-banner-actions">
-                                <button
-                                    type="button"
-                                    className="parqet-banner-button"
-                                    onClick={startReconnect}
-                                >
-                                    Erneut verbinden
-                                </button>
-                            </div>
-                        ) : null}
-                    </div>
-                ) : null}
-
-                <StatsGrid stats={stats} />
-
-                <div className="parqet-section-stack">
-                    <CollapsibleAssetTableSection
-                        title="Wertpapiere"
-                        subtitle="Offene Positionen über alle ausgewählten Portfolios"
-                        assets={sortedActiveAssets}
-                        defaultExpanded={true}
-                        onAuditAssetAction={handleAuditAsset}
+            <div className="app-content" ref={portfolioDropdownRef}>
+                <div className="app-stack">
+                    <HeroSection
+                        portfolios={portfolios}
+                        selectedPortfolioIds={selectedPortfolioIds}
+                        draftPortfolioIds={draftPortfolioIds}
+                        selectedPortfolioCount={selectedPortfolioCount}
+                        assetCount={assetCount}
+                        loadingAssets={loadingAssets}
+                        isPortfolioDropdownOpen={isPortfolioDropdownOpen}
+                        onToggleOpen={() =>
+                            setIsPortfolioDropdownOpen((current) => !current)
+                        }
+                        onToggleDraftPortfolio={toggleDraftPortfolio}
+                        onApply={applyPortfolioFilter}
+                        onReset={resetPortfolioFilter}
+                        onLoadAssets={loadAssets}
+                        totalPositionValue={stats.totalPositionValue}
+                        totalUnrealizedPnL={stats.totalUnrealizedPnL}
+                        totalDividendNet={stats.totalDividendNet}
+                        consistencyWarningCount={consistencyReport?.warningCount ?? 0}
+                        reconciliationWarningCount={reconciliationWarnings.length}
+                        lastUpdatedAt={lastUpdatedAt}
+                        showStaleWarning={showStaleWarning}
+                        showWarningsPanel={showWarningsPanel}
+                        onToggleWarningsPanel={() =>
+                            setShowWarningsPanel((current) => !current)
+                        }
                     />
 
-                    <CollapsibleAssetTableSection
-                        title="Geschlossene Wertpapiere"
-                        subtitle="Positionen ohne aktuellen Bestand"
-                        assets={sortedClosedAssets}
-                        defaultExpanded={false}
-                        onAuditAssetAction={handleAuditAsset}
-                    />
+                    {loadingPortfolios ? (
+                        <div className="ui-banner ui-banner-info">
+                            Portfolios werden geladen...
+                        </div>
+                    ) : null}
+
+                    {errorMessage ? (
+                        <div className="ui-banner ui-banner-error">
+                            <strong>
+                                {authRequired
+                                    ? "Parqet-Verbindung abgelaufen"
+                                    : "Fehler"}
+                            </strong>
+                            <div>{errorMessage}</div>
+
+                            {authRequired ? (
+                                <div className="ui-banner-actions">
+                                    <button
+                                        type="button"
+                                        className="ui-btn ui-btn-secondary"
+                                        onClick={startReconnect}
+                                    >
+                                        Erneut verbinden
+                                    </button>
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+
+                    <StatsGrid stats={stats} />
+
+                    <div className="app-section-stack">
+                        <CollapsibleAssetTableSection
+                            title="Wertpapiere"
+                            subtitle="Offene Positionen über alle ausgewählten Portfolios"
+                            assets={sortedActiveAssets}
+                            defaultExpanded={true}
+                            onAuditAssetAction={handleAuditAsset}
+                        />
+
+                        <CollapsibleAssetTableSection
+                            title="Geschlossene Wertpapiere"
+                            subtitle="Positionen ohne aktuellen Bestand"
+                            assets={sortedClosedAssets}
+                            defaultExpanded={false}
+                            onAuditAssetAction={handleAuditAsset}
+                        />
+                    </div>
                 </div>
             </div>
 

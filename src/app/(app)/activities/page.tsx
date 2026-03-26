@@ -1,9 +1,26 @@
 ﻿"use client";
 
+import { useState } from "react";
 import styles from "./ActivitiesPage.module.css";
 import { useActivitiesAudit } from "../../../hooks/use-activities-audit";
-import type { ActivitiesAuditItem } from "../../../lib/types";
+import { useActivityOverrides } from "../../../hooks/use-activity-overrides";
+import type {
+    ActivitiesAuditItem,
+    ActivityOverrideField,
+    ActivityOverrideValue,
+} from "../../../lib/types";
 import { formatCurrency } from "../../../lib/format";
+
+const DEBUG_ACTIVITIES_PAGE = true;
+
+function debugLog(message: string, payload?: unknown) {
+    if (!DEBUG_ACTIVITIES_PAGE) return;
+    console.debug(`[activities-page] ${message}`, payload ?? "");
+}
+
+function debugError(message: string, error: unknown) {
+    console.error(`[activities-page] ${message}`, error);
+}
 
 function getTypeLabel(type: ActivitiesAuditItem["type"]) {
     switch (type) {
@@ -17,7 +34,6 @@ function getTypeLabel(type: ActivitiesAuditItem["type"]) {
             return "Transfer ein";
         case "transfer_out":
             return "Transfer aus";
-        case "unknown":
         default:
             return "Unbekannt";
     }
@@ -39,78 +55,380 @@ function formatDateTime(value: string) {
     }).format(date);
 }
 
-function ActivityRow({ item }: { item: ActivitiesAuditItem }) {
+function parseOverrideValue(
+    field: ActivityOverrideField,
+    rawValue: string
+): ActivityOverrideValue {
+    if (rawValue.trim() === "") {
+        return null;
+    }
+
+    if (
+        field === "shares" ||
+        field === "price" ||
+        field === "amount" ||
+        field === "amountNet"
+    ) {
+        const normalized = rawValue.replace(",", ".");
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : rawValue;
+    }
+
+    return rawValue;
+}
+
+function getCurrentEditableValue(
+    item: ActivitiesAuditItem,
+    field: ActivityOverrideField
+): string {
+    const overrideValue = item.overrideValues?.[field];
+
+    if (overrideValue !== undefined && overrideValue !== null) {
+        return String(overrideValue);
+    }
+
+    switch (field) {
+        case "shares":
+            return String(item.shares ?? "");
+        case "price":
+            return String(item.price ?? "");
+        case "amount":
+            return String(item.amount ?? "");
+        case "amountNet":
+            return String(item.amountNet ?? "");
+        case "type":
+            return String(item.type ?? "");
+        default:
+            return "";
+    }
+}
+
+const EDITABLE_OVERRIDE_FIELDS: Array<{
+    field: ActivityOverrideField;
+    label: string;
+    inputType: "text" | "number";
+}> = [
+        { field: "shares", label: "Stücke", inputType: "number" },
+        { field: "price", label: "Preis", inputType: "number" },
+        { field: "amount", label: "Betrag", inputType: "number" },
+        { field: "amountNet", label: "Netto", inputType: "number" },
+        { field: "type", label: "Typ", inputType: "text" },
+    ];
+
+type ActivityRowProps = {
+    item: ActivitiesAuditItem;
+    onOverrideSavedAction: () => Promise<void>;
+};
+
+function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
+    const { saveOverride, deleteOverride } = useActivityOverrides();
+
+    const [editingField, setEditingField] = useState<ActivityOverrideField | null>(null);
+    const [draftValue, setDraftValue] = useState("");
+    const [rowSaving, setRowSaving] = useState(false);
+    const [rowDeleting, setRowDeleting] = useState(false);
+    const [rowError, setRowError] = useState<string | null>(null);
+
+    function startEditing(field: ActivityOverrideField) {
+        debugLog("start editing", { activityId: item.id, field });
+        setEditingField(field);
+        setDraftValue(getCurrentEditableValue(item, field));
+        setRowError(null);
+    }
+
+    function stopEditing() {
+        debugLog("stop editing", { activityId: item.id, field: editingField });
+        setEditingField(null);
+        setDraftValue("");
+        setRowError(null);
+    }
+
+    async function handleSave(field: ActivityOverrideField) {
+        setRowSaving(true);
+        setRowError(null);
+
+        try {
+            const parsedValue = parseOverrideValue(field, draftValue);
+
+            debugLog("save override", {
+                activityId: item.id,
+                field,
+                draftValue,
+                parsedValue,
+            });
+
+            await saveOverride({
+                activityId: item.id,
+                field,
+                value: parsedValue,
+            });
+
+            await onOverrideSavedAction();
+            stopEditing();
+        } catch (error) {
+            debugError("save override failed", error);
+            setRowError(
+                error instanceof Error
+                    ? error.message
+                    : "Override konnte nicht gespeichert werden."
+            );
+        } finally {
+            setRowSaving(false);
+        }
+    }
+
+    async function handleDelete(field: ActivityOverrideField) {
+        setRowDeleting(true);
+        setRowError(null);
+
+        try {
+            debugLog("delete override", {
+                activityId: item.id,
+                field,
+            });
+
+            await deleteOverride({
+                activityId: item.id,
+                field,
+            });
+
+            await onOverrideSavedAction();
+
+            if (editingField === field) {
+                stopEditing();
+            }
+        } catch (error) {
+            debugError("delete override failed", error);
+            setRowError(
+                error instanceof Error
+                    ? error.message
+                    : "Override konnte nicht gelöscht werden."
+            );
+        } finally {
+            setRowDeleting(false);
+        }
+    }
+
     return (
-        <article className={styles.activityRow}>
-            <div className={styles.activityMain}>
-                <div className={styles.activityTopLine}>
-                    <div className={styles.activityTitleWrap}>
-                        <strong className={styles.activityType}>
-                            {getTypeLabel(item.type)}
-                        </strong>
+        <article className={styles.rowCard}>
+            <div className={styles.rowTop}>
+                <div className={styles.rowTopLeft}>
+                    <span className={styles.typeBadge}>{getTypeLabel(item.type)}</span>
 
-                        {item.hasOverrides ? (
-                            <span className={styles.overrideBadge}>
-                                Override aktiv
-                            </span>
-                        ) : null}
+                    {item.hasOverrides ? (
+                        <span className={styles.stateBadge}>Override aktiv</span>
+                    ) : null}
 
-                        {item.warningMessages.length > 0 ? (
-                            <span className={styles.warningBadge}>
-                                {item.warningMessages.length} Warnung
-                                {item.warningMessages.length === 1 ? "" : "en"}
-                            </span>
-                        ) : null}
-                    </div>
-
-                    <span className={styles.activityDate}>
-                        {formatDateTime(item.datetime)}
-                    </span>
+                    {item.warningMessages.length > 0 ? (
+                        <span className={styles.warningBadge}>
+                            {item.warningMessages.length} Warnung
+                            {item.warningMessages.length === 1 ? "" : "en"}
+                        </span>
+                    ) : null}
                 </div>
 
-                <div className={styles.assetLine}>
-                    <span className={styles.assetName}>
-                        {item.name ?? item.isin}
-                    </span>
-                    <span className={styles.assetMeta}>
-                        {item.isin}
-                        {item.symbol ? ` · ${item.symbol}` : ""}
-                        {item.wkn ? ` · ${item.wkn}` : ""}
-                    </span>
-                </div>
-
-                <div className={styles.activityMetaGrid}>
-                    <span>Portfolio: {item.portfolioName}</span>
-                    <span>Stücke: {item.shares}</span>
-                    <span>Preis: {formatCurrency(item.price ?? 0)}</span>
-                    <span>Betrag: {formatCurrency(item.amount ?? 0)}</span>
-                    <span>Netto: {formatCurrency(item.amountNet ?? 0)}</span>
-                    <span>Raw Type: {item.rawType}</span>
-                </div>
-
-                {item.hasOverrides && item.overrideFlags ? (
-                    <div className={styles.overrideFields}>
-                        {Object.keys(item.overrideFlags).map((field) => (
-                            <span key={field} className={styles.overrideFieldBadge}>
-                                {field}
-                            </span>
-                        ))}
-                    </div>
-                ) : null}
-
-                {item.warningMessages.length > 0 ? (
-                    <div className={styles.warningList}>
-                        {item.warningMessages.map((warning, index) => (
-                            <div
-                                key={`${item.id}-warning-${index}`}
-                                className={styles.warningItem}
-                            >
-                                {warning}
-                            </div>
-                        ))}
-                    </div>
-                ) : null}
+                <div className={styles.rowTopRight}>{formatDateTime(item.datetime)}</div>
             </div>
+
+            <div className={styles.assetBlock}>
+                <div className={styles.assetName}>{item.name ?? item.isin}</div>
+                <div className={styles.assetMeta}>
+                    {item.isin}
+                    {item.symbol ? ` · ${item.symbol}` : ""}
+                    {item.wkn ? ` · ${item.wkn}` : ""}
+                </div>
+            </div>
+
+            <div className={styles.metricsGrid}>
+                <div className={styles.metricCell}>
+                    <span className={styles.metricLabel}>Portfolio</span>
+                    <span className={styles.metricValue}>{item.portfolioName}</span>
+                </div>
+                <div className={styles.metricCell}>
+                    <span className={styles.metricLabel}>Stücke</span>
+                    <span className={styles.metricValue}>{item.shares}</span>
+                </div>
+                <div className={styles.metricCell}>
+                    <span className={styles.metricLabel}>Preis</span>
+                    <span className={styles.metricValue}>{formatCurrency(item.price)}</span>
+                </div>
+                <div className={styles.metricCell}>
+                    <span className={styles.metricLabel}>Betrag</span>
+                    <span className={styles.metricValue}>{formatCurrency(item.amount)}</span>
+                </div>
+                <div className={styles.metricCell}>
+                    <span className={styles.metricLabel}>Netto</span>
+                    <span className={styles.metricValue}>{formatCurrency(item.amountNet)}</span>
+                </div>
+                <div className={styles.metricCell}>
+                    <span className={styles.metricLabel}>Raw</span>
+                    <span className={styles.metricValue}>{item.rawType}</span>
+                </div>
+            </div>
+
+            {item.hasOverrides && item.overrideFlags ? (
+                <div className={styles.overrideList}>
+                    {Object.keys(item.overrideFlags).map((field) => {
+                        const typedField = field as ActivityOverrideField;
+                        const original =
+                            item.originalValues?.[
+                            field as keyof typeof item.originalValues
+                            ];
+                        const override = item.overrideValues?.[field];
+                        const isEditing = editingField === typedField;
+
+                        return (
+                            <div key={field} className={styles.overrideRow}>
+                                <span className={styles.overrideField}>{field}</span>
+
+                                {!isEditing ? (
+                                    <>
+                                        <span className={styles.overrideOld}>
+                                            {String(original)}
+                                        </span>
+                                        <span className={styles.overrideArrow}>→</span>
+                                        <span className={styles.overrideNew}>
+                                            {String(override)}
+                                        </span>
+
+                                        <button
+                                            type="button"
+                                            className="ui-btn ui-btn-ghost"
+                                            onClick={() => startEditing(typedField)}
+                                        >
+                                            Bearbeiten
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="ui-btn ui-btn-ghost"
+                                            onClick={() => handleDelete(typedField)}
+                                            disabled={rowDeleting}
+                                        >
+                                            {rowDeleting ? "Löscht..." : "Reset"}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <input
+                                            className="ui-input"
+                                            type={
+                                                EDITABLE_OVERRIDE_FIELDS.find(
+                                                    (entry) => entry.field === typedField
+                                                )?.inputType === "number"
+                                                    ? "number"
+                                                    : "text"
+                                            }
+                                            step={
+                                                typedField === "shares" ||
+                                                    typedField === "price" ||
+                                                    typedField === "amount" ||
+                                                    typedField === "amountNet"
+                                                    ? "any"
+                                                    : undefined
+                                            }
+                                            value={draftValue}
+                                            onChange={(event) =>
+                                                setDraftValue(event.target.value)
+                                            }
+                                        />
+
+                                        <button
+                                            type="button"
+                                            className="ui-btn ui-btn-primary"
+                                            onClick={() => handleSave(typedField)}
+                                            disabled={rowSaving}
+                                        >
+                                            {rowSaving ? "Speichert..." : "Speichern"}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="ui-btn ui-btn-secondary"
+                                            onClick={stopEditing}
+                                            disabled={rowSaving}
+                                        >
+                                            Abbrechen
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : null}
+
+            {!item.hasOverrides ? (
+                <div className={styles.quickEditRow}>
+                    {EDITABLE_OVERRIDE_FIELDS.map((entry) => (
+                        <button
+                            key={entry.field}
+                            type="button"
+                            className="ui-btn ui-btn-ghost"
+                            onClick={() => startEditing(entry.field)}
+                        >
+                            {entry.label} überschreiben
+                        </button>
+                    ))}
+                </div>
+            ) : null}
+
+            {editingField && (!item.overrideFlags || !item.overrideFlags[editingField]) ? (
+                <div className={styles.newOverrideEditor}>
+                    <span className={styles.overrideField}>{editingField}</span>
+
+                    <input
+                        className="ui-input"
+                        type={
+                            EDITABLE_OVERRIDE_FIELDS.find(
+                                (entry) => entry.field === editingField
+                            )?.inputType === "number"
+                                ? "number"
+                                : "text"
+                        }
+                        step={
+                            editingField === "shares" ||
+                                editingField === "price" ||
+                                editingField === "amount" ||
+                                editingField === "amountNet"
+                                ? "any"
+                                : undefined
+                        }
+                        value={draftValue}
+                        onChange={(event) => setDraftValue(event.target.value)}
+                    />
+
+                    <button
+                        type="button"
+                        className="ui-btn ui-btn-primary"
+                        onClick={() => handleSave(editingField)}
+                        disabled={rowSaving}
+                    >
+                        {rowSaving ? "Speichert..." : "Speichern"}
+                    </button>
+
+                    <button
+                        type="button"
+                        className="ui-btn ui-btn-secondary"
+                        onClick={stopEditing}
+                        disabled={rowSaving}
+                    >
+                        Abbrechen
+                    </button>
+                </div>
+            ) : null}
+
+            {rowError ? <div className={styles.inlineError}>{rowError}</div> : null}
+
+            {item.warningMessages.length > 0 ? (
+                <div className={styles.warningList}>
+                    {item.warningMessages.map((warning, index) => (
+                        <div key={`${item.id}-${index}`} className={styles.warningItem}>
+                            {warning}
+                        </div>
+                    ))}
+                </div>
+            ) : null}
         </article>
     );
 }
@@ -127,231 +445,149 @@ export default function ActivitiesPage() {
         authRequired,
         startReconnect,
         selectedPortfolioIds,
-        selectedTypes,
         searchTerm,
         showPortfolioMenu,
-        showTypeMenu,
         selectedPortfolioLabel,
-        selectedTypeLabel,
         groupedYears,
         setSearchTerm,
         setShowPortfolioMenu,
-        setShowTypeMenu,
         togglePortfolio,
-        toggleType,
         clearFilters,
         reload,
     } = useActivitiesAudit();
 
     return (
         <div className={styles.page}>
-            <header className={styles.header}>
-                <div className={styles.headerLeft}>
-                    <h1 className={styles.title}>Aktivitäten</h1>
+            <section className={`ui-surface ${styles.heroCard}`}>
+                <div className={styles.heroTop}>
+                    <div>
+                        <div className={styles.pageEyebrow}>Ansicht</div>
+                        <h1 className={styles.pageTitle}>Aktivitäten</h1>
 
-                    <div className={styles.summaryLine}>
-                        <span>{filteredSummary.buyCount} Käufe</span>
-                        <span>·</span>
-                        <span>{filteredSummary.sellCount} Verkäufe</span>
-                        <span>·</span>
-                        <span>{filteredSummary.dividendCount} Dividenden</span>
-                        <span>·</span>
-                        <span>
-                            {filteredSummary.transferInCount +
-                                filteredSummary.transferOutCount +
-                                filteredSummary.unknownCount}{" "}
-                            Andere
-                        </span>
+                        <div className={styles.kpiLine}>
+                            <span>{filteredSummary.buyCount} Käufe</span>
+                            <span>·</span>
+                            <span>{filteredSummary.sellCount} Verkäufe</span>
+                            <span>·</span>
+                            <span>{filteredSummary.dividendCount} Dividenden</span>
+                        </div>
+
+                        <div className={styles.metaLine}>
+                            <span>{filteredItems.length} Einträge</span>
+                            <span>·</span>
+                            <span>{reconciliationWarnings.length} Warnungen</span>
+                            {generatedAt ? (
+                                <>
+                                    <span>·</span>
+                                    <span>{formatDateTime(generatedAt)}</span>
+                                </>
+                            ) : null}
+                        </div>
                     </div>
 
-                    <div className={styles.statusLine}>
-                        <span>{filteredItems.length} sichtbare Aktivitäten</span>
-                        <span>·</span>
-                        <span>
-                            {reconciliationWarnings.length} Reconciliation-Warnungen
-                        </span>
-
-                        {generatedAt ? (
-                            <>
-                                <span>·</span>
-                                <span>
-                                    Stand: {formatDateTime(generatedAt)}
-                                </span>
-                            </>
-                        ) : null}
+                    <div className={styles.heroActions}>
+                        <button type="button" className="ui-btn ui-btn-secondary" onClick={reload}>
+                            Neu laden
+                        </button>
+                        <button type="button" className="ui-btn ui-btn-primary">
+                            Neue Aktivität
+                        </button>
                     </div>
                 </div>
 
-                <div className={styles.headerRight}>
-                    <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        onClick={reload}
-                    >
-                        Neu laden
-                    </button>
-                </div>
-            </header>
-
-            <section className={styles.filtersBar}>
-                <div className={styles.filterGroup}>
+                <div className={styles.filtersRow}>
                     <div className={styles.dropdown}>
                         <button
                             type="button"
-                            className={styles.filterButton}
+                            className="ui-filter-btn"
                             onClick={() => setShowPortfolioMenu((current) => !current)}
                         >
-                            {selectedPortfolioLabel}
+                            <span>{selectedPortfolioLabel}</span>
+                            <span>▾</span>
                         </button>
 
                         {showPortfolioMenu ? (
                             <div className={styles.dropdownMenu}>
-                                {portfolios.map((portfolio) => {
-                                    const checked = selectedPortfolioIds.includes(
-                                        portfolio.id
-                                    );
-
-                                    return (
-                                        <label
-                                            key={portfolio.id}
-                                            className={styles.dropdownItem}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={() =>
-                                                    togglePortfolio(portfolio.id)
-                                                }
-                                            />
-                                            <span>{portfolio.name}</span>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        ) : null}
-                    </div>
-
-                    <div className={styles.dropdown}>
-                        <button
-                            type="button"
-                            className={styles.filterButton}
-                            onClick={() => setShowTypeMenu((current) => !current)}
-                        >
-                            {selectedTypeLabel}
-                        </button>
-
-                        {showTypeMenu ? (
-                            <div className={styles.dropdownMenu}>
-                                {selectedTypes.length > 0 &&
-                                    selectedTypes.length <= 6 ? null : null}
-
-                                {[
-                                    "buy",
-                                    "sell",
-                                    "dividend",
-                                    "transfer_in",
-                                    "transfer_out",
-                                    "unknown",
-                                ].map((type) => {
-                                    const checked = selectedTypes.includes(
-                                        type as ActivitiesAuditItem["type"]
-                                    );
-
-                                    return (
-                                        <label
-                                            key={type}
-                                            className={styles.dropdownItem}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={() =>
-                                                    toggleType(
-                                                        type as ActivitiesAuditItem["type"]
-                                                    )
-                                                }
-                                            />
-                                            <span>
-                                                {getTypeLabel(
-                                                    type as ActivitiesAuditItem["type"]
-                                                )}
-                                            </span>
-                                        </label>
-                                    );
-                                })}
+                                {portfolios.map((portfolio) => (
+                                    <label key={portfolio.id} className={styles.dropdownItem}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedPortfolioIds.includes(portfolio.id)}
+                                            onChange={() => togglePortfolio(portfolio.id)}
+                                        />
+                                        <span>{portfolio.name}</span>
+                                    </label>
+                                ))}
                             </div>
                         ) : null}
                     </div>
 
                     <input
-                        className={styles.searchInput}
-                        type="text"
-                        placeholder="Suche nach Name, ISIN, Symbol, WKN oder Portfolio"
+                        className="ui-input"
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Name, WKN, ISIN, Symbol oder Portfolio suchen"
                     />
 
                     <button
                         type="button"
-                        className={styles.clearButton}
+                        className="ui-btn ui-btn-secondary"
                         onClick={clearFilters}
                     >
-                        Filter löschen
+                        Reset
                     </button>
                 </div>
             </section>
 
-            {loading ? (
-                <div className={styles.infoBanner}>Aktivitäten werden geladen...</div>
-            ) : null}
-
             {errorMessage ? (
                 <div className={styles.errorBanner}>
-                    <strong>
-                        {authRequired
-                            ? "Parqet-Verbindung abgelaufen"
-                            : "Fehler"}
-                    </strong>
+                    <strong>{authRequired ? "Verbindung abgelaufen" : "Fehler"}</strong>
                     <div>{errorMessage}</div>
 
                     {authRequired ? (
-                        <div className={styles.bannerActions}>
+                        <div className={styles.errorActions}>
                             <button
                                 type="button"
-                                className={styles.secondaryButton}
+                                className="ui-btn ui-btn-secondary"
                                 onClick={startReconnect}
                             >
-                                Erneut verbinden
+                                Neu verbinden
                             </button>
                         </div>
                     ) : null}
                 </div>
             ) : null}
 
+            {loading ? (
+                <div className={styles.infoBanner}>Aktivitäten werden geladen...</div>
+            ) : null}
+
             <section className={styles.content}>
                 {groupedYears.map((yearGroup) => (
-                    <div key={yearGroup.year} className={styles.yearBlock}>
+                    <div key={yearGroup.year} className={styles.yearSection}>
                         <div className={styles.yearHeader}>
                             <h2 className={styles.yearTitle}>{yearGroup.year}</h2>
-                            <div className={styles.yearSummary}>
+                            <div className={styles.yearMeta}>
                                 {yearGroup.items.length} Aktivitäten
                             </div>
                         </div>
 
                         {yearGroup.months.map((monthGroup) => (
-                            <div key={monthGroup.monthKey} className={styles.monthBlock}>
+                            <div key={monthGroup.monthKey} className={styles.monthSection}>
                                 <div className={styles.monthHeader}>
-                                    <h3 className={styles.monthTitle}>
-                                        {monthGroup.monthLabel}
-                                    </h3>
-                                    <div className={styles.monthSummary}>
+                                    <h3 className={styles.monthTitle}>{monthGroup.monthLabel}</h3>
+                                    <div className={styles.monthMeta}>
                                         {monthGroup.items.length} Aktivitäten
                                     </div>
                                 </div>
 
-                                <div className={styles.monthItems}>
+                                <div className={`ui-surface ${styles.monthCard}`}>
                                     {monthGroup.items.map((item) => (
-                                        <ActivityRow key={item.id} item={item} />
+                                        <ActivityRow
+                                            key={item.id}
+                                            item={item}
+                                            onOverrideSavedAction={reload}
+                                        />
                                     ))}
                                 </div>
                             </div>
@@ -360,8 +596,8 @@ export default function ActivitiesPage() {
                 ))}
 
                 {!loading && groupedYears.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        Keine Aktivitäten für die aktuelle Filterung.
+                    <div className={`ui-surface ${styles.emptyState}`}>
+                        Keine Aktivitäten gefunden.
                     </div>
                 ) : null}
             </section>

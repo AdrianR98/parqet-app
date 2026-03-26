@@ -1,70 +1,43 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
+import styles from "./DataWarningsPanel.module.css";
 import type {
     AssetConsistencyCheck,
     ReconciliationWarning,
 } from "../../lib/types";
-import styles from "./DataWarningsPanel.module.css";
-
-// ============================================================
-// Props
-// ============================================================
 
 type DataWarningsPanelProps = {
     warnings: AssetConsistencyCheck[];
-    reconciliationWarnings?: ReconciliationWarning[];
+    reconciliationWarnings: ReconciliationWarning[];
     isOpen: boolean;
     onCloseAction: () => void;
 };
 
-// ============================================================
-// Lokale Helper
-// ============================================================
-
-function getSeverityClassName(severity: ReconciliationWarning["severity"]): string {
-    if (severity === "error") {
-        return styles.severityError;
-    }
-
-    if (severity === "warning") {
-        return styles.severityWarning;
-    }
-
-    return styles.severityInfo;
-}
-
-function getSeverityLabel(severity: ReconciliationWarning["severity"]): string {
-    if (severity === "error") {
-        return "Fehler";
-    }
-
-    if (severity === "warning") {
-        return "Warnung";
-    }
-
-    return "Info";
-}
-
-// ============================================================
-// Komponente
-// ============================================================
-
+/**
+ * ============================================================
+ * COMPONENT: DATA WARNINGS PANEL
+ * ============================================================
+ *
+ * Rolle:
+ * - rechter Drawer für Daten- und Reconciliation-Warnungen
+ * - globale ui-* Buttons / Banner wo sinnvoll
+ * - lokales CSS nur für Drawer-Struktur und Listenlayout
+ *
+ * Typische Erweiterungspunkte:
+ * - Filter nach Severity
+ * - Gruppierung nach Asset
+ * - Direktlink zum Asset / Audit
+ * - Acknowledge / Ignore Status
+ */
 export default function DataWarningsPanel({
     warnings,
-    reconciliationWarnings = [],
+    reconciliationWarnings,
     isOpen,
     onCloseAction,
 }: DataWarningsPanelProps) {
-    const hasConsistencyWarnings = warnings.length > 0;
-    const hasReconciliationWarnings = reconciliationWarnings.length > 0;
-    const hasAnyWarnings = hasConsistencyWarnings || hasReconciliationWarnings;
-    const totalWarnings = warnings.length + reconciliationWarnings.length;
-
     useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
+        if (!isOpen) return;
 
         function handleKeyDown(event: KeyboardEvent) {
             if (event.key === "Escape") {
@@ -73,174 +46,150 @@ export default function DataWarningsPanel({
         }
 
         window.addEventListener("keydown", handleKeyDown);
-
-        return () => {
-            window.removeEventListener("keydown", handleKeyDown);
-        };
+        return () => window.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, onCloseAction]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-
-        return () => {
-            document.body.style.overflow = previousOverflow;
-        };
-    }, [isOpen]);
 
     if (!isOpen) {
         return null;
     }
 
-    return (
-        <aside className={styles.overlay} aria-modal="true" role="dialog">
-            <button
-                type="button"
-                className={styles.backdrop}
-                aria-label="Warnungsansicht schließen"
-                onClick={onCloseAction}
-            />
+    const totalCount = warnings.length + reconciliationWarnings.length;
 
-            <div className={styles.panel}>
+    return (
+        <aside className={styles.overlay} onClick={onCloseAction}>
+            <div
+                className={styles.panel}
+                onClick={(event) => event.stopPropagation()}
+            >
+                {/* =====================================================
+                    HEADER
+                ===================================================== */}
                 <div className={styles.header}>
                     <div>
                         <div className={styles.eyebrow}>Prüfhinweise</div>
                         <h2 className={styles.title}>Datenwarnungen</h2>
-                        <div className={styles.subtitle}>
-                            {hasAnyWarnings
-                                ? `${totalWarnings} Hinweise aus Konsistenzprüfung und Reconciliation`
-                                : "Aktuell wurden keine Auffälligkeiten erkannt."}
+                        <div className={styles.metaRow}>
+                            <span>{totalCount} Hinweise gesamt</span>
+                            <span>·</span>
+                            <span>{warnings.length} Konsistenzwarnungen</span>
+                            <span>·</span>
+                            <span>{reconciliationWarnings.length} Reconciliation-Warnungen</span>
                         </div>
                     </div>
 
                     <button
                         type="button"
+                        className="ui-btn ui-btn-secondary"
                         onClick={onCloseAction}
-                        className={styles.closeButton}
                     >
                         Schließen
                     </button>
                 </div>
 
-                <div className={styles.summaryBar}>
-                    <div className={styles.summaryItem}>
-                        <span className={styles.summaryLabel}>Gesamt</span>
-                        <strong className={styles.summaryValue}>{totalWarnings}</strong>
+                {/* =====================================================
+                    LEERZUSTAND
+                ===================================================== */}
+                {totalCount === 0 ? (
+                    <div className="ui-banner ui-banner-info">
+                        Aktuell liegen keine Datenwarnungen vor.
                     </div>
-
-                    <div className={styles.summaryItem}>
-                        <span className={styles.summaryLabel}>Konsistenz</span>
-                        <strong className={styles.summaryValue}>{warnings.length}</strong>
-                    </div>
-
-                    <div className={styles.summaryItem}>
-                        <span className={styles.summaryLabel}>Reconciliation</span>
-                        <strong className={styles.summaryValue}>
-                            {reconciliationWarnings.length}
-                        </strong>
-                    </div>
-                </div>
-
-                {!hasAnyWarnings ? (
-                    <section className={styles.emptyState}>
-                        <div className={styles.emptyStateTitle}>Keine Datenwarnungen vorhanden</div>
-                        <div className={styles.emptyStateText}>
-                            Die aktuelle bereinigte Pipeline hat keine Konsistenz- oder
-                            Reconciliation-Auffälligkeiten erkannt.
-                        </div>
-                    </section>
                 ) : null}
 
-                {hasReconciliationWarnings ? (
+                {/* =====================================================
+                    KONSISTENZWARNUNGEN
+                ===================================================== */}
+                {warnings.length > 0 ? (
                     <section className={styles.section}>
                         <div className={styles.sectionHeader}>
-                            <div>
-                                <h3 className={styles.sectionTitle}>Reconciliation</h3>
-                                <div className={styles.sectionSubtitle}>
-                                    Technische Prüfhinweise auf Aktivitäts- und Bestandsbasis
-                                </div>
+                            <h3 className={styles.sectionTitle}>Konsistenzwarnungen</h3>
+                            <div className={styles.sectionMeta}>
+                                {warnings.length} Asset
+                                {warnings.length === 1 ? "" : "s"} betroffen
                             </div>
-
-                            <span className={styles.sectionCount}>
-                                {reconciliationWarnings.length}
-                            </span>
                         </div>
 
                         <div className={styles.list}>
-                            {reconciliationWarnings.map((warning, index) => (
+                            {warnings.map((warning) => (
                                 <article
-                                    key={`${warning.isin}-${warning.severity}-${index}`}
-                                    className={styles.item}
+                                    key={`${warning.isin}-${warning.name ?? "unknown"}`}
+                                    className={`ui-surface-soft ${styles.warningCard}`}
                                 >
-                                    <div className={styles.itemTopRow}>
-                                        <div className={styles.itemAssetBlock}>
-                                            <span className={styles.itemAssetPrimary}>
+                                    <div className={styles.warningTop}>
+                                        <div className={styles.warningIdentity}>
+                                            <strong>{warning.name ?? warning.isin}</strong>
+                                            <span className={styles.warningMeta}>
                                                 {warning.isin}
                                             </span>
                                         </div>
+                                    </div>
 
-                                        <span
-                                            className={`${styles.severityBadge} ${getSeverityClassName(
-                                                warning.severity
-                                            )}`}
-                                        >
-                                            {getSeverityLabel(warning.severity)}
+                                    <div className={styles.flagGrid}>
+                                        <span>
+                                            Rekonstr. Bestand:{" "}
+                                            <strong>{warning.reconstructedNetShares}</strong>
+                                        </span>
+                                        <span>
+                                            Cost Basis:{" "}
+                                            <strong>{warning.remainingCostBasis}</strong>
                                         </span>
                                     </div>
 
-                                    <div className={styles.itemText}>{warning.message}</div>
+                                    <div className={styles.messageList}>
+                                        {warning.warnings.map((entry, index) => (
+                                            <div
+                                                key={`${warning.isin}-consistency-${index}`}
+                                                className={styles.messageItem}
+                                            >
+                                                {entry}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </article>
                             ))}
                         </div>
                     </section>
                 ) : null}
 
-                {hasConsistencyWarnings ? (
+                {/* =====================================================
+                    RECONCILIATION WARNINGS
+                ===================================================== */}
+                {reconciliationWarnings.length > 0 ? (
                     <section className={styles.section}>
                         <div className={styles.sectionHeader}>
-                            <div>
-                                <h3 className={styles.sectionTitle}>Konsistenz</h3>
-                                <div className={styles.sectionSubtitle}>
-                                    Rekonstruierte Bestände und Kostenbasis pro Asset
-                                </div>
+                            <h3 className={styles.sectionTitle}>Reconciliation-Warnungen</h3>
+                            <div className={styles.sectionMeta}>
+                                {reconciliationWarnings.length} Hinweis
+                                {reconciliationWarnings.length === 1 ? "" : "e"}
                             </div>
-
-                            <span className={styles.sectionCount}>{warnings.length}</span>
                         </div>
 
                         <div className={styles.list}>
-                            {warnings.map((warning) => (
-                                <article key={warning.isin} className={styles.item}>
-                                    <div className={styles.itemTopRow}>
-                                        <div className={styles.itemAssetBlock}>
-                                            <span className={styles.itemAssetPrimary}>
-                                                {warning.name ?? warning.isin}
-                                            </span>
-                                            <span className={styles.itemAssetSecondary}>
-                                                {warning.isin}
+                            {reconciliationWarnings.map((warning, index) => (
+                                <article
+                                    key={`${warning.isin}-${warning.message}-${index}`}
+                                    className={`ui-surface-soft ${styles.warningCard}`}
+                                >
+                                    <div className={styles.warningTop}>
+                                        <div className={styles.warningIdentity}>
+                                            <strong>{warning.isin}</strong>
+                                            <span
+                                                className={`${styles.severityBadge} ${warning.severity === "error"
+                                                        ? styles.severityError
+                                                        : warning.severity === "warning"
+                                                            ? styles.severityWarning
+                                                            : styles.severityInfo
+                                                    }`}
+                                            >
+                                                {warning.severity}
                                             </span>
                                         </div>
                                     </div>
 
-                                    <div className={styles.metricRow}>
-                                        <span>Bestand</span>
-                                        <strong>{warning.reconstructedNetShares}</strong>
+                                    <div className={styles.messageList}>
+                                        <div className={styles.messageItem}>
+                                            {warning.message}
+                                        </div>
                                     </div>
-
-                                    <div className={styles.metricRow}>
-                                        <span>Kostenbasis</span>
-                                        <strong>{warning.remainingCostBasis.toFixed(2)} €</strong>
-                                    </div>
-
-                                    <ul className={styles.warningList}>
-                                        {warning.warnings.map((text, index) => (
-                                            <li key={`${warning.isin}-${index}`}>{text}</li>
-                                        ))}
-                                    </ul>
                                 </article>
                             ))}
                         </div>

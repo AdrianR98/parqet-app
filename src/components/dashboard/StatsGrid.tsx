@@ -1,80 +1,64 @@
-﻿import { formatCurrency, getPnLClass } from "../../lib/format";
-import type { DashboardStats } from "../../lib/types";
+﻿"use client";
+
 import styles from "./StatsGrid.module.css";
+import type { DashboardStats } from "../../lib/types";
+import { formatCurrency } from "../../lib/format";
 
 type StatsGridProps = {
     stats: DashboardStats;
 };
 
-type StatsCardProps = {
-    label: string;
-    value: string | number;
-    hint: string;
-    valueClassName?: string;
-};
-
-function StatsCard({
-    label,
-    value,
-    hint,
-    valueClassName = "",
-}: StatsCardProps) {
-    return (
-        <article className={styles.card}>
-            <div className={styles.label}>{label}</div>
-            <div className={`${styles.value} ${valueClassName}`.trim()}>{value}</div>
-            <div className={styles.hint}>{hint}</div>
-        </article>
-    );
-}
-
+/**
+ * ============================================================
+ * COMPONENT: STATS GRID
+ * ============================================================
+ *
+ * Rolle:
+ * - verdichtete KPI-Ansicht unterhalb des Hero-Bereichs
+ * - nutzt globale ui-surface Basis
+ * - lokales CSS nur für Grid / Typografie
+ *
+ * Typische Erweiterungspunkte:
+ * - weitere KPI-Karten
+ * - kleine Trend-Indikatoren
+ * - klickbare Drilldowns
+ */
 export default function StatsGrid({ stats }: StatsGridProps) {
-    const pnlClass = getPnLClass(stats.totalUnrealizedPnL);
-    const pnlClassName =
-        pnlClass === "positive"
-            ? styles.positive
-            : pnlClass === "negative"
-                ? styles.negative
-                : "";
+    const cards = [
+        {
+            label: "Rohaktivitäten",
+            value: String(stats.rawActivityCount),
+        },
+        {
+            label: "Gefilterte Aktivitäten",
+            value: String(stats.filteredActivityCount),
+        },
+        {
+            label: "Aktive Assets",
+            value: String(stats.activeAssetCount),
+        },
+        {
+            label: "Geschlossene Assets",
+            value: String(stats.closedAssetCount),
+        },
+        {
+            label: "Gesamtpositionen",
+            value: String(stats.assetCount),
+        },
+        {
+            label: "Dividenden netto",
+            value: formatCurrency(stats.totalDividendNet),
+        },
+    ];
 
     return (
         <section className={styles.grid}>
-            <StatsCard
-                label="Roh-Activities"
-                value={stats.rawActivityCount}
-                hint="Alle geladenen Eintraege vor Bereinigung"
-            />
-
-            <StatsCard
-                label="Bereinigte Activities"
-                value={stats.filteredActivityCount}
-                hint="Nur relevante Security-Events"
-            />
-
-            <StatsCard
-                label="Assets"
-                value={stats.assetCount}
-                hint="Nach ISIN ueber Portfolios aggregiert"
-            />
-
-            <StatsCard
-                label="Dividenden netto"
-                value={formatCurrency(stats.totalDividendNet)}
-                hint="Summierte Netto-Dividenden"
-            />
-
-            <StatsCard
-                label="Positionswert"
-                value={formatCurrency(stats.totalPositionValue)}
-                hint="Noch auf Basis des Preis-Fallbacks"
-            />
-
-            <StatsCard
-                label="Kursgewinn"
-                value={formatCurrency(stats.totalUnrealizedPnL)}
-                hint="Unrealisiert, aktuell ohne externe Live-Kurse"
-                valueClassName={pnlClassName}
-            />
+            {cards.map((card) => (
+                <div key={card.label} className={`ui-surface ${styles.card}`}>
+                    <span className={styles.label}>{card.label}</span>
+                    <strong className={styles.value}>{card.value}</strong>
+                </div>
+            ))}
         </section>
     );
 }

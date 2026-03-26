@@ -1,6 +1,4 @@
-﻿"use client";
-
-import { useState } from "react";
+﻿import { useState } from "react";
 import type { AssetSummary } from "../../lib/types";
 import AssetTable from "./AssetTable";
 import styles from "./CollapsibleAssetTableSection.module.css";
@@ -13,6 +11,19 @@ type Props = {
     onAuditAssetAction?: (asset: AssetSummary) => void | Promise<void>;
 };
 
+/**
+ * ============================================================
+ * COMPONENT: COLLAPSIBLE ASSET TABLE SECTION
+ * ============================================================
+ *
+ * Wichtiger Hinweis:
+ * - kein "use client" mehr auf Modulebene
+ * - Komponente wird innerhalb einer Client-Seite genutzt
+ * - der lokale State bleibt dadurch zulässig, weil sie im Client-Baum liegt
+ *
+ * Falls dein Setup hier dennoch auf "use client" besteht, geben wir nur
+ * diese Datei wieder als Client-Datei zurück. Erstmal aber so testen.
+ */
 export default function CollapsibleAssetTableSection({
     title,
     subtitle,
@@ -30,10 +41,15 @@ export default function CollapsibleAssetTableSection({
                 onClick={() => setOpen((value) => !value)}
                 aria-expanded={open}
             >
-                <div className={styles.left}>
-                    <span className={styles.title}>{title}</span>
-                    <span className={styles.count}>{assets.length}</span>
-                    {subtitle ? <span className={styles.subtitle}>{subtitle}</span> : null}
+                <div className={styles.headerLeft}>
+                    <div className={styles.titleRow}>
+                        <h2 className={styles.title}>{title}</h2>
+                        <span className={styles.count}>{assets.length}</span>
+                    </div>
+
+                    {subtitle ? (
+                        <div className={styles.subtitle}>{subtitle}</div>
+                    ) : null}
                 </div>
 
                 <span className={`${styles.chevron} ${open ? styles.open : ""}`}>
@@ -43,7 +59,7 @@ export default function CollapsibleAssetTableSection({
 
             {open ? (
                 <div className={styles.content}>
-                    <AssetTable assets={assets} onAuditAsset={onAuditAssetAction} />
+                    <AssetTable assets={assets} onAuditAssetAction={onAuditAssetAction} />
                 </div>
             ) : null}
         </section>

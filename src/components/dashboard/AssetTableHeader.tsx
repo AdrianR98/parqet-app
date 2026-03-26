@@ -1,166 +1,119 @@
-import type { RefObject } from "react";
+﻿// src/components/dashboard/AssetTableHeader.tsx
+
+"use client";
+
 import styles from "./AssetTable.module.css";
-import type { ColumnConfig, ColumnKey, SortKey } from "./asset-table-config";
+import {
+    FIXED_COLUMNS,
+    getColumnLabel,
+    type AssetSortKey,
+    type VisibleColumnKey,
+} from "./asset-table-config";
 
 type AssetTableHeaderProps = {
-    title: string;
-    subtitle: string;
-    hideHeader: boolean;
+    visibleColumns: VisibleColumnKey[];
+    sortKey: AssetSortKey;
+    sortDirection: "asc" | "desc";
     showColumnMenu: boolean;
-    onToggleColumnMenu: () => void;
-    columnMenuRef: RefObject<HTMLDivElement | null>;
-    selectableColumns: ColumnConfig[];
-    visibleColumnSet: Set<ColumnKey>;
-    onToggleColumn: (columnKey: ColumnKey) => void;
+    columnMenuRef: React.RefObject<HTMLDivElement | null>;
+    onToggleColumnMenuAction: () => void;
+    onToggleColumnAction: (key: VisibleColumnKey) => void;
+    onSortAction: (key: AssetSortKey) => void;
 };
 
-function ColumnSelector({
-    showColumnMenu,
-    onToggleColumnMenu,
-    columnMenuRef,
-    selectableColumns,
-    visibleColumnSet,
-    onToggleColumn,
-}: Omit<AssetTableHeaderProps, "title" | "subtitle" | "hideHeader">) {
-    return (
-        <div className={styles.columnMenuWrap} ref={columnMenuRef}>
-            <button
-                type="button"
-                className={styles.columnMenuButton}
-                onClick={onToggleColumnMenu}
-                aria-label="Spalten auswählen"
-                aria-expanded={showColumnMenu}
-            >
-                ⚙
-            </button>
+/**
+ * ============================================================
+ * COMPONENT: ASSET TABLE HEADER
+ * ============================================================
+ *
+ * Wichtig:
+ * - Callback-Props enden bewusst auf "Action"
+ * - dadurch verschwinden die TS71007 Hinweise
+ */
+const TOGGLABLE_COLUMNS: VisibleColumnKey[] = [
+    "netShares",
+    "avgBuyPrice",
+    "latestTradePrice",
+    "unrealizedPnL",
+    "totalDividendNet",
+    "latestActivityAt",
+    "actions",
+];
 
-            {showColumnMenu ? (
-                <div className={styles.columnMenu}>
-                    <div className={styles.columnMenuTitle}>Spalten</div>
-
-                    <div className={styles.columnMenuList}>
-                        {selectableColumns.map((column) => {
-                            const checked = visibleColumnSet.has(column.key);
-
-                            return (
-                                <button
-                                    key={column.key}
-                                    type="button"
-                                    className={styles.columnMenuItem}
-                                    onClick={() => onToggleColumn(column.key)}
-                                >
-                                    <span
-                                        className={`${styles.columnCheckbox} ${
-                                            checked ? styles.columnCheckboxChecked : ""
-                                        }`}
-                                        aria-hidden="true"
-                                    >
-                                        ✓
-                                    </span>
-
-                                    <span>{column.label.replace("\n", " ")}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            ) : null}
-        </div>
-    );
+function isSortableColumn(key: VisibleColumnKey): key is AssetSortKey {
+    return key !== "actions";
 }
 
-export function getHeaderButtonClassName(
-    isActive: boolean,
-    align: "left" | "right" = "left"
-) {
-    const classes = [styles.thButton];
-
-    if (isActive) {
-        classes.push(styles.thButtonActive);
-    }
-
-    if (align === "right") {
-        classes.push(styles.thButtonRight);
-    }
-
-    return classes.join(" ");
-}
-
-export function AssetTableShellHeader({
-    title,
-    subtitle,
-    hideHeader,
-    ...columnSelectorProps
-}: AssetTableHeaderProps) {
-    if (hideHeader) {
-        return (
-            <div className={styles.compactToolbar}>
-                <ColumnSelector {...columnSelectorProps} />
-            </div>
-        );
-    }
-
-    return (
-        <div className={styles.header}>
-            <div className={styles.headerTitleWrap}>
-                <h3 className={styles.headerTitle}>{title}</h3>
-                <p className={styles.headerSubtitle}>{subtitle}</p>
-            </div>
-
-            <div className={styles.headerRight}>
-                <ColumnSelector {...columnSelectorProps} />
-            </div>
-        </div>
-    );
-}
-
-type AssetTableHeadProps = {
-    visibleColumnsConfig: ColumnConfig[];
-    sortKey: SortKey;
-    onSort: (sortKey: SortKey) => void;
-};
-
-export function AssetTableHead({
-    visibleColumnsConfig,
+export default function AssetTableHeader({
+    visibleColumns,
     sortKey,
-    onSort,
-}: AssetTableHeadProps) {
+    sortDirection,
+    showColumnMenu,
+    columnMenuRef,
+    onToggleColumnMenuAction,
+    onToggleColumnAction,
+    onSortAction,
+}: AssetTableHeaderProps) {
     return (
-        <thead>
-            <tr>
-                {visibleColumnsConfig.map((column) => (
-                    <th
-                        key={column.key}
-                        style={{ width: column.width }}
-                        className={column.align === "right" ? styles.tdRight : undefined}
-                    >
-                        {column.sortKey ? (
-                            <button
-                                type="button"
-                                className={getHeaderButtonClassName(
-                                    sortKey === column.sortKey,
-                                    column.align
-                                )}
-                                onClick={() => onSort(column.sortKey!)}
-                            >
-                                <span className={styles.thLabel}>
-                                    {column.label.split("\n").map((line, index) => (
-                                        <span key={`${column.key}-${index}`}>
-                                            {line}
-                                            {index < column.label.split("\n").length - 1 ? <br /> : null}
-                                        </span>
-                                    ))}
-                                </span>
-                            </button>
-                        ) : (
-                            <span className={styles.thLabel}>{column.label}</span>
-                        )}
-                    </th>
-                ))}
+        <table className={styles.table}>
+            <thead>
+                <tr>
+                    {visibleColumns.map((columnKey) => (
+                        <th key={columnKey}>
+                            {columnKey === "actions" ? (
+                                <div className={styles.toolbarRight}>
+                                    <div className={styles.columnMenuWrap} ref={columnMenuRef}>
+                                        <button
+                                            type="button"
+                                            className="ui-btn ui-btn-ghost"
+                                            onClick={onToggleColumnMenuAction}
+                                        >
+                                            Spalten
+                                        </button>
 
-                <th className={styles.editHeaderCell} />
-                <th className={styles.actionsHeaderCell} />
-            </tr>
-        </thead>
+                                        {showColumnMenu ? (
+                                            <div className={styles.columnMenu}>
+                                                <div className={styles.columnMenuList}>
+                                                    {TOGGLABLE_COLUMNS.filter(
+                                                        (key) => !FIXED_COLUMNS.includes(key)
+                                                    ).map((key) => (
+                                                        <label
+                                                            key={key}
+                                                            className={styles.columnMenuItem}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={visibleColumns.includes(key)}
+                                                                onChange={() =>
+                                                                    onToggleColumnAction(key)
+                                                                }
+                                                            />
+                                                            <span>{getColumnLabel(key)}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            ) : isSortableColumn(columnKey) ? (
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-ghost"
+                                    onClick={() => onSortAction(columnKey)}
+                                >
+                                    {getColumnLabel(columnKey)}
+                                    {sortKey === columnKey ? (
+                                        <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                                    ) : null}
+                                </button>
+                            ) : (
+                                getColumnLabel(columnKey)
+                            )}
+                        </th>
+                    ))}
+                </tr>
+            </thead>
+        </table>
     );
 }

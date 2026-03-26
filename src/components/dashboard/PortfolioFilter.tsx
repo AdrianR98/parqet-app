@@ -12,6 +12,19 @@ type PortfolioFilterProps = {
     onReset: () => void;
 };
 
+/**
+ * ============================================================
+ * COMPONENT: PORTFOLIO FILTER
+ * ============================================================
+ *
+ * Wichtig:
+ * - bewusst OHNE "use client"
+ * - reine UI-Unterkomponente
+ * - wird aus einer Client-Komponente heraus benutzt
+ *
+ * So verschwinden die Warnungen zu Funktionsprops an der
+ * Client-Entry-Grenze.
+ */
 export default function PortfolioFilter({
     portfolios,
     selectedPortfolioIds,
@@ -23,53 +36,64 @@ export default function PortfolioFilter({
     onReset,
 }: PortfolioFilterProps) {
     const selectedCount = selectedPortfolioIds.length;
+    const totalCount = portfolios.length;
+
+    const triggerLabel =
+        selectedCount === 0
+            ? "Keine Portfolios"
+            : selectedCount === totalCount
+                ? "Alle Portfolios"
+                : selectedCount === 1
+                    ? (portfolios.find((p) => p.id === selectedPortfolioIds[0])?.name ??
+                        "1 Portfolio")
+                    : `${selectedCount} Portfolios`;
 
     return (
         <div className={styles.wrapper}>
-            <div className={styles.triggerRow}>
-                <button
-                    type="button"
-                    onClick={onToggleOpen}
-                    className={`${styles.trigger} ${isOpen ? styles.triggerActive : ""}`.trim()}
-                >
-                    <span>{selectedCount} Portfolios</span>
-                    <span className={styles.triggerIcon}>☰</span>
-                </button>
-            </div>
+            <button
+                type="button"
+                className={`ui-filter-btn ${styles.trigger}`}
+                onClick={onToggleOpen}
+                aria-expanded={isOpen}
+            >
+                <span>{triggerLabel}</span>
+                <span>▾</span>
+            </button>
 
             {isOpen ? (
-                <div className={styles.dropdown}>
+                <div className={styles.menu}>
                     <div className={styles.list}>
                         {portfolios.map((portfolio) => {
                             const checked = draftPortfolioIds.includes(portfolio.id);
 
                             return (
-                                <button
-                                    key={portfolio.id}
-                                    type="button"
-                                    className={`${styles.item} ${checked ? styles.itemChecked : ""}`.trim()}
-                                    onClick={() => onToggleDraftPortfolio(portfolio.id)}
-                                >
-                                    <div
-                                        className={`${styles.checkbox} ${checked ? styles.checkboxChecked : ""
-                                            }`.trim()}
-                                    >
-                                        ✓
-                                    </div>
-
-                                    <div className={styles.label}>{portfolio.name}</div>
-                                </button>
+                                <label key={portfolio.id} className={styles.item}>
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => onToggleDraftPortfolio(portfolio.id)}
+                                    />
+                                    <span>{portfolio.name}</span>
+                                </label>
                             );
                         })}
                     </div>
 
                     <div className={styles.footer}>
-                        <button type="button" className={styles.applyButton} onClick={onApply}>
-                            Anwenden
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn-secondary"
+                            onClick={onReset}
+                        >
+                            Reset
                         </button>
 
-                        <button type="button" className={styles.resetButton} onClick={onReset}>
-                            Filter löschen
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn-primary"
+                            onClick={onApply}
+                        >
+                            Anwenden
                         </button>
                     </div>
                 </div>

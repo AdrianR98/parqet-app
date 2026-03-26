@@ -1,1 +1,11 @@
-﻿[]
+[
+  {
+    "id": "4adcabc3-ae27-454d-a669-a803b7be0fea",
+    "activityId": "cpa_6977b7f4cf9f7175e540c62a",
+    "field": "shares",
+    "value": 6,
+    "reason": null,
+    "createdAt": "2026-03-26T12:21:35.396Z",
+    "source": "manual"
+  }
+]
