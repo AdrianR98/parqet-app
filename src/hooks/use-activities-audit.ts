@@ -73,6 +73,17 @@ function emptySummary(): ActivitiesAuditSummary {
  * - Betragsaggregationen
  * - Netto-/Brutto-Summen
  */
+function emptyPagination(): ActivitiesAuditPagination {
+    return {
+        page: 1,
+        pageSize: 50,
+        totalItems: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+    };
+}
+
 type GroupedYear = {
     year: number;
     items: ActivitiesAuditItem[];
@@ -126,13 +137,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
     const [reconciliationWarnings, setReconciliationWarnings] = useState<ReconciliationWarning[]>([]);
     const [generatedAt, setGeneratedAt] = useState("");
     const [summary, setSummary] = useState<ActivitiesAuditSummary>(emptySummary());
-    const [pagination, setPagination] = useState<ActivitiesAuditPagination>({
-        page: 1,
-        pageSize: 50,
-        totalItems: 0,
-        totalPages: 0,
-        hasNextPage: false,
-    });
+    const [pagination, setPagination] = useState<ActivitiesAuditPagination>(emptyPagination());
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [authRequired, setAuthRequired] = useState(false);
@@ -289,6 +294,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
             setReconciliationWarnings([]);
             setGeneratedAt("");
             setSummary(emptySummary());
+            setPagination(emptyPagination());
             return;
         }
 
