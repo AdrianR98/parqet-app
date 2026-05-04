@@ -544,6 +544,15 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
         setCurrentPage((prev) => prev + 1);
     }
 
+    async function reloadActivities() {
+        if (currentPage === 1) {
+            await load();
+            return;
+        }
+
+        setCurrentPage(1);
+    }
+
     function startReconnect() {
         debugLog("Starting reconnect", { reconnectUrl });
         window.location.href = reconnectUrl || "/api/auth/start";
@@ -577,7 +586,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
         toggleType,
         loadNextPage,
         clearFilters,
-        reload: load,
+        reload: reloadActivities,
         startReconnect,
     };
 }
