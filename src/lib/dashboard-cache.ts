@@ -1,6 +1,10 @@
 ﻿// src/lib/dashboard-cache.ts
 
-import type { AssetSummary, ConsistencyReport } from "./types";
+import type {
+    AssetSummary,
+    ConsistencyReport,
+    ReconciliationWarning,
+} from "./types";
 
 /**
  * Zentraler localStorage-Key fuer den Dashboard-Cache.
@@ -29,6 +33,8 @@ export type DashboardCache = {
     activeAssetCount: number;
     closedAssetCount: number;
     consistencyReport: ConsistencyReport | null;
+    reconciliationWarnings: ReconciliationWarning[];
+    generatedAt: string | null;
     lastUpdatedAt: string | null;
     selectedPortfolioIds: string[];
 };
@@ -87,7 +93,18 @@ function isDashboardCacheCompatible(cache: unknown): cache is DashboardCache {
     const activeAssetsValid = candidate.activeAssets.every(isCacheAssetCompatible);
     const closedAssetsValid = candidate.closedAssets.every(isCacheAssetCompatible);
 
-    return activeAssetsValid && closedAssetsValid;
+    const reconciliationWarnings = candidate.reconciliationWarnings;
+    const generatedAtValid =
+        candidate.generatedAt === null || typeof candidate.generatedAt === "string";
+    const selectedPortfolioIdsValid = Array.isArray(candidate.selectedPortfolioIds);
+
+    return (
+        activeAssetsValid &&
+        closedAssetsValid &&
+        selectedPortfolioIdsValid &&
+        Array.isArray(reconciliationWarnings) &&
+        generatedAtValid
+    );
 }
 
 /**
