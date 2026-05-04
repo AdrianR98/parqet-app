@@ -45,6 +45,12 @@
     flex-shrink: 0;
 }
 
+.featureBoundaryNote {
+    margin: 14px 0 0;
+    font-size: 13px;
+    color: var(--text-soft);
+}
+
 .filtersRow {
     display: grid;
     grid-template-columns: 220px minmax(0, 1fr) auto;

@@ -65,7 +65,7 @@ Die Activities-Seite unter `/activities` zeigt eine auditierbare Aktivitätenans
 - Warnungsanzeige je Aktivität,
 - Inline-Override-Bearbeitung für Felder wie Stücke, Preis, Betrag, Netto und Typ.
 
-Der Button `Neue Aktivität` ist aktuell sichtbar, aber noch kein implementierter Schreibpfad. Die Entscheidung dazu ist als späterer Roadmap-Punkt vorgesehen.
+Die Activities-Seite zeigt keinen CTA mehr für `Neue Aktivität`, damit kein nicht implementierter Schreibpfad suggeriert wird. Ein Hinweis auf der Seite grenzt stattdessen klar ab: Activity-Erstellung ist nicht implementiert; Korrekturen laufen über Overrides.
 
 ### Lokale Metadaten und Overrides
 
@@ -203,7 +203,7 @@ Pull Requests sollen klein und reviewbar bleiben. Keine privaten Parqet-Exporte,
 - Activity-Laden ist als Performance-Hotspot bekannt und soll über bounded concurrency verbessert werden.
 - Activities-Audit lädt/filtert aktuell noch zu viel clientseitig und soll serverseitige Pagination erhalten.
 - Dashboard-Cache soll weiter vervollständigt werden.
-- `Neue Aktivität` ist noch kein implementierter Schreibpfad.
+- Activity-Erstellung ist weiterhin nicht implementiert; die Activities-Seite kennzeichnet dies explizit und verweist für Korrekturen auf Overrides.
 - Test-Infrastruktur und CI sind noch nicht final eingerichtet.
 - OAuth-Callback enthält aktuell noch eine localhost-Weiterleitung, die konfigurierbar werden sollte.
 
