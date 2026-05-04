@@ -1,0 +1,65 @@
+name: Documentation
+about: README, Architektur-, Datenmodell-, Roadmap- oder ADR-Dokumentation
+title: "docs: "
+labels: ["docs"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dokumentation soll den tatsächlichen Produkt- und Architekturstand abbilden. Keine Fantasie-Funktionen dokumentieren.
+
+  - type: textarea
+    id: target-docs
+    attributes:
+      label: Betroffene Dokumente
+      placeholder: |
+        - README.md
+        - docs/PROJECT_STATUS.md
+        - docs/ARCHITECTURE.md
+        - docs/DATA_MODEL.md
+        - docs/ROADMAP.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Anlass
+      description: Warum ist die Dokumentation notwendig oder veraltet?
+      placeholder: Beispiel: README ist noch der create-next-app-Standardtext und beschreibt die Parqet-App nicht.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sources
+    attributes:
+      label: Quellen / zu lesende Dateien
+      description: Welche Code-Dateien oder bestehenden Dokumente müssen gelesen werden?
+      placeholder: |
+        - package.json
+        - src/app/(app)/**/*
+        - src/app/api/parqet/**/*
+        - src/lib/parqet-assets/*
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien
+      placeholder: |
+        - [ ] Dokumentation beschreibt den aktuellen Ist-Zustand
+        - [ ] Keine nicht implementierten Features als fertig beschrieben
+        - [ ] Links zwischen README und docs/* sind konsistent
+        - [ ] Offene Annahmen sind markiert
+    validations:
+      required: true
+
+  - type: textarea
+    id: codex
+    attributes:
+      label: Codex-Auftrag
+      description: Optionaler kompakter Auftrag nach `docs/CODEX_MASTERPROMPT.md`.
+      render: text
+    validations:
+      required: false
