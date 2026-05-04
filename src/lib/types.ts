@@ -426,6 +426,15 @@ export type ActivitiesAuditSummary = {
     unknownCount: number;
 };
 
+export type ActivitiesAuditPagination = {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+};
+
 export type ActivitiesAuditApiResponse = {
     ok: boolean;
     generatedAt: string;
@@ -433,6 +442,7 @@ export type ActivitiesAuditApiResponse = {
     items: ActivitiesAuditItem[];
     reconciliationWarnings: ReconciliationWarning[];
     summary: ActivitiesAuditSummary;
+    pagination?: ActivitiesAuditPagination;
     authRequired?: boolean;
     reconnectUrl?: string;
     message?: string;
