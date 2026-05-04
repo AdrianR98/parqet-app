@@ -5,19 +5,13 @@ import {
     getCookieValue,
     refreshParqetAccessToken,
 } from "../../../../lib/parqet";
-import { fetchAuthorizedPortfolios } from "../../../../lib/parqet-assets/fetch-portfolios";
-import { loadActivitiesForPortfolios } from "../../../../lib/parqet-assets/fetch-activities";
-import { isRealSecurityActivity } from "../../../../lib/parqet-assets/filters";
-import { normalizeActivities } from "../../../../lib/parqet-assets/normalization";
-import { applyOverrides } from "../../../../lib/parqet-assets/overrides";
-import { buildReconciliationWarnings } from "../../../../lib/parqet-assets/reconciliation";
+import { buildActivityContext } from "../../../../lib/parqet-assets/build-activity-context";
 import { toNumber } from "../../../../lib/parqet-assets/activity-utils";
 import type {
     ActivitiesAuditApiResponse,
     ActivitiesAuditItem,
     ActivitiesAuditSummary,
 } from "../../../../lib/types";
-import { readActivityOverrides } from "../../../../lib/parqet-assets/override-store";
 
 function getMonthKey(value: string): string {
     return value.slice(0, 7);
@@ -107,25 +101,14 @@ export async function GET(req: Request) {
         async function buildAuditView(
             currentAccessToken: string
         ): Promise<ActivitiesAuditApiResponse> {
-            const portfolios = await fetchAuthorizedPortfolios(currentAccessToken);
-            const portfolioNameById = new Map<string, string>();
-
-            for (const portfolio of portfolios) {
-                portfolioNameById.set(portfolio.id, portfolio.name);
-            }
-
-            const allActivities = await loadActivitiesForPortfolios(
+            const activityContext = await buildActivityContext(
                 currentAccessToken,
                 portfolioIds
             );
+            const portfolios = activityContext.authorizedPortfolios;
+            const warnings = activityContext.reconciliationWarnings;
 
-            const filteredActivities = allActivities.filter(isRealSecurityActivity);
-            const normalized = normalizeActivities(filteredActivities);
-            const overrides = await readActivityOverrides();
-            const corrected = applyOverrides(normalized, overrides);
-            const warnings = buildReconciliationWarnings(corrected);
-
-            const items: ActivitiesAuditItem[] = corrected
+            const items: ActivitiesAuditItem[] = activityContext.correctedActivities
                 .map((activity) => {
                     const datetime = activity.datetime ?? "";
                     const isin = (activity.isin ?? "").trim().toUpperCase();
@@ -139,7 +122,8 @@ export async function GET(req: Request) {
 
                         portfolioId: activity.portfolioId ?? null,
                         portfolioName: activity.portfolioId
-                            ? portfolioNameById.get(activity.portfolioId) ?? activity.portfolioId
+                            ? activityContext.portfolioNameById.get(activity.portfolioId) ??
+                              activity.portfolioId
                             : "Unknown Portfolio",
 
                         isin,

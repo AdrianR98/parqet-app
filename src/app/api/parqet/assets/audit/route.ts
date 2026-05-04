@@ -5,14 +5,8 @@ import {
     getCookieValue,
     refreshParqetAccessToken,
 } from "../../../../../lib/parqet";
-import { fetchAuthorizedPortfolios } from "../../../../../lib/parqet-assets/fetch-portfolios";
-import { loadActivitiesForPortfolios } from "../../../../../lib/parqet-assets/fetch-activities";
-import { isRealSecurityActivity } from "../../../../../lib/parqet-assets/filters";
-import { normalizeActivities } from "../../../../../lib/parqet-assets/normalization";
-import { applyOverrides } from "../../../../../lib/parqet-assets/overrides";
-import { buildReconciliationWarnings } from "../../../../../lib/parqet-assets/reconciliation";
 import { toNumber } from "../../../../../lib/parqet-assets/activity-utils";
-import { readActivityOverrides } from "../../../../../lib/parqet-assets/override-store";
+import { buildActivityContext } from "../../../../../lib/parqet-assets/build-activity-context";
 import type {
     ActivitiesAuditApiResponse,
     ActivitiesAuditItem,
@@ -320,43 +314,14 @@ export async function GET(req: Request) {
              * PORTFOLIOS LADEN
              * --------------------------------------------------------
              */
-            const portfolios = await fetchAuthorizedPortfolios(currentAccessToken);
-            const selectedPortfolios = portfolios.filter((portfolio) =>
-                portfolioIds.includes(portfolio.id)
-            );
-
-            const portfolioNameById = new Map<string, string>();
-            for (const portfolio of portfolios) {
-                portfolioNameById.set(portfolio.id, portfolio.name);
-            }
-
-            /**
-             * --------------------------------------------------------
-             * ACTIVITIES LADEN
-             * --------------------------------------------------------
-             */
-            const allActivities = await loadActivitiesForPortfolios(
+            const activityContext = await buildActivityContext(
                 currentAccessToken,
                 portfolioIds
             );
-
-            /**
-             * --------------------------------------------------------
-             * PIPELINE: FILTER -> NORMALIZE -> OVERRIDES
-             * --------------------------------------------------------
-             *
-             * Wichtiger Architekturpunkt:
-             * - normalized = Basis / "Originalwerte"
-             * - corrected  = bereinigte / überschriebenen Werte
-             *
-             * Genau diese Trennung brauchen wir, um im Audit später
-             * "alt vs. neu" sauber zeigen zu können.
-             */
-            const filteredActivities = allActivities.filter(isRealSecurityActivity);
-            const normalized = normalizeActivities(filteredActivities);
-
-            const overrides = await readActivityOverrides();
-            const corrected = applyOverrides(normalized, overrides);
+            const selectedPortfolios = activityContext.selectedPortfolios;
+            const portfolioNameById = activityContext.portfolioNameById;
+            const normalized = activityContext.normalizedActivities;
+            const corrected = activityContext.correctedActivities;
 
             /**
              * --------------------------------------------------------
@@ -383,7 +348,7 @@ export async function GET(req: Request) {
              * Bewusst auf correctedForAsset:
              * - damit Overrides direkt Einfluss auf Warnungen haben
              */
-            const warnings = buildReconciliationWarnings(correctedForAsset);
+            const warnings = activityContext.reconciliationWarnings.filter((warning) => warning.isin === isin);
 
             /**
              * --------------------------------------------------------

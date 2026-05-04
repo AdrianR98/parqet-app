@@ -10,6 +10,7 @@ import { applyOverrides, type CorrectedActivity } from "./overrides";
 import { buildReconciliationWarnings } from "./reconciliation";
 
 export type ActivityContext = {
+    authorizedPortfolios: Portfolio[];
     selectedPortfolios: Portfolio[];
     portfolioNameById: Map<string, string>;
     rawActivities: Activity[];
@@ -42,6 +43,7 @@ export async function buildActivityContext(
     const reconciliationWarnings = buildReconciliationWarnings(correctedActivities);
 
     return {
+        authorizedPortfolios: portfolios,
         selectedPortfolios,
         portfolioNameById,
         rawActivities,
