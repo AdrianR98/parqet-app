@@ -19,7 +19,9 @@ Die App soll Parqet-Daten aus autorisierten Portfolios laden, in eine interne ka
 - Activities-Audit,
 - Reconciliation- und Consistency-Warnings.
 
-Langfristig sollen alle Views auf derselben normalisierten, override-bereinigten Activity-Grundlage basieren.
+Alle Views sollen auf derselben normalisierten, override-bereinigten Activity-Grundlage basieren.
+
+Die Architekturentscheidung dazu ist in `docs/adr/0002-shared-activity-context.md` dokumentiert.
 
 ---
 
@@ -46,7 +48,9 @@ Next.js Route Handler
   ↓
 Parqet API + lokale Lib-Schicht
   ↓
-Normalisierung / Overrides / Reconciliation / Projection
+Shared Activity Context
+  ↓
+Projektionen / Aggregationen / Audit Views
   ↓
 API Response
   ↓
@@ -140,37 +144,43 @@ Aktuelle Verantwortlichkeiten:
 
 - Token prüfen,
 - Refresh-Fallback,
-- Portfolios laden,
-- Activities laden,
-- echte Wertpapieraktivitäten filtern,
-- normalisieren,
-- Overrides anwenden,
-- Reconciliation-Warnungen erzeugen,
-- Assets aggregieren,
+- Shared Activity Context aufbauen,
+- korrigierte Activities zu Assets aggregieren,
 - lokale Metadaten anreichern,
 - aktive und geschlossene Positionen trennen,
-- Consistency-Report erzeugen.
-
-Geplanter Refactor:
-
-- Pipeline-Logik in Shared Service extrahieren.
+- Consistency-Report erzeugen,
+- Reconciliation-Warnings aus dem Shared Context zurückgeben.
 
 ### `/api/parqet/activities-audit`
 
 Erzeugt die Activities-Audit-Sicht.
 
+Aktuelle Verantwortlichkeiten:
+
+- Token prüfen,
+- Refresh-Fallback,
+- Shared Activity Context aufbauen,
+- korrigierte Activities in Audit-Items projizieren,
+- Summary erzeugen,
+- Reconciliation-Warnings zurückgeben,
+- im Response-Feld `portfolios` weiterhin alle autorisierten Portfolios bereitstellen.
+
 Bekannter offener Punkt:
 
 - Sollte mittelfristig serverseitige Pagination und Filter erhalten.
-- Sollte denselben Shared Activity Context wie Assets verwenden.
 
-### `/api/parqet/asset-audit`
+### `/api/parqet/assets/audit`
 
 Erzeugt eine assetbezogene Audit-Sicht.
 
-Bekannter offener Punkt:
+Aktuelle Verantwortlichkeiten:
 
-- Muss mit Shared Activity Context konsistent bleiben.
+- Token prüfen,
+- Refresh-Fallback,
+- Shared Activity Context aufbauen,
+- normalized/corrected Activities für eine ISIN auswerten,
+- Original-/Override-Sicht für das Asset erzeugen,
+- assetbezogene Warnings ausgeben.
 
 ---
 
@@ -183,6 +193,7 @@ Wichtige Verantwortungsbereiche:
 | Bereich | Zweck |
 | --- | --- |
 | `parqet` | Cookie-/Token-Hilfen und Parqet-Refresh |
+| `parqet-assets/build-activity-context` | kanonischer Shared Activity Context |
 | `parqet-assets/fetch-*` | Portfolios und Activities laden |
 | `parqet-assets/filters` | echte Wertpapieraktivitäten erkennen |
 | `parqet-assets/normalization` | Parqet-Rohdaten in interne Activities normalisieren |
@@ -198,38 +209,44 @@ Wichtige Verantwortungsbereiche:
 
 ---
 
-## 7. Zielarchitektur für P3
+## 7. Shared Activity Context
 
-Die wichtigste Architekturänderung ist ein gemeinsamer Activity Context.
-
-Vorschlag:
+Der Shared Activity Context ist umgesetzt in:
 
 ```text
 src/lib/parqet-assets/build-activity-context.ts
 ```
 
-Ziel:
+Er stellt aktuell bereit:
+
+- `authorizedPortfolios`,
+- `selectedPortfolios`,
+- `portfolioNameById`,
+- `rawActivities`,
+- `filteredActivities`,
+- `normalizedActivities`,
+- `correctedActivities`,
+- `reconciliationWarnings`.
+
+Kanonische Pipeline:
 
 ```text
-Parqet token + portfolioIds
-→ selected portfolios
-→ raw activities
-→ filtered activities
-→ normalized activities
-→ overrides
-→ corrected activities
-→ reconciliation warnings
-→ metadata context
-→ consistency base
+fetchAuthorizedPortfolios
+→ loadActivitiesForPortfolios
+→ isRealSecurityActivity
+→ normalizeActivities
+→ readActivityOverrides
+→ applyOverrides
+→ buildReconciliationWarnings
 ```
 
 Route Handler sollen danach nur noch Projektionen erzeugen:
 
 ```text
 buildActivityContext()
-→ projectAssetsView()
-→ projectActivitiesAuditView()
-→ projectAssetAuditView()
+→ Assets-Projektion
+→ Activities-Audit-Projektion
+→ Asset-Audit-Projektion
 ```
 
 Vorteile:
@@ -268,14 +285,12 @@ Bekannte Hotspots:
 
 - vollständiges Laden aller Activities pro Portfolio,
 - potenziell sequentielles Portfolio-Laden,
-- Activities-Audit mit großer clientseitiger Liste,
-- wiederholter Aufbau derselben Pipeline in mehreren Routen.
+- Activities-Audit mit großer clientseitiger Liste.
 
 Geplante Gegenmaßnahmen:
 
 - bounded concurrency,
 - serverseitige Pagination,
-- gemeinsame Pipeline,
 - Caching,
 - Loading States und nicht-blockierende UI.
 
@@ -310,12 +325,15 @@ Regeln:
 
 ---
 
-## 12. ADR-Kandidaten
+## 12. ADRs
 
-Folgende Entscheidungen sollten als ADR dokumentiert werden:
+Bisherige ADRs:
 
-- Shared Activity Context als kanonische Pipeline.
+- `docs/adr/0001-ui-reference-and-theme-tokens.md`
+- `docs/adr/0002-shared-activity-context.md`
+
+Weitere mögliche ADRs:
+
 - Override-Speicherung: Datei vs. DB vs. externer Store.
-- UI-Token- und Parqet-Referenzregeln.
 - Teststrategie: Vitest + Playwright.
 - Cache-Strategie für Dashboard und Activities.
