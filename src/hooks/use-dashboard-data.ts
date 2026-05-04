@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     enrichAssetsWithMetadata,
     getMissingMetadataIsins,
@@ -52,6 +52,8 @@ type UseDashboardDataResult = {
 
     loadingPortfolios: boolean;
     loadingAssets: boolean;
+    refreshingAssets: boolean;
+    hasCachedData: boolean;
     errorMessage: string;
     authRequired: boolean;
     reconnectUrl: string;
@@ -101,9 +103,12 @@ export function useDashboardData(): UseDashboardDataResult {
 
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
     const [loadingAssets, setLoadingAssets] = useState(false);
+    const [refreshingAssets, setRefreshingAssets] = useState(false);
+    const [hasCachedData, setHasCachedData] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [authRequired, setAuthRequired] = useState(false);
     const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
+    const assetLoadInFlightRef = useRef(false);
 
     function applyAuthState(message?: string, url?: string) {
         setAuthRequired(true);
@@ -184,7 +189,9 @@ export function useDashboardData(): UseDashboardDataResult {
         setActiveAssetCount(cached.activeAssetCount ?? 0);
         setClosedAssetCount(cached.closedAssetCount ?? 0);
         setConsistencyReport(cached.consistencyReport ?? null);
+        setReconciliationWarnings(cached.reconciliationWarnings ?? []);
         setLastUpdatedAt(cached.lastUpdatedAt ?? null);
+        setHasCachedData(true);
 
         if (cached.selectedPortfolioIds?.length) {
             hydratePortfolioSelection(cached.selectedPortfolioIds);
@@ -192,7 +199,14 @@ export function useDashboardData(): UseDashboardDataResult {
     }, [hydratePortfolioSelection]);
 
     async function loadAssets() {
-        setLoadingAssets(true);
+        if (assetLoadInFlightRef.current) {
+            return;
+        }
+
+        assetLoadInFlightRef.current = true;
+        const hasVisibleData = activeAssets.length > 0 || closedAssets.length > 0;
+        setLoadingAssets(!hasVisibleData);
+        setRefreshingAssets(hasVisibleData);
         setErrorMessage("");
 
         try {
@@ -219,7 +233,7 @@ export function useDashboardData(): UseDashboardDataResult {
 
             const nextActiveAssets = enrichAssetsWithMetadata(data.activeAssets ?? []);
             const nextClosedAssets = enrichAssetsWithMetadata(data.closedAssets ?? []);
-            const nextLastUpdatedAt = data.generatedAt ?? new Date().toISOString();
+            const nextGeneratedAt = data.generatedAt ?? new Date().toISOString();
 
             const missingMetadataIsins = getMissingMetadataIsins([
                 ...nextActiveAssets,
@@ -238,7 +252,8 @@ export function useDashboardData(): UseDashboardDataResult {
             setClosedAssetCount(data.closedAssetCount ?? nextClosedAssets.length);
             setConsistencyReport(data.consistencyReport ?? null);
             setReconciliationWarnings(data.reconciliationWarnings ?? []);
-            setLastUpdatedAt(nextLastUpdatedAt);
+            setLastUpdatedAt(nextGeneratedAt);
+            setHasCachedData(true);
 
             const cachePayload: DashboardCache = {
                 activeAssets: nextActiveAssets,
@@ -249,7 +264,9 @@ export function useDashboardData(): UseDashboardDataResult {
                 activeAssetCount: data.activeAssetCount ?? nextActiveAssets.length,
                 closedAssetCount: data.closedAssetCount ?? nextClosedAssets.length,
                 consistencyReport: data.consistencyReport ?? null,
-                lastUpdatedAt: nextLastUpdatedAt,
+                reconciliationWarnings: data.reconciliationWarnings ?? [],
+                generatedAt: nextGeneratedAt,
+                lastUpdatedAt: nextGeneratedAt,
                 selectedPortfolioIds,
             };
 
@@ -260,7 +277,9 @@ export function useDashboardData(): UseDashboardDataResult {
                 }`
             );
         } finally {
+            assetLoadInFlightRef.current = false;
             setLoadingAssets(false);
+            setRefreshingAssets(false);
         }
     }
 
@@ -332,6 +351,8 @@ export function useDashboardData(): UseDashboardDataResult {
 
         loadingPortfolios,
         loadingAssets,
+        refreshingAssets,
+        hasCachedData,
         errorMessage,
         authRequired,
         reconnectUrl,

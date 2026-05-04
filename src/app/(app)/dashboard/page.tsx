@@ -42,6 +42,8 @@ export default function DashboardPage() {
 
         loadingPortfolios,
         loadingAssets,
+        refreshingAssets,
+        hasCachedData,
         errorMessage,
         authRequired,
         startReconnect,
@@ -98,6 +100,8 @@ export default function DashboardPage() {
                         selectedPortfolioCount={selectedPortfolioCount}
                         assetCount={assetCount}
                         loadingAssets={loadingAssets}
+                        refreshingAssets={refreshingAssets}
+                        hasCachedData={hasCachedData}
                         isPortfolioDropdownOpen={isPortfolioDropdownOpen}
                         onToggleOpen={() =>
                             setIsPortfolioDropdownOpen((current) => !current)
@@ -122,6 +126,12 @@ export default function DashboardPage() {
                     {loadingPortfolios ? (
                         <div className="ui-banner ui-banner-info">
                             Portfolios werden geladen...
+                        </div>
+                    ) : null}
+
+                    {refreshingAssets ? (
+                        <div className="ui-banner ui-banner-info">
+                            Daten werden aktualisiert. Vorherige Ergebnisse bleiben sichtbar.
                         </div>
                     ) : null}
 

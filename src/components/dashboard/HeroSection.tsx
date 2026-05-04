@@ -10,6 +10,8 @@ type HeroSectionProps = {
     selectedPortfolioCount: number;
     assetCount: number;
     loadingAssets: boolean;
+    refreshingAssets: boolean;
+    hasCachedData: boolean;
     isPortfolioDropdownOpen: boolean;
     onToggleOpen: () => void;
     onToggleDraftPortfolio: (portfolioId: string) => void;
@@ -47,6 +49,8 @@ export default function HeroSection({
     selectedPortfolioCount,
     assetCount,
     loadingAssets,
+    refreshingAssets,
+    hasCachedData,
     isPortfolioDropdownOpen,
     onToggleOpen,
     onToggleDraftPortfolio,
@@ -127,9 +131,13 @@ export default function HeroSection({
                         type="button"
                         className="ui-btn ui-btn-primary"
                         onClick={onLoadAssets}
-                        disabled={loadingAssets}
+                        disabled={loadingAssets || refreshingAssets}
                     >
-                        {loadingAssets ? "Lädt..." : "Assets laden"}
+                        {loadingAssets
+                            ? "Lädt..."
+                            : refreshingAssets && hasCachedData
+                                ? "Aktualisiert..."
+                                : "Assets laden"}
                     </button>
                 </div>
             </div>
