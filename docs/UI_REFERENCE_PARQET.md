@@ -186,3 +186,4 @@ Die App ist funktional bereits nah an einem robusten Parqet-inspirierten Arbeits
 - Aktivitätstypen `transfer_in`/`transfer_out` werden jetzt als `Einbuchung`/`Ausbuchung` angezeigt, analog zu den UI-Guardrails.
 - Warning-/Review-Labels wurden in Panels harmonisiert (`Kritisch`, `Prüfen`, `Info`; Review-Status als `Offen`/`Bestätigt`/`Korrigiert`).
 - Tabellenrhythmus wurde nur inkrementell nachgezogen (Zellen-Padding/Meta-Line), ohne neue Tokens einzuführen.
+- Loading-/Empty-/Error-/Auth-/Stale-Hinweise wurden sprachlich zwischen Dashboard und Activities angeglichen ("Daten werden geladen", "Parqet-Verbindung abgelaufen", "Erneut verbinden", neutralerer Empty-State, Stale-Hinweis im Hero).

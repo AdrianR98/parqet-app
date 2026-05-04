@@ -99,7 +99,7 @@ export default function HeroSection({
 
                     {showStaleWarning ? (
                         <div className={styles.warningLine}>
-                            Die angezeigten Daten sind möglicherweise nicht mehr aktuell.
+                            Hinweis: Die angezeigten Daten sind möglicherweise veraltet.
                         </div>
                     ) : null}
                 </div>

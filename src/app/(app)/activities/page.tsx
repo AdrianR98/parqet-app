@@ -604,14 +604,14 @@ export default function ActivitiesPage() {
                         className="ui-btn ui-btn-secondary"
                         onClick={clearFilters}
                     >
-                        Reset
+                        Zurücksetzen
                     </button>
                 </div>
             </section>
 
             {errorMessage ? (
                 <div className={styles.errorBanner}>
-                    <strong>{authRequired ? "Verbindung abgelaufen" : "Fehler"}</strong>
+                    <strong>{authRequired ? "Parqet-Verbindung abgelaufen" : "Fehler"}</strong>
                     <div>{errorMessage}</div>
 
                     {authRequired ? (
@@ -621,7 +621,7 @@ export default function ActivitiesPage() {
                                 className="ui-btn ui-btn-secondary"
                                 onClick={startReconnect}
                             >
-                                Neu verbinden
+                                Erneut verbinden
                             </button>
                         </div>
                     ) : null}
@@ -629,7 +629,7 @@ export default function ActivitiesPage() {
             ) : null}
 
             {loading ? (
-                <div className={styles.infoBanner}>Aktivitäten werden geladen...</div>
+                <div className={styles.infoBanner}>Daten werden geladen...</div>
             ) : null}
 
             <section className={styles.content}>
@@ -681,7 +681,7 @@ export default function ActivitiesPage() {
 
                 {!loading && groupedYears.length === 0 ? (
                     <div className={`ui-surface ${styles.emptyState}`}>
-                        Keine Aktivitäten gefunden.
+                        Keine Daten für die aktuelle Filterauswahl gefunden.
                     </div>
                 ) : null}
             </section>
