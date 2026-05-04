@@ -115,6 +115,16 @@ const EDITABLE_OVERRIDE_FIELDS: Array<{
         { field: "type", label: "Typ", inputType: "text" },
     ];
 
+function getWarningReviewField(message: string): ActivityOverrideField | null {
+    const normalized = message.toLowerCase();
+    if (normalized.includes("sold more") || normalized.includes("shares")) return "shares";
+    if (normalized.includes("price")) return "price";
+    if (normalized.includes("amount net")) return "amountNet";
+    if (normalized.includes("amount")) return "amount";
+    if (normalized.includes("type")) return "type";
+    return null;
+}
+
 type ActivityRowProps = {
     item: ActivitiesAuditItem;
     onOverrideSavedAction: () => Promise<void>;
@@ -128,12 +138,26 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
     const [rowSaving, setRowSaving] = useState(false);
     const [rowDeleting, setRowDeleting] = useState(false);
     const [rowError, setRowError] = useState<string | null>(null);
+    const [acceptedWarnings, setAcceptedWarnings] = useState<Record<string, true>>({});
 
     function startEditing(field: ActivityOverrideField) {
         debugLog("start editing", { activityId: item.id, field });
         setEditingField(field);
         setDraftValue(getCurrentEditableValue(item, field));
         setRowError(null);
+    }
+
+    async function handleConfirmWarning(warning: string) {
+        const field = getWarningReviewField(warning);
+        if (!field) {
+            setAcceptedWarnings((current) => ({ ...current, [warning]: true }));
+            return;
+        }
+
+        const currentValue = getCurrentEditableValue(item, field);
+        setDraftValue(currentValue);
+        await handleSave(field);
+        setAcceptedWarnings((current) => ({ ...current, [warning]: true }));
     }
 
     function stopEditing() {
@@ -424,7 +448,41 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
                 <div className={styles.warningList}>
                     {item.warningMessages.map((warning, index) => (
                         <div key={`${item.id}-${index}`} className={styles.warningItem}>
-                            {warning}
+                            <div>
+                                <strong>Review-Fall · </strong>
+                                {acceptedWarnings[warning]
+                                    ? "Bestätigt"
+                                    : item.hasOverrides
+                                        ? "Override aktiv"
+                                        : "Offen"}
+                            </div>
+                            <div>Quelle: Reconciliation</div>
+                            <div>{warning}</div>
+                            <div>
+                                Letzte Änderung:{" "}
+                                {formatDateTime(item.datetime)}
+                            </div>
+                            <div>
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-ghost"
+                                    onClick={() => handleConfirmWarning(warning)}
+                                    disabled={rowSaving}
+                                >
+                                    Bestätigen
+                                </button>
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-ghost"
+                                    onClick={() => {
+                                        const field = getWarningReviewField(warning);
+                                        if (field) handleDelete(field);
+                                    }}
+                                    disabled={rowDeleting}
+                                >
+                                    Reset
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
