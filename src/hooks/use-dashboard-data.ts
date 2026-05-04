@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     enrichAssetsWithMetadata,
     getMissingMetadataIsins,
@@ -108,6 +108,7 @@ export function useDashboardData(): UseDashboardDataResult {
     const [errorMessage, setErrorMessage] = useState("");
     const [authRequired, setAuthRequired] = useState(false);
     const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
+    const assetLoadInFlightRef = useRef(false);
 
     function applyAuthState(message?: string, url?: string) {
         setAuthRequired(true);
@@ -198,6 +199,11 @@ export function useDashboardData(): UseDashboardDataResult {
     }, [hydratePortfolioSelection]);
 
     async function loadAssets() {
+        if (assetLoadInFlightRef.current) {
+            return;
+        }
+
+        assetLoadInFlightRef.current = true;
         const hasVisibleData = activeAssets.length > 0 || closedAssets.length > 0;
         setLoadingAssets(!hasVisibleData);
         setRefreshingAssets(hasVisibleData);
@@ -271,6 +277,7 @@ export function useDashboardData(): UseDashboardDataResult {
                 }`
             );
         } finally {
+            assetLoadInFlightRef.current = false;
             setLoadingAssets(false);
             setRefreshingAssets(false);
         }

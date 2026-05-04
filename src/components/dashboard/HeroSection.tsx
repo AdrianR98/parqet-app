@@ -131,7 +131,7 @@ export default function HeroSection({
                         type="button"
                         className="ui-btn ui-btn-primary"
                         onClick={onLoadAssets}
-                        disabled={loadingAssets}
+                        disabled={loadingAssets || refreshingAssets}
                     >
                         {loadingAssets
                             ? "Lädt..."
