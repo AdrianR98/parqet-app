@@ -123,10 +123,10 @@ Ziel: UI bleibt modular, tokenbasiert und orientiert sich an Parqet-Referenzen.
 
 Geplante Deliverables:
 
-- UI-Paritäts-Audit.
+- P6-A: UI-Paritäts-Audit mit Ist/Soll/Gap/Risiko/Nächster-Schritt-Mapping.
+- P6-B: Konsistenzarbeit für States, Warning-Semantik, Filter-Patterns und Spacing (ohne neue Token-Welt).
+- P6-C: UI-Guidelines-ADR mit verbindlichen Guardrails für Tokens, Dark/Light, Navigation und Audit-Interaktionen.
 - Keine neue Token-/Designlandschaft.
-- Skeletons, Tabellen, Filter, Panels und CTAs konsistent.
-- UI-Guidelines-ADR.
 
 ### P7 — Tests, QA und CI
 
