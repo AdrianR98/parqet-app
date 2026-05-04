@@ -1,5 +1,44 @@
 import type { Activity } from "./activity-types";
 
+const DEFAULT_PORTFOLIO_ACTIVITIES_CONCURRENCY = 3;
+
+async function mapWithConcurrency<TInput, TOutput>(
+    items: TInput[],
+    concurrency: number,
+    mapper: (item: TInput, index: number) => Promise<TOutput>
+): Promise<TOutput[]> {
+    if (items.length === 0) {
+        return [];
+    }
+
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+        throw new Error(
+            `Invalid concurrency limit: ${concurrency}. Expected integer >= 1.`
+        );
+    }
+
+    const results: TOutput[] = new Array(items.length);
+    let nextIndex = 0;
+
+    async function worker(): Promise<void> {
+        while (true) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+
+            if (currentIndex >= items.length) {
+                return;
+            }
+
+            results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+        }
+    }
+
+    const workerCount = Math.min(concurrency, items.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+    return results;
+}
+
 // Diese Funktion laedt alle Activities fuer genau ein Portfolio.
 // Sie geht alle Seiten ueber den Cursor durch.
 export async function fetchAllActivitiesForPortfolio(
@@ -64,15 +103,11 @@ export async function loadActivitiesForPortfolios(
     accessToken: string,
     portfolioIds: string[]
 ): Promise<Activity[]> {
-    const results: Activity[][] = [];
-
-    for (const portfolioId of portfolioIds) {
-        const activities = await fetchAllActivitiesForPortfolio(
-            accessToken,
-            portfolioId
-        );
-        results.push(activities);
-    }
+    const results = await mapWithConcurrency(
+        portfolioIds,
+        DEFAULT_PORTFOLIO_ACTIVITIES_CONCURRENCY,
+        (portfolioId) => fetchAllActivitiesForPortfolio(accessToken, portfolioId)
+    );
 
     return results.flat();
 }
