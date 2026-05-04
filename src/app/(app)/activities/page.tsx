@@ -31,9 +31,9 @@ function getTypeLabel(type: ActivitiesAuditItem["type"]) {
         case "dividend":
             return "Dividende";
         case "transfer_in":
-            return "Transfer ein";
+            return "Einbuchung";
         case "transfer_out":
-            return "Transfer aus";
+            return "Ausbuchung";
         default:
             return "Unbekannt";
     }
@@ -488,7 +488,7 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
                                     }}
                                     disabled={rowDeleting}
                                 >
-                                    Reset
+                                    Zurücksetzen
                                 </button>
                             </div>
                         </div>

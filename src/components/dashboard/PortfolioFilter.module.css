@@ -49,3 +49,9 @@
     padding-top: 10px;
     border-top: 1px solid var(--panel-border);
 }
+
+.triggerMeta {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-soft);
+}
