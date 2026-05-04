@@ -202,6 +202,7 @@ Wichtige Verantwortungsbereiche:
 | `parqet-assets/reconciliation` | fachliche Warnungen erzeugen |
 | `parqet-assets/build-corrected-assets` | aggregierte Asset-Sicht berechnen |
 | `parqet-assets/metadata` | lokale ISIN-Metadaten laden |
+| `metadata-utils` | zentrale Namens-/Symbolauflösung und Metadata-Normalisierung |
 | `parqet-assets/consistency` | Consistency-Report erzeugen |
 | `dashboard-cache` | Dashboard-Cache lesen/schreiben |
 | `dashboard-helpers` | Dashboard-Stats, Sortierung, Stale-Data |

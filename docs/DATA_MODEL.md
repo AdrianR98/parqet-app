@@ -82,18 +82,15 @@ Wichtige Felder:
 - `assetType`
 - `exchange`
 
-Priorität für Display-Namen soll langfristig eindeutig geregelt werden:
+Priorität für Display-Namen ist eindeutig geregelt:
 
 ```text
 lokale Metadaten per ISIN
 → Activity-/API-Name
-→ Symbol/Ticker/WKN
+→ Symbol/Ticker/TickerSymbol/WKN
 → ISIN
 ```
-
-Offener Punkt:
-
-- Ein einheitlicher Display-Resolver sollte in P5-B eingeführt oder konsolidiert werden.
+Die technische Identität bleibt immer die ISIN (`AssetSummary.isin`) und wird nie durch Display-Felder überschrieben.
 
 ---
 
@@ -178,16 +175,13 @@ Wichtige Gruppen:
 - `externalMetadata`
 - `assetMeta`
 
-Aktive und geschlossene Positionen werden aktuell über `netShares` getrennt:
+Aktive und geschlossene Positionen werden über `netShares` mit Near-Zero-Schwelle getrennt:
 
 ```text
-activeAssets: netShares > 0
-closedAssets: netShares <= 0
+activeAssets: netShares > EPSILON
+closedAssets: netShares <= EPSILON
 ```
-
-Offener Punkt:
-
-- Diese Trennung sollte später fachlich robuster dokumentiert und getestet werden, insbesondere bei Rundungsdifferenzen oder Transfers.
+Der aktuelle Default für diese Schwelle liegt bei `1e-8`, um Rundungsdifferenzen kontrolliert als geschlossen einzuordnen.
 
 ---
 
