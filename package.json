@@ -2,13 +2,14 @@
   "name": "parqet-app",
   "version": "0.0.0.2",
   "private": true,
-    "scripts": {
-        "dev": "next dev",
-        "build": "next build",
-        "start": "next start",
-        "lint": "eslint",
-        "generate:asset-metadata": "node scripts/generate-asset-metadata-from-csv.mjs"
-    },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "generate:asset-metadata": "node scripts/generate-asset-metadata-from-csv.mjs",
+    "test": "vitest"
+  },
   "dependencies": {
     "next": "16.2.1",
     "react": "19.2.4",
@@ -22,6 +23,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.8"
   }
 }
