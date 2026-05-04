@@ -105,7 +105,7 @@ export async function GET(req: Request) {
                 currentAccessToken,
                 portfolioIds
             );
-            const portfolios = activityContext.selectedPortfolios;
+            const portfolios = activityContext.authorizedPortfolios;
             const warnings = activityContext.reconciliationWarnings;
 
             const items: ActivitiesAuditItem[] = activityContext.correctedActivities
