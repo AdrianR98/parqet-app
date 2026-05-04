@@ -557,11 +557,13 @@ export default function ActivitiesPage() {
                         <button type="button" className="ui-btn ui-btn-secondary" onClick={reload}>
                             Neu laden
                         </button>
-                        <button type="button" className="ui-btn ui-btn-primary">
-                            Neue Aktivität
-                        </button>
                     </div>
                 </div>
+
+                <p className={styles.featureBoundaryNote}>
+                    Neue Aktivitäten können aktuell nicht in der App erstellt werden. Korrekturen
+                    erfolgen über Overrides in den bestehenden Aktivitäten.
+                </p>
 
                 <div className={styles.filtersRow}>
                     <div className={styles.dropdown}>

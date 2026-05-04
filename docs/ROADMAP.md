@@ -115,7 +115,7 @@ Geplante Deliverables:
 - Override-Workflow als Review-Fälle.
 - Einheitlicher Asset-Display-Resolver.
 - Aktive und geschlossene Positionen klar getrennt.
-- Entscheidung zum CTA „Neue Aktivität“.
+- Entscheidung zum CTA „Neue Aktivität“ umgesetzt: kein irreführender Create-CTA ohne Schreibpfad.
 
 ### P6 — UI-Parität und UX-Konsistenz
 

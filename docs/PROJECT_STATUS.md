@@ -52,7 +52,7 @@ Der aktuelle Fokus liegt auf Stabilisierung, Dokumentation, Pipeline-Konsolidier
 - `build-activity-context` oder vergleichbarer Shared Pipeline Service existiert noch nicht.
 - Serverseitige Pagination für Activities-Audit ist noch nicht umgesetzt.
 - Bounded Concurrency für Portfolio-Activities ist noch nicht umgesetzt.
-- CTA `Neue Aktivität` ist noch kein implementierter Schreibpfad.
+- CTA `Neue Aktivität` wurde entfernt; Activity-Erstellung ist weiterhin nicht implementiert und wird auf der Activities-Seite explizit abgegrenzt (Korrekturen via Overrides).
 
 ---
 
@@ -118,7 +118,7 @@ Schwerpunkte:
 - Override-Workflow als Review-Fälle.
 - Namensauflösung per ISIN stabilisieren.
 - offene und geschlossene Positionen sauber trennen.
-- CTA `Neue Aktivität` entscheiden.
+- CTA-Entscheidung umgesetzt: kein aktiver Create-Button ohne Schreibpfad; stattdessen klare Abgrenzung zu Overrides.
 
 ### P6 — UI-Parität und UX-Konsistenz
 
