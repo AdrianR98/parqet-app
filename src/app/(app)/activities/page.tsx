@@ -150,14 +150,16 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
     async function handleConfirmWarning(warning: string) {
         const field = getWarningReviewField(warning);
         if (!field) {
+            // Kein Feld-Mapping vorhanden: lokales "Bestätigt" ohne Persistenz.
             setAcceptedWarnings((current) => ({ ...current, [warning]: true }));
             return;
         }
 
         const currentValue = getCurrentEditableValue(item, field);
-        setDraftValue(currentValue);
-        await handleSave(field);
-        setAcceptedWarnings((current) => ({ ...current, [warning]: true }));
+        const saved = await handleSave(field, currentValue);
+        if (saved) {
+            setAcceptedWarnings((current) => ({ ...current, [warning]: true }));
+        }
     }
 
     function stopEditing() {
@@ -167,17 +169,21 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
         setRowError(null);
     }
 
-    async function handleSave(field: ActivityOverrideField) {
+    async function handleSave(
+        field: ActivityOverrideField,
+        explicitValue?: string
+    ): Promise<boolean> {
         setRowSaving(true);
         setRowError(null);
 
         try {
-            const parsedValue = parseOverrideValue(field, draftValue);
+            const valueToSave = explicitValue ?? draftValue;
+            const parsedValue = parseOverrideValue(field, valueToSave);
 
             debugLog("save override", {
                 activityId: item.id,
                 field,
-                draftValue,
+                draftValue: valueToSave,
                 parsedValue,
             });
 
@@ -189,6 +195,7 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
 
             await onOverrideSavedAction();
             stopEditing();
+            return true;
         } catch (error) {
             debugError("save override failed", error);
             setRowError(
@@ -196,6 +203,7 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
                     ? error.message
                     : "Override konnte nicht gespeichert werden."
             );
+            return false;
         } finally {
             setRowSaving(false);
         }
