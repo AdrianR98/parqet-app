@@ -8,6 +8,7 @@ import type {
     ActivityOverrideField,
     AssetSummary,
     SaveActivityOverrideApiResponse,
+    ReconciliationWarning,
 } from "../../lib/types";
 import { formatCurrency } from "../../lib/format";
 
@@ -105,6 +106,12 @@ function getSeverityClass(severity: "info" | "warning" | "error") {
     if (severity === "error") return styles.warningSeverityError;
     if (severity === "warning") return styles.warningSeverityWarning;
     return styles.warningSeverityInfo;
+}
+
+function getWarningStatus(warning: ReconciliationWarning) {
+    if (warning.reviewStatus) return warning.reviewStatus;
+    if (warning.overrideValue !== undefined) return "overridden";
+    return "open";
 }
 
 type ActivityEditFormProps = {
@@ -372,7 +379,17 @@ export default function AssetAuditPanel({
                                 >
                                     {warning.severity.toUpperCase()}
                                 </div>
-                                <div>{warning.message}</div>
+                                <div><strong>Review-Fall:</strong> {warning.message}</div>
+                                <div>Status: {getWarningStatus(warning)}</div>
+                                <div>Quelle: {warning.source ?? "reconciliation"}</div>
+                                <div>
+                                    Original/Override: {String(warning.originalValue ?? "-")} →{" "}
+                                    {String(warning.overrideValue ?? "-")}
+                                </div>
+                                <div>
+                                    Letzte Änderung:{" "}
+                                    {warning.lastChangedAt ? formatDateTime(warning.lastChangedAt) : "-"}
+                                </div>
                             </div>
                         ))}
                 </section>

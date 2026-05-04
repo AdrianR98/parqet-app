@@ -192,6 +192,11 @@ export type ReconciliationWarning = {
     isin: string;
     message: string;
     severity: "info" | "warning" | "error";
+    reviewStatus?: "open" | "overridden" | "accepted";
+    source?: "reconciliation" | "override";
+    originalValue?: string | number | null;
+    overrideValue?: string | number | null;
+    lastChangedAt?: string | null;
 };
 
 /**

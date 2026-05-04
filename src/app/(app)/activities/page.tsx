@@ -115,6 +115,16 @@ const EDITABLE_OVERRIDE_FIELDS: Array<{
         { field: "type", label: "Typ", inputType: "text" },
     ];
 
+function getWarningReviewField(message: string): ActivityOverrideField | null {
+    const normalized = message.toLowerCase();
+    if (normalized.includes("sold more") || normalized.includes("shares")) return "shares";
+    if (normalized.includes("price")) return "price";
+    if (normalized.includes("amount net")) return "amountNet";
+    if (normalized.includes("amount")) return "amount";
+    if (normalized.includes("type")) return "type";
+    return null;
+}
+
 type ActivityRowProps = {
     item: ActivitiesAuditItem;
     onOverrideSavedAction: () => Promise<void>;
@@ -128,12 +138,28 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
     const [rowSaving, setRowSaving] = useState(false);
     const [rowDeleting, setRowDeleting] = useState(false);
     const [rowError, setRowError] = useState<string | null>(null);
+    const [acceptedWarnings, setAcceptedWarnings] = useState<Record<string, true>>({});
 
     function startEditing(field: ActivityOverrideField) {
         debugLog("start editing", { activityId: item.id, field });
         setEditingField(field);
         setDraftValue(getCurrentEditableValue(item, field));
         setRowError(null);
+    }
+
+    async function handleConfirmWarning(warning: string) {
+        const field = getWarningReviewField(warning);
+        if (!field) {
+            // Kein Feld-Mapping vorhanden: lokales "Bestätigt" ohne Persistenz.
+            setAcceptedWarnings((current) => ({ ...current, [warning]: true }));
+            return;
+        }
+
+        const currentValue = getCurrentEditableValue(item, field);
+        const saved = await handleSave(field, currentValue);
+        if (saved) {
+            setAcceptedWarnings((current) => ({ ...current, [warning]: true }));
+        }
     }
 
     function stopEditing() {
@@ -143,17 +169,21 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
         setRowError(null);
     }
 
-    async function handleSave(field: ActivityOverrideField) {
+    async function handleSave(
+        field: ActivityOverrideField,
+        explicitValue?: string
+    ): Promise<boolean> {
         setRowSaving(true);
         setRowError(null);
 
         try {
-            const parsedValue = parseOverrideValue(field, draftValue);
+            const valueToSave = explicitValue ?? draftValue;
+            const parsedValue = parseOverrideValue(field, valueToSave);
 
             debugLog("save override", {
                 activityId: item.id,
                 field,
-                draftValue,
+                draftValue: valueToSave,
                 parsedValue,
             });
 
@@ -165,6 +195,7 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
 
             await onOverrideSavedAction();
             stopEditing();
+            return true;
         } catch (error) {
             debugError("save override failed", error);
             setRowError(
@@ -172,6 +203,7 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
                     ? error.message
                     : "Override konnte nicht gespeichert werden."
             );
+            return false;
         } finally {
             setRowSaving(false);
         }
@@ -424,7 +456,41 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
                 <div className={styles.warningList}>
                     {item.warningMessages.map((warning, index) => (
                         <div key={`${item.id}-${index}`} className={styles.warningItem}>
-                            {warning}
+                            <div>
+                                <strong>Review-Fall · </strong>
+                                {acceptedWarnings[warning]
+                                    ? "Bestätigt"
+                                    : item.hasOverrides
+                                        ? "Override aktiv"
+                                        : "Offen"}
+                            </div>
+                            <div>Quelle: Reconciliation</div>
+                            <div>{warning}</div>
+                            <div>
+                                Letzte Änderung:{" "}
+                                {formatDateTime(item.datetime)}
+                            </div>
+                            <div>
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-ghost"
+                                    onClick={() => handleConfirmWarning(warning)}
+                                    disabled={rowSaving}
+                                >
+                                    Bestätigen
+                                </button>
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-ghost"
+                                    onClick={() => {
+                                        const field = getWarningReviewField(warning);
+                                        if (field) handleDelete(field);
+                                    }}
+                                    disabled={rowDeleting}
+                                >
+                                    Reset
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
