@@ -194,10 +194,10 @@ export function resolveAssetDisplay(params: {
 
     const resolvedSymbol =
         metadata.symbol ??
-        metadata.ticker ??
         activity.symbol ??
-        activity.ticker ??
         cached.symbol ??
+        metadata.ticker ??
+        activity.ticker ??
         cached.ticker ??
         null;
 
