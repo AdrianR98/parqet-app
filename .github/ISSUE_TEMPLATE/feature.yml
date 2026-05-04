@@ -1,0 +1,80 @@
+name: Feature
+about: Neue Funktion oder größere UX-/Architekturänderung
+title: "feat: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bitte kurz und konkret bleiben. Für Codex-Tasks nach Möglichkeit auf `docs/CODEX_MASTERPROMPT.md` und `docs/CODEX_TASK_CATALOG.md` verweisen.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Was ist heute unzureichend oder fehlt?
+      placeholder: Beispiel: Die Activities-Seite lädt aktuell alle Einträge auf einmal und blockiert dadurch unnötig lange.
+    validations:
+      required: true
+
+  - type: textarea
+    id: zielbild
+    attributes:
+      label: Zielbild
+      description: Wie soll sich die App nach der Änderung verhalten?
+      placeholder: Beispiel: Activities werden serverseitig paginiert und im UI schrittweise nachgeladen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / betroffene Bereiche
+      description: Welche Dateien, Routen, Hooks oder Komponenten sind vermutlich betroffen?
+      placeholder: |
+        - src/app/api/parqet/activities-audit/route.ts
+        - src/hooks/use-activities-audit.ts
+        - src/app/(app)/activities/page.tsx
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien
+      description: Wann ist das Feature fertig?
+      placeholder: |
+        - [ ] Verhalten ist umgesetzt
+        - [ ] npm run lint läuft erfolgreich
+        - [ ] npm run build läuft erfolgreich
+        - [ ] Tests ergänzt oder fehlendes test-Script explizit dokumentiert
+    validations:
+      required: true
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Nicht-Ziele
+      description: Was soll ausdrücklich nicht verändert werden?
+      placeholder: |
+        - Kein breites Redesign
+        - Keine Änderung an OAuth/Token-Speicherung
+        - Keine privaten Exportdaten committen
+    validations:
+      required: false
+
+  - type: textarea
+    id: codex
+    attributes:
+      label: Codex-Auftrag
+      description: Optionaler kompakter Auftrag nach `docs/CODEX_MASTERPROMPT.md`.
+      render: text
+      placeholder: |
+        Use docs/CODEX_MASTERPROMPT.md and docs/CODEX_TASK_CATALOG.md.
+        Task ID: P4-B
+        mode: code
+        repo: AdrianR98/parqet-app
+        base_branch: main
+        target_branch: feat/activities-server-pagination
+    validations:
+      required: false
