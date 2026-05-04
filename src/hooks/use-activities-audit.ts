@@ -302,8 +302,12 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
                 params.append("portfolioId", portfolioId);
             }
 
-            for (const type of selectedTypes) {
-                params.append("type", type);
+            if (selectedTypes.length === 0) {
+                params.append("type", "__none__");
+            } else {
+                for (const type of selectedTypes) {
+                    params.append("type", type);
+                }
             }
 
             if (searchTerm.trim()) {
@@ -348,16 +352,18 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
 
             setAuthRequired(false);
             setReconnectUrl("/api/auth/start");
-            setItems(json.items ?? []);
+            const nextItems = json.items ?? [];
+            setItems((current) => (currentPage > 1 ? [...current, ...nextItems] : nextItems));
             setReconciliationWarnings(json.reconciliationWarnings ?? []);
             setGeneratedAt(json.generatedAt ?? "");
             setSummary(json.summary ?? emptySummary());
             setPagination(json.pagination ?? {
                 page: currentPage,
                 pageSize: 50,
-                totalItems: json.items?.length ?? 0,
-                totalPages: json.items?.length ? 1 : 0,
+                totalItems: nextItems.length,
+                totalPages: nextItems.length ? 1 : 0,
                 hasNextPage: false,
+                hasPreviousPage: currentPage > 1,
             });
 
             debugLog("Activities audit loaded", {

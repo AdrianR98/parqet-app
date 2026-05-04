@@ -80,6 +80,7 @@ export async function GET(req: Request) {
             DEFAULT_PAGE_SIZE
         );
         const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
+        const hasTypeFilterParam = url.searchParams.has("type");
         const selectedTypes = url.searchParams
             .getAll("type")
             .map(normalizeType)
@@ -101,6 +102,7 @@ export async function GET(req: Request) {
                         totalItems: 0,
                         totalPages: 0,
                         hasNextPage: false,
+                        hasPreviousPage: false,
                     },
                     message: "No portfolioId parameters provided.",
                 } satisfies ActivitiesAuditApiResponse,
@@ -181,8 +183,9 @@ export async function GET(req: Request) {
                 .sort((a, b) => b.datetime.localeCompare(a.datetime));
 
             const filteredItems = projectedItems.filter((item) => {
-                const matchesType =
-                    selectedTypes.length === 0 || selectedTypes.includes(item.type);
+                const matchesType = hasTypeFilterParam
+                    ? selectedTypes.includes(item.type)
+                    : true;
 
                 const matchesSearch =
                     searchTerm.length === 0 ||
@@ -214,6 +217,7 @@ export async function GET(req: Request) {
                     totalItems,
                     totalPages,
                     hasNextPage: totalPages > 0 && page < totalPages,
+                    hasPreviousPage: page > 1,
                 },
             };
         }

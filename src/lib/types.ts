@@ -432,6 +432,7 @@ export type ActivitiesAuditPagination = {
     totalItems: number;
     totalPages: number;
     hasNextPage: boolean;
+    hasPreviousPage: boolean;
 };
 
 export type ActivitiesAuditApiResponse = {
