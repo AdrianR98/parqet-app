@@ -436,7 +436,6 @@ function ActivityRow({ item, onOverrideSavedAction }: ActivityRowProps) {
 export default function ActivitiesPage() {
     const {
         portfolios,
-        filteredItems,
         filteredSummary,
         reconciliationWarnings,
         generatedAt,
@@ -449,6 +448,9 @@ export default function ActivitiesPage() {
         showPortfolioMenu,
         selectedPortfolioLabel,
         groupedYears,
+        hasNextPage,
+        loadNextPage,
+        pagination,
         setSearchTerm,
         setShowPortfolioMenu,
         togglePortfolio,
@@ -473,7 +475,7 @@ export default function ActivitiesPage() {
                         </div>
 
                         <div className={styles.metaLine}>
-                            <span>{filteredItems.length} Einträge</span>
+                            <span>{pagination.totalItems} Einträge</span>
                             <span>·</span>
                             <span>{reconciliationWarnings.length} Warnungen</span>
                             {generatedAt ? (
@@ -594,6 +596,20 @@ export default function ActivitiesPage() {
                         ))}
                     </div>
                 ))}
+
+
+                {hasNextPage ? (
+                    <div className={styles.loadMoreRow}>
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn-secondary"
+                            onClick={loadNextPage}
+                            disabled={loading}
+                        >
+                            {loading ? "Lädt..." : "Weitere laden"}
+                        </button>
+                    </div>
+                ) : null}
 
                 {!loading && groupedYears.length === 0 ? (
                     <div className={`ui-surface ${styles.emptyState}`}>

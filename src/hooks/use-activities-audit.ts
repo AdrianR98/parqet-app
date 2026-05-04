@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
     ActivitiesAuditApiResponse,
     ActivitiesAuditItem,
+    ActivitiesAuditPagination,
     ActivitiesAuditSummary,
     AuditActivityType,
     Portfolio,
@@ -72,18 +73,6 @@ function emptySummary(): ActivitiesAuditSummary {
  * - Betragsaggregationen
  * - Netto-/Brutto-Summen
  */
-function buildSummary(items: ActivitiesAuditItem[]): ActivitiesAuditSummary {
-    return {
-        total: items.length,
-        buyCount: items.filter((item) => item.type === "buy").length,
-        sellCount: items.filter((item) => item.type === "sell").length,
-        dividendCount: items.filter((item) => item.type === "dividend").length,
-        transferInCount: items.filter((item) => item.type === "transfer_in").length,
-        transferOutCount: items.filter((item) => item.type === "transfer_out").length,
-        unknownCount: items.filter((item) => item.type === "unknown").length,
-    };
-}
-
 type GroupedYear = {
     year: number;
     items: ActivitiesAuditItem[];
@@ -99,6 +88,8 @@ type UseActivitiesAuditResult = {
     items: ActivitiesAuditItem[];
     filteredItems: ActivitiesAuditItem[];
     filteredSummary: ActivitiesAuditSummary;
+    pagination: ActivitiesAuditPagination;
+    hasNextPage: boolean;
     reconciliationWarnings: ReconciliationWarning[];
     generatedAt: string;
     loading: boolean;
@@ -118,6 +109,7 @@ type UseActivitiesAuditResult = {
     setShowTypeMenu: React.Dispatch<React.SetStateAction<boolean>>;
     togglePortfolio: (portfolioId: string) => void;
     toggleType: (type: AuditActivityType) => void;
+    loadNextPage: () => Promise<void>;
     clearFilters: () => void;
     reload: () => Promise<void>;
     startReconnect: () => void;
@@ -133,6 +125,14 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
     const [items, setItems] = useState<ActivitiesAuditItem[]>([]);
     const [reconciliationWarnings, setReconciliationWarnings] = useState<ReconciliationWarning[]>([]);
     const [generatedAt, setGeneratedAt] = useState("");
+    const [summary, setSummary] = useState<ActivitiesAuditSummary>(emptySummary());
+    const [pagination, setPagination] = useState<ActivitiesAuditPagination>({
+        page: 1,
+        pageSize: 50,
+        totalItems: 0,
+        totalPages: 0,
+        hasNextPage: false,
+    });
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [authRequired, setAuthRequired] = useState(false);
@@ -148,6 +148,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
     const [searchTerm, setSearchTerm] = useState("");
     const [showPortfolioMenu, setShowPortfolioMenu] = useState(false);
     const [showTypeMenu, setShowTypeMenu] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
 
     /**
      * ------------------------------------------------------------
@@ -287,6 +288,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
             setItems([]);
             setReconciliationWarnings([]);
             setGeneratedAt("");
+            setSummary(emptySummary());
             return;
         }
 
@@ -299,6 +301,17 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
             for (const portfolioId of selectedPortfolioIds) {
                 params.append("portfolioId", portfolioId);
             }
+
+            for (const type of selectedTypes) {
+                params.append("type", type);
+            }
+
+            if (searchTerm.trim()) {
+                params.set("search", searchTerm.trim());
+            }
+
+            params.set("page", String(currentPage));
+            params.set("pageSize", "50");
 
             debugLog("Loading activities audit", {
                 selectedPortfolioIds,
@@ -323,6 +336,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
                     setItems([]);
                     setReconciliationWarnings([]);
                     setGeneratedAt("");
+                    setSummary(emptySummary());
                     return;
                 }
 
@@ -337,6 +351,14 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
             setItems(json.items ?? []);
             setReconciliationWarnings(json.reconciliationWarnings ?? []);
             setGeneratedAt(json.generatedAt ?? "");
+            setSummary(json.summary ?? emptySummary());
+            setPagination(json.pagination ?? {
+                page: currentPage,
+                pageSize: 50,
+                totalItems: json.items?.length ?? 0,
+                totalPages: json.items?.length ? 1 : 0,
+                hasNextPage: false,
+            });
 
             debugLog("Activities audit loaded", {
                 itemCount: json.items?.length ?? 0,
@@ -353,10 +375,11 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
             setItems([]);
             setReconciliationWarnings([]);
             setGeneratedAt("");
+            setSummary(emptySummary());
         } finally {
             setLoading(false);
         }
-    }, [selectedPortfolioIds, selectionInitialized]);
+    }, [currentPage, searchTerm, selectedPortfolioIds, selectedTypes, selectionInitialized]);
 
     /**
      * ------------------------------------------------------------
@@ -372,42 +395,14 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
      * FILTER: ITEM LISTE
      * ------------------------------------------------------------
      */
-    const filteredItems = useMemo(() => {
-        const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-
-        return items.filter((item) => {
-            const matchesPortfolio =
-                selectedPortfolioIds.length === 0 ||
-                selectedPortfolioIds.includes(item.portfolioId ?? "");
-
-            const matchesType = selectedTypes.includes(item.type);
-
-            const matchesSearch =
-                normalizedSearchTerm.length === 0 ||
-                [
-                    item.name,
-                    item.isin,
-                    item.symbol,
-                    item.wkn,
-                    item.portfolioName,
-                ]
-                    .filter(Boolean)
-                    .some((value) =>
-                        String(value).toLowerCase().includes(normalizedSearchTerm)
-                    );
-
-            return matchesPortfolio && matchesType && matchesSearch;
-        });
-    }, [items, searchTerm, selectedPortfolioIds, selectedTypes]);
+    const filteredItems = useMemo(() => items, [items]);
 
     /**
      * ------------------------------------------------------------
      * SUMMARY
      * ------------------------------------------------------------
      */
-    const filteredSummary = useMemo(() => {
-        return buildSummary(filteredItems);
-    }, [filteredItems]);
+    const filteredSummary = summary;
 
     /**
      * ------------------------------------------------------------
@@ -499,6 +494,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
     function togglePortfolio(portfolioId: string) {
         debugLog("Toggle portfolio filter", { portfolioId });
 
+        setCurrentPage(1);
         setSelectedPortfolioIds((current) =>
             current.includes(portfolioId)
                 ? current.filter((id) => id !== portfolioId)
@@ -509,6 +505,7 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
     function toggleType(type: AuditActivityType) {
         debugLog("Toggle type filter", { type });
 
+        setCurrentPage(1);
         setSelectedTypes((current) =>
             current.includes(type)
                 ? current.filter((entry) => entry !== type)
@@ -516,12 +513,23 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
         );
     }
 
+    function handleSearchTermChange(value: string) {
+        setCurrentPage(1);
+        setSearchTerm(value);
+    }
+
     function clearFilters() {
         debugLog("Clearing activities filters");
 
+        setCurrentPage(1);
         setSelectedPortfolioIds(portfolios.map((portfolio) => portfolio.id));
         setSelectedTypes(ALL_TYPES);
         setSearchTerm("");
+    }
+
+    async function loadNextPage() {
+        if (!pagination.hasNextPage || loading) return;
+        setCurrentPage((prev) => prev + 1);
     }
 
     function startReconnect() {
@@ -548,11 +556,14 @@ export function useActivitiesAudit(): UseActivitiesAuditResult {
         selectedPortfolioLabel,
         selectedTypeLabel,
         groupedYears,
-        setSearchTerm,
+        pagination,
+        hasNextPage: pagination.hasNextPage,
+        setSearchTerm: handleSearchTermChange,
         setShowPortfolioMenu,
         setShowTypeMenu,
         togglePortfolio,
         toggleType,
+        loadNextPage,
         clearFilters,
         reload: load,
         startReconnect,

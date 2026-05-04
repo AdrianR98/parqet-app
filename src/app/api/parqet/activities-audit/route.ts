@@ -1,4 +1,4 @@
-﻿// src/app/api/parqet/activities-audit/route.ts
+// src/app/api/parqet/activities-audit/route.ts
 
 import { NextResponse } from "next/server";
 import {
@@ -11,7 +11,12 @@ import type {
     ActivitiesAuditApiResponse,
     ActivitiesAuditItem,
     ActivitiesAuditSummary,
+    AuditActivityType,
 } from "../../../../lib/types";
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
 
 function getMonthKey(value: string): string {
     return value.slice(0, 7);
@@ -42,10 +47,44 @@ function buildAuditSummary(items: ActivitiesAuditItem[]): ActivitiesAuditSummary
     };
 }
 
+function parsePositiveInt(raw: string | null, fallback: number): number {
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 1) {
+        return fallback;
+    }
+    return Math.floor(value);
+}
+
+function normalizeType(rawType: string): AuditActivityType | null {
+    const normalized = rawType.trim().toLowerCase();
+    switch (normalized) {
+        case "buy":
+        case "sell":
+        case "dividend":
+        case "transfer_in":
+        case "transfer_out":
+        case "unknown":
+            return normalized;
+        default:
+            return null;
+    }
+}
+
 export async function GET(req: Request) {
     try {
         const url = new URL(req.url);
         const portfolioIds = url.searchParams.getAll("portfolioId");
+        const requestedPage = parsePositiveInt(url.searchParams.get("page"), DEFAULT_PAGE);
+        const requestedPageSize = parsePositiveInt(
+            url.searchParams.get("pageSize"),
+            DEFAULT_PAGE_SIZE
+        );
+        const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
+        const selectedTypes = url.searchParams
+            .getAll("type")
+            .map(normalizeType)
+            .filter((type): type is AuditActivityType => type !== null);
+        const searchTerm = url.searchParams.get("search")?.trim().toLowerCase() ?? "";
 
         if (portfolioIds.length === 0) {
             return NextResponse.json(
@@ -55,14 +94,13 @@ export async function GET(req: Request) {
                     portfolios: [],
                     items: [],
                     reconciliationWarnings: [],
-                    summary: {
-                        total: 0,
-                        buyCount: 0,
-                        sellCount: 0,
-                        dividendCount: 0,
-                        transferInCount: 0,
-                        transferOutCount: 0,
-                        unknownCount: 0,
+                    summary: buildAuditSummary([]),
+                    pagination: {
+                        page: requestedPage,
+                        pageSize,
+                        totalItems: 0,
+                        totalPages: 0,
+                        hasNextPage: false,
                     },
                     message: "No portfolioId parameters provided.",
                 } satisfies ActivitiesAuditApiResponse,
@@ -83,15 +121,7 @@ export async function GET(req: Request) {
                     portfolios: [],
                     items: [],
                     reconciliationWarnings: [],
-                    summary: {
-                        total: 0,
-                        buyCount: 0,
-                        sellCount: 0,
-                        dividendCount: 0,
-                        transferInCount: 0,
-                        transferOutCount: 0,
-                        unknownCount: 0,
-                    },
+                    summary: buildAuditSummary([]),
                     message: "No access token found.",
                 } satisfies ActivitiesAuditApiResponse,
                 { status: 401 }
@@ -108,7 +138,7 @@ export async function GET(req: Request) {
             const portfolios = activityContext.authorizedPortfolios;
             const warnings = activityContext.reconciliationWarnings;
 
-            const items: ActivitiesAuditItem[] = activityContext.correctedActivities
+            const projectedItems: ActivitiesAuditItem[] = activityContext.correctedActivities
                 .map((activity) => {
                     const datetime = activity.datetime ?? "";
                     const isin = (activity.isin ?? "").trim().toUpperCase();
@@ -150,13 +180,41 @@ export async function GET(req: Request) {
                 })
                 .sort((a, b) => b.datetime.localeCompare(a.datetime));
 
+            const filteredItems = projectedItems.filter((item) => {
+                const matchesType =
+                    selectedTypes.length === 0 || selectedTypes.includes(item.type);
+
+                const matchesSearch =
+                    searchTerm.length === 0 ||
+                    [item.name, item.isin, item.symbol, item.wkn, item.portfolioName]
+                        .filter(Boolean)
+                        .some((value) => String(value).toLowerCase().includes(searchTerm));
+
+                return matchesType && matchesSearch;
+            });
+
+            // Summary semantics: summary is based on the full filtered result set (not only current page)
+            const summary = buildAuditSummary(filteredItems);
+            const totalItems = filteredItems.length;
+            const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize);
+            const page = totalPages === 0 ? 1 : Math.min(requestedPage, totalPages);
+            const startIndex = (page - 1) * pageSize;
+            const pagedItems = filteredItems.slice(startIndex, startIndex + pageSize);
+
             return {
                 ok: true,
                 generatedAt: new Date().toISOString(),
                 portfolios,
-                items,
+                items: pagedItems,
                 reconciliationWarnings: warnings,
-                summary: buildAuditSummary(items),
+                summary,
+                pagination: {
+                    page,
+                    pageSize,
+                    totalItems,
+                    totalPages,
+                    hasNextPage: totalPages > 0 && page < totalPages,
+                },
             };
         }
 
@@ -178,15 +236,7 @@ export async function GET(req: Request) {
                         portfolios: [],
                         items: [],
                         reconciliationWarnings: [],
-                        summary: {
-                            total: 0,
-                            buyCount: 0,
-                            sellCount: 0,
-                            dividendCount: 0,
-                            transferInCount: 0,
-                            transferOutCount: 0,
-                            unknownCount: 0,
-                        },
+                        summary: buildAuditSummary([]),
                         message: "Access token expired and refresh failed.",
                     } satisfies ActivitiesAuditApiResponse,
                     { status: 401 }
@@ -222,15 +272,7 @@ export async function GET(req: Request) {
                 portfolios: [],
                 items: [],
                 reconciliationWarnings: [],
-                summary: {
-                    total: 0,
-                    buyCount: 0,
-                    sellCount: 0,
-                    dividendCount: 0,
-                    transferInCount: 0,
-                    transferOutCount: 0,
-                    unknownCount: 0,
-                },
+                summary: buildAuditSummary([]),
                 message: "Activities audit route failed.",
                 details: error instanceof Error ? error.message : String(error),
             } satisfies ActivitiesAuditApiResponse,
