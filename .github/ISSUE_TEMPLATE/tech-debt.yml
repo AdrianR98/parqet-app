@@ -1,0 +1,71 @@
+name: Tech Debt / Refactoring
+about: Begrenzte technische Verbesserung ohne neues Produktverhalten
+title: "refactor: "
+labels: ["tech-debt", "refactor"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Refactorings müssen klein, reviewbar und fachlich abgegrenzt bleiben. Keine großen Architekturänderungen ohne ADR.
+
+  - type: textarea
+    id: current-state
+    attributes:
+      label: Ist-Zustand
+      description: Was ist aktuell technisch problematisch?
+      placeholder: Beispiel: Assets- und Activities-Audit-Routen bauen ähnliche Activity-Kontexte separat auf.
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Ziel
+      description: Welche technische Verbesserung soll erreicht werden?
+      placeholder: Beispiel: Ein gemeinsamer `buildActivityContext`-Service wird eingeführt und von den Routen wiederverwendet.
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-files
+    attributes:
+      label: Betroffene Dateien
+      placeholder: |
+        - src/lib/parqet-assets/*
+        - src/app/api/parqet/assets/route.ts
+        - src/app/api/parqet/activities-audit/route.ts
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien
+      placeholder: |
+        - [ ] Keine fachliche Regression
+        - [ ] Öffentliche Route-Responses bleiben kompatibel oder Änderung ist dokumentiert
+        - [ ] npm run lint läuft erfolgreich
+        - [ ] npm run build läuft erfolgreich
+        - [ ] Tests ergänzt oder fehlendes test-Script explizit dokumentiert
+    validations:
+      required: true
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Nicht-Ziele
+      placeholder: |
+        - Kein Redesign
+        - Keine Änderung an OAuth
+        - Keine neue Persistenztechnologie
+    validations:
+      required: false
+
+  - type: textarea
+    id: codex
+    attributes:
+      label: Codex-Auftrag
+      description: Optionaler kompakter Auftrag nach `docs/CODEX_MASTERPROMPT.md`.
+      render: text
+    validations:
+      required: false
