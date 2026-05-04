@@ -21,16 +21,10 @@ import {
     getCookieValue,
     refreshParqetAccessToken,
 } from "../../../../lib/parqet";
-import { fetchAuthorizedPortfolios } from "../../../../lib/parqet-assets/fetch-portfolios";
-import { loadActivitiesForPortfolios } from "../../../../lib/parqet-assets/fetch-activities";
-import { isRealSecurityActivity } from "../../../../lib/parqet-assets/filters";
+import { buildActivityContext } from "../../../../lib/parqet-assets/build-activity-context";
 import { loadAssetMetadataByIsin } from "../../../../lib/parqet-assets/metadata";
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
-import { normalizeActivities } from "../../../../lib/parqet-assets/normalization";
-import { applyOverrides } from "../../../../lib/parqet-assets/overrides";
-import { buildReconciliationWarnings } from "../../../../lib/parqet-assets/reconciliation";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
-import { readActivityOverrides } from "../../../../lib/parqet-assets/override-store";
 function buildReconnectResponse(message: string) {
     const response = NextResponse.json(
         {
@@ -101,37 +95,15 @@ export async function GET(req: Request) {
         // ========================================================
 
         async function buildAssetView(currentAccessToken: string) {
-            const portfolios = await fetchAuthorizedPortfolios(currentAccessToken);
-            const portfolioNameById = new Map<string, string>();
-
-            for (const portfolio of portfolios) {
-                portfolioNameById.set(portfolio.id, portfolio.name);
-            }
-
-            const allActivities = await loadActivitiesForPortfolios(
+            const activityContext = await buildActivityContext(
                 currentAccessToken,
                 portfolioIds
             );
 
-            const filteredActivities = allActivities.filter(isRealSecurityActivity);
-
-            // ====================================================
-            // Bereinigte Datenpipeline
-            // ----------------------------------------------------
-            // Reihenfolge ist bewusst:
-            // 1) filtern
-            // 2) normalisieren
-            // 3) Overrides anwenden
-            // 4) Reconciliation-Warnungen erzeugen
-            // 5) bereinigte Assets daraus bauen
-            // ====================================================
-
-            const normalized = normalizeActivities(filteredActivities);
-            const overrides = await readActivityOverrides();
-            const corrected = applyOverrides(normalized, overrides);
-            const warnings = buildReconciliationWarnings(corrected);
-
-            const correctedAssets = buildCorrectedAssets(corrected, portfolioNameById);
+            const correctedAssets = buildCorrectedAssets(
+                activityContext.correctedActivities,
+                activityContext.portfolioNameById
+            );
 
             // ====================================================
             // Lokale Metadaten laden
@@ -205,15 +177,15 @@ export async function GET(req: Request) {
             const consistencyReport = buildConsistencyReport(enrichedAssets);
 
             return {
-                rawActivityCount: allActivities.length,
-                filteredActivityCount: filteredActivities.length,
+                rawActivityCount: activityContext.rawActivities.length,
+                filteredActivityCount: activityContext.filteredActivities.length,
                 assetCount: enrichedAssets.length,
                 activeAssetCount: activeAssets.length,
                 closedAssetCount: closedAssets.length,
                 activeAssets,
                 closedAssets,
                 consistencyReport,
-                reconciliationWarnings: warnings,
+                reconciliationWarnings: activityContext.reconciliationWarnings,
                 generatedAt: new Date().toISOString(),
             };
         }
