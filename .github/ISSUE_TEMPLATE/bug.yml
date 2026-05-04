@@ -1,0 +1,71 @@
+name: Bug
+about: Fehler, Regression oder unerwartetes Verhalten
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Beschreibe bitte das beobachtete Verhalten, nicht nur die vermutete Ursache. Für Codex-Fixes nach Möglichkeit auf `docs/CODEX_MASTERPROMPT.md` verweisen.
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Beobachtetes Verhalten
+      description: Was passiert konkret?
+      placeholder: Beispiel: Beim Klick auf Bearbeiten werden alle Activities geladen und die Seite reagiert mehrere Sekunden nicht.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+      description: Was sollte stattdessen passieren?
+      placeholder: Beispiel: Die Seite lädt initial nur die erste Seite und lädt weitere Einträge erst bei Bedarf nach.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduktion
+      description: Welche Schritte führen zum Fehler?
+      placeholder: |
+        1. App öffnen
+        2. Dashboard laden
+        3. Auf Bearbeiten klicken
+        4. Fehler beobachten
+    validations:
+      required: false
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs / Screenshots / Hinweise
+      description: Fehlertext, Konsolenlogs oder sonstige Hinweise. Keine Secrets oder privaten Daten einfügen.
+      placeholder: Beispiel: Console zeigt ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien
+      placeholder: |
+        - [ ] Fehler ist reproduzierbar beschrieben
+        - [ ] Ursache ist eingegrenzt oder dokumentiert
+        - [ ] Fix ist umgesetzt
+        - [ ] npm run lint läuft erfolgreich
+        - [ ] npm run build läuft erfolgreich
+    validations:
+      required: true
+
+  - type: textarea
+    id: codex
+    attributes:
+      label: Codex-Auftrag
+      description: Optionaler kompakter Auftrag nach `docs/CODEX_MASTERPROMPT.md`.
+      render: text
+    validations:
+      required: false
