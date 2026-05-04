@@ -125,7 +125,7 @@ export default function DashboardPage() {
 
                     {loadingPortfolios ? (
                         <div className="ui-banner ui-banner-info">
-                            Portfolios werden geladen...
+                            Daten werden geladen...
                         </div>
                     ) : null}
 

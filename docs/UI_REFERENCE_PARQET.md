@@ -178,3 +178,12 @@ Wichtig: Die Parqet-Referenz ist UX-Orientierung (Informationsarchitektur, Inter
 ## 7. Audit-Fazit
 
 Die App ist funktional bereits nah an einem robusten Parqet-inspirierten Arbeitsstil. Der höchste Mehrwert für die nächsten Schritte liegt in **Konsistenz- und Klarheitsarbeit** (State-System, Warning-/Review-Semantik, Filterverhalten, Navigationsrahmen) statt in großem Redesign. Damit sind P6-B und P6-C klar vorbereitet.
+
+
+## 8. Umsetzungsstand P6-B (2026-05-04)
+
+- State-/Filter-Wording zwischen Dashboard und Activities wurde angenähert (`Zurücksetzen`, Portfolio-Trigger mit Zähler).
+- Aktivitätstypen `transfer_in`/`transfer_out` werden jetzt als `Einbuchung`/`Ausbuchung` angezeigt, analog zu den UI-Guardrails.
+- Warning-/Review-Labels wurden in Panels harmonisiert (`Kritisch`, `Prüfen`, `Info`; Review-Status als `Offen`/`Bestätigt`/`Korrigiert`).
+- Tabellenrhythmus wurde nur inkrementell nachgezogen (Zellen-Padding/Meta-Line), ohne neue Tokens einzuführen.
+- Loading-/Empty-/Error-/Auth-/Stale-Hinweise wurden sprachlich zwischen Dashboard und Activities angeglichen ("Daten werden geladen", "Parqet-Verbindung abgelaufen", "Erneut verbinden", neutralerer Empty-State, Stale-Hinweis im Hero).

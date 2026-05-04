@@ -36,6 +36,7 @@ export default function PortfolioFilter({
     onReset,
 }: PortfolioFilterProps) {
     const selectedCount = selectedPortfolioIds.length;
+    const draftCount = draftPortfolioIds.length;
     const totalCount = portfolios.length;
 
     const triggerLabel =
@@ -56,7 +57,8 @@ export default function PortfolioFilter({
                 onClick={onToggleOpen}
                 aria-expanded={isOpen}
             >
-                <span>{triggerLabel}</span>
+                <span>Portfolios: {triggerLabel}</span>
+                <span className={styles.triggerMeta}>{draftCount}/{totalCount}</span>
                 <span>▾</span>
             </button>
 
@@ -85,7 +87,7 @@ export default function PortfolioFilter({
                             className="ui-btn ui-btn-secondary"
                             onClick={onReset}
                         >
-                            Reset
+                            Zurücksetzen
                         </button>
 
                         <button

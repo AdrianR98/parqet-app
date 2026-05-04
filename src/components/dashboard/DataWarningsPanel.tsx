@@ -158,7 +158,7 @@ export default function DataWarningsPanel({
                         <div className={styles.sectionHeader}>
                             <h3 className={styles.sectionTitle}>Reconciliation-Warnungen</h3>
                             <div className={styles.sectionMeta}>
-                                {reconciliationWarnings.length} Hinweis
+                                {reconciliationWarnings.length} Reconciliation-Hinweis
                                 {reconciliationWarnings.length === 1 ? "" : "e"}
                             </div>
                         </div>
@@ -180,7 +180,7 @@ export default function DataWarningsPanel({
                                                             : styles.severityInfo
                                                     }`}
                                             >
-                                                {warning.severity}
+                                                {warning.severity === "error" ? "Kritisch" : warning.severity === "warning" ? "Prüfen" : "Info"}
                                             </span>
                                         </div>
                                     </div>

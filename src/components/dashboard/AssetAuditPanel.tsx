@@ -114,6 +114,19 @@ function getWarningStatus(warning: ReconciliationWarning) {
     return "open";
 }
 
+function getReviewStatusLabel(status: string) {
+    switch (status) {
+        case "accepted":
+            return "Bestätigt";
+        case "overridden":
+            return "Korrigiert";
+        case "dismissed":
+            return "Zurückgestellt";
+        default:
+            return "Offen";
+    }
+}
+
 type ActivityEditFormProps = {
     item: ActivitiesAuditItem;
     onSavedAction?: () => Promise<void> | void;
@@ -377,10 +390,10 @@ export default function AssetAuditPanel({
                                         warning.severity
                                     )}`}
                                 >
-                                    {warning.severity.toUpperCase()}
+                                    {warning.severity === "error" ? "Kritisch" : warning.severity === "warning" ? "Prüfen" : "Info"}
                                 </div>
                                 <div><strong>Review-Fall:</strong> {warning.message}</div>
-                                <div>Status: {getWarningStatus(warning)}</div>
+                                <div>Status: {getReviewStatusLabel(getWarningStatus(warning))}</div>
                                 <div>Quelle: {warning.source ?? "reconciliation"}</div>
                                 <div>
                                     Original/Override: {String(warning.originalValue ?? "-")} →{" "}
