@@ -25,6 +25,9 @@ import { buildActivityContext } from "../../../../lib/parqet-assets/build-activi
 import { loadAssetMetadataByIsin } from "../../../../lib/parqet-assets/metadata";
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
+import { resolveAssetDisplay } from "../../../../lib/metadata-utils";
+
+const CLOSED_POSITION_EPSILON = 1e-8;
 function buildReconnectResponse(message: string) {
     const response = NextResponse.json(
         {
@@ -124,42 +127,30 @@ export async function GET(req: Request) {
             const enrichedAssets: AssetSummary[] = correctedAssets.map(
                 (asset: AssetSummary) => {
                     const metadata = metadataByIsin[asset.isin];
+                    const resolvedDisplay = resolveAssetDisplay({
+                        isin: asset.isin,
+                        metadata,
+                        activity: asset,
+                    });
 
                     return {
                         ...asset,
-
-                        // ====================================================
-                        // Name Prioritaet:
-                        // 1) CSV / lokale Metadata
-                        // 2) bereits erkannter Activity-Name
-                        // 3) sonstige Fallbacks
-                        // ====================================================
-
-                        name:
-                            metadata?.name ??
-                            asset.name ??
-                            asset.assetName ??
-                            asset.displayName ??
-                            asset.title ??
-                            asset.symbol ??
-                            asset.ticker ??
-                            asset.tickerSymbol ??
-                            asset.wkn ??
-                            asset.isin,
+                        name: resolvedDisplay.name,
 
                         assetName: asset.assetName ?? metadata?.name ?? null,
                         displayName: asset.displayName ?? metadata?.name ?? null,
                         title: asset.title ?? metadata?.name ?? null,
 
-                        symbol: metadata?.symbol ?? asset.symbol ?? null,
-                        ticker: asset.ticker ?? metadata?.ticker ?? null,
-                        tickerSymbol: asset.tickerSymbol ?? metadata?.tickerSymbol ?? null,
-                        wkn: metadata?.wkn ?? asset.wkn ?? null,
+                        symbol: resolvedDisplay.symbol,
+                        ticker: resolvedDisplay.ticker,
+                        tickerSymbol: resolvedDisplay.tickerSymbol,
+                        wkn: resolvedDisplay.wkn,
 
                         externalMetadata: {
                             ...(asset.externalMetadata ?? {}),
                             ...(metadata ?? {}),
-                            metadataSource: metadata?.name ? "csv" : "activity",
+                            metadataSource: resolvedDisplay.source,
+                            subtitle: resolvedDisplay.subtitle,
                         },
                     };
                 }
@@ -167,11 +158,11 @@ export async function GET(req: Request) {
             );
 
             const activeAssets = enrichedAssets.filter(
-                (asset: AssetSummary) => asset.netShares > 0
+                (asset: AssetSummary) => asset.netShares > CLOSED_POSITION_EPSILON
             );
 
             const closedAssets = enrichedAssets.filter(
-                (asset: AssetSummary) => asset.netShares <= 0
+                (asset: AssetSummary) => asset.netShares <= CLOSED_POSITION_EPSILON
             );
 
             const consistencyReport = buildConsistencyReport(enrichedAssets);

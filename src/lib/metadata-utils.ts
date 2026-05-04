@@ -22,6 +22,16 @@ export type AssetMetadataSource =
     | "fallback"
     | "unknown";
 
+export type ResolvedAssetDisplay = {
+    name: string | null;
+    symbol: string | null;
+    ticker: string | null;
+    tickerSymbol: string | null;
+    wkn: string | null;
+    subtitle: string | null;
+    source: AssetMetadataSource;
+};
+
 // ============================================================
 // String / Number Sanitizer
 // ============================================================
@@ -170,4 +180,67 @@ export function resolvePreferredAssetName(params: {
     }
 
     return { name: null, source: "unknown" };
+}
+
+export function resolveAssetDisplay(params: {
+    isin: string;
+    metadata?: Partial<AssetMetadata> | null;
+    activity?: Partial<AssetMetadata> | null;
+    cached?: Partial<AssetMetadata> | null;
+}): ResolvedAssetDisplay {
+    const metadata = normalizeMetadata(params.metadata);
+    const activity = normalizeMetadata(params.activity);
+    const cached = normalizeMetadata(params.cached);
+
+    const resolvedSymbol =
+        metadata.symbol ??
+        metadata.ticker ??
+        activity.symbol ??
+        activity.ticker ??
+        cached.symbol ??
+        cached.ticker ??
+        null;
+
+    const resolvedTicker =
+        metadata.ticker ?? activity.ticker ?? cached.ticker ?? null;
+    const resolvedTickerSymbol =
+        metadata.tickerSymbol ??
+        activity.tickerSymbol ??
+        cached.tickerSymbol ??
+        null;
+    const resolvedWkn = metadata.wkn ?? activity.wkn ?? cached.wkn ?? null;
+
+    const resolvedName = resolvePreferredAssetName({
+        csvName: metadata.name,
+        localSeedName: null,
+        activityName:
+            activity.name ??
+            activity.assetName ??
+            activity.displayName ??
+            activity.title ??
+            null,
+        cachedName:
+            cached.name ??
+            cached.assetName ??
+            cached.displayName ??
+            cached.title ??
+            null,
+        symbol: resolvedSymbol,
+        ticker: resolvedTicker,
+        tickerSymbol: resolvedTickerSymbol,
+        wkn: resolvedWkn,
+        isin: params.isin,
+    });
+
+    const subtitle = resolvedSymbol ?? resolvedTicker ?? resolvedWkn ?? params.isin;
+
+    return {
+        name: resolvedName.name,
+        source: resolvedName.source,
+        symbol: resolvedSymbol,
+        ticker: resolvedTicker,
+        tickerSymbol: resolvedTickerSymbol,
+        wkn: resolvedWkn,
+        subtitle,
+    };
 }

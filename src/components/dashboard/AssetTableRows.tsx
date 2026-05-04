@@ -51,7 +51,17 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function getDisplayName(asset: AssetSummary): string {
-    return asset.name ?? asset.assetName ?? asset.displayName ?? asset.title ?? asset.isin;
+    return (
+        asset.name ??
+        asset.assetName ??
+        asset.displayName ??
+        asset.title ??
+        asset.symbol ??
+        asset.ticker ??
+        asset.tickerSymbol ??
+        asset.wkn ??
+        asset.isin
+    );
 }
 
 function getLogoUrl(asset: AssetSummary): string | null {
@@ -116,6 +126,7 @@ function renderCell(asset: AssetSummary, columnKey: VisibleColumnKey) {
                         <div className={styles.assetMeta}>
                             {asset.isin}
                             {asset.symbol ? ` · ${asset.symbol}` : ""}
+                            {asset.ticker ? ` · ${asset.ticker}` : ""}
                             {asset.wkn ? ` · ${asset.wkn}` : ""}
                         </div>
                     </div>
