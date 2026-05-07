@@ -1,0 +1,57 @@
+version: 1
+purpose: Quick rules for Mini, Spar, Folgeauftrag and Review-Fix tasks.
+
+defaults:
+  mode: Spar
+  read_before_editing: true
+  preserve_product_behavior: true
+  report_verification: true
+
+mini:
+  use_for:
+    - typos
+    - link fixes
+    - tiny documentation changes
+    - mechanical template cleanup
+  avoid:
+    - app behavior changes
+    - architecture decisions
+    - security-sensitive work
+
+spar:
+  use_for:
+    - focused documentation updates
+    - small prompt/template changes
+    - bounded implementation tasks with clear acceptance criteria
+  requirements:
+    - list changed files
+    - run available verification
+    - report risks and non-goals
+
+folgeauftrag:
+  use_for:
+    - narrow follow-up in an already reviewed context
+    - small correction after a prior PR or issue discussion
+  requirements:
+    - keep original scope
+    - do not reopen settled decisions without explicit instruction
+
+review_fix:
+  use_for:
+    - addressing PR review comments
+    - fixing CI or lint/build failures introduced by the PR
+  requirements:
+    - address only actionable feedback
+    - report comments fixed and comments deferred
+    - do not use review feedback as permission for unrelated cleanup
+
+must_escalate_to_voll_when_touching:
+  - Auth/OAuth
+  - Tokens/Cookies
+  - API contracts
+  - Data pipeline
+  - Persistence
+  - Caching
+  - CI/Branch Protection
+  - Security
+  - Large refactorings

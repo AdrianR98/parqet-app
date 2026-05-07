@@ -1,23 +1,30 @@
-name: Feature
-description: Propose a product capability or user-facing workflow.
-title: "feat: "
+name: Agent Task
+description: Define a bounded task for Codex or a future agent.
+title: "agent: "
 body:
   - type: markdown
     attributes:
       value: |
-        Do not include private data. Use Voll mode for risky first tasks involving auth, API contracts, data pipeline, persistence, caching or security.
+        Default Codex mode is Spar. Use Voll for risky first tasks involving auth, tokens, API contracts, data pipeline, persistence, caching, CI, security or large refactorings.
+  - type: input
+    id: mode
+    attributes:
+      label: Mode
+      placeholder: Mini / Spar / Normal / Voll / Folgeauftrag / Review-Fix
+    validations:
+      required: true
   - type: textarea
     id: goal
     attributes:
       label: Goal
-      description: What user or product outcome should this feature create?
+      description: What should the agent accomplish?
     validations:
       required: true
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: Why is this needed? What current limitation does it address?
+      description: Read-first files, constraints and relevant links.
     validations:
       required: true
   - type: textarea
@@ -25,9 +32,9 @@ body:
     attributes:
       label: Acceptance criteria
       placeholder: |
-        - [ ] User-facing behavior is defined.
-        - [ ] Edge cases are documented.
-        - [ ] Verification plan is completed.
+        - [ ] Scope is completed.
+        - [ ] Non-goals are respected.
+        - [ ] Verification is reported.
     validations:
       required: true
   - type: textarea
@@ -35,8 +42,7 @@ body:
     attributes:
       label: Non-goals
       placeholder: |
-        - No unrelated redesign.
-        - No auth/API/data-pipeline changes unless explicitly in scope.
+        - No unrelated changes.
     validations:
       required: true
   - type: textarea
@@ -46,14 +52,14 @@ body:
       placeholder: |
         - Run npm run lint.
         - Run npm run build.
-        - Describe manual review path.
+        - Run repo verification commands.
     validations:
       required: true
   - type: textarea
     id: risks
     attributes:
       label: Risks
-      description: Product, data, API, security or UX risks.
+      description: Scope, security, privacy, product or CI risks.
     validations:
       required: true
   - type: textarea

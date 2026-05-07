@@ -1,23 +1,23 @@
-name: Feature
-description: Propose a product capability or user-facing workflow.
-title: "feat: "
+name: Decision
+description: Capture an architecture, workflow or governance decision.
+title: "decision: "
 body:
   - type: markdown
     attributes:
       value: |
-        Do not include private data. Use Voll mode for risky first tasks involving auth, API contracts, data pipeline, persistence, caching or security.
+        Use an ADR when the decision affects future architecture, workflow or governance.
   - type: textarea
     id: goal
     attributes:
       label: Goal
-      description: What user or product outcome should this feature create?
+      description: What decision is needed?
     validations:
       required: true
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: Why is this needed? What current limitation does it address?
+      description: What constraints, options or prior decisions matter?
     validations:
       required: true
   - type: textarea
@@ -25,9 +25,9 @@ body:
     attributes:
       label: Acceptance criteria
       placeholder: |
-        - [ ] User-facing behavior is defined.
-        - [ ] Edge cases are documented.
-        - [ ] Verification plan is completed.
+        - [ ] Decision is recorded.
+        - [ ] ADR is added or explicitly not needed.
+        - [ ] Consequences are documented.
     validations:
       required: true
   - type: textarea
@@ -35,8 +35,7 @@ body:
     attributes:
       label: Non-goals
       placeholder: |
-        - No unrelated redesign.
-        - No auth/API/data-pipeline changes unless explicitly in scope.
+        - No implementation unless a follow-up issue says so.
     validations:
       required: true
   - type: textarea
@@ -44,16 +43,15 @@ body:
     attributes:
       label: Verification / review plan
       placeholder: |
-        - Run npm run lint.
-        - Run npm run build.
-        - Describe manual review path.
+        - Review ADR or decision notes.
+        - Confirm affected docs are linked.
     validations:
       required: true
   - type: textarea
     id: risks
     attributes:
       label: Risks
-      description: Product, data, API, security or UX risks.
+      description: What could this decision block or complicate?
     validations:
       required: true
   - type: textarea

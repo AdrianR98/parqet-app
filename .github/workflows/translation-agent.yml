@@ -1,0 +1,15 @@
+name: Translation Agent Placeholder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    name: Manual-only placeholder
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepared but inactive
+        run: echo "Translation-Agent is prepared as a manual-only placeholder and is not active. It does not translate, comment, open PRs or change files."

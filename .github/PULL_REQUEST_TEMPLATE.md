@@ -1,51 +1,72 @@
-## Ziel
+## Goal
 
-Fixes #
+What should this PR accomplish?
 
-Kurz beschreiben, welches Issue oder welcher Teilauftrag gelöst wird.
+## Linked issues
 
-## Änderung
+- Refs #
+- Fixes #
 
-- 
-- 
-- 
+## Mode
 
-## Betroffene Dateien
+Relevant for Codex PRs.
 
-- 
-- 
+- [ ] Mini
+- [ ] Spar
+- [ ] Normal
+- [ ] Voll
+- [ ] Folgeauftrag
+- [ ] Review-Fix
+- [ ] Not a Codex PR
 
-## Prüfung
+## Summary
+
+- TBD
+
+## Changed files
+
+- TBD
+
+## Verification
 
 - [ ] `npm run lint`
 - [ ] `npm run build`
-- [ ] `npm run test -- --run`
-- [ ] Test-Script fehlt aktuell / nicht anwendbar
-- [ ] Manuelle Prüfung beschrieben
+- [ ] Not run, with reason:
 
-## Screenshots / UI-Hinweise
+## Documentation impact
 
-Nur ausfüllen, wenn UI betroffen ist.
+- [ ] Documentation updated
+- [ ] No documentation change needed
+- [ ] German translation checked where a matching `.de.md` file exists
+- [ ] German translation intentionally deferred
 
-- Vorher:
-- Nachher:
+## Risk
 
-## Risiko
-
-- API-Kompatibilität:
-- Performance:
-- Datenqualität / Reconciliation:
-- UI-Token-Drift:
-- Sonstiges:
+Short risk statement. Keep this present even for documentation-only PRs.
 
 ## Rollback
 
-Beschreiben, wie die Änderung zurückgenommen werden kann.
+How can this PR be reverted or backed out?
 
-## Codex-Checkliste
+## Codex involvement
 
-- [ ] `docs/CODEX_MASTERPROMPT.md` wurde beachtet
-- [ ] Scope des Issues wurde eingehalten
-- [ ] Keine privaten Parqet-Daten, Secrets oder `.env`-Dateien committed
-- [ ] Keine neue Architekturentscheidung ohne ADR
-- [ ] Keine fachliche Regression bewusst eingeführt
+- [ ] Codex was involved
+- [ ] Codex was not involved
+
+If Codex was involved, state the mode and any relevant constraints.
+
+## What was intentionally not changed
+
+Relevant for larger PRs.
+
+- TBD
+
+## Checklist
+
+- [ ] Scope matches the linked issue(s)
+- [ ] No unrelated refactor or cleanup
+- [ ] No private Parqet exports, real portfolio/depot data, screenshots with private data, tokens, cookies, OAuth codes or `.env` files
+- [ ] `.env.example` contains placeholders only
+- [ ] If auth/API/token behavior changed, Full Review is documented
+- [ ] If architecture changed, ADR added or updated
+- [ ] If a matching German placeholder exists, translation impact is documented

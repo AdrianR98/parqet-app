@@ -1,0 +1,15 @@
+name: Issue Agent Placeholder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    name: Manual-only placeholder
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepared but inactive
+        run: echo "Issue-Agent is prepared as a manual-only placeholder and is not active. It does not modify issues, comments, PRs or files."

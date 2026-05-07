@@ -38,8 +38,13 @@ yarn-error.log*
 # local raw portfolio exports
 /data/
 
-# env files (can opt-in for committing if needed)
-.env*
+# private local references and generated notes
+.local/
+
+# env files
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel

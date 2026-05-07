@@ -1,65 +1,62 @@
 name: Documentation
-about: README, Architektur-, Datenmodell-, Roadmap- oder ADR-Dokumentation
+description: Request README, docs, prompt or ADR documentation work.
 title: "docs: "
-labels: ["docs"]
 body:
   - type: markdown
     attributes:
       value: |
-        Dokumentation soll den tatsächlichen Produkt- und Architekturstand abbilden. Keine Fantasie-Funktionen dokumentieren.
-
+        English is the source of truth. Documentation issues do not require app tests unless app behavior is changed.
   - type: textarea
-    id: target-docs
+    id: goal
     attributes:
-      label: Betroffene Dokumente
-      placeholder: |
-        - README.md
-        - docs/PROJECT_STATUS.md
-        - docs/ARCHITECTURE.md
-        - docs/DATA_MODEL.md
-        - docs/ROADMAP.md
+      label: Goal
+      description: What documentation should be created or changed?
     validations:
       required: true
-
   - type: textarea
-    id: reason
+    id: context
     attributes:
-      label: Anlass
-      description: Warum ist die Dokumentation notwendig oder veraltet?
-      placeholder: Beispiel: README ist noch der create-next-app-Standardtext und beschreibt die Parqet-App nicht.
+      label: Context
+      description: Why is this documentation needed? Which source files or docs should be read?
     validations:
       required: true
-
-  - type: textarea
-    id: sources
-    attributes:
-      label: Quellen / zu lesende Dateien
-      description: Welche Code-Dateien oder bestehenden Dokumente müssen gelesen werden?
-      placeholder: |
-        - package.json
-        - src/app/(app)/**/*
-        - src/app/api/parqet/**/*
-        - src/lib/parqet-assets/*
-    validations:
-      required: false
-
   - type: textarea
     id: acceptance
     attributes:
-      label: Akzeptanzkriterien
+      label: Acceptance criteria
       placeholder: |
-        - [ ] Dokumentation beschreibt den aktuellen Ist-Zustand
-        - [ ] Keine nicht implementierten Features als fertig beschrieben
-        - [ ] Links zwischen README und docs/* sind konsistent
-        - [ ] Offene Annahmen sind markiert
+        - [ ] English source document is updated.
+        - [ ] No product behavior is changed.
+        - [ ] German translation impact is stated when matching .de.md files exist.
     validations:
       required: true
-
   - type: textarea
-    id: codex
+    id: non-goals
     attributes:
-      label: Codex-Auftrag
-      description: Optionaler kompakter Auftrag nach `docs/CODEX_MASTERPROMPT.md`.
-      render: text
+      label: Non-goals
+      placeholder: |
+        - No app implementation changes.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification / review plan
+      placeholder: |
+        - Review links and consistency.
+        - App tests are not required for documentation-only changes.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks
+      description: What could be misleading, incomplete or stale?
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Links / related issues
     validations:
       required: false

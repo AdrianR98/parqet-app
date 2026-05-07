@@ -1,4 +1,4 @@
-# ADR 0002: Shared Activity Context als kanonische Parqet-Datenpipeline
+# ADR 0003: Shared Activity Context als kanonische Parqet-Datenpipeline
 
 Status: accepted
 Date: 2026-05-04

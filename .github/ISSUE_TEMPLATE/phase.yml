@@ -1,23 +1,19 @@
-name: Feature
-description: Propose a product capability or user-facing workflow.
-title: "feat: "
+name: Phase
+description: Track a repository phase or parent planning item.
+title: "phase: "
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Do not include private data. Use Voll mode for risky first tasks involving auth, API contracts, data pipeline, persistence, caching or security.
   - type: textarea
     id: goal
     attributes:
       label: Goal
-      description: What user or product outcome should this feature create?
+      description: What should this phase establish?
     validations:
       required: true
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: Why is this needed? What current limitation does it address?
+      description: Why does this phase exist and what depends on it?
     validations:
       required: true
   - type: textarea
@@ -25,9 +21,9 @@ body:
     attributes:
       label: Acceptance criteria
       placeholder: |
-        - [ ] User-facing behavior is defined.
-        - [ ] Edge cases are documented.
-        - [ ] Verification plan is completed.
+        - [ ] Child issues are identified.
+        - [ ] Deliverables are clear.
+        - [ ] Exit criteria are documented.
     validations:
       required: true
   - type: textarea
@@ -35,8 +31,7 @@ body:
     attributes:
       label: Non-goals
       placeholder: |
-        - No unrelated redesign.
-        - No auth/API/data-pipeline changes unless explicitly in scope.
+        - No work outside this phase boundary.
     validations:
       required: true
   - type: textarea
@@ -44,16 +39,15 @@ body:
     attributes:
       label: Verification / review plan
       placeholder: |
-        - Run npm run lint.
-        - Run npm run build.
-        - Describe manual review path.
+        - Review linked PRs and docs.
+        - Confirm child issues are closed or deferred.
     validations:
       required: true
   - type: textarea
     id: risks
     attributes:
       label: Risks
-      description: Product, data, API, security or UX risks.
+      description: Planning, dependency or sequencing risks.
     validations:
       required: true
   - type: textarea

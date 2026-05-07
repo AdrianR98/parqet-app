@@ -1,4 +1,4 @@
-# ADR 0003 — UI Guidelines and State Patterns
+# ADR 0004 — UI Guidelines and State Patterns
 
 Status: accepted  
 Date: 2026-05-04  
