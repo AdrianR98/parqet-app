@@ -1,0 +1,75 @@
+version: 1
+status: active
+repository: AdrianR98/parqet-app
+source_language: en
+default_codex_mode: Spar
+
+purpose:
+  - Establish conservative, reviewable collaboration for the Parqet App repository.
+  - Preserve product behavior unless an issue explicitly requests a product change.
+  - Keep documentation, prompts, templates and CI coherent.
+
+roles:
+  adrian:
+    - Product owner and final decision maker.
+    - Approves private-data use, anonymized real-data use and architecture direction.
+  chatgpt:
+    - Helps shape issues, decisions, review prompts and planning context.
+  codex:
+    - Implements bounded repository changes.
+    - Reports verification, risks, gaps and intentionally unchanged areas.
+  github:
+    - Source of truth for issues, pull requests, review history and CI signals.
+
+codex_modes:
+  Mini: tiny documentation, wording or mechanical changes with low risk.
+  Spar: default mode for focused tasks with limited files and clear acceptance criteria.
+  Normal: moderate implementation or documentation tasks needing broader context.
+  Voll: full-context mode for risky first tasks or broad cross-cutting work.
+  Folgeauftrag: narrow follow-up in an existing context.
+  Review-Fix: targeted response to review feedback without widening scope.
+
+voll_required_for:
+  - Auth/OAuth
+  - Tokens/Cookies
+  - API contracts
+  - Data pipeline
+  - Persistence
+  - Caching
+  - CI/Branch Protection
+  - Security
+  - Large refactorings
+
+guardrails:
+  product:
+    - Do not redesign the app without an explicit issue.
+    - Do not implement product features in governance-only tasks.
+    - Do not create a second activity or asset pipeline before Phase 1 decides otherwise.
+    - Preserve public route contracts unless an issue and ADR authorize change.
+  language:
+    - English is the source of truth.
+    - German translations are placeholders until a Translation-Agent PR creates full translations.
+    - ADRs and CHANGELOG entries are English only.
+  security_privacy:
+    - No real tokens.
+    - No real .env files.
+    - No private Parqet exports.
+    - No real portfolio or depot data.
+    - No screenshots with real portfolio, account, depot or personal data.
+    - No cookies, OAuth codes, access tokens or refresh tokens in Issues, PRs or logs.
+    - No debug logs containing private API responses.
+    - Private local reference files may exist only in ignored paths such as .local/.
+    - Anonymized real data requires manual approval by Adrian.
+    - Synthetic test data is allowed only in clearly named test folders.
+    - If private data appears in a diff, the PR is blocked.
+    - Auth/API/token changes require Full Review.
+
+verification:
+  phase_0_ci:
+    - npm run lint
+    - npm run build
+  report:
+    - command
+    - result
+    - known gaps
+    - follow-up issues when needed

@@ -1,71 +1,64 @@
-name: Tech Debt / Refactoring
-about: Begrenzte technische Verbesserung ohne neues Produktverhalten
-title: "refactor: "
-labels: ["tech-debt", "refactor"]
+name: Tech Debt
+description: Propose a bounded technical improvement without new product behavior.
+title: "chore: "
 body:
   - type: markdown
     attributes:
       value: |
-        Refactorings müssen klein, reviewbar und fachlich abgegrenzt bleiben. Keine großen Architekturänderungen ohne ADR.
-
-  - type: textarea
-    id: current-state
-    attributes:
-      label: Ist-Zustand
-      description: Was ist aktuell technisch problematisch?
-      placeholder: Beispiel: Assets- und Activities-Audit-Routen bauen ähnliche Activity-Kontexte separat auf.
-    validations:
-      required: true
-
+        Keep refactors small and reviewable. Architecture changes need an ADR.
   - type: textarea
     id: goal
     attributes:
-      label: Ziel
-      description: Welche technische Verbesserung soll erreicht werden?
-      placeholder: Beispiel: Ein gemeinsamer `buildActivityContext`-Service wird eingeführt und von den Routen wiederverwendet.
+      label: Goal
+      description: What technical problem should be reduced?
     validations:
       required: true
-
   - type: textarea
-    id: affected-files
+    id: context
     attributes:
-      label: Betroffene Dateien
-      placeholder: |
-        - src/lib/parqet-assets/*
-        - src/app/api/parqet/assets/route.ts
-        - src/app/api/parqet/activities-audit/route.ts
+      label: Context
+      description: What is the current state and why is it a problem?
     validations:
-      required: false
-
+      required: true
   - type: textarea
     id: acceptance
     attributes:
-      label: Akzeptanzkriterien
+      label: Acceptance criteria
       placeholder: |
-        - [ ] Keine fachliche Regression
-        - [ ] Öffentliche Route-Responses bleiben kompatibel oder Änderung ist dokumentiert
-        - [ ] npm run lint läuft erfolgreich
-        - [ ] npm run build läuft erfolgreich
-        - [ ] Tests ergänzt oder fehlendes test-Script explizit dokumentiert
+        - [ ] Scope is bounded.
+        - [ ] Behavior is preserved unless explicitly documented.
+        - [ ] Verification plan is completed.
     validations:
       required: true
-
   - type: textarea
     id: non-goals
     attributes:
-      label: Nicht-Ziele
+      label: Non-goals
       placeholder: |
-        - Kein Redesign
-        - Keine Änderung an OAuth
-        - Keine neue Persistenztechnologie
+        - No unrelated cleanup.
+        - No product behavior changes.
     validations:
-      required: false
-
+      required: true
   - type: textarea
-    id: codex
+    id: verification
     attributes:
-      label: Codex-Auftrag
-      description: Optionaler kompakter Auftrag nach `docs/CODEX_MASTERPROMPT.md`.
-      render: text
+      label: Verification / review plan
+      placeholder: |
+        - Run npm run lint.
+        - Run npm run build.
+        - Add targeted tests only if test infrastructure exists and the issue asks for them.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks
+      description: Regression, migration or review risks.
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Links / related issues
     validations:
       required: false

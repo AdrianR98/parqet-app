@@ -1,0 +1,72 @@
+version: 1
+default_mode: Spar
+
+task_modes:
+  Mini:
+    description: Tiny low-risk work.
+  Spar:
+    description: Default focused work with limited files.
+  Normal:
+    description: Moderate work needing broader repository context.
+  Voll:
+    description: Full-context work for risky or cross-cutting tasks.
+  Folgeauftrag:
+    description: Narrow follow-up in an existing context.
+  Review-Fix:
+    description: Targeted PR review or CI fix.
+
+required_fields:
+  - repo
+  - mode
+  - branch
+  - task_title
+  - goal
+  - linked_issues
+  - read_first
+  - allowed_changes
+  - non_goals
+  - acceptance_criteria
+  - verification
+  - risks
+
+template: |
+  Repo: AdrianR98/parqet-app
+  Mode: Spar
+  Branch: <type>/<short-description>
+  Create PR: yes/no
+
+  Task title:
+  <short title>
+
+  Linked issues:
+  Refs #<parent>
+  Fixes #<child>
+
+  Goal:
+  <what should be true after this task>
+
+  Read first:
+  - AGENTS.md
+  - prompts/master-prompt.yaml
+  - docs/PROJECT_STATUS.md
+
+  Allowed changes:
+  - <path or area>
+
+  Non-goals:
+  - <explicitly out of scope>
+
+  Acceptance criteria:
+  - [ ] <criterion>
+
+  Verification:
+  - npm run lint
+  - npm run build
+
+  Risks:
+  - <risk to watch>
+
+voll_required_note: >
+  Use Voll for risky first tasks involving auth/OAuth, tokens/cookies,
+  API contracts, data pipeline, persistence, caching, CI/Branch Protection,
+  security or large refactorings.

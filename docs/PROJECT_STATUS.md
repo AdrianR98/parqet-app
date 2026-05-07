@@ -1,193 +1,61 @@
-# Project Status — Parqet App
+# Project Status
 
-Status: draft
+Status: active for Phase 0
 Owner: AdrianR98
-Last reviewed: 2026-05-04
+Last reviewed: 2026-05-07
 
-Dieses Dokument beschreibt den aktuellen Projektstand der Parqet-App. Es ist bewusst nüchtern gehalten: Implementierte Funktionen, bekannte Einschränkungen und nächste Schritte werden getrennt.
+## Current Working Status
 
----
+The repository is establishing the Phase-0 collaboration and operating baseline. This phase covers governance, documentation, prompts, templates, ADR structure, CI foundation and security/privacy rules.
 
-## 1. Kurzbeschreibung
+Phase 0 does not implement product features, redesign the app, change Parqet API behavior, change OAuth/token handling, or modify the activity/asset calculation logic.
 
-Die Parqet-App ist eine Next.js-App zur Auswertung von Parqet-Portfolios. Sie nutzt Parqet Connect, lädt autorisierte Portfolios und Aktivitäten, normalisiert Wertpapierbewegungen und erzeugt daraus Dashboard-, Asset- und Activities-Audit-Ansichten.
+## Latest Stable State
 
-Der aktuelle Fokus liegt auf Stabilisierung, Dokumentation, Pipeline-Konsolidierung, Performance und Qualitätssicherung.
+The repository contains a Next.js App Router application with Parqet-oriented routes and UI areas, including dashboard and activities/audit concepts. The existing product implementation is treated as the baseline for Phase 0.
 
----
+Known implementation themes from existing documentation:
 
-## 2. Aktueller Repo-Stand
+- Parqet Connect is the intended OAuth data source.
+- Authorized portfolio and activity data are transformed into internal portfolio views.
+- Reconciliation warnings and overrides are part of the data-quality model.
+- Dashboard, assets and activities/audit views should continue moving toward one shared normalized activity context.
+- The existing Parqet pipeline guardrail remains: do not create a second activity or asset pipeline before Phase 1 decides otherwise.
 
-### Erledigt
+## Phase 0 Deliverables
 
-- Next.js-App mit App Router vorhanden.
-- Dashboard-Route vorhanden.
-- Activities-Route vorhanden.
-- Parqet OAuth Start- und Callback-Routen vorhanden.
-- API-Routen für Portfolios, Assets, Activities-Audit und Asset-Audit sind im Projektkontext vorhanden.
-- Dashboard lädt Portfolios und Assets über API-Routen.
-- Assets werden in offene und geschlossene Positionen getrennt.
-- Reconciliation-Warnungen und Consistency-Report existieren als fachliche Prüfschicht.
-- Activities-Seite zeigt Audit-Items, Warnungen und Inline-Override-Bearbeitung.
-- Lokale Asset-Metadaten-Anreicherung ist vorgesehen und teilweise umgesetzt.
-- Dashboard-Cache existiert, ist aber noch nicht vollständig finalisiert.
-- Codex-Masterprompt, Task-Katalog, Issue-Templates, PR-Template und Roadmap-Dokument sind angelegt.
-- README wurde vom Next.js-Standardtext auf eine produktbezogene Projekt-README umgestellt.
+- Short agent entrypoint in `AGENTS.md`.
+- New prompt structure in `prompts/`.
+- English README and documentation baseline.
+- German placeholder files only for README and development workflow.
+- ADR template and collaboration operating-system ADR.
+- Issue forms and PR template.
+- CI workflow running lint and build.
+- Manual-only placeholder workflows for future Issue-Agent and Translation-Agent.
+- `.env.example`, `.gitignore` local privacy rules and `CHANGELOG.md`.
 
-### Teilweise umgesetzt / in Arbeit
+## Next Steps
 
-- Gemeinsame Datenpipeline ist fachlich erkennbar, aber technisch noch nicht vollständig als Shared Service extrahiert.
-- Assets-Route und Activities-Audit-Route enthalten noch potenziell duplizierte Pipeline-Logik.
-- Performance-Hotspot beim vollständigen Laden von Activities je Portfolio ist bekannt.
-- Activities-Audit filtert und gruppiert aktuell stark clientseitig.
-- Test-Infrastruktur fehlt noch.
-- CI/Merge-Gates sind noch nicht final eingerichtet.
+1. Review and merge the Phase-0 operating baseline.
+2. Decide Phase-1 target architecture work, especially the activity/asset pipeline consolidation boundary.
+3. Open focused issues for tests, CI hardening and later documentation-only CI optimization.
+4. Decide when Branch Protection should be activated.
+5. Decide when a Translation-Agent may create full German documentation translations.
 
-### Noch nicht umgesetzt
+## Risks
 
-- `npm run test` existiert noch nicht.
-- Vitest ist noch nicht eingerichtet.
-- Playwright ist noch nicht eingerichtet.
-- Branch Protection ist noch nicht final dokumentiert/aktiviert.
-- `build-activity-context` oder vergleichbarer Shared Pipeline Service existiert noch nicht.
-- Serverseitige Pagination für Activities-Audit ist noch nicht umgesetzt.
-- Bounded Concurrency für Portfolio-Activities ist noch nicht umgesetzt.
-- CTA `Neue Aktivität` wurde entfernt; Activity-Erstellung ist weiterhin nicht implementiert und wird auf der Activities-Seite explizit abgegrenzt (Korrekturen via Overrides).
-
----
-
-## 3. Aktuelle Phasenlage
-
-### P1 — GitHub- und Governance-Grundlage
-
-Status: abgeschlossen.
-
-Deliverables:
-
-- `docs/CODEX_MASTERPROMPT.md`
-- `docs/CODEX_TASK_CATALOG.md`
-- `docs/ROADMAP.md`
-- `.github/ISSUE_TEMPLATE/*`
-- `.github/PULL_REQUEST_TEMPLATE.md`
-- Parent-Issue `#1`
-
-### P2 — Dokumentation als Single Source of Truth
-
-Status: in Arbeit.
-
-Erledigt:
-
-- README ersetzt.
-- `docs/PROJECT_STATUS.md` angelegt.
-- `docs/ARCHITECTURE.md` angelegt.
-- `docs/DATA_MODEL.md` angelegt.
-
-Ausstehend:
-
-- `docs/UI_REFERENCE_PARQET.md`
-- `docs/adr/0000-template.md`
-- ggf. erste ADRs für Pipeline und UI-Regeln.
-
-### P3 — Kanonische Datenpipeline
-
-Status: geplant.
-
-Nächster technischer Schwerpunkt:
-
-- Gemeinsamen Activity Context Builder extrahieren.
-- Route Handler auf Projektionen aus dem gemeinsamen Kontext umstellen.
-- API-Kontrakte stabil halten.
-
-### P4 — Performance und Pagination
-
-Status: geplant.
-
-Schwerpunkte:
-
-- Bounded Concurrency beim Activity-Laden.
-- Serverseitige Pagination und Filter in Activities-Audit.
-- Dashboard-Cache vervollständigen.
-- Loading- und Stale-Data-Zustände verbessern.
-
-### P5 — Fachlogik und Data Quality
-
-Status: geplant.
-
-Schwerpunkte:
-
-- Override-Workflow als Review-Fälle.
-- Namensauflösung per ISIN stabilisieren.
-- offene und geschlossene Positionen sauber trennen.
-- CTA-Entscheidung umgesetzt: kein aktiver Create-Button ohne Schreibpfad; stattdessen klare Abgrenzung zu Overrides.
-
-### P6 — UI-Parität und UX-Konsistenz
-
-Status: geplant.
-
-Schwerpunkte:
-
-- UI-Referenz aus vorhandenen Parqet-Exports dokumentieren.
-- Theme-Tokens konsequent nutzen.
-- keine neue Designwelt einführen.
-
-### P7 — Tests, QA und CI
-
-Status: geplant.
-
-Schwerpunkte:
-
-- Vitest für Unit-Tests.
-- Playwright für Smoke-/E2E-Tests.
-- GitHub Actions Workflow.
-- Branch Protection finalisieren.
-
----
-
-## 4. Bekannte Risiken
-
-| Risiko | Bedeutung | Geplanter Umgang |
+| Risk | Impact | Handling |
 | --- | --- | --- |
-| Duplizierte Pipeline-Logik | Unterschiedliche Ergebnisse zwischen Dashboard und Audit möglich | P3 Shared Service |
-| Vollständiges Activity-Laden | Langsame Aktualisierung bei mehreren Portfolios | P4 Bounded Concurrency und Pagination |
-| Fehlende Tests | Refactorings können Regressionen verursachen | P7 Vitest/Playwright/CI |
-| Unklare Parqet-API-Limits | Performance-Optimierung kann Rate-Limits treffen | konservative Concurrency, Messung, Dokumentation |
-| Lokale Override-Datei | Risiko bei Encoding/BOM oder parallelem Schreiben | strikte UTF-8-Regeln, spätere Persistenzentscheidung |
-| UI-Drift | Abweichung vom Parqet-ähnlichen Zielbild | P6 UI-Referenz und ADR |
-| Hardcodierte Callback-Weiterleitung | Lokal/Deployment-Konflikt möglich | spätere Konfiguration über Env/Base URL |
+| Private data leakage | Blocks PRs and may require secret rotation or history cleanup | Keep `.local/` ignored, keep `.env*` ignored and review diffs before PR |
+| Duplicate pipeline logic | Future dashboard/audit inconsistencies | Preserve existing guardrail and decide target architecture in Phase 1 |
+| Missing test baseline | Refactors remain harder to verify | Track as follow-up; do not add Vitest in Phase 0 |
+| CI not yet protected | Failed checks do not block merge automatically | Document Branch Protection, activate later |
+| German placeholders incomplete | German docs are not yet useful as standalone docs | English remains source of truth until Translation-Agent PR |
 
----
+## Assumptions
 
-## 5. Definition of Ready für neue Issues
-
-Ein Issue ist bereit für Codex, wenn es enthält:
-
-- klare Problem- oder Zielbeschreibung,
-- betroffene Dateien oder Suchbereiche,
-- Akzeptanzkriterien,
-- Nicht-Ziele,
-- erwartete Verifikation,
-- Hinweis auf `docs/CODEX_MASTERPROMPT.md`,
-- bei Architekturentscheidungen: ADR-Anforderung.
-
----
-
-## 6. Definition of Done für PRs
-
-Ein PR ist fertig, wenn:
-
-- der Scope des Issues eingehalten wurde,
-- README/docs aktualisiert wurden, falls relevant,
-- `npm run lint` ausgeführt wurde,
-- `npm run build` ausgeführt wurde,
-- Tests ausgeführt oder fehlendes test-Script explizit dokumentiert wurden,
-- Risiken und Rollback im PR beschrieben sind,
-- keine privaten Daten oder Secrets enthalten sind.
-
----
-
-## 7. Nächste empfohlene Schritte
-
-1. `docs/UI_REFERENCE_PARQET.md` anlegen.
-2. ADR-Ordner und ADR-Template anlegen.
-3. Erstes technisches Issue für P3-A erstellen: Shared Activity Context Builder.
-4. Danach Codex mit einem abgeleiteten Prompt aus `docs/CODEX_TASK_CATALOG.md` arbeiten lassen.
+- `main` remains the stable branch.
+- Phase 0 PRs may be documentation/governance-only.
+- CI starts with lint and build only.
+- Auto-merge is not enabled in Phase 0.
+- Existing labels are managed outside this PR.

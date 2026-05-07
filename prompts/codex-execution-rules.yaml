@@ -1,0 +1,46 @@
+version: 1
+purpose: Execution and reporting rules for Codex tasks.
+
+execution:
+  - Inspect requested files before editing.
+  - Respect the branch requested by the task.
+  - Keep unrelated dirty worktree changes out of the PR.
+  - Use explicit staging when the worktree is mixed.
+  - Do not modify app implementation files for governance-only tasks.
+  - Do not add tests, libraries or tooling unless requested by the issue.
+  - Do not create or modify GitHub labels in code.
+  - Do not create label-management scripts.
+
+verification:
+  run_when_available:
+    - npm run lint
+    - npm run build
+  always_run_for_repo_report:
+    - git status --short
+    - git diff --stat
+    - git diff --check
+    - git diff --name-only
+  if_missing_or_failing:
+    - report clearly
+    - avoid broad cleanup
+    - suggest follow-up issues
+
+reporting:
+  include:
+    - branch
+    - changed files
+    - removed files
+    - verification results
+    - lint/build gaps
+    - deviations from task
+    - risks and follow-up work
+  pr_body_must_include:
+    - Summary
+    - Linked issues
+    - Changed files grouped by area
+    - Removed / replaced docs
+    - Verification results
+    - Known gaps / follow-up work
+    - Risks
+    - Rollback
+    - Confirmation that src app implementation files were not changed unless explicitly explained

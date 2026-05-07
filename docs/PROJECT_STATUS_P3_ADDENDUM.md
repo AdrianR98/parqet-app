@@ -18,7 +18,7 @@ Umgesetzt:
 - Die Assets-Route nutzt den Shared Activity Context.
 - Die Activities-Audit-Route nutzt den Shared Activity Context.
 - Die Asset-Audit-Route nutzt den Shared Activity Context.
-- Die Architekturentscheidung ist in `docs/adr/0002-shared-activity-context.md` dokumentiert.
+- Die Architekturentscheidung ist in `docs/adr/0003-shared-activity-context.md` dokumentiert.
 
 Relevante Issues und PRs:
 

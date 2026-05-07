@@ -4,91 +4,32 @@ Status: proposed
 Date: YYYY-MM-DD
 Owner: AdrianR98
 
----
-
 ## Context
 
-Describe the situation, problem, constraints and relevant background.
-
-Include:
-
-- affected files or modules,
-- current behavior,
-- known limitations,
-- product constraints,
-- technical constraints,
-- user-facing impact.
-
----
+Describe the problem, constraints, current behavior and why a decision is needed.
 
 ## Decision
 
-Describe the decision clearly.
-
-The decision should be specific enough that future implementation work can follow it without guessing.
-
----
-
-## Options considered
-
-### Option A
-
-Description.
-
-Pros:
-
-- 
-
-Cons:
-
-- 
-
-### Option B
-
-Description.
-
-Pros:
-
-- 
-
-Cons:
-
-- 
-
----
+Describe the decision clearly enough that future implementation work can follow it.
 
 ## Consequences
 
-Describe the expected consequences.
+Positive consequences:
 
-Positive:
+- TBD
 
-- 
+Trade-offs and risks:
 
-Negative / trade-offs:
-
-- 
+- TBD
 
 Operational impact:
 
-- 
-
-Testing impact:
-
-- 
+- TBD
 
 Documentation impact:
 
-- 
+- TBD
 
----
-
-## Rollback / revision plan
-
-Describe how this decision can be changed or reverted later.
-
----
-
-## Related issues / PRs
+## Related Issues / PRs
 
 - Refs #

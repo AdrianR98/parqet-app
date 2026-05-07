@@ -1,0 +1,40 @@
+version: 1
+purpose: Define the collaboration workflow between Adrian, ChatGPT, Codex and GitHub.
+
+workflow:
+  - step: idea_or_problem
+    owner: Adrian
+    output: goal, context, constraints and desired priority
+  - step: issue_shaping
+    owner: ChatGPT
+    output: issue draft with acceptance criteria, non-goals, verification and risks
+  - step: repository_execution
+    owner: Codex
+    output: branch, implementation, verification report and draft PR when requested
+  - step: review
+    owner: Adrian
+    output: approval, change requests or follow-up issue
+  - step: merge_decision
+    owner: Adrian
+    output: merge, defer or close
+
+github:
+  issues:
+    - Track goals, acceptance criteria, non-goals and risks.
+    - Use Fixes only when the PR fully closes the issue.
+    - Use Refs for parent issues or partial work.
+  pull_requests:
+    - Keep PRs small and reviewable.
+    - Always state whether Codex was involved.
+    - Always include risk and rollback.
+  ci:
+    - Phase 0 runs lint and build only.
+    - Documentation-only CI optimization is a later goal.
+
+future_agents:
+  issue_agent:
+    status: manual-only placeholder in Phase 0
+    rule: no automatic issue changes
+  translation_agent:
+    status: manual-only placeholder in Phase 0
+    rule: no automatic translation PRs until explicitly activated later

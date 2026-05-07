@@ -1,4 +1,4 @@
-# ADR 0001: UI-Referenz und Theme-Token-Regeln
+# ADR 0002: UI-Referenz und Theme-Token-Regeln
 
 Status: accepted
 Date: 2026-05-04
