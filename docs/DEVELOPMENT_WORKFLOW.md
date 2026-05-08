@@ -77,6 +77,22 @@ git diff --name-only
 
 If lint or build is missing or failing, report the gap clearly and avoid broad cleanup unless the issue explicitly authorizes it.
 
+## Vercel Deployments
+
+Vercel may create deployments for pull requests and for changes merged into `main`.
+
+The repository provides a conservative ignored-build helper:
+
+```bash
+npm run vercel:ignore-build
+```
+
+Configure this command in Vercel as the Ignored Build Step. The script skips Vercel builds only when all changed files are clearly documentation or governance files, such as `docs/**`, `prompts/**`, `.github/ISSUE_TEMPLATE/**`, `README.md`, `README.de.md`, `CHANGELOG.md` or `AGENTS.md`.
+
+The script intentionally triggers a build when app-relevant or deployment-sensitive files change, including `src/**`, `app/**`, `components/**`, `lib/**`, `public/**`, `scripts/**`, dependency files, Next.js config, TypeScript config, `.env.example` or `.github/workflows/**`.
+
+When the script cannot determine the changed files or sees an unknown path, it fails open and lets Vercel build. GitHub CI remains independent and should still run as configured.
+
 ## Security And Privacy
 
 - No real tokens.

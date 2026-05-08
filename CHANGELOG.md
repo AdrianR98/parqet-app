@@ -9,6 +9,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 ### Added
 
 - Phase-0 repository operating baseline for collaboration, documentation, prompts, templates and CI.
+- Conservative Vercel ignored-build helper for documentation/governance-only changes.
 
 ### Changed
 
@@ -21,6 +22,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 ### Docs
 
 - Added Phase-0 documentation set, ADR template and collaboration ADR.
+- Documented the Vercel ignored-build strategy in the development workflow.
 
 ### Governance
 
