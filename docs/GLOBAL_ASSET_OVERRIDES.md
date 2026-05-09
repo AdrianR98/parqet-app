@@ -19,7 +19,8 @@ Implemented in this phase:
 - unresolved decision candidates in the audit report,
 - empty override JSON file,
 - override type/parser/loader foundation,
-- narrow application of `ignore_activity_for_position`.
+- narrow application of `ignore_activity_for_position`,
+- refined candidate metadata for non-duplicate negative positions.
 
 Not implemented yet:
 
@@ -55,6 +56,7 @@ ignore_activity_for_position
 reclassify_activity_type
 add_manual_quantity_adjustment
 mark_as_known_external_issue
+manual_review_required
 ```
 
 ### `ignore_activity_for_position`
@@ -85,7 +87,7 @@ This decision type is parsed but not applied yet.
 
 Use when an inbound/outbound quantity is missing and the user chooses to add a local correction.
 
-Example: add +0.2025 for one ISIN/portfolio on a chosen date.
+Example: add a confirmed local quantity adjustment for one asset/portfolio on a chosen date.
 
 This decision type is parsed but not applied yet.
 
@@ -94,6 +96,14 @@ This decision type is parsed but not applied yet.
 Use when the user acknowledges a problem but does not want to correct it yet.
 
 Metrics should remain blocked unless a later explicit decision says otherwise.
+
+This decision type is parsed but not applied yet.
+
+### `manual_review_required`
+
+Use when the candidate should remain blocked until a user explicitly reviews it.
+
+This is useful for ratio/factor mismatch cases where ignoring an activity would be too aggressive.
 
 This decision type is parsed but not applied yet.
 
@@ -164,10 +174,12 @@ Activity-level audit data can also show `positionOverride` on redacted timeline 
 
 ## Cause categories
 
-Initial negative quantity cause categories:
+Negative quantity cause categories:
 
 ```text
 sell_exceeds_known_position
+sell_quantity_ratio_mismatch
+possible_decimal_or_split_issue
 transfer_in_then_sell_then_sell
 duplicate_sell_candidate
 missing_inbound_activity
@@ -175,6 +187,22 @@ unknown_negative_quantity_case
 ```
 
 These categories are diagnostic. They do not repair data by themselves.
+
+Duplicate-like cases can suggest `ignore_activity_for_position` because one activity may be a duplicate. Non-duplicate ratio cases are more conservative and should prioritize `manual_review_required`, `mark_as_known_external_issue`, a future manual quantity adjustment or reclassification.
+
+## Ratio metadata
+
+For non-duplicate negative positions, candidate metadata can include:
+
+```text
+quantityRatio
+possibleMismatchFactor
+ratioHint
+```
+
+This helps identify patterns such as an outbound quantity that is roughly 10x, 100x or 1000x the known inbound quantity.
+
+This metadata is diagnostic only. It does not change calculations.
 
 ## Safety rules
 
