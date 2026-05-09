@@ -1,6 +1,6 @@
 # Phase Plan
 
-Status: active after Phase 0
+Status: active in Phase 1
 
 ## Phase 0 - Collaboration And Repo Operating System
 
@@ -34,7 +34,7 @@ Non-goals:
 
 ## Phase 0.1 - Workflow Hardening And Agent Readiness
 
-Status: in progress.
+Status: completed.
 
 Goal: harden the Phase-0 collaboration system before product and architecture work begins.
 
@@ -67,39 +67,67 @@ Non-goals:
 - No direct `main` writes by agents.
 - No private data in repository files, issues, PRs or logs.
 
-## Phase 1 - Product, Architecture And Pipeline Decisions
+## Phase 1 - Global Asset Timeline Foundation
 
-Status: planned after Phase 0.1.
+Status: active.
 
-Goal: decide and document the product target and architecture for shared Parqet data flow before larger implementation work.
+Parent issue: #57
 
-Entry gate:
+Goal: define and prepare the product and architecture foundation for an asset-centric, portfolio-wide Global Asset Timeline.
 
-- Phase-1 specification may be prepared during Phase 0.1.
-- Phase-1 implementation starts only after Phase 0.1 is merged.
-- Phase 1 starts with product goal definition.
-- The current app is audited against that product goal afterwards.
-- First product implementation starts only after an Implementation Entry Checklist.
+The app is a Parqet Integration Dashboard. Parqet remains the data source through Parqet Connect / OAuth. This app adds a consolidated analysis layer across authorized portfolios.
 
-Likely work:
+Core product goal:
 
-- Define target product goal and non-goals.
-- Define priority user flows.
-- Decide whether the current app is continued/refactored, partially rebuilt or fully rebuilt.
-- Define shared activity/asset context boundary.
-- Identify duplicated route or library responsibilities.
-- Decide pipeline consolidation approach.
-- Define API compatibility requirements.
-- Decide caching/persistence concept.
-- Decide test strategy for pipeline work.
-- Add ADRs for pipeline and any persistence/caching decision.
+- consolidate the same security across multiple portfolios,
+- use a Global Asset model centered on security identity,
+- preserve portfolio origin,
+- preserve activity history, dividends, fees and taxes,
+- represent transfer-related events explicitly,
+- produce warnings/confidence instead of hiding ambiguous data,
+- keep the existing product implementation stable until the implementation gate is met.
+
+Completed work:
+
+- #58 P1-1: API field audit completed and recorded in `docs/PARQET_API_AUDIT.md`.
+
+Current work:
+
+- #62 P1-2: ADR Global Asset Timeline.
+
+Planned next work:
+
+- P1-3: Type model for `NormalizedActivity`, `GlobalAsset`, portfolio breakdowns, timeline entries, warnings and confidence.
+- P1-4: Normalization pipeline.
+- P1-5: Global Asset builder / aggregation.
+- P1-6: Transfer representation and later transfer pairing.
+- P1-7: Reconciliation warnings and confidence.
+- P1-8: Audit JSON report / debug UI.
+
+Entry / implementation gate:
+
+- API audit completed.
+- Global Asset Timeline ADR accepted.
+- Type model defined.
+- Normalization boundary defined.
+- Warning/confidence model defined.
+- Audit/report mode exists.
+- Existing asset calculation remains unchanged until explicit decision.
+- No real Parqet reference files enter repository files, issues, PRs or logs.
 
 Guardrails:
 
 - Existing app remains the stable baseline during Phase 1.
-- No second activity or asset pipeline before Phase 1 decision or ADR.
+- No product UI switch to Global Asset data before the implementation gate.
+- No automatic transfer pairing before a dedicated issue.
 - OAuth/Auth remains unchanged until a dedicated Full Review issue exists.
 - Real Parqet reference files stay local/ignored and must not enter issues, PRs or logs.
+
+Known follow-ups:
+
+- Transfer pairing / matching model for `transfer_in` and `transfer_out`.
+- OpenAPI cross-check against the official Parqet Connect specification.
+- Cost-basis and realized-gain decision after type model and audit/report mode.
 
 ## Phase 2 - Implementation Foundations
 

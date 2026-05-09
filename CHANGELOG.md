@@ -16,6 +16,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Guarded manual Translation-Agent v1 workflow for German documentation review markers and Draft PR creation.
 - Manual Issue-Agent v1 workflow with dry-run/apply modes for allowlisted issue metadata.
 - Phase-1 Global Asset Timeline Foundation parent and privacy-safe Parqet API field audit route.
+- ADR 0002 for the Phase-1 Global Asset Timeline architecture decision.
 
 ### Changed
 
@@ -28,6 +29,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Agent workflow guidance now documents the guarded Translation-Agent v1 implementation.
 - Project status now marks Phase 1 as active and Phase 0.1 as complete.
 - Vercel ignored-build helper now skips local/development-only Parqet audit tooling changes.
+- Phase plan now describes Phase 1 as Global Asset Timeline Foundation.
 
 ### Fixed
 
@@ -43,6 +45,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented Issue-Agent v1 manual usage, dry-run/apply behavior and hard limits.
 - Added `docs/PARQET_API_AUDIT.md` for Phase-1 API field audit guidance.
 - Recorded non-private local Parqet API field audit findings for Phase 1.
+- Documented the Global Asset Timeline architecture decision in `docs/adr/0002-global-asset-timeline.md`.
 
 ### Governance
 
