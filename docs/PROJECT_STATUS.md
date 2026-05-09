@@ -1,20 +1,41 @@
 # Project Status
 
-Status: Phase 0.1 in progress
+Status: Phase 1 started - Global Asset Timeline Foundation
 Owner: AdrianR98
 Last reviewed: 2026-05-09
 
 ## Current Working Status
 
-The repository has established the Phase-0 collaboration and operating baseline. Phase 0 covered governance, documentation, prompts, templates, ADR structure, CI foundation, Vercel ignored-build setup and security/privacy rules.
+The repository has completed Phase 0 and Phase 0.1.
 
-Phase 0 did not implement product features, redesign the app, change Parqet API behavior, change OAuth/token handling, or modify the activity/asset calculation logic.
+Phase 0 established the collaboration, documentation, prompt, template and CI baseline. Phase 0.1 hardened the workflow rules, agent permissions, issue lifecycle, PR review rules, documentation impact rules, GitHub Project guidance, Translation-Agent v1 and Issue-Agent v1.
 
-Phase 0.1 is now hardening the workflow before Phase 1 product and architecture work begins. It refines Codex execution rules, agent permissions, issue lifecycle, PR review levels, documentation impact rules, Phase-1 entry rules and CI/Vercel verification rules.
+The project is now entering Phase 1: Global Asset Timeline Foundation.
+
+Phase 1 defines and prepares the core product value of the Parqet Integration: an asset-centric, portfolio-wide view that consolidates the same security across multiple authorized Parqet portfolios while keeping portfolio origin, transfers, dividends, warnings and confidence visible.
+
+Phase 1 must not replace existing product calculations until the API audit, ADR and audit/report mode are complete.
+
+## Product Definition
+
+The app is a Parqet Integration Dashboard.
+
+Parqet remains the data source through Parqet Connect / OAuth. This app adds an analysis layer that focuses on:
+
+- portfolio-wide Global Assets,
+- complete asset timelines across multiple portfolios,
+- transfer-aware deposits and withdrawals,
+- consolidated dividend history,
+- portfolio breakdowns,
+- reconciliation warnings,
+- confidence signals,
+- closed positions.
+
+The app may present itself as a Parqet Integration, but it must not appear to be an official Parqet product.
 
 ## Latest Stable State
 
-The repository contains a Next.js App Router application with Parqet-oriented routes and UI areas, including dashboard and activities/audit concepts. The existing product implementation is treated as the stable baseline during Phase 0.1.
+The repository contains a Next.js App Router application with Parqet-oriented routes and UI areas, including dashboard and activities/audit concepts. The existing product implementation remains the stable baseline during Phase 1 until a later decision explicitly changes it.
 
 Known implementation themes from existing documentation:
 
@@ -35,41 +56,48 @@ Known implementation themes from existing documentation:
 - CI workflow running lint and build.
 - `.env.example`, `.gitignore` local privacy rules and `CHANGELOG.md`.
 - Conservative Vercel ignored-build helper for documentation/governance-only changes.
-- Vercel ignored-build behavior verified with a documentation-only PR.
-- Phase 0.1 Parent/Sub-Issues created for workflow hardening.
-- Phase 0.1 PR group 1 merged for Rules / Docs / YAML.
+- Vercel ignored-build helper updated to skip workflow-only and agent-script-only changes.
 - GitHub Project Board v1 setup guide documented with manual fallback.
 - Translation-Agent v1 prepared as a guarded manual workflow.
+- Issue-Agent v1 prepared as a guarded manual metadata workflow.
+- Phase 0.1 Parent/Sub-Issues completed.
 
-## Active Phase 0.1 Work
+## Active Phase 1 Work
 
-Parent issue: #39
+Parent issue: #57
 
-Sub-Issues:
+First active Sub-Issue:
 
-- #40 Codex modes and task execution rules.
-- #41 Agent maturity model and permissions.
-- #42 Issue lifecycle and planning rules.
-- #43 PR review levels and merge rules.
-- #44 Documentation impact and changelog rules.
-- #45 Translation-Agent workflow v1.
-- #46 Phase-1 planning gate and product-development entry rules.
-- #47 CI, Vercel and verification rules after #36.
-- #48 GitHub Project Board v1.
+- #58 P1-1: Audit Parqet API fields for Global Asset Timeline.
 
-Implementation grouping:
+Known follow-ups outside the Phase-1 core:
 
-1. Rules / Docs / YAML: merged.
-2. GitHub Project / Labels: documented setup guide and manual fallback.
-3. Agent Workflows: Translation-Agent v1 prepared; Issue-Agent technical implementation remains a later explicit activation topic.
+- #53 Add AI translation mode to Translation-Agent.
+- #56 Tune Issue-Agent v1 classification rules.
+
+## Phase 1 Implementation Gate
+
+Before productive Global Asset UI or replacement of existing asset calculations:
+
+- [ ] API audit completed.
+- [ ] `docs/PARQET_API_AUDIT.md` created without private values.
+- [ ] ADR Global Asset Timeline created.
+- [ ] Global Asset types defined.
+- [ ] NormalizedActivity model defined.
+- [ ] Reconciliation warning model defined.
+- [ ] Audit/report mode works.
+- [ ] No real Parqet data committed.
+- [ ] Existing asset calculation has not been replaced.
+- [ ] Decision documented for when/how the new pipeline becomes productive.
+- [ ] Vercel deployability remains intact.
 
 ## Next Steps
 
-1. Review and merge Phase 0.1 PR group 3: Agent Workflows.
-2. If desired, manually create the GitHub Project Board using `docs/GITHUB_PROJECT_BOARD.md`.
-3. Run Translation-Agent manually in `check` mode after merge.
-4. Prepare Phase 1 product-goal specification.
-5. Start Phase 1 only after Phase 0.1 is merged.
+1. Complete #58 with a privacy-safe Parqet API field audit.
+2. Run the audit locally after connecting Parqet and enabling `ENABLE_PARQET_AUDIT_ROUTES=true`.
+3. Record only non-private findings in `docs/PARQET_API_AUDIT.md`.
+4. Use the findings to draft the Global Asset Timeline ADR.
+5. Continue Phase 1 with type model, normalization, transfer detection, warning/confidence and audit-report work.
 
 ## Risks
 
@@ -83,13 +111,15 @@ Implementation grouping:
 | Agent automation scope creep | Issues or docs could be changed too broadly | Keep agent capabilities explicit, idempotent and limited to approved outputs |
 | GitHub Project API limitation | Board setup may not be fully automatable through the connector | Use documented manual fallback in `docs/GITHUB_PROJECT_BOARD.md` |
 | Translation workflow overreach | German docs could appear authoritative before review | Translation-Agent creates Draft PRs and TODO warnings for human review |
+| Audit route exposure | Private structures could be exposed if route is misconfigured | Block in production and require explicit local feature flag |
+| Premature Global Asset implementation | Wrong assumptions about API fields could create bugs | Start with API audit and ADR before production pipeline replacement |
 
 ## Assumptions
 
 - `main` remains the stable branch.
-- Documentation/governance-only PRs may use the Vercel ignored-build helper.
+- Documentation/governance/workflow-only PRs may use the Vercel ignored-build helper.
 - CI starts with lint and build only.
 - Auto-merge is not enabled.
 - Branch Protection is not activated yet.
-- Phase 0.1 may change workflow docs, prompt files and guarded workflow files but not app/product code.
+- Phase 1 starts with API audit and architecture decisions before product implementation.
 - GitHub Project Board is an operational view, not the source of truth.
