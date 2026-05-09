@@ -40,6 +40,7 @@ Supported parameters:
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `includeActivities` | `false` | Includes redacted normalized activities only when explicitly enabled. |
+| `includeAssets` | `true` | Includes redacted Global Assets unless explicitly disabled. |
 | `includeAmounts` | `false` | Includes money values only when explicitly enabled. |
 | `includePortfolioNames` | `false` | Includes real portfolio names only when explicitly enabled. |
 | `includeActivityIds` | `false` | Includes source/internal activity IDs only when explicitly enabled. |
@@ -55,6 +56,12 @@ Minimal local call:
 
 ```text
 http://localhost:3000/api/parqet/global-assets/audit
+```
+
+Summary-focused report without assets or activities:
+
+```text
+http://localhost:3000/api/parqet/global-assets/audit?includeAssets=false&includeActivities=false&limit=5
 ```
 
 Small report with a low array limit:
@@ -122,6 +129,24 @@ Returned arrays include truncation flags, for example:
 - Amounts are redacted by default.
 - Query parameters can opt into more detail for local debugging only.
 
+## Quantity tolerance
+
+The aggregation layer uses a small tolerance for status and warning decisions:
+
+```ts
+const QUANTITY_EPSILON = 0.000001;
+```
+
+This only removes floating-point artifacts near zero. It does not remove real fractional shares.
+
+Examples:
+
+```text
+-8.326672684688674e-17 -> 0
+0.30547858 remains 0.30547858
+0.0005 remains 0.0005
+```
+
 ## Parqet reauthorization note
 
 Parqet Connect authorization can be scoped to the portfolios granted during the OAuth consent flow. If portfolios were added, renamed or appear to be missing, revoke the integration in Parqet and connect again through:
@@ -138,7 +163,7 @@ Observed Parqet activity payloads can expose `avgHoldingPeriod` as a large milli
 
 ## Non-goals
 
-P1-6 does not implement:
+P1-7 does not implement:
 
 - product dashboard integration,
 - product UI,
