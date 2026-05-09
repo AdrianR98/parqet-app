@@ -30,6 +30,29 @@ http://localhost:3000/api/auth/start
 
 Do not commit real audit outputs.
 
+## Cookie header for terminal requests
+
+The browser has Parqet cookies after OAuth. PowerShell does not automatically share those browser cookies.
+
+If the browser route works but the helper script returns `401 Unauthorized`, copy the local Cookie header from the browser request and pass it explicitly.
+
+Example:
+
+```powershell
+npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..."
+```
+
+```powershell
+npm run audit:asset -- -Isin US83444M1018 -CookieHeader "parqet_access_token=...; parqet_refresh_token=..."
+```
+
+Rules:
+
+- Use cookie values locally only.
+- Do not commit cookie values.
+- Do not paste cookie values into issues, PRs, chats or screenshots.
+- The scripts do not print cookie values.
+
 ## Summary audit
 
 Run:
@@ -43,6 +66,7 @@ Optional:
 ```powershell
 npm run audit:summary -- -Limit 5
 npm run audit:summary -- -BaseUrl "http://localhost:3000" -Limit 5
+npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..."
 ```
 
 The summary helper prints only:
@@ -69,6 +93,7 @@ Optional flags:
 npm run audit:asset -- -Isin US83444M1018 -Limit 100 -IncludeActivities
 npm run audit:asset -- -Isin US83444M1018 -IncludeActivities -IncludeAmounts
 npm run audit:asset -- -Isin US83444M1018 -IncludePortfolioNames -IncludeActivityIds
+npm run audit:asset -- -Isin US83444M1018 -CookieHeader "parqet_access_token=...; parqet_refresh_token=..."
 ```
 
 Defaults stay privacy-safe:
@@ -85,7 +110,7 @@ If a script fails, check:
 - `npm run dev` is running,
 - `ENABLE_GLOBAL_ASSET_AUDIT_ROUTES=true` is set,
 - Parqet is connected locally,
-- your local browser/session has valid Parqet cookies,
+- terminal requests may require an explicit `-CookieHeader`,
 - the requested ISIN exists in the authorized portfolios.
 
 ## Non-goals
