@@ -21,6 +21,10 @@ function assetKeyToGroupKey(assetKey: GlobalAssetKey): string {
   return `${assetKey.type}:${assetKey.value}`;
 }
 
+function isMoneyValue(value: MoneyValue | null | undefined): value is MoneyValue {
+  return Boolean(value);
+}
+
 function createAggregationWarning(input: {
   code: ReconciliationWarningCode;
   severity: ReconciliationWarningSeverity;
@@ -94,7 +98,7 @@ function sortTimelineEntries(entries: GlobalAssetTimelineEntry[]): GlobalAssetTi
 }
 
 function collectCurrencies(values: Array<MoneyValue | null | undefined>): string[] {
-  return Array.from(new Set(values.filter(Boolean).map((value) => value.currency)));
+  return Array.from(new Set(values.filter(isMoneyValue).map((value) => value.currency)));
 }
 
 function sumMoneyValues(
@@ -102,7 +106,7 @@ function sumMoneyValues(
   context: { assetKey: GlobalAssetKey; metric: BlockedMetric; label: string },
   warnings: ReconciliationWarning[]
 ): MoneyValue | null {
-  const presentValues = values.filter(Boolean) as MoneyValue[];
+  const presentValues = values.filter(isMoneyValue);
 
   if (presentValues.length === 0) {
     return null;
