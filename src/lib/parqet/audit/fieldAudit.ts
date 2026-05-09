@@ -129,10 +129,12 @@ function classifyValue(value: unknown): string {
     if (Array.isArray(value)) return "array";
     if (value instanceof Date) return "date-like string";
 
+    if (typeof value === "string") {
+        return isDateLikeString(value) ? "date-like string" : "string";
+    }
+
     const valueType = typeof value;
 
-    if (valueType === "string" && isDateLikeString(value)) return "date-like string";
-    if (valueType === "string") return "string";
     if (valueType === "number") return "number";
     if (valueType === "boolean") return "boolean";
     if (valueType === "object") return "object";
