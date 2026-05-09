@@ -19,6 +19,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - ADR 0002 for the Phase-1 Global Asset Timeline architecture decision.
 - Phase-1 Global Asset Timeline type model under `src/lib/parqet/global-assets/`.
 - Phase-1 Global Asset activity normalization pipeline under `src/lib/parqet/global-assets/`.
+- Phase-1 Global Asset aggregation layer under `src/lib/parqet/global-assets/`.
 
 ### Changed
 
@@ -50,6 +51,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented the Global Asset Timeline architecture decision in `docs/adr/0002-global-asset-timeline.md`.
 - Added `docs/GLOBAL_ASSET_TYPE_MODEL.md` for the Phase-1 type boundary.
 - Added `docs/GLOBAL_ASSET_NORMALIZATION.md` for the Phase-1 normalization mapping.
+- Added `docs/GLOBAL_ASSET_AGGREGATION.md` for the Phase-1 aggregation mapping.
 
 ### Governance
 
