@@ -5,8 +5,8 @@ import { runGlobalAssetPipelineAudit, type GlobalAssetAuditOptions } from "../..
 import type { ParqetActivityWithPortfolioContext } from "../../../../../lib/parqet/global-assets";
 
 const FEATURE_FLAG = "ENABLE_GLOBAL_ASSET_AUDIT_ROUTES";
-const DEFAULT_LIMIT = 100;
-const MAX_LIMIT = 1000;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 250;
 
 function parseBoolean(value: string | null, fallback: boolean): boolean {
   if (value === null) return fallback;
@@ -27,7 +27,7 @@ function isEnabled(): boolean {
 
 function getQueryOptions(url: URL): GlobalAssetAuditOptions {
   return {
-    includeActivities: parseBoolean(url.searchParams.get("includeActivities"), true),
+    includeActivities: parseBoolean(url.searchParams.get("includeActivities"), false),
     includeAmounts: parseBoolean(url.searchParams.get("includeAmounts"), false),
     includePortfolioNames: parseBoolean(url.searchParams.get("includePortfolioNames"), false),
     includeActivityIds: parseBoolean(url.searchParams.get("includeActivityIds"), false),
