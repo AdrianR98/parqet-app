@@ -10,6 +10,7 @@ import type {
   ParqetActivityWithPortfolioContext,
   ReconciliationWarning,
   ReconciliationWarningSeverity,
+  UnresolvedDecisionCandidate,
 } from "./types";
 
 export type GlobalAssetAuditEnvironment = "development" | "test" | "production" | "unknown";
@@ -66,6 +67,7 @@ export type GlobalAssetAuditSummary = {
   unknownAssetCount: number;
   mixedCurrencyAssetCount: number;
   negativeQuantityAssetCount: number;
+  unresolvedDecisionCandidateCount: number;
   warningsBySeverity: Record<ReconciliationWarningSeverity, number>;
   warningsByCode: Record<string, number>;
 };
@@ -86,9 +88,11 @@ export type GlobalAssetAuditReport = {
     assets: GlobalAsset[];
     unassignedActivities: NormalizedActivity[];
     warnings: ReconciliationWarning[];
+    unresolvedDecisionCandidates: UnresolvedDecisionCandidate[];
     assetsTruncated: boolean;
     unassignedActivitiesTruncated: boolean;
     warningsTruncated: boolean;
+    unresolvedDecisionCandidatesTruncated: boolean;
     timelinesTruncated: boolean;
   };
   warnings: ReconciliationWarning[];
@@ -198,11 +202,28 @@ function redactSortKey(sortKey: string, includeActivityIds: boolean): string {
   return `${datePart || "unknown-date"}|redacted`;
 }
 
+function redactUnresolvedDecisionCandidate(
+  candidate: UnresolvedDecisionCandidate,
+  aliases: ReportAliases
+): UnresolvedDecisionCandidate {
+  return {
+    ...candidate,
+    portfolioId: redactPortfolioId(candidate.portfolioId, aliases),
+  };
+}
+
 function redactWarning(
   warning: ReconciliationWarning,
   options: RedactionOptions,
   aliases: ReportAliases
 ): ReconciliationWarning {
+  const redactedCause = warning.metadata?.negativeQuantityCause
+    ? redactUnresolvedDecisionCandidate(
+        { ...warning.metadata.negativeQuantityCause, metricsBlocked: true },
+        aliases
+      )
+    : undefined;
+
   return {
     ...warning,
     entityRefs: warning.entityRefs
@@ -211,6 +232,12 @@ function redactWarning(
           activityId: options.includeActivityIds ? warning.entityRefs.activityId : null,
           portfolioId: redactPortfolioId(warning.entityRefs.portfolioId, aliases),
           holdingId: redactHoldingId(warning.entityRefs.holdingId, options.includeActivityIds),
+        }
+      : undefined,
+    metadata: warning.metadata
+      ? {
+          ...warning.metadata,
+          negativeQuantityCause: redactedCause,
         }
       : undefined,
   };
@@ -297,6 +324,9 @@ function redactAsset(
         warnings: breakdown.warnings.map((warning) => redactWarning(warning, options, aliases)),
       })),
       warnings: asset.warnings.map((warning) => redactWarning(warning, options, aliases)),
+      unresolvedDecisionCandidates: asset.unresolvedDecisionCandidates?.map((candidate) =>
+        redactUnresolvedDecisionCandidate(candidate, aliases)
+      ),
       totals: {
         ...asset.totals,
         marketValue: redactMoney(asset.totals.marketValue, options.includeAmounts),
@@ -339,6 +369,10 @@ function buildNextSteps(summary: GlobalAssetAuditSummary): string[] {
     "Continue with transfer handling and confidence refinement.",
   ];
 
+  if (summary.unresolvedDecisionCandidateCount > 0) {
+    nextSteps.unshift("Review unresolved decision candidates before unblocking affected metrics.");
+  }
+
   if (summary.unassignedActivityCount > 0) {
     nextSteps.unshift("Inspect unassigned activities and missing asset keys.");
   }
@@ -368,6 +402,8 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
   const limitedActivities = limitArray(allUnredactedActivities, limit);
   const limitedAssets = limitArray(allUnredactedAssets, limit);
   const limitedUnassigned = limitArray(input.aggregation.unassignedActivities, limit);
+  const unresolvedDecisionCandidates = input.aggregation.unresolvedDecisionCandidates ?? [];
+  const limitedUnresolvedDecisionCandidates = limitArray(unresolvedDecisionCandidates, limit);
   const redactedAllNormalizationWarnings = input.normalization.warnings.map((warning) =>
     redactWarning(warning, privacyOptions, aliases)
   );
@@ -394,6 +430,7 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
     unknownAssetCount: input.aggregation.summary.unknownAssetCount,
     mixedCurrencyAssetCount: input.aggregation.summary.mixedCurrencyAssetCount,
     negativeQuantityAssetCount: input.aggregation.summary.negativeQuantityAssetCount,
+    unresolvedDecisionCandidateCount: unresolvedDecisionCandidates.length,
     warningsBySeverity: countWarningsBySeverity(allWarnings),
     warningsByCode: countWarningsByCode(allWarnings),
   };
@@ -426,9 +463,13 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
         ? limitedUnassigned.items.map((activity) => redactActivity(activity, privacyOptions, aliases))
         : [],
       warnings: limitedAggregationWarnings.items,
+      unresolvedDecisionCandidates: limitedUnresolvedDecisionCandidates.items.map((candidate) =>
+        redactUnresolvedDecisionCandidate(candidate, aliases)
+      ),
       assetsTruncated: includeAssets ? limitedAssets.truncated : false,
       unassignedActivitiesTruncated: includeAssets ? limitedUnassigned.truncated : false,
       warningsTruncated: limitedAggregationWarnings.truncated,
+      unresolvedDecisionCandidatesTruncated: limitedUnresolvedDecisionCandidates.truncated,
       timelinesTruncated,
     },
     warnings: limitedFlatWarnings.items,

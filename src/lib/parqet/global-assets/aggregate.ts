@@ -5,9 +5,12 @@ import {
   GlobalAsset,
   GlobalAssetAggregationResult,
   GlobalAssetKey,
+  GlobalAssetOverrideDecisionType,
   GlobalAssetStatus,
   GlobalAssetTimelineEntry,
   MoneyValue,
+  NegativeQuantityCause,
+  NegativeQuantityCauseType,
   NormalizedActivity,
   PortfolioBreakdown,
   PortfolioBreakdownStatus,
@@ -15,6 +18,8 @@ import {
   ReconciliationWarningCode,
   ReconciliationWarningSeverity,
   TimelineDisplayType,
+  UnresolvedDecisionCandidate,
+  WarningMetadata,
 } from "./types";
 
 const QUANTITY_EPSILON = 0.000001;
@@ -39,6 +44,10 @@ function isNegativeQuantity(quantity: number): boolean {
   return normalizeQuantityForStatus(quantity) < 0;
 }
 
+function quantitiesMatch(left: number, right: number): boolean {
+  return Math.abs(left - right) < QUANTITY_EPSILON;
+}
+
 function createAggregationWarning(input: {
   code: ReconciliationWarningCode;
   severity: ReconciliationWarningSeverity;
@@ -49,6 +58,7 @@ function createAggregationWarning(input: {
   portfolioId?: string | null;
   holdingId?: string | null;
   blockedMetrics?: BlockedMetric[];
+  metadata?: WarningMetadata;
 }): ReconciliationWarning {
   return {
     code: input.code,
@@ -63,6 +73,7 @@ function createAggregationWarning(input: {
       holdingId: input.holdingId,
     },
     blockedMetrics: input.blockedMetrics,
+    metadata: input.metadata,
   };
 }
 
@@ -81,6 +92,28 @@ function quantityEffect(activity: NormalizedActivity): number {
     case "dividend":
     case "fees_taxes":
     case "unknown":
+      return 0;
+  }
+}
+
+function inboundQuantityEffect(activity: NormalizedActivity): number {
+  switch (activity.activityType) {
+    case "buy":
+    case "deposit":
+    case "transfer_in":
+      return activity.quantity ?? 0;
+    default:
+      return 0;
+  }
+}
+
+function outboundQuantityEffect(activity: NormalizedActivity): number {
+  switch (activity.activityType) {
+    case "sell":
+    case "withdrawal":
+    case "transfer_out":
+      return activity.quantity ?? 0;
+    default:
       return 0;
   }
 }
@@ -148,14 +181,72 @@ function sumMoneyValues(
   };
 }
 
-function buildPortfolioBreakdowns(
+function getSuggestedDecisionTypes(cause: NegativeQuantityCauseType): GlobalAssetOverrideDecisionType[] {
+  switch (cause) {
+    case "transfer_in_then_sell_then_sell":
+    case "duplicate_sell_candidate":
+      return ["ignore_activity_for_position", "reclassify_activity_type", "mark_as_known_external_issue"];
+    case "sell_exceeds_known_position":
+    case "missing_inbound_activity":
+      return ["add_manual_quantity_adjustment", "reclassify_activity_type", "mark_as_known_external_issue"];
+    case "unknown_negative_quantity_case":
+      return ["mark_as_known_external_issue", "add_manual_quantity_adjustment"];
+  }
+}
+
+function classifyNegativeQuantityCause(
   assetKey: GlobalAssetKey,
+  portfolioId: string,
   activities: NormalizedActivity[],
-  warnings: ReconciliationWarning[]
-): PortfolioBreakdown[] {
+  currentQuantity: number
+): NegativeQuantityCause {
+  const knownInboundQuantity = normalizeQuantityForStatus(
+    activities.reduce((sum, activity) => sum + inboundQuantityEffect(activity), 0)
+  );
+  const knownOutboundQuantity = normalizeQuantityForStatus(
+    activities.reduce((sum, activity) => sum + outboundQuantityEffect(activity), 0)
+  );
+  const transferIns = activities.filter((activity) => activity.activityType === "transfer_in" && (activity.quantity ?? 0) > 0);
+  const sells = activities.filter((activity) => activity.activityType === "sell" && (activity.quantity ?? 0) > 0);
+  const hasTransferInThenSellThenSell = transferIns.some((transferIn) => {
+    const matchingSells = sells.filter((sell) => quantitiesMatch(sell.quantity ?? 0, transferIn.quantity ?? 0));
+    return matchingSells.length >= 2;
+  });
+  const hasDuplicateSellCandidate = sells.some((sell, index) =>
+    sells.slice(index + 1).some((otherSell) => quantitiesMatch(sell.quantity ?? 0, otherSell.quantity ?? 0))
+  );
+  let cause: NegativeQuantityCauseType = "unknown_negative_quantity_case";
+
+  if (hasTransferInThenSellThenSell) {
+    cause = "transfer_in_then_sell_then_sell";
+  } else if (hasDuplicateSellCandidate) {
+    cause = "duplicate_sell_candidate";
+  } else if (knownInboundQuantity === 0 && knownOutboundQuantity > 0) {
+    cause = "missing_inbound_activity";
+  } else if (knownOutboundQuantity > knownInboundQuantity) {
+    cause = "sell_exceeds_known_position";
+  }
+
+  return {
+    cause,
+    assetKey,
+    portfolioId,
+    knownInboundQuantity,
+    knownOutboundQuantity,
+    negativeQuantity: currentQuantity,
+    suggestedDecisionTypes: getSuggestedDecisionTypes(cause),
+  };
+}
+
+function buildPortfolioBreakdowns(input: {
+  assetKey: GlobalAssetKey;
+  activities: NormalizedActivity[];
+  warnings: ReconciliationWarning[];
+  unresolvedDecisionCandidates: UnresolvedDecisionCandidate[];
+}): PortfolioBreakdown[] {
   const groups = new Map<string, NormalizedActivity[]>();
 
-  for (const activity of activities) {
+  for (const activity of input.activities) {
     const portfolioId = activity.portfolioContext.portfolioId;
     const current = groups.get(portfolioId) ?? [];
     current.push(activity);
@@ -163,13 +254,13 @@ function buildPortfolioBreakdowns(
   }
 
   if (groups.size === 0) {
-    warnings.push(
+    input.warnings.push(
       createAggregationWarning({
         code: "MISSING_PORTFOLIO_BREAKDOWN",
         severity: "Warning",
         message: "No portfolio breakdown could be created for asset.",
         debugMessage: "At least one portfolio context is required for breakdowns.",
-        assetKey,
+        assetKey: input.assetKey,
         blockedMetrics: ["portfolio_breakdown"],
       })
     );
@@ -186,17 +277,31 @@ function buildPortfolioBreakdowns(
     const breakdownWarnings: ReconciliationWarning[] = [];
 
     if (isNegativeQuantity(quantity)) {
+      const negativeQuantityCause = classifyNegativeQuantityCause(
+        input.assetKey,
+        portfolioId,
+        portfolioActivities,
+        quantity
+      );
+      const unresolvedDecisionCandidate: UnresolvedDecisionCandidate = {
+        ...negativeQuantityCause,
+        metricsBlocked: true,
+      };
       const warning = createAggregationWarning({
         code: "NEGATIVE_POSITION_QUANTITY",
         severity: "Warning",
         message: "Portfolio position quantity is negative.",
         debugMessage: "Preliminary quantity calculation resulted in a negative portfolio quantity after applying tolerance.",
-        assetKey,
+        assetKey: input.assetKey,
         portfolioId,
         blockedMetrics: ["position", "portfolio_breakdown"],
+        metadata: {
+          negativeQuantityCause,
+        },
       });
       breakdownWarnings.push(warning);
-      warnings.push(warning);
+      input.warnings.push(warning);
+      input.unresolvedDecisionCandidates.push(unresolvedDecisionCandidate);
     }
 
     return {
@@ -240,6 +345,7 @@ function deriveAssetConfidence(warnings: ReconciliationWarning[]): AssetConfiden
 
 function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]): GlobalAsset {
   const warnings: ReconciliationWarning[] = [];
+  const unresolvedDecisionCandidates: UnresolvedDecisionCandidate[] = [];
 
   if (activities.length === 0) {
     warnings.push(
@@ -264,11 +370,17 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     }))
   );
 
-  const portfolioBreakdowns = buildPortfolioBreakdowns(assetKey, activities, warnings);
+  const portfolioBreakdowns = buildPortfolioBreakdowns({
+    assetKey,
+    activities,
+    warnings,
+    unresolvedDecisionCandidates,
+  });
   const rawTotalQuantity = portfolioBreakdowns.reduce((sum, breakdown) => sum + (breakdown.quantity ?? 0), 0);
   const totalQuantity = normalizeQuantityForStatus(rawTotalQuantity);
 
   if (isNegativeQuantity(totalQuantity)) {
+    const firstCause = unresolvedDecisionCandidates[0];
     warnings.push(
       createAggregationWarning({
         code: "NEGATIVE_POSITION_QUANTITY",
@@ -277,6 +389,11 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
         debugMessage: "Preliminary quantity calculation resulted in a negative global quantity after applying tolerance.",
         assetKey,
         blockedMetrics: ["position"],
+        metadata: firstCause
+          ? {
+              negativeQuantityCause: firstCause,
+            }
+          : undefined,
       })
     );
   }
@@ -356,6 +473,7 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     timeline,
     portfolioBreakdowns,
     warnings,
+    unresolvedDecisionCandidates,
     confidence: deriveAssetConfidence(warnings),
     status,
     totals: {
@@ -403,12 +521,14 @@ export function buildGlobalAssets(activities: NormalizedActivity[]): GlobalAsset
 
   const assets = Array.from(groups.values()).map((group) => buildAsset(group.assetKey, group.activities));
   const assetWarnings = assets.flatMap((asset) => asset.warnings);
+  const assetDecisionCandidates = assets.flatMap((asset) => asset.unresolvedDecisionCandidates ?? []);
   const allWarnings = [...warnings, ...assetWarnings];
 
   return {
     assets,
     unassignedActivities,
     warnings: allWarnings,
+    unresolvedDecisionCandidates: assetDecisionCandidates,
     summary: {
       inputActivityCount: activities.length,
       assetCount: assets.length,
