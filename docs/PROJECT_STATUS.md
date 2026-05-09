@@ -1,6 +1,6 @@
 # Project Status
 
-Status: Phase 1 started - Global Asset Timeline Foundation
+Status: Phase 1 active - Global Asset Timeline Foundation
 Owner: AdrianR98
 Last reviewed: 2026-05-09
 
@@ -10,7 +10,7 @@ The repository has completed Phase 0 and Phase 0.1.
 
 Phase 0 established the collaboration, documentation, prompt, template and CI baseline. Phase 0.1 hardened the workflow rules, agent permissions, issue lifecycle, PR review rules, documentation impact rules, GitHub Project guidance, Translation-Agent v1 and Issue-Agent v1.
 
-The project is now entering Phase 1: Global Asset Timeline Foundation.
+The project is now in Phase 1: Global Asset Timeline Foundation.
 
 Phase 1 defines and prepares the core product value of the Parqet Integration: an asset-centric, portfolio-wide view that consolidates the same security across multiple authorized Parqet portfolios while keeping portfolio origin, transfers, dividends, warnings and confidence visible.
 
@@ -56,19 +56,24 @@ Known implementation themes from existing documentation:
 - CI workflow running lint and build.
 - `.env.example`, `.gitignore` local privacy rules and `CHANGELOG.md`.
 - Conservative Vercel ignored-build helper for documentation/governance-only changes.
-- Vercel ignored-build helper updated to skip workflow-only and agent-script-only changes.
+- Vercel ignored-build helper updated to skip workflow-only, agent-script-only and dev-only audit-tooling changes.
 - GitHub Project Board v1 setup guide documented with manual fallback.
 - Translation-Agent v1 prepared as a guarded manual workflow.
 - Issue-Agent v1 prepared as a guarded manual metadata workflow.
 - Phase 0.1 Parent/Sub-Issues completed.
+- Phase 1 API field audit completed and documented in `docs/PARQET_API_AUDIT.md`.
 
 ## Active Phase 1 Work
 
 Parent issue: #57
 
-First active Sub-Issue:
+Completed Phase-1 Sub-Issue:
 
 - #58 P1-1: Audit Parqet API fields for Global Asset Timeline.
+
+Current Phase-1 Sub-Issue:
+
+- #62 P1-2: ADR Global Asset Timeline.
 
 Known follow-ups outside the Phase-1 core:
 
@@ -79,8 +84,8 @@ Known follow-ups outside the Phase-1 core:
 
 Before productive Global Asset UI or replacement of existing asset calculations:
 
-- [ ] API audit completed.
-- [ ] `docs/PARQET_API_AUDIT.md` created without private values.
+- [x] API audit completed.
+- [x] `docs/PARQET_API_AUDIT.md` created without private values.
 - [ ] ADR Global Asset Timeline created.
 - [ ] Global Asset types defined.
 - [ ] NormalizedActivity model defined.
@@ -93,11 +98,10 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 
 ## Next Steps
 
-1. Complete #58 with a privacy-safe Parqet API field audit.
-2. Run the audit locally after connecting Parqet and enabling `ENABLE_PARQET_AUDIT_ROUTES=true`.
-3. Record only non-private findings in `docs/PARQET_API_AUDIT.md`.
-4. Use the findings to draft the Global Asset Timeline ADR.
-5. Continue Phase 1 with type model, normalization, transfer detection, warning/confidence and audit-report work.
+1. Complete #62 with ADR 0002: Global Asset Timeline.
+2. Create P1-3 for the TypeScript type model: `NormalizedActivity`, `GlobalAsset`, portfolio breakdowns, timeline entries, warnings and confidence.
+3. Continue Phase 1 with normalization, transfer detection, warning/confidence and audit-report work.
+4. Create later follow-ups for transfer pairing and OpenAPI cross-check.
 
 ## Risks
 
@@ -113,11 +117,13 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 | Translation workflow overreach | German docs could appear authoritative before review | Translation-Agent creates Draft PRs and TODO warnings for human review |
 | Audit route exposure | Private structures could be exposed if route is misconfigured | Block in production and require explicit local feature flag |
 | Premature Global Asset implementation | Wrong assumptions about API fields could create bugs | Start with API audit and ADR before production pipeline replacement |
+| Missing portfolio context | Portfolio breakdown and transfer logic could be wrong | Attach portfolio context in the fetch layer before normalization |
+| Premature transfer pairing | Transfers could be incorrectly matched | Preserve transfer types first; implement pairing in a dedicated later issue |
 
 ## Assumptions
 
 - `main` remains the stable branch.
-- Documentation/governance/workflow-only PRs may use the Vercel ignored-build helper.
+- Documentation/governance/workflow/dev-only audit PRs may use the Vercel ignored-build helper.
 - CI starts with lint and build only.
 - Auto-merge is not enabled.
 - Branch Protection is not activated yet.
