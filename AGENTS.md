@@ -21,6 +21,10 @@ Core rules:
 - Do not redesign the app or implement product features unless the issue explicitly requests it.
 - Phase-1 analysis tasks are read/report-first and must not change app code unless explicitly allowed.
 - Do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
+- Treat external API budget minimization as a product and architecture rule, not just a debugging preference.
+- Any Parqet/API-touching change must describe request impact, cache/reuse strategy, retry behavior and rate-limit handling.
+- Avoid automatic full reloads for navigation, filtering, editing or rendering unless an issue explicitly justifies them.
+- Prefer explicit refresh actions, cached snapshots, narrow request scopes, provider-side filters, pagination and bounded concurrency.
 - Codex must not commit, open PRs or choose branch names unless the task explicitly allows it.
 - Codex must never merge.
 - Agents do not get unrestricted authority. Detailed agent permissions live in `prompts/workflow-chatgpt-codex.yaml` and `docs/DEVELOPMENT_WORKFLOW.md`.
