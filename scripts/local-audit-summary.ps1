@@ -36,53 +36,6 @@ function Initialize-CookieJarFile {
   if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path $directory)) {
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
   }
-
-  if (-not (Test-Path $ResolvedCookieJarPath)) {
-    @(
-      "# Netscape HTTP Cookie File",
-      "# Local Parqet audit cookies. Do not commit."
-    ) | Set-Content -Path $ResolvedCookieJarPath -Encoding utf8
-  }
-}
-
-function Seed-CookieJarFromHeader {
-  param(
-    [string]$CookieHeader,
-    [string]$ResolvedCookieJarPath
-  )
-
-  if ([string]::IsNullOrWhiteSpace($CookieHeader)) {
-    return
-  }
-
-  Initialize-CookieJarFile -ResolvedCookieJarPath $ResolvedCookieJarPath
-
-  $lines = @(
-    "# Netscape HTTP Cookie File",
-    "# Local Parqet audit cookies. Do not commit."
-  )
-
-  foreach ($part in ($CookieHeader -split ";")) {
-    $trimmed = $part.Trim()
-    if ([string]::IsNullOrWhiteSpace($trimmed)) {
-      continue
-    }
-
-    $separatorIndex = $trimmed.IndexOf("=")
-    if ($separatorIndex -lt 1) {
-      continue
-    }
-
-    $name = $trimmed.Substring(0, $separatorIndex).Trim()
-    $value = $trimmed.Substring($separatorIndex + 1)
-    if ([string]::IsNullOrWhiteSpace($name)) {
-      continue
-    }
-
-    $lines += "localhost`tFALSE`t/`tFALSE`t0`t$name`t$value"
-  }
-
-  $lines | Set-Content -Path $ResolvedCookieJarPath -Encoding ascii
 }
 
 function Invoke-AuditRequestWithCurl {
@@ -94,13 +47,15 @@ function Invoke-AuditRequestWithCurl {
   )
 
   if ($UseCookieJar) {
+    Initialize-CookieJarFile -ResolvedCookieJarPath $ResolvedCookieJarPath
+
     if (-not [string]::IsNullOrWhiteSpace($CookieHeader)) {
-      Seed-CookieJarFromHeader -CookieHeader $CookieHeader -ResolvedCookieJarPath $ResolvedCookieJarPath
-    } elseif (-not (Test-Path $ResolvedCookieJarPath)) {
+      $response = & curl.exe -sS -H "Cookie: $CookieHeader" -c $ResolvedCookieJarPath $Url
+    } elseif (Test-Path $ResolvedCookieJarPath) {
+      $response = & curl.exe -sS -b $ResolvedCookieJarPath -c $ResolvedCookieJarPath $Url
+    } else {
       throw "Cookie jar not found. Run once with -CookieHeader `$cookie -UseCookieJar after browser OAuth."
     }
-
-    $response = & curl.exe -sS -b $ResolvedCookieJarPath -c $ResolvedCookieJarPath $Url
   } else {
     $response = & curl.exe -sS $Url -H "Cookie: $CookieHeader"
   }
