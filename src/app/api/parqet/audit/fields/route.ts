@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCookieValue, refreshParqetAccessToken } from "../../../../../../lib/parqet";
-import { buildParqetApiFieldAudit } from "../../../../../../lib/parqet/audit/fieldAudit";
+import { getCookieValue, refreshParqetAccessToken } from "../../../../../lib/parqet";
+import { buildParqetApiFieldAudit } from "../../../../../lib/parqet/audit/fieldAudit";
 
 const PARQET_BASE_URL = "https://connect.parqet.com";
 
