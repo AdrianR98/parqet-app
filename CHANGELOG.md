@@ -28,6 +28,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Safe diagnostic output for Global Asset audit failures, including category and retry hints where available.
 - Refined Global Asset negative quantity candidate metadata for ratio and factor mismatch cases.
 - Configurable Parqet activity fetch concurrency for local audit rate-limit mitigation.
+- Project-wide API budget minimization principle for Parqet and external provider calls.
 
 ### Changed
 
@@ -73,6 +74,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented persistent local audit authentication with a gitignored cookie jar.
 - Documented refined negative quantity cause categories and ratio metadata.
 - Documented local audit activity fetch concurrency guidance.
+- Documented API budget minimization in the master prompt, agent entrypoint, workflow and phase plan.
 
 ### Governance
 
@@ -83,6 +85,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Replaced the Translation-Agent placeholder with a constrained manual workflow.
 - Replaced the Issue-Agent placeholder with a constrained manual metadata workflow.
 - Started Phase 1 with API field audit before Global Asset Timeline implementation.
+- Required API budget impact analysis for future Parqet/API-touching issues and pull requests.
 
 ### Security
 
