@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCookieValue, refreshParqetAccessToken } from "../../../../../lib/parqet";
 import { buildActivityContext } from "../../../../../lib/parqet-assets/build-activity-context";
-import { runGlobalAssetPipelineAudit, type GlobalAssetAuditOptions } from "../../../../../lib/parqet/global-assets";
+import {
+  runGlobalAssetPipelineAudit,
+  type GlobalAssetAuditAssetFilter,
+  type GlobalAssetAuditOptions,
+} from "../../../../../lib/parqet/global-assets";
 import type { ParqetActivityWithPortfolioContext } from "../../../../../lib/parqet/global-assets";
 
 const FEATURE_FLAG = "ENABLE_GLOBAL_ASSET_AUDIT_ROUTES";
@@ -21,6 +25,23 @@ function parseLimit(value: string | null): number {
   return Math.min(Math.floor(parsed), MAX_LIMIT);
 }
 
+function normalizeAssetFilterValue(value: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+}
+
+function getAssetFilter(url: URL): GlobalAssetAuditAssetFilter | null {
+  const explicitType = normalizeAssetFilterValue(url.searchParams.get("assetKeyType"))?.toLowerCase();
+  const explicitValue = normalizeAssetFilterValue(url.searchParams.get("assetKeyValue"));
+
+  if (explicitType === "isin" && explicitValue) {
+    return { type: "isin", value: explicitValue };
+  }
+
+  const isin = normalizeAssetFilterValue(url.searchParams.get("isin"));
+  return isin ? { type: "isin", value: isin } : null;
+}
+
 function isEnabled(): boolean {
   return process.env[FEATURE_FLAG] === "true";
 }
@@ -32,6 +53,7 @@ function getQueryOptions(url: URL): GlobalAssetAuditOptions {
     includeAmounts: parseBoolean(url.searchParams.get("includeAmounts"), false),
     includePortfolioNames: parseBoolean(url.searchParams.get("includePortfolioNames"), false),
     includeActivityIds: parseBoolean(url.searchParams.get("includeActivityIds"), false),
+    assetFilter: getAssetFilter(url),
     limit: parseLimit(url.searchParams.get("limit")),
   };
 }

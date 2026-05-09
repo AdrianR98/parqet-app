@@ -46,6 +46,9 @@ Supported parameters:
 | `includeAmounts` | `false` | Includes money values only when explicitly enabled. |
 | `includePortfolioNames` | `false` | Includes real portfolio names only when explicitly enabled. |
 | `includeActivityIds` | `false` | Includes source/internal activity IDs only when explicitly enabled. |
+| `isin` | empty | Convenience filter for a single ISIN / Global Asset. |
+| `assetKeyType` | empty | Explicit asset key type. Currently `isin`. |
+| `assetKeyValue` | empty | Explicit asset key value. |
 | `portfolioIds` | empty | Comma-separated portfolio IDs. |
 | `portfolioId` | empty | Repeatable portfolio ID parameter. |
 | `limit` | `20` | Limits returned arrays and nested timelines where practical. |
@@ -90,6 +93,18 @@ Focused ISIN helper:
 npm run audit:asset -- -Isin US83444M1018
 ```
 
+Equivalent focused ISIN route:
+
+```text
+http://localhost:3000/api/parqet/global-assets/audit?isin=US83444M1018&includeAssets=true&includeActivities=true&limit=100
+```
+
+Explicit asset key route:
+
+```text
+http://localhost:3000/api/parqet/global-assets/audit?assetKeyType=isin&assetKeyValue=US83444M1018&includeAssets=true&limit=100
+```
+
 Include amounts and portfolio names locally:
 
 ```text
@@ -103,6 +118,24 @@ http://localhost:3000/api/parqet/global-assets/audit?portfolioIds=portfolio_demo
 ```
 
 Do not paste real output into issues, pull requests, docs or screenshots.
+
+## Asset filter behavior
+
+`isin` is a convenience alias for:
+
+```text
+assetKeyType=isin&assetKeyValue=<ISIN>
+```
+
+Explicit `assetKeyType` and `assetKeyValue` win over `isin` if both are provided. ISIN input is trimmed and uppercased.
+
+When an asset filter is active:
+
+- normalized activities are filtered before aggregation,
+- summaries represent the filtered audit output,
+- `sources.sourceActivityCount` still shows the full fetched source count,
+- `sources.filteredActivityCount` shows the number of matching normalized activities,
+- `sources.assetFilterApplied` is `true`.
 
 ## Report shape
 

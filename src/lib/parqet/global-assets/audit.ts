@@ -4,6 +4,7 @@ import type {
   ActivitiesNormalizationResult,
   GlobalAsset,
   GlobalAssetAggregationResult,
+  GlobalAssetKey,
   MoneyValue,
   NormalizedActivity,
   ParqetActivityWithPortfolioContext,
@@ -13,12 +14,18 @@ import type {
 
 export type GlobalAssetAuditEnvironment = "development" | "test" | "production" | "unknown";
 
+export type GlobalAssetAuditAssetFilter = {
+  type: GlobalAssetKey["type"];
+  value: string;
+};
+
 export type GlobalAssetAuditOptions = {
   includeActivities?: boolean;
   includeAssets?: boolean;
   includeAmounts?: boolean;
   includePortfolioNames?: boolean;
   includeActivityIds?: boolean;
+  assetFilter?: GlobalAssetAuditAssetFilter | null;
   limit?: number | null;
 };
 
@@ -26,6 +33,9 @@ export type GlobalAssetAuditSources = {
   sourceActivityCount: number;
   selectedPortfolioCount?: number;
   portfolioFilterApplied?: boolean;
+  assetFilterApplied?: boolean;
+  assetFilter?: GlobalAssetAuditAssetFilter | null;
+  filteredActivityCount?: number;
   note?: string;
 };
 
@@ -131,6 +141,15 @@ function limitArray<T>(items: T[], limit: number | null): { items: T[]; truncate
   }
 
   return { items: items.slice(0, limit), truncated: true };
+}
+
+function matchesAssetFilter(activity: NormalizedActivity, assetFilter: GlobalAssetAuditAssetFilter | null | undefined): boolean {
+  if (!assetFilter) {
+    return true;
+  }
+
+  const assetKey = activity.assetIdentity.assetKey;
+  return Boolean(assetKey && assetKey.type === assetFilter.type && assetKey.value === assetFilter.value);
 }
 
 function buildAliases(activities: NormalizedActivity[], assets: GlobalAsset[]): ReportAliases {
@@ -386,6 +405,9 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
       sourceActivityCount: summary.sourceActivityCount,
       selectedPortfolioCount: input.sources?.selectedPortfolioCount,
       portfolioFilterApplied: input.sources?.portfolioFilterApplied,
+      assetFilterApplied: input.sources?.assetFilterApplied,
+      assetFilter: input.sources?.assetFilter,
+      filteredActivityCount: input.sources?.filteredActivityCount,
       note: input.sources?.note,
     },
     normalization: {
@@ -437,14 +459,50 @@ export function runGlobalAssetPipelineAudit(
   sources?: Partial<GlobalAssetAuditSources>
 ): GlobalAssetAuditReport {
   const normalization = normalizeActivities(contextualActivities);
-  const aggregation = buildGlobalAssetsFromNormalizationResult(normalization);
+  const assetFilter = options?.assetFilter ?? null;
+  const filteredActivities = assetFilter
+    ? normalization.activities.filter((activity) => matchesAssetFilter(activity, assetFilter))
+    : normalization.activities;
+  const filteredNormalization: ActivitiesNormalizationResult = assetFilter
+    ? {
+        ...normalization,
+        activities: filteredActivities,
+        results: normalization.results.filter((result) =>
+          result.activity ? matchesAssetFilter(result.activity, assetFilter) : false
+        ),
+        warnings: normalization.warnings.filter((warning) =>
+          warning.entityRefs?.assetKey
+            ? warning.entityRefs.assetKey.type === assetFilter.type && warning.entityRefs.assetKey.value === assetFilter.value
+            : false
+        ),
+        summary: {
+          ...normalization.summary,
+          inputCount: filteredActivities.length,
+          normalizedCount: filteredActivities.length,
+          rejectedCount: 0,
+          warningCount: normalization.warnings.filter((warning) =>
+            warning.entityRefs?.assetKey
+              ? warning.entityRefs.assetKey.type === assetFilter.type && warning.entityRefs.assetKey.value === assetFilter.value
+              : false
+          ).length,
+          blockerCount: normalization.warnings.filter((warning) =>
+            warning.severity === "Blocker" && warning.entityRefs?.assetKey?.type === assetFilter.type && warning.entityRefs.assetKey.value === assetFilter.value
+          ).length,
+          duplicateInternalIdCount: 0,
+        },
+      }
+    : normalization;
+  const aggregation = buildGlobalAssetsFromNormalizationResult(filteredNormalization);
 
   return createGlobalAssetAuditReport({
-    normalization,
+    normalization: filteredNormalization,
     aggregation,
     options,
     sources: {
       sourceActivityCount: contextualActivities.length,
+      assetFilterApplied: Boolean(assetFilter),
+      assetFilter,
+      filteredActivityCount: filteredActivities.length,
       ...sources,
     },
   });
