@@ -126,6 +126,23 @@ function Write-AuthNoteIfNeeded {
     Write-Host ""
     Write-Warning "Parqet session refresh failed. Reauthorize once in the browser via /api/auth/start, then reseed the local cookie jar with -CookieHeader `$cookie -UseCookieJar."
   }
+
+  if ($note -like "*rate limit*") {
+    Write-Host ""
+    Write-Warning "Parqet rate limit reached. Stop local audit calls until the retry window has passed."
+  }
+}
+
+function Write-DiagnosticsIfPresent {
+  param([object]$Report)
+
+  if ($null -ne $Report.diagnostic) {
+    Write-Section -Title "diagnostic" -Value $Report.diagnostic
+  }
+
+  if ($null -ne $Report.error) {
+    Write-Section -Title "error" -Value $Report.error
+  }
 }
 
 $normalizedBaseUrl = $BaseUrl.TrimEnd("/")
@@ -153,6 +170,7 @@ if (-not [string]::IsNullOrWhiteSpace($CookieHeader)) {
 }
 
 Write-AuthNoteIfNeeded -Report $report
+Write-DiagnosticsIfPresent -Report $report
 Write-Section -Title "sources" -Value $report.sources
 Write-Section -Title "normalization.summary" -Value $report.normalization.summary
 Write-Section -Title "aggregation.summary" -Value $report.aggregation.summary
