@@ -99,6 +99,18 @@ export type GlobalAssetOverrideDecisionType =
   | "add_manual_quantity_adjustment"
   | "mark_as_known_external_issue";
 
+export type AppliedGlobalAssetOverride = {
+  overrideId: string;
+  decisionType: "ignore_activity_for_position";
+  assetKey: GlobalAssetKey;
+  portfolioId?: string | null;
+  activityId?: string | null;
+};
+
+export type NormalizedActivityPositionOverride = AppliedGlobalAssetOverride & {
+  affectsPosition: false;
+};
+
 export type NegativeQuantityCause = {
   cause: NegativeQuantityCauseType;
   assetKey: GlobalAssetKey;
@@ -177,6 +189,7 @@ export type NormalizedActivity = {
   activityCurrency: string | null;
   amounts: ActivityAmounts;
   parqetReference?: ParqetReferenceFields | null;
+  positionOverride?: NormalizedActivityPositionOverride | null;
 };
 
 export type WarningEntityRefs = {
@@ -309,6 +322,7 @@ export type GlobalAssetAggregationSummary = {
   unknownAssetCount: number;
   mixedCurrencyAssetCount: number;
   negativeQuantityAssetCount: number;
+  appliedOverrideCount: number;
 };
 
 export type GlobalAssetAggregationResult = {
@@ -316,6 +330,7 @@ export type GlobalAssetAggregationResult = {
   unassignedActivities: NormalizedActivity[];
   warnings: ReconciliationWarning[];
   unresolvedDecisionCandidates?: UnresolvedDecisionCandidate[];
+  appliedOverrides?: AppliedGlobalAssetOverride[];
   summary: GlobalAssetAggregationSummary;
 };
 
