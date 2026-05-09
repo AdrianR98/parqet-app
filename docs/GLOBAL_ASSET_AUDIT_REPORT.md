@@ -19,6 +19,8 @@ The report exists to validate the new pipeline before any product UI or existing
 
 For terminal-based local usage, see `docs/LOCAL_AUDIT_WORKFLOW.md`.
 
+For future user-decision handling, see `docs/GLOBAL_ASSET_OVERRIDES.md`.
+
 ## Route
 
 Local route:
@@ -137,6 +139,31 @@ When an asset filter is active:
 - `sources.filteredActivityCount` shows the number of matching normalized activities,
 - `sources.assetFilterApplied` is `true`.
 
+## Unresolved decision candidates
+
+Unresolved decision candidates identify cases where the app should not automatically repair data.
+
+They appear in:
+
+```text
+aggregation.unresolvedDecisionCandidates
+summary.unresolvedDecisionCandidateCount
+```
+
+They may also appear as warning metadata for `NEGATIVE_POSITION_QUANTITY` warnings.
+
+Initial cause categories:
+
+```text
+sell_exceeds_known_position
+transfer_in_then_sell_then_sell
+duplicate_sell_candidate
+missing_inbound_activity
+unknown_negative_quantity_case
+```
+
+These candidates are diagnostic only. They do not change calculations yet. Affected metrics remain blocked until a future explicit user decision exists.
+
 ## Report shape
 
 Top-level fields:
@@ -161,6 +188,7 @@ Returned arrays include truncation flags, for example:
 - `aggregation.assetsTruncated`
 - `aggregation.unassignedActivitiesTruncated`
 - `aggregation.warningsTruncated`
+- `aggregation.unresolvedDecisionCandidatesTruncated`
 - `aggregation.timelinesTruncated`
 - top-level `warningsTruncated`
 
@@ -210,7 +238,7 @@ Observed Parqet activity payloads can expose `avgHoldingPeriod` as a large milli
 
 ## Non-goals
 
-P1-7/DX helpers do not implement:
+P1-8 does not implement:
 
 - product dashboard integration,
 - product UI,
@@ -221,8 +249,10 @@ P1-7/DX helpers do not implement:
 - transfer pairing,
 - metadata enrichment,
 - FX conversion,
+- applying user overrides,
+- persistence API,
 - test framework setup.
 
 ## Next step
 
-Use this report to inspect Global Asset output locally. Later Phase-1 work should refine transfer handling, warnings/confidence and the decision for when the isolated pipeline becomes productive.
+Use this report to inspect Global Asset output locally. Later Phase-1 work should apply narrow user-confirmed overrides, refine transfer handling and decide when the isolated pipeline becomes productive.
