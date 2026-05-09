@@ -15,8 +15,10 @@ Related documents:
 - `docs/adr/0002-global-asset-timeline.md`
 - `docs/GLOBAL_ASSET_TYPE_MODEL.md`
 - `docs/GLOBAL_ASSET_NORMALIZATION.md`
+- `docs/GLOBAL_ASSET_AUDIT_REPORT.md`
 - `src/lib/parqet/global-assets/types.ts`
 - `src/lib/parqet/global-assets/aggregate.ts`
+- `src/lib/parqet/global-assets/audit.ts`
 
 ## Input
 
@@ -57,6 +59,8 @@ Aggregation returns:
 ```
 
 The summary is count-only and must not contain private values.
+
+Aggregation output can be inspected through the guarded local audit report documented in `docs/GLOBAL_ASSET_AUDIT_REPORT.md`.
 
 ## Grouping rule
 
@@ -219,10 +223,9 @@ All examples are synthetic and must not be replaced with real Parqet data.
 
 ## Non-goals
 
-P1-5 does not implement:
+P1-5/P1-6 do not implement:
 
 - product UI,
-- product API routes,
 - existing dashboard/asset route replacement,
 - cost-basis calculation,
 - market-value calculation,
@@ -234,4 +237,4 @@ P1-5 does not implement:
 
 ## Next step
 
-The next Phase-1 steps should cover audit/report mode, transfer handling, warning/confidence refinement and later product integration decisions.
+The next Phase-1 steps should use the audit/report output to inspect transfer handling, warning/confidence refinement and later product integration decisions.

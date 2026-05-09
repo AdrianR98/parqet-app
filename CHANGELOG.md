@@ -20,6 +20,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Phase-1 Global Asset Timeline type model under `src/lib/parqet/global-assets/`.
 - Phase-1 Global Asset activity normalization pipeline under `src/lib/parqet/global-assets/`.
 - Phase-1 Global Asset aggregation layer under `src/lib/parqet/global-assets/`.
+- Phase-1 guarded Global Asset audit/report mode and local debug route.
 
 ### Changed
 
@@ -52,6 +53,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Added `docs/GLOBAL_ASSET_TYPE_MODEL.md` for the Phase-1 type boundary.
 - Added `docs/GLOBAL_ASSET_NORMALIZATION.md` for the Phase-1 normalization mapping.
 - Added `docs/GLOBAL_ASSET_AGGREGATION.md` for the Phase-1 aggregation mapping.
+- Added `docs/GLOBAL_ASSET_AUDIT_REPORT.md` for the Phase-1 audit/report mode.
 
 ### Governance
 
@@ -69,3 +71,4 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Reinforced private-data and log-handling rules for API/Auth/Data-related work.
 - Kept Translation-Agent v1 free of external translation services and app-code access.
 - Added feature-flag and production-blocking requirements for Parqet API audit routes.
+- Added feature-flag, production-blocking and redaction rules for the Global Asset audit/report route.

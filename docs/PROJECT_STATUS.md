@@ -65,6 +65,7 @@ Known implementation themes from existing documentation:
 - ADR 0002 documents the Global Asset Timeline architecture decision.
 - Phase 1 type model completed in `src/lib/parqet/global-assets/types.ts`.
 - Phase 1 normalization pipeline completed in `src/lib/parqet/global-assets/normalize.ts`.
+- Phase 1 aggregation layer completed in `src/lib/parqet/global-assets/aggregate.ts`.
 
 ## Active Phase 1 Work
 
@@ -76,10 +77,11 @@ Completed Phase-1 Sub-Issues:
 - #62 P1-2: ADR Global Asset Timeline.
 - #64 P1-3: Define Global Asset Timeline type model.
 - #66 P1-4: Implement Global Asset activity normalization pipeline.
+- #68 P1-5: Implement Global Asset builder and aggregation.
 
 Current Phase-1 Sub-Issue:
 
-- #68 P1-5: Implement Global Asset builder and aggregation.
+- #70 P1-6: Implement Global Asset audit and report mode.
 
 Known follow-ups outside the Phase-1 core:
 
@@ -104,8 +106,8 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 
 ## Next Steps
 
-1. Complete #68 with the Global Asset builder / aggregation layer.
-2. Continue Phase 1 with audit/report mode for the isolated Global Asset pipeline.
+1. Complete #70 with the guarded Global Asset audit/report mode.
+2. Use the audit report locally to inspect normalized and aggregated Global Asset output.
 3. Continue Phase 1 with transfer handling, warning/confidence refinement and later product integration decisions.
 4. Create later follow-ups for transfer pairing and OpenAPI cross-check.
 
