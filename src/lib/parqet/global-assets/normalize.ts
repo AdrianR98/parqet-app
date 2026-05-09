@@ -14,6 +14,7 @@ import {
 } from "./types";
 
 const ISO_LIKE_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}(?:[T\s].*)?$/;
+const MILLISECONDS_PER_DAY = 86_400_000;
 const SUPPORTED_ACTIVITY_TYPES: ActivityType[] = [
   "buy",
   "sell",
@@ -75,6 +76,20 @@ function readNumber(record: Record<string, unknown>, key: string): { value: numb
   }
 
   return { value: null, failed: true };
+}
+
+function normalizeAvgHoldingPeriodDays(value: number | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  // Parqet currently appears to return avgHoldingPeriod as milliseconds in observed activity payloads.
+  // Values above 100 years are treated as milliseconds and converted to days for the normalized model.
+  if (value > 36_500) {
+    return Math.round((value / MILLISECONDS_PER_DAY) * 1_000_000) / 1_000_000;
+  }
+
+  return value;
 }
 
 function createWarning(input: {
@@ -508,6 +523,7 @@ export function normalizeActivity(
   const realizedGains = readMoney(raw, "realizedGains", activityCurrency, warnings, context);
   const realizedGainsNet = readMoney(raw, "realizedGainsNet", activityCurrency, warnings, context);
   const avgHoldingPeriodDaysRead = readNumber(raw, "avgHoldingPeriod");
+  const avgHoldingPeriodDays = normalizeAvgHoldingPeriodDays(avgHoldingPeriodDaysRead.value);
 
   if (avgHoldingPeriodDaysRead.failed) {
     warnings.push(
@@ -524,7 +540,7 @@ export function normalizeActivity(
   }
 
   const hasReferenceFields = Boolean(
-    realizedGains || realizedGainsNet || buyAmountNet || avgHoldingPeriodDaysRead.value !== null
+    realizedGains || realizedGainsNet || buyAmountNet || avgHoldingPeriodDays !== null
   );
 
   const parqetReference: ParqetReferenceFields | null = hasReferenceFields
@@ -532,7 +548,7 @@ export function normalizeActivity(
         realizedGains,
         realizedGainsNet,
         buyAmountNet,
-        avgHoldingPeriodDays: avgHoldingPeriodDaysRead.value,
+        avgHoldingPeriodDays,
       }
     : null;
 

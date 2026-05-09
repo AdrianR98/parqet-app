@@ -32,10 +32,15 @@ export type GlobalAssetAuditPrivacy = {
   rawPayloadsExcluded: true;
   portfolioNamesIncluded: boolean;
   portfolioNamesRedacted: boolean;
+  portfolioIdsRedacted: boolean;
+  holdingIdsRedacted: boolean;
+  sortKeysRedacted: boolean;
   activityIdsIncluded: boolean;
   amountsIncluded: boolean;
   isinsIncluded: true;
   limitApplied: number | null;
+  arraysLimited: boolean;
+  warningsTruncated: boolean;
 };
 
 export type GlobalAssetAuditSummary = {
@@ -62,14 +67,21 @@ export type GlobalAssetAuditReport = {
     summary: ActivitiesNormalizationResult["summary"];
     activities: NormalizedActivity[];
     warnings: ReconciliationWarning[];
+    activitiesTruncated: boolean;
+    warningsTruncated: boolean;
   };
   aggregation: {
     summary: GlobalAssetAggregationResult["summary"];
     assets: GlobalAsset[];
     unassignedActivities: NormalizedActivity[];
     warnings: ReconciliationWarning[];
+    assetsTruncated: boolean;
+    unassignedActivitiesTruncated: boolean;
+    warningsTruncated: boolean;
+    timelinesTruncated: boolean;
   };
   warnings: ReconciliationWarning[];
+  warningsTruncated: boolean;
   summary: GlobalAssetAuditSummary;
   privacy: GlobalAssetAuditPrivacy;
   nextSteps: string[];
@@ -81,6 +93,13 @@ type CreateGlobalAssetAuditReportInput = {
   options?: GlobalAssetAuditOptions;
   sources?: Partial<GlobalAssetAuditSources>;
   environment?: GlobalAssetAuditEnvironment;
+};
+
+type RedactionOptions = Required<Pick<GlobalAssetAuditOptions, "includeAmounts" | "includePortfolioNames" | "includeActivityIds">>;
+
+type ReportAliases = {
+  portfolioNameById: Map<string, string>;
+  portfolioIdById: Map<string, string>;
 };
 
 function normalizeEnvironment(value: string | undefined): GlobalAssetAuditEnvironment {
@@ -105,7 +124,15 @@ function getLimit(options?: GlobalAssetAuditOptions): number | null {
   return Math.floor(rawLimit);
 }
 
-function buildPortfolioAliasMap(activities: NormalizedActivity[], assets: GlobalAsset[]): Map<string, string> {
+function limitArray<T>(items: T[], limit: number | null): { items: T[]; truncated: boolean } {
+  if (!limit || items.length <= limit) {
+    return { items, truncated: false };
+  }
+
+  return { items: items.slice(0, limit), truncated: true };
+}
+
+function buildAliases(activities: NormalizedActivity[], assets: GlobalAsset[]): ReportAliases {
   const portfolioIds = new Set<string>();
 
   for (const activity of activities) {
@@ -118,20 +145,52 @@ function buildPortfolioAliasMap(activities: NormalizedActivity[], assets: Global
     }
   }
 
-  return new Map(Array.from(portfolioIds).map((portfolioId, index) => [portfolioId, `Portfolio ${index + 1}`]));
+  const entries = Array.from(portfolioIds).map((portfolioId, index) => [portfolioId, index + 1] as const);
+
+  return {
+    portfolioNameById: new Map(entries.map(([portfolioId, number]) => [portfolioId, `Portfolio ${number}`])),
+    portfolioIdById: new Map(entries.map(([portfolioId, number]) => [portfolioId, `portfolio_${number}`])),
+  };
 }
 
 function redactMoney(value: MoneyValue | null | undefined, includeAmounts: boolean): MoneyValue | null | undefined {
   return includeAmounts ? value : null;
 }
 
-function redactWarning(warning: ReconciliationWarning, includeActivityIds: boolean): ReconciliationWarning {
+function redactPortfolioId(portfolioId: string | null | undefined, aliases: ReportAliases): string | null | undefined {
+  if (!portfolioId) {
+    return portfolioId;
+  }
+
+  return aliases.portfolioIdById.get(portfolioId) ?? "portfolio_redacted";
+}
+
+function redactHoldingId(holdingId: string | null | undefined, includeActivityIds: boolean): string | null | undefined {
+  return includeActivityIds ? holdingId : null;
+}
+
+function redactSortKey(sortKey: string, includeActivityIds: boolean): string {
+  if (includeActivityIds) {
+    return sortKey;
+  }
+
+  const [datePart] = sortKey.split("|");
+  return `${datePart || "unknown-date"}|redacted`;
+}
+
+function redactWarning(
+  warning: ReconciliationWarning,
+  options: RedactionOptions,
+  aliases: ReportAliases
+): ReconciliationWarning {
   return {
     ...warning,
     entityRefs: warning.entityRefs
       ? {
           ...warning.entityRefs,
-          activityId: includeActivityIds ? warning.entityRefs.activityId : null,
+          activityId: options.includeActivityIds ? warning.entityRefs.activityId : null,
+          portfolioId: redactPortfolioId(warning.entityRefs.portfolioId, aliases),
+          holdingId: redactHoldingId(warning.entityRefs.holdingId, options.includeActivityIds),
         }
       : undefined,
   };
@@ -139,10 +198,11 @@ function redactWarning(warning: ReconciliationWarning, includeActivityIds: boole
 
 function redactActivity(
   activity: NormalizedActivity,
-  options: Required<Pick<GlobalAssetAuditOptions, "includeAmounts" | "includePortfolioNames" | "includeActivityIds">>,
-  portfolioAliases: Map<string, string>
+  options: RedactionOptions,
+  aliases: ReportAliases
 ): NormalizedActivity {
   const portfolioId = activity.portfolioContext.portfolioId;
+  const redactedPortfolioId = redactPortfolioId(portfolioId, aliases) ?? "portfolio_redacted";
 
   return {
     ...activity,
@@ -150,11 +210,17 @@ function redactActivity(
       sourceActivityId: options.includeActivityIds ? activity.ids.sourceActivityId : null,
       internalActivityId: options.includeActivityIds ? activity.ids.internalActivityId : "redacted",
     },
+    sortKey: redactSortKey(activity.sortKey, options.includeActivityIds),
+    assetIdentity: {
+      ...activity.assetIdentity,
+      holdingId: redactHoldingId(activity.assetIdentity.holdingId, options.includeActivityIds) ?? null,
+    },
     portfolioContext: {
       ...activity.portfolioContext,
+      portfolioId: redactedPortfolioId,
       portfolioName: options.includePortfolioNames
         ? activity.portfolioContext.portfolioName ?? null
-        : portfolioAliases.get(portfolioId) ?? "Portfolio",
+        : aliases.portfolioNameById.get(portfolioId) ?? "Portfolio",
     },
     pricePerShare: redactMoney(activity.pricePerShare, options.includeAmounts),
     amounts: {
@@ -177,41 +243,49 @@ function redactActivity(
 
 function redactAsset(
   asset: GlobalAsset,
-  options: Required<Pick<GlobalAssetAuditOptions, "includeAmounts" | "includePortfolioNames" | "includeActivityIds">>,
-  portfolioAliases: Map<string, string>
-): GlobalAsset {
-  return {
-    ...asset,
-    timeline: asset.timeline.map((entry) => {
-      const redactedActivity = redactActivity(entry.activity, options, portfolioAliases);
+  options: RedactionOptions,
+  aliases: ReportAliases,
+  limit: number | null
+): { asset: GlobalAsset; timelineTruncated: boolean } {
+  const limitedTimeline = limitArray(asset.timeline, limit);
 
-      return {
-        ...entry,
-        activity: redactedActivity,
-        portfolioContext: redactedActivity.portfolioContext,
-        warnings: entry.warnings.map((warning) => redactWarning(warning, options.includeActivityIds)),
-      };
-    }),
-    portfolioBreakdowns: asset.portfolioBreakdowns.map((breakdown) => ({
-      ...breakdown,
-      portfolioName: options.includePortfolioNames
-        ? breakdown.portfolioName ?? null
-        : portfolioAliases.get(breakdown.portfolioId) ?? "Portfolio",
-      marketValue: redactMoney(breakdown.marketValue, options.includeAmounts),
-      costBasis: redactMoney(breakdown.costBasis, options.includeAmounts),
-      pnl: redactMoney(breakdown.pnl, options.includeAmounts),
-      avgBuyPrice: redactMoney(breakdown.avgBuyPrice, options.includeAmounts),
-      warnings: breakdown.warnings.map((warning) => redactWarning(warning, options.includeActivityIds)),
-    })),
-    warnings: asset.warnings.map((warning) => redactWarning(warning, options.includeActivityIds)),
-    totals: {
-      ...asset.totals,
-      marketValue: redactMoney(asset.totals.marketValue, options.includeAmounts),
-      costBasis: redactMoney(asset.totals.costBasis, options.includeAmounts),
-      unrealizedPnL: redactMoney(asset.totals.unrealizedPnL, options.includeAmounts),
-      dividendsNet: redactMoney(asset.totals.dividendsNet, options.includeAmounts),
-      fees: redactMoney(asset.totals.fees, options.includeAmounts),
-      taxes: redactMoney(asset.totals.taxes, options.includeAmounts),
+  return {
+    timelineTruncated: limitedTimeline.truncated,
+    asset: {
+      ...asset,
+      timeline: limitedTimeline.items.map((entry) => {
+        const redactedActivity = redactActivity(entry.activity, options, aliases);
+
+        return {
+          ...entry,
+          activity: redactedActivity,
+          portfolioContext: redactedActivity.portfolioContext,
+          sortKey: redactSortKey(entry.sortKey, options.includeActivityIds),
+          warnings: entry.warnings.map((warning) => redactWarning(warning, options, aliases)),
+        };
+      }),
+      portfolioBreakdowns: asset.portfolioBreakdowns.map((breakdown) => ({
+        ...breakdown,
+        portfolioId: redactPortfolioId(breakdown.portfolioId, aliases) ?? "portfolio_redacted",
+        portfolioName: options.includePortfolioNames
+          ? breakdown.portfolioName ?? null
+          : aliases.portfolioNameById.get(breakdown.portfolioId) ?? "Portfolio",
+        marketValue: redactMoney(breakdown.marketValue, options.includeAmounts),
+        costBasis: redactMoney(breakdown.costBasis, options.includeAmounts),
+        pnl: redactMoney(breakdown.pnl, options.includeAmounts),
+        avgBuyPrice: redactMoney(breakdown.avgBuyPrice, options.includeAmounts),
+        warnings: breakdown.warnings.map((warning) => redactWarning(warning, options, aliases)),
+      })),
+      warnings: asset.warnings.map((warning) => redactWarning(warning, options, aliases)),
+      totals: {
+        ...asset.totals,
+        marketValue: redactMoney(asset.totals.marketValue, options.includeAmounts),
+        costBasis: redactMoney(asset.totals.costBasis, options.includeAmounts),
+        unrealizedPnL: redactMoney(asset.totals.unrealizedPnL, options.includeAmounts),
+        dividendsNet: redactMoney(asset.totals.dividendsNet, options.includeAmounts),
+        fees: redactMoney(asset.totals.fees, options.includeAmounts),
+        taxes: redactMoney(asset.totals.taxes, options.includeAmounts),
+      },
     },
   };
 }
@@ -238,6 +312,7 @@ function countWarningsByCode(warnings: ReconciliationWarning[]): Record<string, 
 
 function buildNextSteps(summary: GlobalAssetAuditSummary): string[] {
   const nextSteps = [
+    "Reconnect Parqet and reauthorize all current portfolios if portfolios were added, renamed or missing.",
     "Verify the report with local Parqet data only.",
     "Do not wire the Global Asset pipeline into production UI until the Phase-1 gate is complete.",
     "Continue with transfer handling and confidence refinement.",
@@ -251,6 +326,10 @@ function buildNextSteps(summary: GlobalAssetAuditSummary): string[] {
     nextSteps.unshift("Inspect mixed-currency assets before trusting affected totals.");
   }
 
+  if (summary.negativeQuantityAssetCount > 0) {
+    nextSteps.unshift("Treat negative quantities as preliminary until transfer handling and portfolio authorization are verified.");
+  }
+
   return nextSteps;
 }
 
@@ -259,33 +338,40 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
   const includeAmounts = input.options?.includeAmounts === true;
   const includePortfolioNames = input.options?.includePortfolioNames === true;
   const includeActivityIds = input.options?.includeActivityIds === true;
-  const includeActivities = input.options?.includeActivities !== false;
+  const includeActivities = input.options?.includeActivities === true;
   const privacyOptions = { includeAmounts, includePortfolioNames, includeActivityIds };
   const allUnredactedActivities = input.normalization.activities;
   const allUnredactedAssets = input.aggregation.assets;
-  const portfolioAliases = buildPortfolioAliasMap(allUnredactedActivities, allUnredactedAssets);
-  const limitedActivities = limit ? allUnredactedActivities.slice(0, limit) : allUnredactedActivities;
-  const limitedAssets = limit ? allUnredactedAssets.slice(0, limit) : allUnredactedAssets;
-  const limitedUnassigned = limit
-    ? input.aggregation.unassignedActivities.slice(0, limit)
-    : input.aggregation.unassignedActivities;
-  const normalizationWarnings = input.normalization.warnings.map((warning) => redactWarning(warning, includeActivityIds));
-  const aggregationWarnings = input.aggregation.warnings.map((warning) => redactWarning(warning, includeActivityIds));
-  const warnings = [...normalizationWarnings, ...aggregationWarnings];
+  const aliases = buildAliases(allUnredactedActivities, allUnredactedAssets);
+  const limitedActivities = limitArray(allUnredactedActivities, limit);
+  const limitedAssets = limitArray(allUnredactedAssets, limit);
+  const limitedUnassigned = limitArray(input.aggregation.unassignedActivities, limit);
+  const redactedAllNormalizationWarnings = input.normalization.warnings.map((warning) =>
+    redactWarning(warning, privacyOptions, aliases)
+  );
+  const redactedAllAggregationWarnings = input.aggregation.warnings.map((warning) =>
+    redactWarning(warning, privacyOptions, aliases)
+  );
+  const limitedNormalizationWarnings = limitArray(redactedAllNormalizationWarnings, limit);
+  const limitedAggregationWarnings = limitArray(redactedAllAggregationWarnings, limit);
+  const allWarnings = [...redactedAllNormalizationWarnings, ...redactedAllAggregationWarnings];
+  const limitedFlatWarnings = limitArray(allWarnings, limit);
+  const redactedAssets = limitedAssets.items.map((asset) => redactAsset(asset, privacyOptions, aliases, limit));
+  const timelinesTruncated = redactedAssets.some((item) => item.timelineTruncated);
   const summary: GlobalAssetAuditSummary = {
     sourceActivityCount: input.sources?.sourceActivityCount ?? input.normalization.summary.inputCount,
     normalizedActivityCount: input.normalization.summary.normalizedCount,
     assetCount: input.aggregation.summary.assetCount,
     unassignedActivityCount: input.aggregation.summary.unassignedActivityCount,
-    warningCount: warnings.length,
-    blockerCount: warnings.filter((warning) => warning.severity === "Blocker").length,
+    warningCount: allWarnings.length,
+    blockerCount: allWarnings.filter((warning) => warning.severity === "Blocker").length,
     activeAssetCount: input.aggregation.summary.activeAssetCount,
     closedAssetCount: input.aggregation.summary.closedAssetCount,
     unknownAssetCount: input.aggregation.summary.unknownAssetCount,
     mixedCurrencyAssetCount: input.aggregation.summary.mixedCurrencyAssetCount,
     negativeQuantityAssetCount: input.aggregation.summary.negativeQuantityAssetCount,
-    warningsBySeverity: countWarningsBySeverity(warnings),
-    warningsByCode: countWarningsByCode(warnings),
+    warningsBySeverity: countWarningsBySeverity(allWarnings),
+    warningsByCode: countWarningsByCode(allWarnings),
   };
 
   return {
@@ -300,26 +386,39 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
     normalization: {
       summary: input.normalization.summary,
       activities: includeActivities
-        ? limitedActivities.map((activity) => redactActivity(activity, privacyOptions, portfolioAliases))
+        ? limitedActivities.items.map((activity) => redactActivity(activity, privacyOptions, aliases))
         : [],
-      warnings: normalizationWarnings,
+      warnings: limitedNormalizationWarnings.items,
+      activitiesTruncated: includeActivities ? limitedActivities.truncated : false,
+      warningsTruncated: limitedNormalizationWarnings.truncated,
     },
     aggregation: {
       summary: input.aggregation.summary,
-      assets: limitedAssets.map((asset) => redactAsset(asset, privacyOptions, portfolioAliases)),
-      unassignedActivities: limitedUnassigned.map((activity) => redactActivity(activity, privacyOptions, portfolioAliases)),
-      warnings: aggregationWarnings,
+      assets: redactedAssets.map((item) => item.asset),
+      unassignedActivities: limitedUnassigned.items.map((activity) => redactActivity(activity, privacyOptions, aliases)),
+      warnings: limitedAggregationWarnings.items,
+      assetsTruncated: limitedAssets.truncated,
+      unassignedActivitiesTruncated: limitedUnassigned.truncated,
+      warningsTruncated: limitedAggregationWarnings.truncated,
+      timelinesTruncated,
     },
-    warnings,
+    warnings: limitedFlatWarnings.items,
+    warningsTruncated: limitedFlatWarnings.truncated,
     summary,
     privacy: {
       rawPayloadsExcluded: true,
       portfolioNamesIncluded: includePortfolioNames,
       portfolioNamesRedacted: !includePortfolioNames,
+      portfolioIdsRedacted: true,
+      holdingIdsRedacted: !includeActivityIds,
+      sortKeysRedacted: !includeActivityIds,
       activityIdsIncluded: includeActivityIds,
       amountsIncluded: includeAmounts,
       isinsIncluded: true,
       limitApplied: limit,
+      arraysLimited: Boolean(limit),
+      warningsTruncated:
+        limitedFlatWarnings.truncated || limitedAggregationWarnings.truncated || limitedNormalizationWarnings.truncated,
     },
     nextSteps: buildNextSteps(summary),
   };
