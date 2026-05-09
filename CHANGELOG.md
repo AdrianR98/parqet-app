@@ -27,6 +27,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Persistent local cookie-jar support for Global Asset audit helpers.
 - Safe diagnostic output for Global Asset audit failures, including category and retry hints where available.
 - Refined Global Asset negative quantity candidate metadata for ratio and factor mismatch cases.
+- Configurable Parqet activity fetch concurrency for local audit rate-limit mitigation.
 
 ### Changed
 
@@ -71,6 +72,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented narrow `ignore_activity_for_position` override application and audit visibility.
 - Documented persistent local audit authentication with a gitignored cookie jar.
 - Documented refined negative quantity cause categories and ratio metadata.
+- Documented local audit activity fetch concurrency guidance.
 
 ### Governance
 
