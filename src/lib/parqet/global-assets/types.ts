@@ -86,6 +86,37 @@ export type ConfidenceLevel = "high" | "medium" | "low";
 
 export type TransferStatus = "not_transfer" | "possible" | "matched" | "unmatched";
 
+export type NegativeQuantityCauseType =
+  | "sell_exceeds_known_position"
+  | "transfer_in_then_sell_then_sell"
+  | "duplicate_sell_candidate"
+  | "missing_inbound_activity"
+  | "unknown_negative_quantity_case";
+
+export type GlobalAssetOverrideDecisionType =
+  | "ignore_activity_for_position"
+  | "reclassify_activity_type"
+  | "add_manual_quantity_adjustment"
+  | "mark_as_known_external_issue";
+
+export type NegativeQuantityCause = {
+  cause: NegativeQuantityCauseType;
+  assetKey: GlobalAssetKey;
+  portfolioId?: string | null;
+  knownInboundQuantity: number;
+  knownOutboundQuantity: number;
+  negativeQuantity: number;
+  suggestedDecisionTypes: GlobalAssetOverrideDecisionType[];
+};
+
+export type UnresolvedDecisionCandidate = NegativeQuantityCause & {
+  metricsBlocked: true;
+};
+
+export type WarningMetadata = {
+  negativeQuantityCause?: NegativeQuantityCause;
+};
+
 export type PortfolioContext = {
   portfolioId: string;
   portfolioName?: string | null;
@@ -167,6 +198,7 @@ export type ReconciliationWarning = {
   source: ReconciliationWarningSource;
   entityRefs?: WarningEntityRefs;
   blockedMetrics?: BlockedMetric[];
+  metadata?: WarningMetadata;
 };
 
 export type AssetConfidence = {
@@ -239,6 +271,7 @@ export type GlobalAsset = {
   timeline: GlobalAssetTimelineEntry[];
   portfolioBreakdowns: PortfolioBreakdown[];
   warnings: ReconciliationWarning[];
+  unresolvedDecisionCandidates?: UnresolvedDecisionCandidate[];
   confidence: AssetConfidence;
   status: GlobalAssetStatus;
   totals: GlobalAssetTotals;
@@ -282,6 +315,7 @@ export type GlobalAssetAggregationResult = {
   assets: GlobalAsset[];
   unassignedActivities: NormalizedActivity[];
   warnings: ReconciliationWarning[];
+  unresolvedDecisionCandidates?: UnresolvedDecisionCandidate[];
   summary: GlobalAssetAggregationSummary;
 };
 
