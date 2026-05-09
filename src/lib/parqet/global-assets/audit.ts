@@ -2,6 +2,7 @@ import { buildGlobalAssetsFromNormalizationResult } from "./aggregate";
 import { normalizeActivities } from "./normalize";
 import type {
   ActivitiesNormalizationResult,
+  AppliedGlobalAssetOverride,
   GlobalAsset,
   GlobalAssetAggregationResult,
   GlobalAssetKey,
@@ -68,6 +69,7 @@ export type GlobalAssetAuditSummary = {
   mixedCurrencyAssetCount: number;
   negativeQuantityAssetCount: number;
   unresolvedDecisionCandidateCount: number;
+  appliedOverrideCount: number;
   warningsBySeverity: Record<ReconciliationWarningSeverity, number>;
   warningsByCode: Record<string, number>;
 };
@@ -89,10 +91,12 @@ export type GlobalAssetAuditReport = {
     unassignedActivities: NormalizedActivity[];
     warnings: ReconciliationWarning[];
     unresolvedDecisionCandidates: UnresolvedDecisionCandidate[];
+    appliedOverrides: AppliedGlobalAssetOverride[];
     assetsTruncated: boolean;
     unassignedActivitiesTruncated: boolean;
     warningsTruncated: boolean;
     unresolvedDecisionCandidatesTruncated: boolean;
+    appliedOverridesTruncated: boolean;
     timelinesTruncated: boolean;
   };
   warnings: ReconciliationWarning[];
@@ -189,6 +193,10 @@ function redactPortfolioId(portfolioId: string | null | undefined, aliases: Repo
   return aliases.portfolioIdById.get(portfolioId) ?? "portfolio_redacted";
 }
 
+function redactActivityId(activityId: string | null | undefined, includeActivityIds: boolean): string | null | undefined {
+  return includeActivityIds ? activityId : null;
+}
+
 function redactHoldingId(holdingId: string | null | undefined, includeActivityIds: boolean): string | null | undefined {
   return includeActivityIds ? holdingId : null;
 }
@@ -200,6 +208,18 @@ function redactSortKey(sortKey: string, includeActivityIds: boolean): string {
 
   const [datePart] = sortKey.split("|");
   return `${datePart || "unknown-date"}|redacted`;
+}
+
+function redactAppliedOverride(
+  appliedOverride: AppliedGlobalAssetOverride,
+  options: RedactionOptions,
+  aliases: ReportAliases
+): AppliedGlobalAssetOverride {
+  return {
+    ...appliedOverride,
+    portfolioId: redactPortfolioId(appliedOverride.portfolioId, aliases),
+    activityId: redactActivityId(appliedOverride.activityId, options.includeActivityIds),
+  };
 }
 
 function redactUnresolvedDecisionCandidate(
@@ -285,6 +305,12 @@ function redactActivity(
           avgHoldingPeriodDays: activity.parqetReference.avgHoldingPeriodDays ?? null,
         }
       : null,
+    positionOverride: activity.positionOverride
+      ? {
+          ...redactAppliedOverride(activity.positionOverride, options, aliases),
+          affectsPosition: activity.positionOverride.affectsPosition,
+        }
+      : activity.positionOverride,
   };
 }
 
@@ -369,6 +395,10 @@ function buildNextSteps(summary: GlobalAssetAuditSummary): string[] {
     "Continue with transfer handling and confidence refinement.",
   ];
 
+  if (summary.appliedOverrideCount > 0) {
+    nextSteps.unshift("Review applied overrides and keep real local override decisions out of commits.");
+  }
+
   if (summary.unresolvedDecisionCandidateCount > 0) {
     nextSteps.unshift("Review unresolved decision candidates before unblocking affected metrics.");
   }
@@ -403,7 +433,9 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
   const limitedAssets = limitArray(allUnredactedAssets, limit);
   const limitedUnassigned = limitArray(input.aggregation.unassignedActivities, limit);
   const unresolvedDecisionCandidates = input.aggregation.unresolvedDecisionCandidates ?? [];
+  const appliedOverrides = input.aggregation.appliedOverrides ?? [];
   const limitedUnresolvedDecisionCandidates = limitArray(unresolvedDecisionCandidates, limit);
+  const limitedAppliedOverrides = limitArray(appliedOverrides, limit);
   const redactedAllNormalizationWarnings = input.normalization.warnings.map((warning) =>
     redactWarning(warning, privacyOptions, aliases)
   );
@@ -431,6 +463,7 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
     mixedCurrencyAssetCount: input.aggregation.summary.mixedCurrencyAssetCount,
     negativeQuantityAssetCount: input.aggregation.summary.negativeQuantityAssetCount,
     unresolvedDecisionCandidateCount: unresolvedDecisionCandidates.length,
+    appliedOverrideCount: appliedOverrides.length,
     warningsBySeverity: countWarningsBySeverity(allWarnings),
     warningsByCode: countWarningsByCode(allWarnings),
   };
@@ -466,10 +499,14 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
       unresolvedDecisionCandidates: limitedUnresolvedDecisionCandidates.items.map((candidate) =>
         redactUnresolvedDecisionCandidate(candidate, aliases)
       ),
+      appliedOverrides: limitedAppliedOverrides.items.map((appliedOverride) =>
+        redactAppliedOverride(appliedOverride, privacyOptions, aliases)
+      ),
       assetsTruncated: includeAssets ? limitedAssets.truncated : false,
       unassignedActivitiesTruncated: includeAssets ? limitedUnassigned.truncated : false,
       warningsTruncated: limitedAggregationWarnings.truncated,
       unresolvedDecisionCandidatesTruncated: limitedUnresolvedDecisionCandidates.truncated,
+      appliedOverridesTruncated: limitedAppliedOverrides.truncated,
       timelinesTruncated,
     },
     warnings: limitedFlatWarnings.items,

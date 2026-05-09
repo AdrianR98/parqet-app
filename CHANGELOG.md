@@ -23,6 +23,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Phase-1 guarded Global Asset audit/report mode and local debug route.
 - Windows-first local Global Asset audit helper scripts.
 - Global Asset unresolved negative quantity decision foundation.
+- Narrow Global Asset `ignore_activity_for_position` override application for position quantity effects.
 
 ### Changed
 
@@ -37,6 +38,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Vercel ignored-build helper now skips local/development-only Parqet audit tooling changes.
 - Phase plan now describes Phase 1 as Global Asset Timeline Foundation.
 - Global Asset aggregation now classifies unresolved negative quantity cases without applying corrections.
+- Global Asset audit reports now expose redacted applied override metadata and applied override counts.
 
 ### Fixed
 
@@ -59,6 +61,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Added `docs/GLOBAL_ASSET_AUDIT_REPORT.md` for the Phase-1 audit/report mode.
 - Added `docs/LOCAL_AUDIT_WORKFLOW.md` for terminal-based local audit helpers.
 - Added `docs/GLOBAL_ASSET_OVERRIDES.md` for future user-confirmed correction decisions.
+- Documented narrow `ignore_activity_for_position` override application and audit visibility.
 
 ### Governance
 
@@ -79,3 +82,4 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Added feature-flag, production-blocking and redaction rules for the Global Asset audit/report route.
 - Documented that local audit helpers must not print cookies, tokens, `.env.local` values or raw payloads.
 - Added safety rules for future user-confirmed Global Asset overrides.
+- Documented that real local override decisions must not be committed.

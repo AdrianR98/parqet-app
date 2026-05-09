@@ -1,5 +1,14 @@
 import rawOverrides from "../../../data/global-asset-overrides.json";
-import type { ActivityType, GlobalAssetKey, GlobalAssetOverrideDecisionType } from "./types";
+import type {
+  ActivityType,
+  AppliedGlobalAssetOverride,
+  GlobalAssetKey,
+  GlobalAssetOverrideDecisionType,
+  NormalizedActivity,
+  NormalizedActivityPositionOverride,
+} from "./types";
+
+const QUANTITY_MATCH_EPSILON = 0.000001;
 
 export type GlobalAssetOverrideMatch = {
   activityId?: string | null;
@@ -27,6 +36,11 @@ export type GlobalAssetOverride = {
   reason: string;
   match?: GlobalAssetOverrideMatch;
   effect?: GlobalAssetOverrideEffect;
+};
+
+export type ApplyGlobalAssetOverridesResult = {
+  activities: NormalizedActivity[];
+  appliedOverrides: AppliedGlobalAssetOverride[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -90,6 +104,76 @@ function parseEffect(value: unknown): GlobalAssetOverrideEffect | undefined {
   };
 }
 
+function assetKeysMatch(left: GlobalAssetKey | null | undefined, right: GlobalAssetKey | null | undefined): boolean {
+  return Boolean(left && right && left.type === right.type && left.value === right.value);
+}
+
+function quantitiesMatch(left: number | null | undefined, right: number | null | undefined): boolean {
+  if (left === null || left === undefined || right === null || right === undefined) {
+    return false;
+  }
+
+  return Math.abs(left - right) < QUANTITY_MATCH_EPSILON;
+}
+
+function hasSpecificMatch(match: GlobalAssetOverrideMatch | undefined): boolean {
+  if (!match) return false;
+
+  return Boolean(
+    match.activityId ||
+    match.datetime ||
+    match.sourceType ||
+    match.quantity !== undefined ||
+    match.portfolioId
+  );
+}
+
+function activityIdMatches(activity: NormalizedActivity, activityId: string): boolean {
+  return activity.ids.internalActivityId === activityId || activity.ids.sourceActivityId === activityId;
+}
+
+function overrideMatchesActivity(override: GlobalAssetOverride, activity: NormalizedActivity): boolean {
+  if (!assetKeysMatch(override.assetKey, activity.assetIdentity.assetKey)) {
+    return false;
+  }
+
+  if (!hasSpecificMatch(override.match)) {
+    return false;
+  }
+
+  if (override.match?.portfolioId && override.match.portfolioId !== activity.portfolioContext.portfolioId) {
+    return false;
+  }
+
+  if (override.match?.activityId && !activityIdMatches(activity, override.match.activityId)) {
+    return false;
+  }
+
+  if (override.match?.datetime && override.match.datetime !== activity.datetime) {
+    return false;
+  }
+
+  if (override.match?.sourceType && override.match.sourceType !== activity.sourceType) {
+    return false;
+  }
+
+  if (override.match?.quantity !== undefined && !quantitiesMatch(override.match.quantity, activity.quantity)) {
+    return false;
+  }
+
+  return true;
+}
+
+function toAppliedOverride(override: GlobalAssetOverride, activity: NormalizedActivity): AppliedGlobalAssetOverride {
+  return {
+    overrideId: override.id,
+    decisionType: "ignore_activity_for_position",
+    assetKey: override.assetKey,
+    portfolioId: activity.portfolioContext.portfolioId,
+    activityId: activity.ids.internalActivityId,
+  };
+}
+
 export function parseGlobalAssetOverride(value: unknown): GlobalAssetOverride | null {
   if (!isRecord(value)) return null;
   if (typeof value.id !== "string" || value.id.trim().length === 0) return null;
@@ -127,4 +211,43 @@ export function loadGlobalAssetOverrides(): GlobalAssetOverride[] {
 
 export function getEnabledGlobalAssetOverrides(): GlobalAssetOverride[] {
   return loadGlobalAssetOverrides().filter((override) => override.enabled);
+}
+
+export function applyGlobalAssetPositionOverrides(
+  activities: NormalizedActivity[],
+  overrides: GlobalAssetOverride[] = getEnabledGlobalAssetOverrides()
+): ApplyGlobalAssetOverridesResult {
+  const applicableOverrides = overrides.filter(
+    (override) => override.enabled && override.decisionType === "ignore_activity_for_position"
+  );
+
+  if (applicableOverrides.length === 0) {
+    return { activities, appliedOverrides: [] };
+  }
+
+  const appliedOverrides: AppliedGlobalAssetOverride[] = [];
+  const nextActivities: NormalizedActivity[] = activities.map((activity) => {
+    const matchingOverride = applicableOverrides.find((override) => overrideMatchesActivity(override, activity));
+
+    if (!matchingOverride) {
+      return activity;
+    }
+
+    const appliedOverride = toAppliedOverride(matchingOverride, activity);
+    const positionOverride: NormalizedActivityPositionOverride = {
+      ...appliedOverride,
+      affectsPosition: false,
+    };
+    appliedOverrides.push(appliedOverride);
+
+    return {
+      ...activity,
+      positionOverride,
+    };
+  });
+
+  return {
+    activities: nextActivities,
+    appliedOverrides,
+  };
 }

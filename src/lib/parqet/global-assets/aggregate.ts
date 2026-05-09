@@ -1,3 +1,4 @@
+import { applyGlobalAssetPositionOverrides } from "./overrides";
 import {
   ActivitiesNormalizationResult,
   AssetConfidence,
@@ -48,6 +49,10 @@ function quantitiesMatch(left: number, right: number): boolean {
   return Math.abs(left - right) < QUANTITY_EPSILON;
 }
 
+function isPositionEffectIgnored(activity: NormalizedActivity): boolean {
+  return activity.positionOverride?.affectsPosition === false;
+}
+
 function createAggregationWarning(input: {
   code: ReconciliationWarningCode;
   severity: ReconciliationWarningSeverity;
@@ -78,6 +83,10 @@ function createAggregationWarning(input: {
 }
 
 function quantityEffect(activity: NormalizedActivity): number {
+  if (isPositionEffectIgnored(activity)) {
+    return 0;
+  }
+
   const quantity = activity.quantity ?? 0;
 
   switch (activity.activityType) {
@@ -97,6 +106,10 @@ function quantityEffect(activity: NormalizedActivity): number {
 }
 
 function inboundQuantityEffect(activity: NormalizedActivity): number {
+  if (isPositionEffectIgnored(activity)) {
+    return 0;
+  }
+
   switch (activity.activityType) {
     case "buy":
     case "deposit":
@@ -108,6 +121,10 @@ function inboundQuantityEffect(activity: NormalizedActivity): number {
 }
 
 function outboundQuantityEffect(activity: NormalizedActivity): number {
+  if (isPositionEffectIgnored(activity)) {
+    return 0;
+  }
+
   switch (activity.activityType) {
     case "sell":
     case "withdrawal":
@@ -206,8 +223,8 @@ function classifyNegativeQuantityCause(
   const knownOutboundQuantity = normalizeQuantityForStatus(
     activities.reduce((sum, activity) => sum + outboundQuantityEffect(activity), 0)
   );
-  const transferIns = activities.filter((activity) => activity.activityType === "transfer_in" && (activity.quantity ?? 0) > 0);
-  const sells = activities.filter((activity) => activity.activityType === "sell" && (activity.quantity ?? 0) > 0);
+  const transferIns = activities.filter((activity) => activity.activityType === "transfer_in" && inboundQuantityEffect(activity) > 0);
+  const sells = activities.filter((activity) => activity.activityType === "sell" && outboundQuantityEffect(activity) > 0);
   const hasTransferInThenSellThenSell = transferIns.some((transferIn) => {
     const matchingSells = sells.filter((sell) => quantitiesMatch(sell.quantity ?? 0, transferIn.quantity ?? 0));
     return matchingSells.length >= 2;
@@ -489,11 +506,13 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
 }
 
 export function buildGlobalAssets(activities: NormalizedActivity[]): GlobalAssetAggregationResult {
+  const overrideResult = applyGlobalAssetPositionOverrides(activities);
+  const activitiesWithOverrides = overrideResult.activities;
   const groups = new Map<string, { assetKey: GlobalAssetKey; activities: NormalizedActivity[] }>();
   const unassignedActivities: NormalizedActivity[] = [];
   const warnings: ReconciliationWarning[] = [];
 
-  for (const activity of activities) {
+  for (const activity of activitiesWithOverrides) {
     const assetKey = activity.assetIdentity.assetKey;
 
     if (!assetKey) {
@@ -529,6 +548,7 @@ export function buildGlobalAssets(activities: NormalizedActivity[]): GlobalAsset
     unassignedActivities,
     warnings: allWarnings,
     unresolvedDecisionCandidates: assetDecisionCandidates,
+    appliedOverrides: overrideResult.appliedOverrides,
     summary: {
       inputActivityCount: activities.length,
       assetCount: assets.length,
@@ -544,6 +564,7 @@ export function buildGlobalAssets(activities: NormalizedActivity[]): GlobalAsset
       negativeQuantityAssetCount: assets.filter((asset) =>
         asset.warnings.some((warning) => warning.code === "NEGATIVE_POSITION_QUANTITY")
       ).length,
+      appliedOverrideCount: overrideResult.appliedOverrides.length,
     },
   };
 }
