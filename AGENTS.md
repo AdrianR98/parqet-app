@@ -9,14 +9,21 @@ Read first:
 - `prompts/workflow-chatgpt-codex.yaml`
 - `prompts/codex-task-template.yaml`
 - `prompts/codex-execution-rules.yaml`
+- `docs/DEVELOPMENT_WORKFLOW.md`
+- `docs/PROJECT_STATUS.md`
 
 Core rules:
 
-- English is the source-of-truth language.
-- Keep changes small, reviewable and issue-linked.
-- Default Codex mode is `Spar`; use `Voll` for risky first tasks touching auth, tokens, API contracts, data pipeline, persistence, caching, CI, security or large refactorings.
+- English is the repository source-of-truth language.
+- Keep changes small, reviewable, branch-based and issue-linked.
+- Default Codex mode is `Spar`.
+- Use `Voll` for risky first tasks touching auth, tokens, Parqet API contracts, data pipeline, persistence, caching, security, Branch Protection or large refactorings.
 - Do not redesign the app or implement product features unless the issue explicitly requests it.
-- Do not create a second activity or asset pipeline before Phase 1 decides otherwise.
+- Phase-1 analysis tasks are read/report-first and must not change app code unless explicitly allowed.
+- Do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
+- Codex must not commit, open PRs or choose branch names unless the task explicitly allows it.
+- Codex must never merge.
+- Agents do not get unrestricted authority. Detailed agent permissions live in `prompts/workflow-chatgpt-codex.yaml` and `docs/DEVELOPMENT_WORKFLOW.md`.
 - Never commit real tokens, `.env` files, cookies, OAuth codes, private Parqet exports, real portfolio/depot data, private screenshots or debug logs with private API responses.
 - Private local reference files may exist only in ignored paths such as `.local/`.
 - If private data appears in a diff, the PR is blocked.

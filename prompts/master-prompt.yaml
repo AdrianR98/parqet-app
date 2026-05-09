@@ -1,5 +1,5 @@
-version: 1
-status: active
+version: 2
+status: active_after_phase_0
 repository: AdrianR98/parqet-app
 source_language: en
 default_codex_mode: Spar
@@ -7,49 +7,99 @@ default_codex_mode: Spar
 purpose:
   - Establish conservative, reviewable collaboration for the Parqet App repository.
   - Preserve product behavior unless an issue explicitly requests a product change.
-  - Keep documentation, prompts, templates and CI coherent.
+  - Keep documentation, prompts, templates, CI and agent rules coherent.
+  - Prepare Phase 1 product and architecture work without uncontrolled implementation.
 
 roles:
   adrian:
     - Product owner and final decision maker.
-    - Approves private-data use, anonymized real-data use and architecture direction.
+    - Approves private-data use, anonymized real-data use, architecture direction and merges.
   chatgpt:
     - Helps shape issues, decisions, review prompts and planning context.
+    - May execute GitHub actions only during an active chat and only when instructed.
+    - May act as Product-Agent, Architecture-Agent, Docs-Agent or Review-Agent.
   codex:
     - Implements bounded repository changes.
     - Reports verification, risks, gaps and intentionally unchanged areas.
+    - Never merges.
   github:
     - Source of truth for issues, pull requests, review history and CI signals.
 
+source_of_truth:
+  operational_rules:
+    - prompts/*.yaml
+  human_readable_rules:
+    - docs/DEVELOPMENT_WORKFLOW.md
+  short_entrypoint:
+    - AGENTS.md
+  work_details:
+    - GitHub issues and pull requests
+  note: If YAML and human-readable docs conflict for Codex or agent behavior, YAML governs operationally, but the conflict must be fixed.
+
 codex_modes:
-  Mini: tiny documentation, wording or mechanical changes with low risk.
-  Spar: default mode for focused tasks with limited files and clear acceptance criteria.
-  Normal: moderate implementation or documentation tasks needing broader context.
-  Voll: full-context mode for risky first tasks or broad cross-cutting work.
-  Folgeauftrag: narrow follow-up in an existing context.
-  Review-Fix: targeted response to review feedback without widening scope.
+  Mini:
+    description: Tiny low-risk documentation, wording or mechanical changes.
+    file_limit: explicitly named files only
+    report: 3-5 lines
+  Spar:
+    description: Default focused work with limited files and clear acceptance criteria.
+    file_limit: up to 6 files unless explicitly expanded
+    report: compact changed/checks/notes
+  Normal:
+    description: Moderate implementation, documentation or governance work needing broader context.
+    file_limit: up to 10 files unless explicitly expanded
+    report: summary, changed files, verification, risks/notes
+  Voll:
+    description: Full-context mode for risky first tasks or broad cross-cutting work.
+    file_limit: no fixed file limit; file groups must be planned
+    report: summary, changed files, verification, risks, decisions and follow-ups without private chain-of-thought
+  Folgeauftrag:
+    description: Narrow follow-up in an existing branch/PR context.
+    rule: Keep original scope and do not reopen settled decisions without explicit instruction.
+  Review-Fix:
+    description: Targeted response to review feedback or CI failure introduced by the PR.
+    rule: Address only review points or introduced failures; do not perform unrelated cleanup.
 
 voll_required_for:
-  - Auth/OAuth
+  - Auth/OAuth first tasks
   - Tokens/Cookies
-  - API contracts
-  - Data pipeline
+  - Parqet API contracts
   - Persistence
   - Caching
-  - CI/Branch Protection
   - Security
+  - Branch Protection
   - Large refactorings
+
+normal_or_higher_required_for:
+  - scripts/** changes
+  - package.json changes
+  - .github/workflows/** changes
+  - new test setup
+  - medium governance updates
+
+dependency_rules:
+  production_dependencies: Voll / Full Review
+  development_dependencies: Normal Review
+  lockfiles: only with explicit dependency or install scope
 
 guardrails:
   product:
     - Do not redesign the app without an explicit issue.
     - Do not implement product features in governance-only tasks.
-    - Do not create a second activity or asset pipeline before Phase 1 decides otherwise.
+    - Do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
     - Preserve public route contracts unless an issue and ADR authorize change.
+    - Phase 1 starts with product goal and architecture decisions before implementation.
+  codex_execution:
+    - Every task should specify repo, mode, branch, Create PR and linked issues.
+    - Codex may commit only if explicitly allowed.
+    - Codex may open a PR only if Create PR is yes.
+    - Codex must not choose a branch name if none is provided.
+    - Codex must stop for product goal, user-flow or data-model uncertainty.
+    - Small reversible technical assumptions are allowed only when documented.
   language:
     - English is the source of truth.
-    - German translations are placeholders until a Translation-Agent PR creates full translations.
-    - ADRs and CHANGELOG entries are English only.
+    - German translations are produced through the Translation-Agent process.
+    - ADRs remain English.
   security_privacy:
     - No real tokens.
     - No real .env files.
@@ -64,10 +114,22 @@ guardrails:
     - If private data appears in a diff, the PR is blocked.
     - Auth/API/token changes require Full Review.
 
+issue_linking:
+  parent_issues: use Refs
+  complete_sub_issues: Fixes allowed when all acceptance criteria are met
+  partial_work: use Refs
+  review_fix: re-check Refs/Fixes after scope changes
+
 verification:
-  phase_0_ci:
+  current_ci:
     - npm run lint
     - npm run build
+  tests:
+    - npm run test becomes required only after a clean test setup exists.
+  pr_body_terms:
+    - Run
+    - Not run
+    - Not applicable
   report:
     - command
     - result

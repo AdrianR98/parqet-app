@@ -1,4 +1,4 @@
-version: 1
+version: 2
 purpose: Quick rules for Mini, Spar, Folgeauftrag and Review-Fix tasks.
 
 defaults:
@@ -6,35 +6,73 @@ defaults:
   read_before_editing: true
   preserve_product_behavior: true
   report_verification: true
+  never_merge: true
+
+shared_rules:
+  - Read AGENTS.md before editing.
+  - Use the requested branch only.
+  - Do not choose a branch name when none is provided.
+  - Commit only when explicitly allowed.
+  - Open a PR only when Create PR is yes.
+  - Keep changes within Allowed changes.
+  - Do not edit paths listed under Do not modify.
+  - Do not widen scope for cleanup.
+  - Stop for unclear product goal, user flow, data model, privacy or security questions.
+  - Use Refs for parent issues and partial work.
+  - Use Fixes only when a sub-issue is fully completed.
 
 mini:
   use_for:
     - typos
     - link fixes
     - tiny documentation changes
+    - tiny prompt wording fixes
     - mechanical template cleanup
+  read:
+    - AGENTS.md
+    - explicitly named files
+  file_limit: explicitly named files only
+  repository_wide_search: false
+  allowed_changes_required: false_when_exactly_one_clear_documentation_file_is_named
+  non_goals_required: false_when_task_is_unambiguous
+  pr_allowed: only_when_explicitly_requested
+  report: 3-5 lines
   avoid:
     - app behavior changes
+    - code fixes
     - architecture decisions
     - security-sensitive work
+    - dependency or workflow changes
 
 spar:
   use_for:
     - focused documentation updates
     - small prompt/template changes
     - bounded implementation tasks with clear acceptance criteria
+  read:
+    - AGENTS.md
+    - prompts/codex-quick-rules.yaml
+    - explicitly relevant files
+  file_limit: 6
+  search:
+    - targeted git grep / git ls-files allowed when needed
+    - broad repository analysis not allowed
+  plan_required: only_when_uncertain
   requirements:
-    - list changed files
-    - run available verification
-    - report risks and non-goals
+    - list changed files when reporting a PR
+    - run relevant lightweight verification
+    - report risks only when relevant
 
 folgeauftrag:
   use_for:
     - narrow follow-up in an already reviewed context
+    - same branch or PR context
     - small correction after a prior PR or issue discussion
   requirements:
     - keep original scope
+    - reuse existing context only for the same branch/PR and narrow scope
     - do not reopen settled decisions without explicit instruction
+    - update PR body if verification, changed files or known gaps changed
 
 review_fix:
   use_for:
@@ -42,16 +80,35 @@ review_fix:
     - fixing CI or lint/build failures introduced by the PR
   requirements:
     - address only actionable feedback
+    - run checks affected by the fix
+    - update PR body if scope, changed files, verification, risks or known gaps changed
+    - re-check Refs/Fixes correctness
     - report comments fixed and comments deferred
     - do not use review feedback as permission for unrelated cleanup
 
 must_escalate_to_voll_when_touching:
-  - Auth/OAuth
+  - Auth/OAuth first tasks
   - Tokens/Cookies
-  - API contracts
-  - Data pipeline
+  - Parqet API contracts
   - Persistence
   - Caching
-  - CI/Branch Protection
   - Security
+  - Branch Protection
   - Large refactorings
+
+may_require_normal_or_higher:
+  - scripts/**
+  - package.json
+  - .github/workflows/**
+  - new tests or test setup
+  - medium governance updates
+  - Vercel ignored-build logic changes
+
+verification_shortcuts:
+  docs_or_prompt_only:
+    - git diff --check
+    - markdown or yaml check when available and relevant
+  code_changes:
+    - npm run lint
+    - npm run build
+    - relevant tests once a test setup exists

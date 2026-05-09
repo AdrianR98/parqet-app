@@ -1,46 +1,118 @@
-version: 1
+version: 2
 purpose: Execution and reporting rules for Codex tasks.
 
 execution:
   - Inspect requested files before editing.
   - Respect the branch requested by the task.
+  - Do not choose a branch name if none was provided.
+  - Commit only when the task explicitly allows commits.
+  - Open a PR only when Create PR is yes.
   - Keep unrelated dirty worktree changes out of the PR.
   - Use explicit staging when the worktree is mixed.
+  - Stay within Allowed changes and Do not modify.
+  - Stop and ask before exceeding mode file limits unless mode is Voll.
   - Do not modify app implementation files for governance-only tasks.
   - Do not add tests, libraries or tooling unless requested by the issue.
   - Do not create or modify GitHub labels in code.
   - Do not create label-management scripts.
+  - Do not close issues, set milestones, set parent/sub-issue relationships or merge PRs.
+
+search:
+  preferred:
+    - git grep
+    - git ls-files
+  if_blocked:
+    - use an allowed alternative
+    - report the limitation only when it affects confidence
+  forbidden_private_paths:
+    - .local/
+    - .env
+    - .env.*
+    - private exports
+    - real portfolio data
+
+mode_file_limits:
+  Mini: explicitly named files only
+  Spar: 6
+  Normal: 10
+  Voll: no hard limit; file groups must be planned
+  Folgeauftrag: original scope only
+  Review-Fix: review feedback or introduced failure only
 
 verification:
-  run_when_available:
+  current_ci:
     - npm run lint
     - npm run build
-  always_run_for_repo_report:
-    - git status --short
-    - git diff --stat
+  docs_or_prompt_only:
     - git diff --check
-    - git diff --name-only
+    - markdown/yaml validation when available and relevant
+  code_changes:
+    - npm run lint
+    - npm run build
+    - relevant tests once a clean test setup exists
+  always_use_terms:
+    - Run
+    - Not run
+    - Not applicable
+  not_run_requires_reason: true
+  not_applicable_only_when_check_does_not_fit: true
   if_missing_or_failing:
     - report clearly
     - avoid broad cleanup
     - suggest follow-up issues
 
+ci_and_vercel:
+  github_ci: factual merge gate unless Adrian explicitly approves a documented exception
+  docs_governance_vercel: Ignored is valid when only safe docs/governance files changed
+  app_deployment_vercel: Ready/Success expected before merge unless exception documented
+  red_ci: do not merge unless Adrian explicitly approves and documents exception
+
 reporting:
-  include:
+  include_when_relevant:
     - branch
     - changed files
     - removed files
     - verification results
     - lint/build gaps
     - deviations from task
-    - risks and follow-up work
-  pr_body_must_include:
-    - Summary
-    - Linked issues
-    - Changed files grouped by area
-    - Removed / replaced docs
-    - Verification results
-    - Known gaps / follow-up work
-    - Risks
-    - Rollback
-    - Confirmation that src app implementation files were not changed unless explicitly explained
+    - risks
+    - known gaps / follow-up work
+    - intentionally unchanged areas for larger Normal/Voll PRs
+  avoid:
+    - huge logs
+    - private chain-of-thought
+    - private API response data
+  failure_logs:
+    - include only relevant excerpts
+    - private data in logs is a blocker
+
+pr_body_must_include:
+  - Goal
+  - Linked issues
+  - Mode / Codex involvement
+  - Summary
+  - Changed files
+  - Verification
+  - Documentation impact
+  - Risk
+  - Rollback
+  - What was intentionally not changed for larger/Normal/Voll PRs
+
+review_fix:
+  update_pr_body_when_changed:
+    - scope
+    - changed files
+    - verification
+    - risks
+    - known gaps
+    - Refs/Fixes correctness
+
+security_privacy:
+  - No real tokens, cookies, OAuth codes, access tokens or refresh tokens in issues, PRs, commits or logs.
+  - No real .env files.
+  - No private Parqet exports.
+  - No real portfolio or depot data.
+  - No screenshots with real portfolio, account, depot or personal data.
+  - No full private API responses in debug logs.
+  - Debug logging in app code requires explicit permission.
+  - If private data appears in a diff, the PR is blocked.

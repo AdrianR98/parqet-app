@@ -1,5 +1,5 @@
-version: 1
-purpose: Define the collaboration workflow between Adrian, ChatGPT, Codex and GitHub.
+version: 2
+purpose: Define the collaboration workflow between Adrian, ChatGPT, Codex, agents and GitHub.
 
 workflow:
   - step: idea_or_problem
@@ -7,34 +7,230 @@ workflow:
     output: goal, context, constraints and desired priority
   - step: issue_shaping
     owner: ChatGPT
-    output: issue draft with acceptance criteria, non-goals, verification and risks
+    output: human-readable issue draft with acceptance criteria, non-goals, verification and risks
+  - step: codex_prompt_generation
+    owner: ChatGPT
+    output: separate Codex task prompt generated from the issue, not stored as an issue comment
   - step: repository_execution
     owner: Codex
-    output: branch, implementation, verification report and draft PR when requested
+    output: branch, bounded changes, verification report and PR when requested
   - step: review
-    owner: Adrian
+    owner: Adrian with ChatGPT Review-Agent support
     output: approval, change requests or follow-up issue
   - step: merge_decision
     owner: Adrian
     output: merge, defer or close
 
+agent_types:
+  Role-Agent:
+    description: ChatGPT working role during an active chat.
+    examples:
+      - Docs-Agent
+      - Review-Agent
+      - Product-Agent
+      - Architecture-Agent
+  Automation-Agent:
+    description: Repository-side workflow or script.
+    examples:
+      - Issue-Agent
+      - Translation-Agent
+  GitHub-native Automation:
+    description: Built-in GitHub issue/project automation, separate from custom agent workflows.
+
+agent_maturity_levels:
+  - documented
+  - manual-only
+  - comment-only
+  - own PR
+  - existing PR branch
+  - main write
+
+agent_global_rules:
+  - No agent receives unrestricted authority.
+  - No agent may write directly to main in Phase 0.1.
+  - Future main-write exceptions require a separate issue and likely ADR.
+  - Every agent must stop on privacy or secret suspicion.
+  - No agent may enrich, copy, commit or expose private data.
+  - ChatGPT actions happen only during an active chat and only when instructed.
+  - Custom Automation-Agents must be distinct from GitHub-native automations.
+
+agents:
+  Codex:
+    type: Automation-Agent
+    current_level: own PR when explicitly requested
+    allowed_outputs:
+      - branch changes when task allows commits
+      - PR when Create PR is yes
+      - verification report
+    prohibited:
+      - merge PRs
+      - close issues
+      - set labels or milestones
+      - set parent/sub-issue relationships
+      - choose a branch name when none was provided
+      - exceed scope without permission
+  Issue-Agent:
+    type: Automation-Agent
+    current_level: limited automated metadata in Phase 0.1 after implementation
+    automatic_triggers:
+      - issues.opened
+      - issues.edited
+    automatic_allowed_actions:
+      - set labels from allowlist
+      - set Project status
+      - set Parent/Sub-Issue relationships when deterministic and technically supported
+      - add missing empty standard sections only for template-created issues
+      - comment when classification fails or required metadata is missing
+    manual_allowed_actions:
+      - labels
+      - Project status
+      - Parent/Sub-Issue relationships
+    safeguards:
+      - ignore own actor changes
+      - use idempotent marker/check to avoid loops
+      - never rewrite user-provided content
+      - non-template issues may be labeled/project-classified/commented, but body must not be edited
+    prohibited:
+      - close issues
+      - create issues
+      - create PRs
+      - rewrite user-provided content
+      - change acceptance criteria meaning
+      - change priority meaning
+      - modify PRs
+      - modify repository files
+  Translation-Agent:
+    type: Automation-Agent
+    current_level: own PR after P0.1-6 implementation
+    trigger_v1: workflow_dispatch only
+    allowed_outputs:
+      - branch
+      - Draft PR
+      - updates to allowed .de.md files only
+    scope_v1:
+      source_files:
+        - README.md
+        - docs/DEVELOPMENT_WORKFLOW.md
+      target_files:
+        - README.de.md
+        - docs/DEVELOPMENT_WORKFLOW.de.md
+    prohibited:
+      - automatic trigger in v1
+      - English source-file changes
+      - ADR translation
+      - CHANGELOG.de.md creation in v1
+      - app code changes
+      - new decisions or content reinterpretation
+      - private data use
+  Docs-Agent:
+    type: Role-Agent
+    current_level: documented / manual chat role
+    allowed_outputs:
+      - documentation impact review
+      - documentation update suggestions
+      - future own PR after separate activation
+    prohibited:
+      - app code changes
+  Review-Agent:
+    type: Role-Agent
+    current_level: manual chat role
+    allowed_outputs:
+      - review summary
+      - blocker/should-fix/optional/follow-up classification
+      - GitHub PR comments when Adrian explicitly asks
+      - merge execution only when Adrian explicitly says merge
+    prohibited:
+      - autonomous merge decisions
+      - Codex-style implementation
+  CI-Agent:
+    type: Role-Agent / future Automation-Agent
+    current_level: documented
+    allowed_outputs:
+      - CI failure summaries after activation
+    prohibited:
+      - automatic code fixes
+  Product-Agent:
+    type: Role-Agent
+    current_level: documented / manual chat role
+    allowed_outputs:
+      - product goals
+      - user flows
+      - priorities
+      - non-goals
+      - acceptance criteria drafts
+    prohibited:
+      - final product decisions without Adrian
+      - implementation
+  Architecture-Agent:
+    type: Role-Agent
+    current_level: documented / manual chat role
+    allowed_outputs:
+      - architecture boundaries
+      - ADR need analysis
+      - technical risks
+      - target architecture drafts
+    prohibited:
+      - ADR creation without approval
+      - implementation without issue
+
 github:
   issues:
-    - Track goals, acceptance criteria, non-goals and risks.
-    - Use Fixes only when the PR fully closes the issue.
-    - Use Refs for parent issues or partial work.
+    - Issues are human-readable planning artifacts, not raw Codex prompts.
+    - Use Parent-Issues for work that needs multiple Sub-Issues or multiple PRs.
+    - Use Fixes only when a PR fully closes the issue.
+    - Use Refs for parent issues, planning issues or partial work.
+    - Complex Sub-Issues should be specified through ChatGPT question/answer before creation.
+    - Legacy issues that reference old workflow should be closed with an explanatory comment instead of carried forward.
   pull_requests:
     - Keep PRs small and reviewable.
     - Always state whether Codex was involved.
-    - Always include risk and rollback.
+    - Always include documentation impact, verification, risk and rollback.
+    - Update PR body after review fixes when scope, files, verification, risks or known gaps changed.
+  reviews:
+    levels:
+      Mini: small docs/prompt/text/template changes without app code
+      Normal: standard code, medium docs/governance, scripts, package.json, UI
+      Full: Auth/OAuth, tokens, Parqet API, data pipeline, persistence, caching, security, Branch Protection, large refactors
+    categories:
+      Blocker: must fix before merge
+      Should fix: should fix before merge unless deliberately deferred
+      Optional: may be done later or never
+      Follow-up: outside this PR; possible new issue/PR
   ci:
-    - Phase 0 runs lint and build only.
-    - Documentation-only CI optimization is a later goal.
+    - Current CI runs lint and build only.
+    - GitHub CI is a factual merge gate unless Adrian approves a documented exception.
+    - Tests become required only after a clean test setup exists.
+  vercel:
+    - Vercel Ignored is correct for safe docs/governance-only PRs.
+    - App/API/Auth/Data/Deployment PRs should have Vercel Ready/Success before merge unless exception documented.
 
-future_agents:
-  issue_agent:
-    status: manual-only placeholder in Phase 0
-    rule: no automatic issue changes
-  translation_agent:
-    status: manual-only placeholder in Phase 0
-    rule: no automatic translation PRs until explicitly activated later
+documentation:
+  source_of_truth:
+    operational: prompts/*.yaml
+    human_readable: docs/DEVELOPMENT_WORKFLOW.md
+    short_entrypoint: AGENTS.md
+  check_when_relevant:
+    - README.md
+    - CHANGELOG.md
+    - docs/PROJECT_STATUS.md
+    - docs/PHASE_PLAN.md
+    - docs/ROADMAP.md
+    - docs/PROJECT_PRODUCT_BRIEF.md
+    - docs/ARCHITECTURE.md
+    - docs/adr/**
+    - matching .de.md files
+  changelog_categories:
+    - Added
+    - Changed
+    - Fixed
+    - Docs
+    - Governance
+    - Security
+
+phase_1_gate:
+  - Phase-1 specification may be prepared during P0.1.
+  - Phase-1 implementation starts only after P0.1 is merged.
+  - Phase 1 starts with product goal, then audits current app against that goal.
+  - Existing app remains stable baseline during Phase 1.
+  - No second activity/asset pipeline before Phase 1 decision or ADR.
+  - First product implementation starts only after an Implementation Entry Checklist.
