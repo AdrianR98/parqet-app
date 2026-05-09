@@ -37,19 +37,41 @@ async function fetchJson(accessToken: string, url: string): Promise<unknown> {
     return response.json();
 }
 
-async function fetchPortfolios(accessToken: string): Promise<unknown[]> {
-    const data = await fetchJson(accessToken, `${PARQET_BASE_URL}/portfolios`);
+function readArrayProperty(data: unknown, key: string): unknown[] | null {
+    if (!data || typeof data !== "object" || !(key in data)) {
+        return null;
+    }
 
+    const value = (data as Record<string, unknown>)[key];
+    return Array.isArray(value) ? value : null;
+}
+
+function extractArrayFromKnownKeys(data: unknown, keys: string[]): unknown[] | null {
     if (Array.isArray(data)) {
         return data;
     }
 
-    if (data && typeof data === "object" && "portfolios" in data) {
-        const portfolios = (data as { portfolios?: unknown }).portfolios;
-        return Array.isArray(portfolios) ? portfolios : [];
+    for (const key of keys) {
+        const value = readArrayProperty(data, key);
+
+        if (value) {
+            return value;
+        }
     }
 
-    return [];
+    return null;
+}
+
+async function fetchPortfolios(accessToken: string): Promise<unknown[]> {
+    const data = await fetchJson(accessToken, `${PARQET_BASE_URL}/portfolios`);
+
+    return extractArrayFromKnownKeys(data, [
+        "items",
+        "portfolios",
+        "data",
+        "results",
+        "content",
+    ]) ?? [];
 }
 
 function extractPortfolioId(portfolio: unknown): string | null {
@@ -75,17 +97,23 @@ async function fetchAllActivitiesForPortfolio(accessToken: string, portfolioId: 
         }
 
         const data = await fetchJson(accessToken, url.toString());
+        const activities = extractArrayFromKnownKeys(data, [
+            "activities",
+            "items",
+            "data",
+            "results",
+            "content",
+        ]);
 
-        if (!data || typeof data !== "object") {
-            break;
-        }
-
-        const activities = (data as { activities?: unknown }).activities;
-        if (Array.isArray(activities)) {
+        if (activities) {
             allActivities.push(...activities);
         }
 
-        const nextCursor = (data as { cursor?: unknown }).cursor;
+        const nextCursor = data && typeof data === "object"
+            ? (data as { cursor?: unknown; nextCursor?: unknown }).cursor ??
+                (data as { nextCursor?: unknown }).nextCursor
+            : null;
+
         cursor = typeof nextCursor === "string" && nextCursor ? nextCursor : null;
 
         if (!cursor) {
