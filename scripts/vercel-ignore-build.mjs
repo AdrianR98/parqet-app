@@ -16,6 +16,8 @@ const SAFE_PREFIXES = [
   "docs/",
   "prompts/",
   ".github/ISSUE_TEMPLATE/",
+  ".github/scripts/",
+  ".github/workflows/",
 ];
 
 const ALWAYS_BUILD_EXACT_FILES = new Set([
@@ -36,7 +38,6 @@ const ALWAYS_BUILD_EXACT_FILES = new Set([
 ]);
 
 const ALWAYS_BUILD_PREFIXES = [
-  ".github/workflows/",
   "app/",
   "components/",
   "lib/",
@@ -116,5 +117,5 @@ if (unknownFiles.length > 0) {
   process.exit(BUILD);
 }
 
-log("Only documentation/governance files changed. Skipping Vercel build.");
+log("Only documentation/governance/workflow files changed. Skipping Vercel build.");
 process.exit(SKIP);
