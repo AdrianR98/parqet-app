@@ -17,6 +17,8 @@ ParqetActivityWithPortfolioContext[]
 
 The report exists to validate the new pipeline before any product UI or existing route is replaced.
 
+For terminal-based local usage, see `docs/LOCAL_AUDIT_WORKFLOW.md`.
+
 ## Route
 
 Local route:
@@ -64,6 +66,12 @@ Summary-focused report without assets or activities:
 http://localhost:3000/api/parqet/global-assets/audit?includeAssets=false&includeActivities=false&limit=5
 ```
 
+Terminal helper for the same summary-focused report:
+
+```powershell
+npm run audit:summary
+```
+
 Small report with a low array limit:
 
 ```text
@@ -74,6 +82,12 @@ Include activities locally, still redacted:
 
 ```text
 http://localhost:3000/api/parqet/global-assets/audit?includeActivities=true&limit=5
+```
+
+Focused ISIN helper:
+
+```powershell
+npm run audit:asset -- -Isin US83444M1018
 ```
 
 Include amounts and portfolio names locally:
@@ -163,7 +177,7 @@ Observed Parqet activity payloads can expose `avgHoldingPeriod` as a large milli
 
 ## Non-goals
 
-P1-7 does not implement:
+P1-7/DX helpers do not implement:
 
 - product dashboard integration,
 - product UI,
