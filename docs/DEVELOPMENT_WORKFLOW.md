@@ -29,6 +29,35 @@ If YAML and this document conflict for Codex or agent behavior, the YAML rule go
 
 The GitHub Project Board is a working view, not the source of truth. Board setup and label guidance live in `docs/GITHUB_PROJECT_BOARD.md`.
 
+## API Budget Principle
+
+External API budget minimization is a product and architecture constraint across all phases.
+
+Parqet Connect and any future provider APIs must be treated as limited resources. The final product must not rely on repeated full provider scans for normal navigation, filtering, rendering or editing.
+
+Every Parqet/API-touching issue and PR must answer:
+
+1. Which external requests are triggered?
+2. Can an existing cached response or snapshot be reused?
+3. Can the request be narrowed by portfolio, date, asset, type or pagination?
+4. Is the request triggered only by explicit user intent?
+5. Are retries limited and classified by error type?
+6. Are rate limits surfaced clearly instead of hidden behind generic errors?
+7. Does the implementation avoid repeated full reloads during navigation, filtering or editing?
+
+Required design direction:
+
+- Prefer explicit sync or refresh actions over implicit full reloads.
+- Prefer cached snapshots with stale-state indicators over repeated provider calls.
+- Prefer provider-side filters when available.
+- Prefer pagination, load-more flows and bounded concurrency.
+- Distinguish response-size reduction from provider-call reduction.
+- Refresh tokens only for likely auth failures.
+- Do not retry expensive Activity pipelines after known non-auth failures such as provider rate limits.
+- Add safe request-count diagnostics for local/debug routes where useful.
+
+Any broad automatic reload must be justified in the issue and PR body.
+
 ## Codex Modes
 
 Default mode: `Spar`.
@@ -219,6 +248,7 @@ Every PR should include:
 - changed files,
 - verification,
 - documentation impact,
+- API budget impact for any Parqet/API-touching change,
 - German translation check when a matching `.de.md` file exists,
 - risk,
 - rollback,
@@ -250,6 +280,8 @@ Review categories:
 Privacy/secret findings are Blockers. App code in docs/governance PRs is a Blocker unless expressly allowed.
 
 Missing docs, changelog or ADR is a Blocker only if the change is documentation-, changelog- or ADR-relevant.
+
+For Parqet/API-touching changes, unbounded retries, accidental full reloads, missing rate-limit handling or unclear request impact are review findings.
 
 ## Documentation Impact
 
@@ -379,3 +411,5 @@ The existing Parqet pipeline remains a guardrail: do not create a second activit
 Phase-1 specification may be prepared during P0.1. Phase-1 implementation starts only after P0.1 is merged.
 
 Phase 1 starts with product goal and then audits the current app against that goal. First product implementation starts only after an Implementation Entry Checklist.
+
+API budget minimization is part of the architecture gate for Phase 1 and later phases. New data flows must avoid unnecessary provider calls and document cache, refresh and retry behavior.
