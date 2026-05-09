@@ -1,15 +1,41 @@
-name: Issue Agent Placeholder
+name: Issue Agent
 
 on:
   workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to inspect"
+        required: true
+        type: string
+      mode:
+        description: "Run mode"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - apply
 
 permissions:
+  issues: write
   contents: read
 
 jobs:
-  placeholder:
-    name: Manual-only placeholder
+  issue-agent:
+    name: Manual Issue-Agent v1
     runs-on: ubuntu-latest
     steps:
-      - name: Prepared but inactive
-        run: echo "Issue-Agent is prepared as a manual-only placeholder and is not active. It does not modify issues, comments, PRs or files."
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Issue-Agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_AGENT_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ISSUE_AGENT_MODE: ${{ inputs.mode }}
+        run: node .github/scripts/issue-agent.mjs

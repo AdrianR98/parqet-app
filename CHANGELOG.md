@@ -14,6 +14,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Detailed Codex mode, task execution, issue lifecycle, PR review, documentation impact, Phase-1 gate, CI and Vercel verification rules.
 - GitHub Project Board v1 setup guide with fields, label allowlist, automation limits and manual fallback.
 - Guarded manual Translation-Agent v1 workflow for German documentation review markers and Draft PR creation.
+- Manual Issue-Agent v1 workflow with dry-run/apply modes for allowlisted issue metadata.
 
 ### Changed
 
@@ -36,6 +37,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented review levels, documentation impact rules, verification vocabulary and privacy guardrails.
 - Documented GitHub Project Board v1 manual setup and connector fallback.
 - Documented Translation-Agent v1 modes, scope and prohibitions.
+- Documented Issue-Agent v1 manual usage, dry-run/apply behavior and hard limits.
 
 ### Governance
 
@@ -44,6 +46,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Established Phase-0.1 implementation grouping: Rules / Docs / YAML, GitHub Project / Labels, and Agent Workflows.
 - Defined baseline label allowlist and Project Board v1 field model.
 - Replaced the Translation-Agent placeholder with a constrained manual workflow.
+- Replaced the Issue-Agent placeholder with a constrained manual metadata workflow.
 
 ### Security
 
