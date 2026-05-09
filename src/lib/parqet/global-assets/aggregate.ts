@@ -24,6 +24,8 @@ import {
 } from "./types";
 
 const QUANTITY_EPSILON = 0.000001;
+const RATIO_TOLERANCE = 0.0001;
+const COMMON_MISMATCH_FACTORS = [10, 100, 1000];
 
 function assetKeyToGroupKey(assetKey: GlobalAssetKey): string {
   return `${assetKey.type}:${assetKey.value}`;
@@ -203,12 +205,40 @@ function getSuggestedDecisionTypes(cause: NegativeQuantityCauseType): GlobalAsse
     case "transfer_in_then_sell_then_sell":
     case "duplicate_sell_candidate":
       return ["ignore_activity_for_position", "reclassify_activity_type", "mark_as_known_external_issue"];
+    case "sell_quantity_ratio_mismatch":
+    case "possible_decimal_or_split_issue":
+      return ["manual_review_required", "mark_as_known_external_issue", "add_manual_quantity_adjustment", "reclassify_activity_type"];
     case "sell_exceeds_known_position":
     case "missing_inbound_activity":
-      return ["add_manual_quantity_adjustment", "reclassify_activity_type", "mark_as_known_external_issue"];
+      return ["add_manual_quantity_adjustment", "reclassify_activity_type", "mark_as_known_external_issue", "manual_review_required"];
     case "unknown_negative_quantity_case":
-      return ["mark_as_known_external_issue", "add_manual_quantity_adjustment"];
+      return ["mark_as_known_external_issue", "manual_review_required", "add_manual_quantity_adjustment"];
   }
+}
+
+function getQuantityRatio(inboundQuantity: number, outboundQuantity: number): number | null {
+  if (inboundQuantity <= QUANTITY_EPSILON || outboundQuantity <= QUANTITY_EPSILON) {
+    return null;
+  }
+
+  return outboundQuantity / inboundQuantity;
+}
+
+function getPossibleMismatchFactor(quantityRatio: number | null): number | null {
+  if (!quantityRatio) {
+    return null;
+  }
+
+  const match = COMMON_MISMATCH_FACTORS.find((factor) => Math.abs(quantityRatio - factor) <= RATIO_TOLERANCE);
+  return match ?? null;
+}
+
+function getRatioHint(possibleMismatchFactor: number | null): string | null {
+  if (!possibleMismatchFactor) {
+    return null;
+  }
+
+  return `Known outbound quantity is approximately ${possibleMismatchFactor}x known inbound quantity.`;
 }
 
 function classifyNegativeQuantityCause(
@@ -225,6 +255,8 @@ function classifyNegativeQuantityCause(
   );
   const transferIns = activities.filter((activity) => activity.activityType === "transfer_in" && inboundQuantityEffect(activity) > 0);
   const sells = activities.filter((activity) => activity.activityType === "sell" && outboundQuantityEffect(activity) > 0);
+  const quantityRatio = getQuantityRatio(knownInboundQuantity, knownOutboundQuantity);
+  const possibleMismatchFactor = getPossibleMismatchFactor(quantityRatio);
   const hasTransferInThenSellThenSell = transferIns.some((transferIn) => {
     const matchingSells = sells.filter((sell) => quantitiesMatch(sell.quantity ?? 0, transferIn.quantity ?? 0));
     return matchingSells.length >= 2;
@@ -240,6 +272,8 @@ function classifyNegativeQuantityCause(
     cause = "duplicate_sell_candidate";
   } else if (knownInboundQuantity === 0 && knownOutboundQuantity > 0) {
     cause = "missing_inbound_activity";
+  } else if (possibleMismatchFactor) {
+    cause = possibleMismatchFactor === 10 ? "possible_decimal_or_split_issue" : "sell_quantity_ratio_mismatch";
   } else if (knownOutboundQuantity > knownInboundQuantity) {
     cause = "sell_exceeds_known_position";
   }
@@ -251,6 +285,9 @@ function classifyNegativeQuantityCause(
     knownInboundQuantity,
     knownOutboundQuantity,
     negativeQuantity: currentQuantity,
+    quantityRatio,
+    possibleMismatchFactor,
+    ratioHint: getRatioHint(possibleMismatchFactor),
     suggestedDecisionTypes: getSuggestedDecisionTypes(cause),
   };
 }
