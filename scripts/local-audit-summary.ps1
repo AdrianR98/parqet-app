@@ -98,6 +98,7 @@ URL: $Url
 Check:
 - npm run dev is running
 - ENABLE_GLOBAL_ASSET_AUDIT_ROUTES=true is set in .env.local
+- PARQET_ACTIVITY_FETCH_CONCURRENCY=1 is recommended for repeated local audits
 - Parqet is connected locally
 - terminal requests do not share browser cookies automatically
 - recommended: seed a local cookie jar once with -CookieHeader `$cookie -UseCookieJar, then use -UseCookieJar only
@@ -142,6 +143,10 @@ function Write-DiagnosticsIfPresent {
 
   if ($null -ne $Report.error) {
     Write-Section -Title "error" -Value $Report.error
+  }
+
+  if ($null -ne $Report.apiBudget) {
+    Write-Section -Title "apiBudget" -Value $Report.apiBudget
   }
 }
 
