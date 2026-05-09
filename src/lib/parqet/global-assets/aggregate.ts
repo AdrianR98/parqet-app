@@ -17,12 +17,26 @@ import {
   TimelineDisplayType,
 } from "./types";
 
+const QUANTITY_EPSILON = 0.000001;
+
 function assetKeyToGroupKey(assetKey: GlobalAssetKey): string {
   return `${assetKey.type}:${assetKey.value}`;
 }
 
 function isMoneyValue(value: MoneyValue | null | undefined): value is MoneyValue {
   return Boolean(value);
+}
+
+function normalizeQuantityForStatus(quantity: number): number {
+  return Math.abs(quantity) < QUANTITY_EPSILON ? 0 : quantity;
+}
+
+function isPositiveQuantity(quantity: number): boolean {
+  return normalizeQuantityForStatus(quantity) > 0;
+}
+
+function isNegativeQuantity(quantity: number): boolean {
+  return normalizeQuantityForStatus(quantity) < 0;
 }
 
 function createAggregationWarning(input: {
@@ -162,16 +176,21 @@ function buildPortfolioBreakdowns(
   }
 
   return Array.from(groups.entries()).map(([portfolioId, portfolioActivities]) => {
-    const quantity = portfolioActivities.reduce((sum, activity) => sum + quantityEffect(activity), 0);
-    const status: PortfolioBreakdownStatus = quantity > 0 ? "active" : quantity === 0 ? "historical_only" : "unknown";
+    const rawQuantity = portfolioActivities.reduce((sum, activity) => sum + quantityEffect(activity), 0);
+    const quantity = normalizeQuantityForStatus(rawQuantity);
+    const status: PortfolioBreakdownStatus = isPositiveQuantity(quantity)
+      ? "active"
+      : quantity === 0
+        ? "historical_only"
+        : "unknown";
     const breakdownWarnings: ReconciliationWarning[] = [];
 
-    if (quantity < 0) {
+    if (isNegativeQuantity(quantity)) {
       const warning = createAggregationWarning({
         code: "NEGATIVE_POSITION_QUANTITY",
         severity: "Warning",
         message: "Portfolio position quantity is negative.",
-        debugMessage: "Preliminary quantity calculation resulted in a negative portfolio quantity.",
+        debugMessage: "Preliminary quantity calculation resulted in a negative portfolio quantity after applying tolerance.",
         assetKey,
         portfolioId,
         blockedMetrics: ["position", "portfolio_breakdown"],
@@ -246,15 +265,16 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
   );
 
   const portfolioBreakdowns = buildPortfolioBreakdowns(assetKey, activities, warnings);
-  const totalQuantity = portfolioBreakdowns.reduce((sum, breakdown) => sum + (breakdown.quantity ?? 0), 0);
+  const rawTotalQuantity = portfolioBreakdowns.reduce((sum, breakdown) => sum + (breakdown.quantity ?? 0), 0);
+  const totalQuantity = normalizeQuantityForStatus(rawTotalQuantity);
 
-  if (totalQuantity < 0) {
+  if (isNegativeQuantity(totalQuantity)) {
     warnings.push(
       createAggregationWarning({
         code: "NEGATIVE_POSITION_QUANTITY",
         severity: "Warning",
         message: "Global asset quantity is negative.",
-        debugMessage: "Preliminary quantity calculation resulted in a negative global quantity.",
+        debugMessage: "Preliminary quantity calculation resulted in a negative global quantity after applying tolerance.",
         assetKey,
         blockedMetrics: ["position"],
       })
@@ -316,7 +336,7 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     );
   }
 
-  const status: GlobalAssetStatus = totalQuantity < 0
+  const status: GlobalAssetStatus = isNegativeQuantity(totalQuantity)
     ? "unknown"
     : portfolioBreakdowns.some((breakdown) => breakdown.status === "active")
       ? "active"
