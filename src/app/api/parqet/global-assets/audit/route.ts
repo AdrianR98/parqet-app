@@ -12,6 +12,11 @@ const FEATURE_FLAG = "ENABLE_GLOBAL_ASSET_AUDIT_ROUTES";
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 250;
 
+type AuditDiagnostic = {
+  category: "missing_access_token" | "auth_refresh_failed" | "rate_limit" | "auth_error" | "pipeline_error";
+  retryAfterSeconds?: number | null;
+};
+
 function parseBoolean(value: string | null, fallback: boolean): boolean {
   if (value === null) return fallback;
   if (["1", "true", "yes", "on"].includes(value.toLowerCase())) return true;
@@ -111,11 +116,69 @@ function isLikelyAuthError(error: unknown): boolean {
   );
 }
 
-function buildFailedAuditResponse(options: GlobalAssetAuditOptions, note: string, error: unknown, status: number) {
+function getRetryAfterSeconds(message: string): number | null {
+  const match = message.match(/try again in\s+(\d+)\s+seconds/i);
+  if (!match) return null;
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function redactErrorMessage(message: string): string {
+  return message
+    .replace(/portfolio [A-Za-z0-9_-]+/g, "portfolio [redacted]")
+    .replace(/portfolios\/[A-Za-z0-9_-]+/g, "portfolios/[redacted]")
+    .replace(/hld_[A-Za-z0-9_-]+/g, "hld_[redacted]")
+    .replace(/cpa_[A-Za-z0-9_-]+/g, "cpa_[redacted]")
+    .slice(0, 500);
+}
+
+function classifyError(error: unknown): AuditDiagnostic {
+  const message = getErrorMessage(error);
+  const lowerMessage = message.toLowerCase();
+
+  if (message.includes("(429)") || lowerMessage.includes("rate limit")) {
+    return { category: "rate_limit", retryAfterSeconds: getRetryAfterSeconds(message) };
+  }
+
+  if (isLikelyAuthError(error)) {
+    return { category: "auth_error" };
+  }
+
+  return { category: "pipeline_error" };
+}
+
+function noteForDiagnostic(diagnostic: AuditDiagnostic): string {
+  switch (diagnostic.category) {
+    case "missing_access_token":
+      return "No access token found.";
+    case "auth_refresh_failed":
+      return "Access token expired and refresh failed.";
+    case "rate_limit":
+      return "Parqet rate limit reached. Retry later before running another local audit.";
+    case "auth_error":
+      return "Global Asset audit authorization failed.";
+    case "pipeline_error":
+      return "Global Asset audit route failed before auth refresh.";
+  }
+}
+
+function buildFailedAuditResponse(options: GlobalAssetAuditOptions, diagnostic: AuditDiagnostic, error: unknown, status: number) {
   return NextResponse.json(
     {
-      ...emptyReport(options, note),
-      error: getErrorMessage(error),
+      ...emptyReport(options, noteForDiagnostic(diagnostic)),
+      diagnostic,
+      error: redactErrorMessage(getErrorMessage(error)),
+    },
+    { status }
+  );
+}
+
+function buildDiagnosticResponse(options: GlobalAssetAuditOptions, diagnostic: AuditDiagnostic, status: number) {
+  return NextResponse.json(
+    {
+      ...emptyReport(options, noteForDiagnostic(diagnostic)),
+      diagnostic,
     },
     { status }
   );
@@ -141,7 +204,7 @@ export async function GET(req: Request) {
   const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
   if (!accessToken) {
-    return NextResponse.json(emptyReport(options, "No access token found."), { status: 401 });
+    return buildDiagnosticResponse(options, { category: "missing_access_token" }, 401);
   }
 
   async function buildReport(currentAccessToken: string) {
@@ -168,17 +231,19 @@ export async function GET(req: Request) {
   try {
     return NextResponse.json(await buildReport(accessToken));
   } catch (error) {
-    if (!isLikelyAuthError(error)) {
-      return buildFailedAuditResponse(options, "Global Asset audit route failed before auth refresh.", error, 500);
+    const diagnostic = classifyError(error);
+
+    if (diagnostic.category !== "auth_error") {
+      return buildFailedAuditResponse(options, diagnostic, error, diagnostic.category === "rate_limit" ? 429 : 500);
     }
 
     if (!refreshToken) {
-      return buildFailedAuditResponse(options, "Global Asset audit auth failed and no refresh token was available.", error, 401);
+      return buildFailedAuditResponse(options, diagnostic, error, 401);
     }
 
     const refreshed = await refreshParqetAccessToken(refreshToken);
     if (!refreshed.accessToken) {
-      return buildFailedAuditResponse(options, "Access token expired and refresh failed.", error, 401);
+      return buildDiagnosticResponse(options, { category: "auth_refresh_failed" }, 401);
     }
 
     accessToken = refreshed.accessToken;
@@ -194,7 +259,8 @@ export async function GET(req: Request) {
 
       return response;
     } catch (retryError) {
-      return buildFailedAuditResponse(options, "Global Asset audit route failed after auth refresh.", retryError, 500);
+      const retryDiagnostic = classifyError(retryError);
+      return buildFailedAuditResponse(options, retryDiagnostic, retryError, retryDiagnostic.category === "rate_limit" ? 429 : 500);
     }
   }
 }
