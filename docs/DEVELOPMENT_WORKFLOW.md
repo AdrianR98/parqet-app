@@ -27,6 +27,8 @@ Issues contain work-specific details. Chat conversations are used for specificat
 
 If YAML and this document conflict for Codex or agent behavior, the YAML rule governs operationally and the conflict must be fixed.
 
+The GitHub Project Board is a working view, not the source of truth. Board setup and label guidance live in `docs/GITHUB_PROJECT_BOARD.md`.
+
 ## Codex Modes
 
 Default mode: `Spar`.
@@ -149,6 +151,22 @@ Parent-Issues close only after all Sub-Issues are complete or intentionally drop
 Use `Fixes #...` only when the PR fully closes the issue. Use `Refs #...` for parent issues, planning issues or partial progress.
 
 ChatGPT creates Codex prompts separately from issues. Codex prompts are not stored as issue comments.
+
+## GitHub Project Board
+
+The GitHub Project Board is the working view for active Parqet App work. It does not replace issue bodies, Parent/Sub-Issue checklists or PR review history.
+
+Detailed Project Board setup, allowed fields, label allowlist, automations and manual fallback are documented in `docs/GITHUB_PROJECT_BOARD.md`.
+
+Project Board v1 rules:
+
+- Add open issues, including Parent-Issues and Sub-Issues.
+- Do not add PRs to the Project in v1.
+- Use Status, Phase and Priority fields.
+- Use labels and issue content for category/type.
+- Use `blocked` label or issue text instead of a separate Blocked status.
+- Use GitHub-native automation only for low-risk board bookkeeping.
+- Custom Issue-Agent automation must follow the agent permission rules.
 
 ## Pull Requests
 

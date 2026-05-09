@@ -38,6 +38,8 @@ Known implementation themes from existing documentation:
 - Conservative Vercel ignored-build helper for documentation/governance-only changes.
 - Vercel ignored-build behavior verified with a documentation-only PR.
 - Phase 0.1 Parent/Sub-Issues created for workflow hardening.
+- Phase 0.1 PR group 1 merged for Rules / Docs / YAML.
+- GitHub Project Board v1 setup guide documented with manual fallback.
 
 ## Active Phase 0.1 Work
 
@@ -57,14 +59,14 @@ Sub-Issues:
 
 Implementation grouping:
 
-1. Rules / Docs / YAML.
-2. GitHub Project / Labels.
-3. Agent Workflows.
+1. Rules / Docs / YAML: merged.
+2. GitHub Project / Labels: documented setup guide and manual fallback.
+3. Agent Workflows: pending.
 
 ## Next Steps
 
-1. Complete Phase 0.1 PR group 1: rules, docs and YAML.
-2. Set up GitHub Project Board v1 and labels through PR group 2 or documented manual fallback.
+1. Review and merge Phase 0.1 PR group 2: GitHub Project / Labels.
+2. If desired, manually create the GitHub Project Board using `docs/GITHUB_PROJECT_BOARD.md`.
 3. Implement constrained Issue-Agent and Translation-Agent workflow changes through PR group 3.
 4. Prepare Phase 1 product-goal specification.
 5. Start Phase 1 only after Phase 0.1 is merged.
@@ -79,6 +81,7 @@ Implementation grouping:
 | CI not yet protected | Failed checks do not block merge automatically | Treat GitHub CI as factual merge gate; activate Branch Protection later |
 | German placeholders incomplete | German docs are not yet useful as standalone docs | English remains source of truth until Translation-Agent PR |
 | Agent automation scope creep | Issues or docs could be changed too broadly | Keep agent capabilities explicit, idempotent and limited to approved outputs |
+| GitHub Project API limitation | Board setup may not be fully automatable through the connector | Use documented manual fallback in `docs/GITHUB_PROJECT_BOARD.md` |
 
 ## Assumptions
 
@@ -88,3 +91,4 @@ Implementation grouping:
 - Auto-merge is not enabled.
 - Branch Protection is not activated yet.
 - Phase 0.1 may change workflow docs and prompt files but not app/product code.
+- GitHub Project Board is an operational view, not the source of truth.
