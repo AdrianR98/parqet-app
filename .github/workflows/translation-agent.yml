@@ -42,7 +42,6 @@ jobs:
           delete-branch: true
           title: "docs: update German documentation translations"
           draft: true
-          labels: documentation,agent,translation
           commit-message: "docs: update German translation review markers"
           body: |
             ## Goal
@@ -55,6 +54,14 @@ jobs:
 
             - `README.de.md`
             - `docs/DEVELOPMENT_WORKFLOW.de.md`
+
+            ## Suggested labels
+
+            Apply manually if available:
+
+            - `documentation`
+            - `agent`
+            - `translation`
 
             ## Verification
 
