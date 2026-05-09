@@ -36,6 +36,8 @@ The browser has Parqet cookies after OAuth. PowerShell does not automatically sh
 
 If the browser route works but the helper script returns `401 Unauthorized`, copy the local Cookie header from the browser request and pass it explicitly.
 
+When `-CookieHeader` is provided, the helpers use `curl.exe` on Windows because `Invoke-RestMethod` can mishandle this local Cookie scenario.
+
 Example:
 
 ```powershell
@@ -111,6 +113,7 @@ If a script fails, check:
 - `ENABLE_GLOBAL_ASSET_AUDIT_ROUTES=true` is set,
 - Parqet is connected locally,
 - terminal requests may require an explicit `-CookieHeader`,
+- `curl.exe` is available on Windows,
 - the requested ISIN exists in the authorized portfolios.
 
 ## Non-goals

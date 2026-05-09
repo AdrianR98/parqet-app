@@ -17,6 +17,25 @@ function Write-Section {
   $Value | ConvertTo-Json -Depth 20
 }
 
+function Invoke-AuditRequestWithCurl {
+  param(
+    [string]$Url,
+    [string]$CookieHeader
+  )
+
+  $response = & curl.exe -sS $Url -H "Cookie: $CookieHeader"
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "curl.exe failed with exit code $LASTEXITCODE."
+  }
+
+  try {
+    return $response | ConvertFrom-Json
+  } catch {
+    throw "curl.exe returned a non-JSON response. Response starts with: $($response.Substring(0, [Math]::Min(300, $response.Length)))"
+  }
+}
+
 function Invoke-AuditRequest {
   param(
     [string]$Url,
@@ -24,13 +43,8 @@ function Invoke-AuditRequest {
   )
 
   try {
-    $headers = @{}
     if (-not [string]::IsNullOrWhiteSpace($CookieHeader)) {
-      $headers["Cookie"] = $CookieHeader
-    }
-
-    if ($headers.Count -gt 0) {
-      return Invoke-RestMethod -Method Get -Uri $Url -Headers $headers -ErrorAction Stop
+      return Invoke-AuditRequestWithCurl -Url $Url -CookieHeader $CookieHeader
     }
 
     return Invoke-RestMethod -Method Get -Uri $Url -ErrorAction Stop
@@ -46,6 +60,7 @@ Check:
 - Parqet is connected locally
 - terminal requests do not share browser cookies automatically
 - pass a local-only Cookie header with -CookieHeader if the browser route works but this script returns 401
+- Cookie-header requests use curl.exe on Windows because Invoke-RestMethod can mishandle this local Cookie scenario
 
 Example:
 npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..."
@@ -71,7 +86,7 @@ Write-Host "Global Asset audit summary"
 Write-Host "URL: $url"
 Write-Host "Note: Output is redacted by the local audit route. Do not commit real-data output."
 if (-not [string]::IsNullOrWhiteSpace($CookieHeader)) {
-  Write-Host "Cookie header: provided, not printed"
+  Write-Host "Cookie header: provided, not printed; request used curl.exe"
 }
 
 Write-Section -Title "sources" -Value $report.sources
