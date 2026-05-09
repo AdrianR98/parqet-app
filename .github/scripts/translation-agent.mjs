@@ -34,7 +34,11 @@ function readText(path) {
 function stripOldMarker(content) {
   return content
     .replace(/^<!-- translation-source: .*? -->\n<!-- translation-source-sha256: .*? -->\n\n?/u, '')
-    .replace(/^> \[!WARNING\]\n> TODO translation review: .*?\n\n/usu, '');
+    .replace(/^> \[!WARNING\]\n> TODO translation review: .*?\n\n/us, '');
+}
+
+if (MODE !== 'check' && MODE !== 'prepare-pr') {
+  throw new Error(`Unsupported TRANSLATION_AGENT_MODE: ${MODE}`);
 }
 
 let hasChanges = false;
@@ -68,10 +72,6 @@ for (const pair of ALLOWED_PAIRS) {
   } else {
     console.log(`${pair.target} is linked to current ${pair.source}.`);
   }
-}
-
-if (MODE !== 'check' && MODE !== 'prepare-pr') {
-  throw new Error(`Unsupported TRANSLATION_AGENT_MODE: ${MODE}`);
 }
 
 if (MODE === 'check' && hasStaleTranslations) {
