@@ -97,6 +97,30 @@ function emptyReport(options: GlobalAssetAuditOptions, note: string) {
   });
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isLikelyAuthError(error: unknown): boolean {
+  const message = getErrorMessage(error);
+  return (
+    message.includes("(401)") ||
+    message.includes(" 401 ") ||
+    message.includes("401:") ||
+    message.toLowerCase().includes("unauthorized")
+  );
+}
+
+function buildFailedAuditResponse(options: GlobalAssetAuditOptions, note: string, error: unknown, status: number) {
+  return NextResponse.json(
+    {
+      ...emptyReport(options, note),
+      error: getErrorMessage(error),
+    },
+    { status }
+  );
+}
+
 export async function GET(req: Request) {
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
@@ -144,27 +168,33 @@ export async function GET(req: Request) {
   try {
     return NextResponse.json(await buildReport(accessToken));
   } catch (error) {
+    if (!isLikelyAuthError(error)) {
+      return buildFailedAuditResponse(options, "Global Asset audit route failed before auth refresh.", error, 500);
+    }
+
     if (!refreshToken) {
-      return NextResponse.json(
-        { ...emptyReport(options, "Global Asset audit route failed."), error: error instanceof Error ? error.message : String(error) },
-        { status: 500 }
-      );
+      return buildFailedAuditResponse(options, "Global Asset audit auth failed and no refresh token was available.", error, 401);
     }
 
     const refreshed = await refreshParqetAccessToken(refreshToken);
     if (!refreshed.accessToken) {
-      return NextResponse.json(emptyReport(options, "Access token expired and refresh failed."), { status: 401 });
+      return buildFailedAuditResponse(options, "Access token expired and refresh failed.", error, 401);
     }
 
     accessToken = refreshed.accessToken;
-    const report = await buildReport(accessToken);
-    const response = NextResponse.json(report);
 
-    response.cookies.set("parqet_access_token", accessToken, { httpOnly: true, sameSite: "lax", path: "/" });
-    if (refreshed.newRefreshToken) {
-      response.cookies.set("parqet_refresh_token", refreshed.newRefreshToken, { httpOnly: true, sameSite: "lax", path: "/" });
+    try {
+      const report = await buildReport(accessToken);
+      const response = NextResponse.json(report);
+
+      response.cookies.set("parqet_access_token", accessToken, { httpOnly: true, sameSite: "lax", path: "/" });
+      if (refreshed.newRefreshToken) {
+        response.cookies.set("parqet_refresh_token", refreshed.newRefreshToken, { httpOnly: true, sameSite: "lax", path: "/" });
+      }
+
+      return response;
+    } catch (retryError) {
+      return buildFailedAuditResponse(options, "Global Asset audit route failed after auth refresh.", retryError, 500);
     }
-
-    return response;
   }
 }
