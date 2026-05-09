@@ -19,7 +19,7 @@ The report exists to validate the new pipeline before any product UI or existing
 
 For terminal-based local usage, see `docs/LOCAL_AUDIT_WORKFLOW.md`.
 
-For future user-decision handling, see `docs/GLOBAL_ASSET_OVERRIDES.md`.
+For user-decision handling and overrides, see `docs/GLOBAL_ASSET_OVERRIDES.md`.
 
 ## Route
 
@@ -162,7 +162,40 @@ missing_inbound_activity
 unknown_negative_quantity_case
 ```
 
-These candidates are diagnostic only. They do not change calculations yet. Affected metrics remain blocked until a future explicit user decision exists.
+These candidates are diagnostic only. They do not change calculations by themselves. Affected metrics remain blocked until an explicit user decision exists.
+
+## Applied overrides
+
+The first applied override class is:
+
+```text
+ignore_activity_for_position
+```
+
+When a narrow enabled override matches an activity, the activity remains visible in the timeline, but its position quantity effect is `0`.
+
+Applied overrides appear in:
+
+```text
+summary.appliedOverrideCount
+aggregation.summary.appliedOverrideCount
+aggregation.appliedOverrides
+```
+
+If assets/activities are included, redacted timeline entries may also show:
+
+```text
+activity.positionOverride.affectsPosition = false
+```
+
+Redaction still applies:
+
+- portfolio IDs are pseudonymized by default,
+- activity IDs are hidden unless `includeActivityIds=true`,
+- amounts are hidden unless `includeAmounts=true`,
+- raw payloads are never returned.
+
+With an empty override file, `appliedOverrideCount` should be `0` and behavior should be unchanged.
 
 ## Report shape
 
@@ -189,6 +222,7 @@ Returned arrays include truncation flags, for example:
 - `aggregation.unassignedActivitiesTruncated`
 - `aggregation.warningsTruncated`
 - `aggregation.unresolvedDecisionCandidatesTruncated`
+- `aggregation.appliedOverridesTruncated`
 - `aggregation.timelinesTruncated`
 - top-level `warningsTruncated`
 
@@ -238,7 +272,7 @@ Observed Parqet activity payloads can expose `avgHoldingPeriod` as a large milli
 
 ## Non-goals
 
-P1-8 does not implement:
+P1-9 does not implement:
 
 - product dashboard integration,
 - product UI,
@@ -249,10 +283,11 @@ P1-8 does not implement:
 - transfer pairing,
 - metadata enrichment,
 - FX conversion,
-- applying user overrides,
 - persistence API,
+- broad reclassification,
+- synthetic manual quantity adjustments,
 - test framework setup.
 
 ## Next step
 
-Use this report to inspect Global Asset output locally. Later Phase-1 work should apply narrow user-confirmed overrides, refine transfer handling and decide when the isolated pipeline becomes productive.
+Use this report to inspect Global Asset output locally. Later Phase-1 work should add persistence/UI for decisions, refine transfer handling and decide when the isolated pipeline becomes productive.
