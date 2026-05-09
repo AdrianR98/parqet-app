@@ -1,33 +1,86 @@
-version: 1
+version: 2
 default_mode: Spar
 
 task_modes:
   Mini:
-    description: Tiny low-risk work.
+    description: Tiny low-risk documentation, wording or mechanical changes.
+    max_files: explicitly named files only
   Spar:
     description: Default focused work with limited files.
+    max_files: 6
   Normal:
     description: Moderate work needing broader repository context.
+    max_files: 10
   Voll:
     description: Full-context work for risky or cross-cutting tasks.
+    max_files: no fixed limit; file groups must be planned
   Folgeauftrag:
     description: Narrow follow-up in an existing context.
+    max_files: within original scope
   Review-Fix:
     description: Targeted PR review or CI fix.
+    max_files: only files needed for review feedback or introduced failure
 
-required_fields:
+required_header_fields:
   - repo
   - mode
   - branch
+  - create_pr
+  - linked_issues
+
+required_fields_for_code_normal_voll_governance_ci_agent_workflow:
   - task_title
   - goal
-  - linked_issues
   - read_first
   - allowed_changes
+  - do_not_modify
   - non_goals
   - acceptance_criteria
   - verification
-  - risks
+  - risks_or_notes
+
+mini_exceptions:
+  - allowed_changes may be omitted when exactly one clear documentation file is named.
+  - non_goals may be omitted when the task is unambiguous.
+
+branch_prefixes:
+  - docs/
+  - chore/
+  - fix/
+  - feat/
+  - test/
+  - refactor/
+
+read_first_by_mode:
+  Mini:
+    - AGENTS.md
+    - explicitly named files
+  Spar:
+    - AGENTS.md
+    - prompts/codex-quick-rules.yaml
+    - relevant files
+  Normal:
+    - AGENTS.md
+    - prompts/codex-quick-rules.yaml
+    - prompts/codex-task-template.yaml
+    - prompts/codex-execution-rules.yaml
+    - relevant files
+  Voll:
+    - AGENTS.md
+    - prompts/master-prompt.yaml
+    - prompts/codex-quick-rules.yaml
+    - prompts/codex-task-template.yaml
+    - prompts/codex-execution-rules.yaml
+    - prompts/workflow-chatgpt-codex.yaml
+    - docs/DEVELOPMENT_WORKFLOW.md
+    - docs/PROJECT_STATUS.md
+    - relevant ADRs
+
+issue_linking:
+  parent_issue: Refs only
+  complete_sub_issue: Fixes allowed
+  partial_work: Refs only
+  review_fix: re-check PR body after changes
 
 template: |
   Repo: AdrianR98/parqet-app
@@ -40,18 +93,21 @@ template: |
 
   Linked issues:
   Refs #<parent>
-  Fixes #<child>
+  Fixes #<child-if-fully-completed>
 
   Goal:
   <what should be true after this task>
 
   Read first:
   - AGENTS.md
-  - prompts/master-prompt.yaml
-  - docs/PROJECT_STATUS.md
+  - prompts/codex-quick-rules.yaml
+  - <other files required by mode/scope>
 
   Allowed changes:
-  - <path or area>
+  - <specific path or area>
+
+  Do not modify:
+  - <specific path or critical area>
 
   Non-goals:
   - <explicitly out of scope>
@@ -60,13 +116,23 @@ template: |
   - [ ] <criterion>
 
   Verification:
-  - npm run lint
-  - npm run build
+  - <Run / Not run / Not applicable with reason>
 
-  Risks:
-  - <risk to watch>
+  Risks / notes:
+  - <risk or note to watch>
 
 voll_required_note: >
   Use Voll for risky first tasks involving auth/OAuth, tokens/cookies,
-  API contracts, data pipeline, persistence, caching, CI/Branch Protection,
-  security or large refactorings.
+  Parqet API contracts, persistence, caching, security, Branch Protection,
+  or large refactorings. Data-pipeline first tasks should usually use Voll;
+  small follow-ups may use Normal only when the canonical pipeline is not
+  being restructured.
+
+stop_conditions:
+  - missing branch name when work requires branch or PR
+  - product goal uncertainty
+  - user-flow uncertainty
+  - data-model uncertainty
+  - private data or secret suspicion
+  - scope would exceed mode file limits except Voll
+  - requested change conflicts with current workflow rules
