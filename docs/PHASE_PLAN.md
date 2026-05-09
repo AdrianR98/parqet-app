@@ -67,6 +67,22 @@ Non-goals:
 - No direct `main` writes by agents.
 - No private data in repository files, issues, PRs or logs.
 
+## Project-Wide API Budget Principle
+
+External API budget minimization is a permanent product and architecture principle.
+
+Every phase must avoid unnecessary Parqet/provider calls, repeated full scans, accidental retries and implicit heavy reloads.
+
+Required across all phases:
+
+- Prefer cached snapshots and explicit refresh/sync actions.
+- Prefer provider-side filters, pagination, narrow portfolio/date/asset scopes and bounded concurrency.
+- Distinguish small response payloads from actually reduced provider calls.
+- Classify errors before retrying expensive requests.
+- Surface rate limits and stale data clearly.
+- Avoid full Activity reloads during normal navigation, filtering, rendering or editing.
+- Document request impact in API/data-pipeline PRs.
+
 ## Phase 1 - Global Asset Timeline Foundation
 
 Status: active.
@@ -85,6 +101,7 @@ Core product goal:
 - preserve activity history, dividends, fees and taxes,
 - represent transfer-related events explicitly,
 - produce warnings/confidence instead of hiding ambiguous data,
+- minimize Parqet/API usage through bounded requests, cache-aware flows and explicit refresh semantics,
 - keep the existing product implementation stable until the implementation gate is met.
 
 Completed work:
@@ -107,6 +124,7 @@ Planned next work:
 Entry / implementation gate:
 
 - API audit completed.
+- API budget impact understood for the affected data flow.
 - Global Asset Timeline ADR accepted.
 - Type model defined.
 - Normalization boundary defined.
@@ -122,12 +140,16 @@ Guardrails:
 - No automatic transfer pairing before a dedicated issue.
 - OAuth/Auth remains unchanged until a dedicated Full Review issue exists.
 - Real Parqet reference files stay local/ignored and must not enter issues, PRs or logs.
+- No new broad provider reload path without explicit API-budget justification.
 
 Known follow-ups:
 
 - Transfer pairing / matching model for `transfer_in` and `transfer_out`.
 - OpenAPI cross-check against the official Parqet Connect specification.
 - Cost-basis and realized-gain decision after type model and audit/report mode.
+- Lightweight auth/portfolio health check without Activity fetch.
+- Server-side Activity or normalized snapshot cache with TTL and explicit refresh.
+- Provider-call count diagnostics for local audit/debug routes.
 
 ## Phase 2 - Implementation Foundations
 
@@ -138,6 +160,8 @@ Likely themes:
 - Shared pipeline implementation work.
 - Focused tests for core data logic.
 - Safer metadata and reconciliation verification.
+- Cache and sync model foundations.
+- Request-budget observability for provider calls.
 
 ## Phase 3 - Performance And UX Reliability
 
@@ -148,7 +172,9 @@ Likely themes:
 - Bounded concurrency.
 - Pagination/filtering improvements.
 - Cache and stale-state decisions.
+- Explicit sync/refresh flows.
 - Loading and error-state reliability.
+- Avoiding full scans for normal UI interactions.
 
 ## Phase 4 - Quality Gates And Automation
 
