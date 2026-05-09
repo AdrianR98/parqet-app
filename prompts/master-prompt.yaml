@@ -9,6 +9,7 @@ purpose:
   - Preserve product behavior unless an issue explicitly requests a product change.
   - Keep documentation, prompts, templates, CI and agent rules coherent.
   - Prepare Phase 1 product and architecture work without uncontrolled implementation.
+  - Treat external API budget minimization as a hard product and architecture constraint.
 
 roles:
   adrian:
@@ -89,6 +90,16 @@ guardrails:
     - Do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
     - Preserve public route contracts unless an issue and ADR authorize change.
     - Phase 1 starts with product goal and architecture decisions before implementation.
+  api_budget:
+    - External API calls are a limited product resource, not an implementation detail.
+    - Prefer cached snapshots, explicit refresh actions and narrow request scopes over automatic full reloads.
+    - Do not add broad automatic Parqet reloads for navigation, filtering, editing or rendering without explicit justification.
+    - Distinguish response-size reduction from provider-call reduction in docs, PRs and review notes.
+    - Classify errors before retrying; refresh tokens only for likely auth failures.
+    - Avoid retrying expensive activity pipelines after non-auth failures such as provider rate limits.
+    - Prefer provider-side filters, pagination and bounded concurrency when available.
+    - Expose rate limits and stale data clearly rather than hiding them behind generic errors.
+    - Any Parqet/API-touching issue or PR must describe request impact, caching strategy and retry behavior.
   codex_execution:
     - Every task should specify repo, mode, branch, Create PR and linked issues.
     - Codex may commit only if explicitly allowed.
