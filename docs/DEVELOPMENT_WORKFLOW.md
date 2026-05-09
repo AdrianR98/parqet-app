@@ -111,6 +111,45 @@ All agents stop on privacy or secret suspicion. No agent may enrich, copy, commi
 - Product-Agent: ChatGPT role for product goals, user flows and non-goals; does not make final product decisions.
 - Architecture-Agent: ChatGPT role for architecture boundaries, ADR need and risks; ADR creation requires approval.
 
+### Translation-Agent v1
+
+Translation-Agent v1 is manually started through GitHub Actions.
+
+Allowed modes:
+
+```text
+check
+prepare-pr
+```
+
+The workflow is limited to:
+
+```text
+Sources:
+- README.md
+- docs/DEVELOPMENT_WORKFLOW.md
+
+Targets:
+- README.de.md
+- docs/DEVELOPMENT_WORKFLOW.de.md
+```
+
+Translation-Agent v1 does not use an external translation service. It does not make product, governance or architecture decisions. It guards the German files by checking source markers and adding `TODO translation review` warnings when human translation review is required.
+
+`check` mode validates that the German files are linked to the current English source markers and are not still placeholders.
+
+`prepare-pr` mode may update only the allowed German target files and may create a Draft PR for human review.
+
+Forbidden:
+
+- no automatic trigger in v1,
+- no English source-file changes,
+- no ADR translation,
+- no `CHANGELOG.de.md`,
+- no app code changes,
+- no private data use,
+- no external translation service without separate approval.
+
 ## Issue Lifecycle
 
 Issues are human-readable planning artifacts, not raw Codex prompts.

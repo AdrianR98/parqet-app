@@ -13,6 +13,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Phase-0.1 Parent/Sub-Issue plan for workflow hardening and agent readiness.
 - Detailed Codex mode, task execution, issue lifecycle, PR review, documentation impact, Phase-1 gate, CI and Vercel verification rules.
 - GitHub Project Board v1 setup guide with fields, label allowlist, automation limits and manual fallback.
+- Guarded manual Translation-Agent v1 workflow for German documentation review markers and Draft PR creation.
 
 ### Changed
 
@@ -22,6 +23,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Phase plan updated with Phase 0.1 and a stricter Phase-1 entry gate.
 - Project status updated to reflect active Phase 0.1 work.
 - Development workflow now references the GitHub Project Board guide as the operational board setup reference.
+- Agent workflow guidance now documents the guarded Translation-Agent v1 implementation.
 
 ### Fixed
 
@@ -33,6 +35,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented the Vercel ignored-build strategy in the development workflow.
 - Documented review levels, documentation impact rules, verification vocabulary and privacy guardrails.
 - Documented GitHub Project Board v1 manual setup and connector fallback.
+- Documented Translation-Agent v1 modes, scope and prohibitions.
 
 ### Governance
 
@@ -40,8 +43,10 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Defined agent categories, maturity levels and initial permissions for Role-Agents, Automation-Agents and GitHub-native automations.
 - Established Phase-0.1 implementation grouping: Rules / Docs / YAML, GitHub Project / Labels, and Agent Workflows.
 - Defined baseline label allowlist and Project Board v1 field model.
+- Replaced the Translation-Agent placeholder with a constrained manual workflow.
 
 ### Security
 
 - Added local reference and environment file rules, including `.local/` and `.env*` ignore policy with `.env.example` allowed.
 - Reinforced private-data and log-handling rules for API/Auth/Data-related work.
+- Kept Translation-Agent v1 free of external translation services and app-code access.

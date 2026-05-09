@@ -107,6 +107,8 @@ agents:
       - branch
       - Draft PR
       - updates to allowed .de.md files only
+      - translation source markers
+      - TODO translation review warnings
     scope_v1:
       source_files:
         - README.md
@@ -114,6 +116,11 @@ agents:
       target_files:
         - README.de.md
         - docs/DEVELOPMENT_WORKFLOW.de.md
+    implementation_v1:
+      - Uses a guarded repository script, not an external translation service.
+      - Check mode validates that target files have current source markers and are not placeholders.
+      - Prepare-pr mode updates source markers and adds TODO translation review warnings where human review is required.
+      - Any PR created by the workflow must be a Draft PR.
     prohibited:
       - automatic trigger in v1
       - English source-file changes
@@ -122,6 +129,7 @@ agents:
       - app code changes
       - new decisions or content reinterpretation
       - private data use
+      - external translation service use without separate approval
   Docs-Agent:
     type: Role-Agent
     current_level: documented / manual chat role

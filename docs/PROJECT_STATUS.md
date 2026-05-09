@@ -33,13 +33,13 @@ Known implementation themes from existing documentation:
 - ADR template and collaboration operating-system ADR.
 - Issue forms and PR template.
 - CI workflow running lint and build.
-- Manual-only placeholder workflows for future Issue-Agent and Translation-Agent.
 - `.env.example`, `.gitignore` local privacy rules and `CHANGELOG.md`.
 - Conservative Vercel ignored-build helper for documentation/governance-only changes.
 - Vercel ignored-build behavior verified with a documentation-only PR.
 - Phase 0.1 Parent/Sub-Issues created for workflow hardening.
 - Phase 0.1 PR group 1 merged for Rules / Docs / YAML.
 - GitHub Project Board v1 setup guide documented with manual fallback.
+- Translation-Agent v1 prepared as a guarded manual workflow.
 
 ## Active Phase 0.1 Work
 
@@ -61,13 +61,13 @@ Implementation grouping:
 
 1. Rules / Docs / YAML: merged.
 2. GitHub Project / Labels: documented setup guide and manual fallback.
-3. Agent Workflows: pending.
+3. Agent Workflows: Translation-Agent v1 prepared; Issue-Agent technical implementation remains a later explicit activation topic.
 
 ## Next Steps
 
-1. Review and merge Phase 0.1 PR group 2: GitHub Project / Labels.
+1. Review and merge Phase 0.1 PR group 3: Agent Workflows.
 2. If desired, manually create the GitHub Project Board using `docs/GITHUB_PROJECT_BOARD.md`.
-3. Implement constrained Issue-Agent and Translation-Agent workflow changes through PR group 3.
+3. Run Translation-Agent manually in `check` mode after merge.
 4. Prepare Phase 1 product-goal specification.
 5. Start Phase 1 only after Phase 0.1 is merged.
 
@@ -82,6 +82,7 @@ Implementation grouping:
 | German placeholders incomplete | German docs are not yet useful as standalone docs | English remains source of truth until Translation-Agent PR |
 | Agent automation scope creep | Issues or docs could be changed too broadly | Keep agent capabilities explicit, idempotent and limited to approved outputs |
 | GitHub Project API limitation | Board setup may not be fully automatable through the connector | Use documented manual fallback in `docs/GITHUB_PROJECT_BOARD.md` |
+| Translation workflow overreach | German docs could appear authoritative before review | Translation-Agent creates Draft PRs and TODO warnings for human review |
 
 ## Assumptions
 
@@ -90,5 +91,5 @@ Implementation grouping:
 - CI starts with lint and build only.
 - Auto-merge is not enabled.
 - Branch Protection is not activated yet.
-- Phase 0.1 may change workflow docs and prompt files but not app/product code.
+- Phase 0.1 may change workflow docs, prompt files and guarded workflow files but not app/product code.
 - GitHub Project Board is an operational view, not the source of truth.

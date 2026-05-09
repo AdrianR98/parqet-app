@@ -1,15 +1,81 @@
-name: Translation Agent Placeholder
+name: Translation Agent
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: true
+        default: "check"
+        type: choice
+        options:
+          - check
+          - prepare-pr
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
-  placeholder:
-    name: Manual-only placeholder
+  translation-agent:
+    name: Manual translation agent
     runs-on: ubuntu-latest
     steps:
-      - name: Prepared but inactive
-        run: echo "Translation-Agent is prepared as a manual-only placeholder and is not active. It does not translate, comment, open PRs or change files."
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run translation guard
+        env:
+          TRANSLATION_AGENT_MODE: ${{ inputs.mode }}
+        run: node .github/scripts/translation-agent.mjs
+
+      - name: Create draft translation PR
+        if: ${{ inputs.mode == 'prepare-pr' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: docs/translation-agent-update
+          delete-branch: true
+          title: "docs: update German documentation translations"
+          draft: true
+          commit-message: "docs: update German translation review markers"
+          body: |
+            ## Goal
+
+            Prepare German documentation translation updates for human review.
+
+            ## Scope
+
+            Allowed target files only:
+
+            - `README.de.md`
+            - `docs/DEVELOPMENT_WORKFLOW.de.md`
+
+            ## Suggested labels
+
+            Apply manually if available:
+
+            - `documentation`
+            - `agent`
+            - `translation`
+
+            ## Verification
+
+            Run:
+
+            - Translation-Agent workflow in `prepare-pr` mode.
+
+            ## Important
+
+            This workflow does not use an external translation service and does not make product or governance decisions. It only updates translation source markers and adds `TODO translation review` where the German translation must be manually checked before merge.
+
+            ## Non-goals
+
+            - No English source-file changes.
+            - No ADR translation.
+            - No `CHANGELOG.de.md`.
+            - No app code changes.
