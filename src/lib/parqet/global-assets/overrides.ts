@@ -55,6 +55,7 @@ function isSupportedDecisionType(value: unknown): value is GlobalAssetOverrideDe
       "reclassify_activity_type",
       "add_manual_quantity_adjustment",
       "mark_as_known_external_issue",
+      "manual_review_required",
     ].includes(value)
   );
 }

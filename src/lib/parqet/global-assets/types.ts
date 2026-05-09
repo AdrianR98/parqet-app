@@ -88,6 +88,8 @@ export type TransferStatus = "not_transfer" | "possible" | "matched" | "unmatche
 
 export type NegativeQuantityCauseType =
   | "sell_exceeds_known_position"
+  | "sell_quantity_ratio_mismatch"
+  | "possible_decimal_or_split_issue"
   | "transfer_in_then_sell_then_sell"
   | "duplicate_sell_candidate"
   | "missing_inbound_activity"
@@ -97,7 +99,8 @@ export type GlobalAssetOverrideDecisionType =
   | "ignore_activity_for_position"
   | "reclassify_activity_type"
   | "add_manual_quantity_adjustment"
-  | "mark_as_known_external_issue";
+  | "mark_as_known_external_issue"
+  | "manual_review_required";
 
 export type AppliedGlobalAssetOverride = {
   overrideId: string;
@@ -118,6 +121,9 @@ export type NegativeQuantityCause = {
   knownInboundQuantity: number;
   knownOutboundQuantity: number;
   negativeQuantity: number;
+  quantityRatio?: number | null;
+  possibleMismatchFactor?: number | null;
+  ratioHint?: string | null;
   suggestedDecisionTypes: GlobalAssetOverrideDecisionType[];
 };
 

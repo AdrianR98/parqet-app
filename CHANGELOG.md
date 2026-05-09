@@ -26,6 +26,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Narrow Global Asset `ignore_activity_for_position` override application for position quantity effects.
 - Persistent local cookie-jar support for Global Asset audit helpers.
 - Safe diagnostic output for Global Asset audit failures, including category and retry hints where available.
+- Refined Global Asset negative quantity candidate metadata for ratio and factor mismatch cases.
 
 ### Changed
 
@@ -43,6 +44,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Global Asset audit reports now expose redacted applied override metadata and applied override counts.
 - Local audit helpers now support `-UseCookieJar` so refreshed cookies can persist across terminal calls.
 - Local audit helpers now print safe diagnostic and error sections when returned by the audit route.
+- Global Asset negative quantity suggestions are now more conservative for non-duplicate ratio mismatch cases.
 
 ### Fixed
 
@@ -68,6 +70,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Added `docs/GLOBAL_ASSET_OVERRIDES.md` for future user-confirmed correction decisions.
 - Documented narrow `ignore_activity_for_position` override application and audit visibility.
 - Documented persistent local audit authentication with a gitignored cookie jar.
+- Documented refined negative quantity cause categories and ratio metadata.
 
 ### Governance
 
