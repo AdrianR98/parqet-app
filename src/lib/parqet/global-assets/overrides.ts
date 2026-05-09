@@ -5,6 +5,7 @@ import type {
   GlobalAssetKey,
   GlobalAssetOverrideDecisionType,
   NormalizedActivity,
+  NormalizedActivityPositionOverride,
 } from "./types";
 
 const QUANTITY_MATCH_EPSILON = 0.000001;
@@ -225,7 +226,7 @@ export function applyGlobalAssetPositionOverrides(
   }
 
   const appliedOverrides: AppliedGlobalAssetOverride[] = [];
-  const nextActivities = activities.map((activity) => {
+  const nextActivities: NormalizedActivity[] = activities.map((activity) => {
     const matchingOverride = applicableOverrides.find((override) => overrideMatchesActivity(override, activity));
 
     if (!matchingOverride) {
@@ -233,14 +234,15 @@ export function applyGlobalAssetPositionOverrides(
     }
 
     const appliedOverride = toAppliedOverride(matchingOverride, activity);
+    const positionOverride: NormalizedActivityPositionOverride = {
+      ...appliedOverride,
+      affectsPosition: false,
+    };
     appliedOverrides.push(appliedOverride);
 
     return {
       ...activity,
-      positionOverride: {
-        ...appliedOverride,
-        affectsPosition: false,
-      },
+      positionOverride,
     };
   });
 
