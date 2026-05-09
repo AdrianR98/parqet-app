@@ -1,6 +1,22 @@
 import type { Activity } from "./activity-types";
 
 const DEFAULT_PORTFOLIO_ACTIVITIES_CONCURRENCY = 3;
+const MIN_PORTFOLIO_ACTIVITIES_CONCURRENCY = 1;
+const MAX_PORTFOLIO_ACTIVITIES_CONCURRENCY = 5;
+
+function getPortfolioActivitiesConcurrency(): number {
+    const rawValue = process.env.PARQET_ACTIVITY_FETCH_CONCURRENCY;
+    const parsed = rawValue ? Number(rawValue) : DEFAULT_PORTFOLIO_ACTIVITIES_CONCURRENCY;
+
+    if (!Number.isInteger(parsed)) {
+        return DEFAULT_PORTFOLIO_ACTIVITIES_CONCURRENCY;
+    }
+
+    return Math.min(
+        Math.max(parsed, MIN_PORTFOLIO_ACTIVITIES_CONCURRENCY),
+        MAX_PORTFOLIO_ACTIVITIES_CONCURRENCY
+    );
+}
 
 async function mapWithConcurrency<TInput, TOutput>(
     items: TInput[],
@@ -105,7 +121,7 @@ export async function loadActivitiesForPortfolios(
 ): Promise<Activity[]> {
     const results = await mapWithConcurrency(
         portfolioIds,
-        DEFAULT_PORTFOLIO_ACTIVITIES_CONCURRENCY,
+        getPortfolioActivitiesConcurrency(),
         (portfolioId) => fetchAllActivitiesForPortfolio(accessToken, portfolioId)
     );
 

@@ -22,6 +22,14 @@ Ensure `.env.local` contains:
 ENABLE_GLOBAL_ASSET_AUDIT_ROUTES=true
 ```
 
+For local audit debugging, reduce provider request pressure with:
+
+```text
+PARQET_ACTIVITY_FETCH_CONCURRENCY=1
+```
+
+This loads portfolio activity pages more conservatively. The default remains higher for normal app behavior, but `1` is recommended when repeatedly running local audit helpers.
+
 Connect Parqet locally through:
 
 ```text
@@ -112,6 +120,24 @@ Rules:
 - The scripts do not print cookie values.
 - Prefer `-UseCookieJar` after one-time bootstrap.
 
+## Rate-limit hygiene
+
+The audit route still needs to load activities per authorized portfolio before it can filter by ISIN locally. Repeated audit calls can therefore hit provider rate limits.
+
+Recommended local settings:
+
+```text
+ENABLE_GLOBAL_ASSET_AUDIT_ROUTES=true
+PARQET_ACTIVITY_FETCH_CONCURRENCY=1
+```
+
+Rules:
+
+- Prefer focused asset audits over repeated full summaries.
+- Stop audit calls when `diagnostic.category` is `rate_limit`.
+- Wait for the displayed retry window before trying again.
+- Keep `includeActivities`, `includeAmounts`, `includePortfolioNames` and `includeActivityIds` disabled unless specifically needed.
+
 ## Summary audit
 
 Run after cookie jar bootstrap:
@@ -128,8 +154,10 @@ npm run audit:summary -- -BaseUrl "http://localhost:3000" -Limit 5 -UseCookieJar
 npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..." -UseCookieJar
 ```
 
-The summary helper prints only:
+The summary helper prints:
 
+- diagnostic, if present
+- error, if present
 - sources
 - normalization.summary
 - aggregation.summary
@@ -169,11 +197,14 @@ If a script fails, check:
 - `npm run dev` is running,
 - `ENABLE_GLOBAL_ASSET_AUDIT_ROUTES=true` is set,
 - Parqet is connected locally,
+- `PARQET_ACTIVITY_FETCH_CONCURRENCY=1` is set for repeated debugging,
 - the cookie jar exists after bootstrap,
 - `curl.exe` is available on Windows,
 - the requested ISIN exists in the authorized portfolios.
 
 If the helper reports that refresh failed, reauthorize via `/api/auth/start` and reseed the cookie jar once.
+
+If the helper reports a rate limit, stop audit calls until the retry window has passed.
 
 ## Non-goals
 
