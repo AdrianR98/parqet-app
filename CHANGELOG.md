@@ -15,6 +15,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - GitHub Project Board v1 setup guide with fields, label allowlist, automation limits and manual fallback.
 - Guarded manual Translation-Agent v1 workflow for German documentation review markers and Draft PR creation.
 - Manual Issue-Agent v1 workflow with dry-run/apply modes for allowlisted issue metadata.
+- Phase-1 Global Asset Timeline Foundation parent and privacy-safe Parqet API field audit route.
 
 ### Changed
 
@@ -25,6 +26,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Project status updated to reflect active Phase 0.1 work.
 - Development workflow now references the GitHub Project Board guide as the operational board setup reference.
 - Agent workflow guidance now documents the guarded Translation-Agent v1 implementation.
+- Project status now marks Phase 1 as active and Phase 0.1 as complete.
 
 ### Fixed
 
@@ -38,6 +40,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented GitHub Project Board v1 manual setup and connector fallback.
 - Documented Translation-Agent v1 modes, scope and prohibitions.
 - Documented Issue-Agent v1 manual usage, dry-run/apply behavior and hard limits.
+- Added `docs/PARQET_API_AUDIT.md` for Phase-1 API field audit guidance.
 
 ### Governance
 
@@ -47,9 +50,11 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Defined baseline label allowlist and Project Board v1 field model.
 - Replaced the Translation-Agent placeholder with a constrained manual workflow.
 - Replaced the Issue-Agent placeholder with a constrained manual metadata workflow.
+- Started Phase 1 with API field audit before Global Asset Timeline implementation.
 
 ### Security
 
 - Added local reference and environment file rules, including `.local/` and `.env*` ignore policy with `.env.example` allowed.
 - Reinforced private-data and log-handling rules for API/Auth/Data-related work.
 - Kept Translation-Agent v1 free of external translation services and app-code access.
+- Added feature-flag and production-blocking requirements for Parqet API audit routes.
