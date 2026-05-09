@@ -101,7 +101,7 @@ Display type mapping:
 | `transfer_out` | `possible_transfer` |
 | `unknown` | `unknown_event` |
 
-No transfer pairing is performed in P1-5.
+No transfer pairing is performed in P1-5/P1-7.
 
 ## Portfolio breakdowns
 
@@ -125,20 +125,40 @@ This quantity is preliminary. It is not cost basis, performance or final tax log
 
 Portfolio breakdown status:
 
-- `active`: quantity > 0
-- `historical_only`: quantity = 0 and activities exist
-- `unknown`: negative quantity or unclear state
+- `active`: tolerance-normalized quantity > 0
+- `historical_only`: tolerance-normalized quantity = 0 and activities exist
+- `unknown`: tolerance-normalized quantity < 0 or unclear state
+
+## Quantity tolerance
+
+Aggregation uses a small tolerance for status and warning decisions:
+
+```ts
+const QUANTITY_EPSILON = 0.000001;
+```
+
+Rules:
+
+```text
+Math.abs(quantity) < QUANTITY_EPSILON => 0
+quantity < -QUANTITY_EPSILON => negative
+quantity > QUANTITY_EPSILON => positive
+```
+
+This is only meant to remove JavaScript floating-point artifacts such as `-8.326672684688674e-17`.
+
+It must not remove real fractional shares. Real holdings such as `0.30547858`, `0.0397` or `0.0005` remain valid quantities.
 
 ## Totals
 
-P1-5 calculates these totals:
+P1-5/P1-7 calculates these totals:
 
 - `quantity`
 - `dividendsNet`
 - `fees`
 - `taxes`
 
-P1-5 intentionally leaves these values null:
+P1-5/P1-7 intentionally leaves these values null:
 
 - `marketValue`
 - `costBasis`
@@ -148,7 +168,7 @@ Dividend, fee and tax totals are calculated only when currencies are consistent.
 
 ## Display metadata
 
-P1-5 does not perform metadata enrichment.
+P1-5/P1-7 does not perform metadata enrichment.
 
 Temporary display values:
 
@@ -170,6 +190,8 @@ Aggregation can create warnings for:
 - totals blocked by mixed currencies,
 - missing portfolio breakdowns,
 - empty asset groups.
+
+Near-zero floating-point artifacts do not create negative quantity warnings.
 
 Confidence is derived simply:
 
@@ -223,7 +245,7 @@ All examples are synthetic and must not be replaced with real Parqet data.
 
 ## Non-goals
 
-P1-5/P1-6 do not implement:
+P1-5/P1-7 do not implement:
 
 - product UI,
 - existing dashboard/asset route replacement,
