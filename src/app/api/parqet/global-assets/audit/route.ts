@@ -28,6 +28,7 @@ function isEnabled(): boolean {
 function getQueryOptions(url: URL): GlobalAssetAuditOptions {
   return {
     includeActivities: parseBoolean(url.searchParams.get("includeActivities"), false),
+    includeAssets: parseBoolean(url.searchParams.get("includeAssets"), true),
     includeAmounts: parseBoolean(url.searchParams.get("includeAmounts"), false),
     includePortfolioNames: parseBoolean(url.searchParams.get("includePortfolioNames"), false),
     includeActivityIds: parseBoolean(url.searchParams.get("includeActivityIds"), false),

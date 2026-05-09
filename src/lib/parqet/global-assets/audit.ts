@@ -15,6 +15,7 @@ export type GlobalAssetAuditEnvironment = "development" | "test" | "production" 
 
 export type GlobalAssetAuditOptions = {
   includeActivities?: boolean;
+  includeAssets?: boolean;
   includeAmounts?: boolean;
   includePortfolioNames?: boolean;
   includeActivityIds?: boolean;
@@ -315,6 +316,7 @@ function buildNextSteps(summary: GlobalAssetAuditSummary): string[] {
     "Reconnect Parqet and reauthorize all current portfolios if portfolios were added, renamed or missing.",
     "Verify the report with local Parqet data only.",
     "Do not wire the Global Asset pipeline into production UI until the Phase-1 gate is complete.",
+    "Transfer matching is not implemented yet; treat transfer-related quantities as preliminary.",
     "Continue with transfer handling and confidence refinement.",
   ];
 
@@ -339,6 +341,7 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
   const includePortfolioNames = input.options?.includePortfolioNames === true;
   const includeActivityIds = input.options?.includeActivityIds === true;
   const includeActivities = input.options?.includeActivities === true;
+  const includeAssets = input.options?.includeAssets !== false;
   const privacyOptions = { includeAmounts, includePortfolioNames, includeActivityIds };
   const allUnredactedActivities = input.normalization.activities;
   const allUnredactedAssets = input.aggregation.assets;
@@ -356,7 +359,9 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
   const limitedAggregationWarnings = limitArray(redactedAllAggregationWarnings, limit);
   const allWarnings = [...redactedAllNormalizationWarnings, ...redactedAllAggregationWarnings];
   const limitedFlatWarnings = limitArray(allWarnings, limit);
-  const redactedAssets = limitedAssets.items.map((asset) => redactAsset(asset, privacyOptions, aliases, limit));
+  const redactedAssets = includeAssets
+    ? limitedAssets.items.map((asset) => redactAsset(asset, privacyOptions, aliases, limit))
+    : [];
   const timelinesTruncated = redactedAssets.some((item) => item.timelineTruncated);
   const summary: GlobalAssetAuditSummary = {
     sourceActivityCount: input.sources?.sourceActivityCount ?? input.normalization.summary.inputCount,
@@ -395,10 +400,12 @@ export function createGlobalAssetAuditReport(input: CreateGlobalAssetAuditReport
     aggregation: {
       summary: input.aggregation.summary,
       assets: redactedAssets.map((item) => item.asset),
-      unassignedActivities: limitedUnassigned.items.map((activity) => redactActivity(activity, privacyOptions, aliases)),
+      unassignedActivities: includeAssets
+        ? limitedUnassigned.items.map((activity) => redactActivity(activity, privacyOptions, aliases))
+        : [],
       warnings: limitedAggregationWarnings.items,
-      assetsTruncated: limitedAssets.truncated,
-      unassignedActivitiesTruncated: limitedUnassigned.truncated,
+      assetsTruncated: includeAssets ? limitedAssets.truncated : false,
+      unassignedActivitiesTruncated: includeAssets ? limitedUnassigned.truncated : false,
       warningsTruncated: limitedAggregationWarnings.truncated,
       timelinesTruncated,
     },
