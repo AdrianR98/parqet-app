@@ -62,18 +62,20 @@ Known implementation themes from existing documentation:
 - Issue-Agent v1 prepared as a guarded manual metadata workflow.
 - Phase 0.1 Parent/Sub-Issues completed.
 - Phase 1 API field audit completed and documented in `docs/PARQET_API_AUDIT.md`.
+- ADR 0002 documents the Global Asset Timeline architecture decision.
 
 ## Active Phase 1 Work
 
 Parent issue: #57
 
-Completed Phase-1 Sub-Issue:
+Completed Phase-1 Sub-Issues:
 
 - #58 P1-1: Audit Parqet API fields for Global Asset Timeline.
+- #62 P1-2: ADR Global Asset Timeline.
 
 Current Phase-1 Sub-Issue:
 
-- #62 P1-2: ADR Global Asset Timeline.
+- #64 P1-3: Define Global Asset Timeline type model.
 
 Known follow-ups outside the Phase-1 core:
 
@@ -86,7 +88,7 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 
 - [x] API audit completed.
 - [x] `docs/PARQET_API_AUDIT.md` created without private values.
-- [ ] ADR Global Asset Timeline created.
+- [x] ADR Global Asset Timeline created.
 - [ ] Global Asset types defined.
 - [ ] NormalizedActivity model defined.
 - [ ] Reconciliation warning model defined.
@@ -98,9 +100,9 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 
 ## Next Steps
 
-1. Complete #62 with ADR 0002: Global Asset Timeline.
-2. Create P1-3 for the TypeScript type model: `NormalizedActivity`, `GlobalAsset`, portfolio breakdowns, timeline entries, warnings and confidence.
-3. Continue Phase 1 with normalization, transfer detection, warning/confidence and audit-report work.
+1. Complete #64 with the TypeScript type model for `NormalizedActivity`, `GlobalAsset`, portfolio breakdowns, timeline entries, warnings and confidence.
+2. Continue with P1-4 Normalization Pipeline.
+3. Continue Phase 1 with Global Asset aggregation, transfer detection, warning/confidence and audit-report work.
 4. Create later follow-ups for transfer pairing and OpenAPI cross-check.
 
 ## Risks
