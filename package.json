@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "audit:summary": "powershell -ExecutionPolicy Bypass -File scripts/local-audit-summary.ps1",
+    "audit:asset": "powershell -ExecutionPolicy Bypass -File scripts/local-audit-asset.ps1",
     "generate:asset-metadata": "node scripts/generate-asset-metadata-from-csv.mjs",
     "vercel:ignore-build": "node scripts/vercel-ignore-build.mjs"
   },
