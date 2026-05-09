@@ -20,6 +20,11 @@ const SAFE_PREFIXES = [
   ".github/workflows/",
 ];
 
+const DEV_ONLY_AUDIT_PREFIXES = [
+  "src/app/api/parqet/audit/",
+  "src/lib/parqet/audit/",
+];
+
 const ALWAYS_BUILD_EXACT_FILES = new Set([
   ".env.example",
   "eslint.config.mjs",
@@ -79,6 +84,10 @@ function isSafeToSkip(file) {
   return SAFE_EXACT_FILES.has(file) || startsWithAny(file, SAFE_PREFIXES);
 }
 
+function isDevOnlyAuditTooling(file) {
+  return startsWithAny(file, DEV_ONLY_AUDIT_PREFIXES);
+}
+
 function mustBuild(file) {
   return ALWAYS_BUILD_EXACT_FILES.has(file) || startsWithAny(file, ALWAYS_BUILD_PREFIXES);
 }
@@ -95,8 +104,14 @@ log(`Changed files: ${changedFiles.join(", ")}`);
 
 const buildReasons = [];
 const unknownFiles = [];
+const skippedDevOnlyAuditFiles = [];
 
 for (const file of changedFiles) {
+  if (isDevOnlyAuditTooling(file)) {
+    skippedDevOnlyAuditFiles.push(file);
+    continue;
+  }
+
   if (mustBuild(file)) {
     buildReasons.push(file);
     continue;
@@ -117,5 +132,9 @@ if (unknownFiles.length > 0) {
   process.exit(BUILD);
 }
 
-log("Only documentation/governance/workflow files changed. Skipping Vercel build.");
+if (skippedDevOnlyAuditFiles.length > 0) {
+  log(`Dev-only audit tooling changed and is safe to skip on Vercel: ${skippedDevOnlyAuditFiles.join(", ")}`);
+}
+
+log("Only documentation/governance/workflow/dev-only audit files changed. Skipping Vercel build.");
 process.exit(SKIP);
