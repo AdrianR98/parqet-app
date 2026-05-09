@@ -60,7 +60,13 @@ export type ReconciliationWarningCode =
   | "NUMERIC_PARSE_FAILED"
   | "MISSING_QUANTITY"
   | "MISSING_PRICE"
-  | "DUPLICATE_INTERNAL_ACTIVITY_ID";
+  | "DUPLICATE_INTERNAL_ACTIVITY_ID"
+  | "NEGATIVE_POSITION_QUANTITY"
+  | "MIXED_CURRENCIES"
+  | "UNASSIGNED_ACTIVITY"
+  | "EMPTY_ASSET_GROUP"
+  | "MISSING_PORTFOLIO_BREAKDOWN"
+  | "TOTALS_BLOCKED_BY_MIXED_CURRENCIES";
 
 export type BlockedMetric =
   | "portfolio_breakdown"
@@ -257,6 +263,26 @@ export type ActivitiesNormalizationResult = {
   results: ActivityNormalizationResult[];
   warnings: ReconciliationWarning[];
   summary: ActivitiesNormalizationSummary;
+};
+
+export type GlobalAssetAggregationSummary = {
+  inputActivityCount: number;
+  assetCount: number;
+  unassignedActivityCount: number;
+  warningCount: number;
+  blockerCount: number;
+  activeAssetCount: number;
+  closedAssetCount: number;
+  unknownAssetCount: number;
+  mixedCurrencyAssetCount: number;
+  negativeQuantityAssetCount: number;
+};
+
+export type GlobalAssetAggregationResult = {
+  assets: GlobalAsset[];
+  unassignedActivities: NormalizedActivity[];
+  warnings: ReconciliationWarning[];
+  summary: GlobalAssetAggregationSummary;
 };
 
 export function isGlobalAssetKey(value: unknown): value is GlobalAssetKey {

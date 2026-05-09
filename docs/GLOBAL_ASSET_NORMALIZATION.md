@@ -14,8 +14,10 @@ Related documents:
 
 - `docs/adr/0002-global-asset-timeline.md`
 - `docs/GLOBAL_ASSET_TYPE_MODEL.md`
+- `docs/GLOBAL_ASSET_AGGREGATION.md`
 - `src/lib/parqet/global-assets/types.ts`
 - `src/lib/parqet/global-assets/normalize.ts`
+- `src/lib/parqet/global-assets/aggregate.ts`
 
 ## Input
 
@@ -79,6 +81,12 @@ List normalization returns:
 ```
 
 The summary contains counts only and no private values.
+
+The normalized activities can be passed to the aggregation layer:
+
+```ts
+buildGlobalAssets(normalizedActivities);
+```
 
 ## Mapping table
 
@@ -157,10 +165,12 @@ P1-4 does not implement:
 - product UI,
 - product API routes.
 
+Aggregation is documented separately in `docs/GLOBAL_ASSET_AGGREGATION.md`.
+
 ## Raw data rule
 
 Raw Parqet payloads may be parsed internally. They must not be exposed fully in UI/API responses and must not be committed to the repository.
 
 ## Next step
 
-P1-5 should build the Global Asset aggregation layer on top of `NormalizedActivity`.
+P1-5 builds the Global Asset aggregation layer on top of `NormalizedActivity`.
