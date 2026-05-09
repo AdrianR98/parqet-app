@@ -6,13 +6,15 @@ Status: Phase 1 type-model guide
 
 This document explains the Phase-1 Global Asset Timeline type model.
 
-The type model defines the TypeScript boundary for later normalization, aggregation, transfer handling, warning/confidence and audit-report work. It does not implement business logic.
+The type model defines the TypeScript boundary for normalization, aggregation, transfer handling, warning/confidence and audit-report work. It does not implement business logic.
 
 Related documents:
 
 - `docs/PARQET_API_AUDIT.md`
 - `docs/adr/0002-global-asset-timeline.md`
+- `docs/GLOBAL_ASSET_NORMALIZATION.md`
 - `src/lib/parqet/global-assets/types.ts`
+- `src/lib/parqet/global-assets/normalize.ts`
 
 ## Boundaries
 
@@ -24,19 +26,20 @@ src/lib/parqet/global-assets/types.ts
 
 It does not modify `src/lib/types.ts`.
 
-Allowed in P1-3:
+Allowed in the type-model layer:
 
 - type definitions,
 - small type guards,
 - comments documenting invariants.
 
-Not included in P1-3:
+The normalization layer may map contextual raw input into `NormalizedActivity`, but it must not aggregate assets or calculate portfolio/global totals.
 
-- normalization pipeline,
+Not included in the type model or normalization layer:
+
 - global asset builder,
 - transfer pairing,
 - cost-basis calculation,
-- warning derivation,
+- warning derivation beyond direct normalization warnings,
 - confidence derivation,
 - product UI,
 - product API route changes.
@@ -45,7 +48,7 @@ Not included in P1-3:
 
 Raw Parqet activities are not used directly by later Global Asset aggregation.
 
-A future fetch layer must first attach portfolio context, producing:
+A fetch layer must first attach portfolio context, producing:
 
 ```ts
 const contextualActivity = {
@@ -56,7 +59,7 @@ const contextualActivity = {
 };
 ```
 
-Then a future normalization step converts that contextual activity into `NormalizedActivity`.
+Then the normalization step converts that contextual activity into `NormalizedActivity`.
 
 ## Asset identity
 
@@ -67,7 +70,7 @@ The type model uses an object-based key:
 ```ts
 const assetKey = {
   type: "isin",
-  value: "DEMO00000000",
+  value: "DEMO0000000",
 };
 ```
 
@@ -79,7 +82,7 @@ The key union also prepares later fallbacks:
 
 Only `isin` is actively supported by the current audit and ADR.
 
-If a valid ISIN is present, `assetKey` should be derivable from it. Activities without an `assetKey` may still be normalized, but later warnings/blockers must handle them.
+If a valid ISIN is present, `assetKey` should be derivable from it. Activities without an `assetKey` may still be normalized, but warnings/blockers must handle them.
 
 ## Money values
 
@@ -102,16 +105,16 @@ Synthetic example only:
 const normalizedActivity = {
   ids: {
     sourceActivityId: "activity_demo_1",
-    internalActivityId: "internal_demo_1",
+    internalActivityId: "source:activity_demo_1",
   },
   activityType: "buy",
   sourceType: "buy",
   datetime: "2026-01-01T12:00:00.000Z",
   date: "2026-01-01",
-  sortKey: "2026-01-01T12:00:00.000Z|activity_demo_1",
+  sortKey: "2026-01-01T12:00:00.000Z|source:activity_demo_1",
   assetIdentity: {
-    assetKey: { type: "isin", value: "DEMO00000000" },
-    isin: "DEMO00000000",
+    assetKey: { type: "isin", value: "DEMO0000000" },
+    isin: "DEMO0000000",
     assetIdentifierType: "isin",
     holdingId: "holding_demo_1",
     holdingAssetType: "security",
@@ -136,6 +139,21 @@ const normalizedActivity = {
   parqetReference: null,
 };
 ```
+
+## Normalization result
+
+Single activity normalization returns:
+
+```ts
+{
+  activity: normalizedActivity,
+  warnings: [],
+}
+```
+
+List normalization also returns a count-only summary. The summary must not include private values.
+
+Detailed mapping rules are documented in `docs/GLOBAL_ASSET_NORMALIZATION.md`.
 
 ## Parqet reference fields
 
@@ -167,7 +185,7 @@ The model prepares transfer types:
 - `TransferGroup`
 - `TransferStatus`
 
-No transfer matching is implemented in P1-3.
+No transfer matching is implemented in P1-4.
 
 The model allows transfer groups to contain multiple activity IDs because partial transfers may exist.
 
@@ -189,14 +207,14 @@ Confidence is represented as:
 - `medium`
 - `low`
 
-Confidence is derived from warnings in later logic. There is no user/manual override in P1-3.
+Confidence is derived from warnings in later logic. There is no user/manual override in P1-4.
 
 ## Raw data rule
 
-Raw Parqet payloads may be processed internally by future normalization code, but they must not be exposed fully in UI/API responses and must not be committed to the repository.
+Raw Parqet payloads may be processed internally by normalization code, but they must not be exposed fully in UI/API responses and must not be committed to the repository.
 
 All examples in this document are synthetic.
 
 ## Next step
 
-P1-4 should implement the normalization pipeline that converts `ParqetActivityWithPortfolioContext` into `NormalizedActivity`.
+P1-5 should build the Global Asset aggregation layer on top of `NormalizedActivity`.

@@ -63,6 +63,7 @@ Known implementation themes from existing documentation:
 - Phase 0.1 Parent/Sub-Issues completed.
 - Phase 1 API field audit completed and documented in `docs/PARQET_API_AUDIT.md`.
 - ADR 0002 documents the Global Asset Timeline architecture decision.
+- Phase 1 type model completed in `src/lib/parqet/global-assets/types.ts`.
 
 ## Active Phase 1 Work
 
@@ -72,10 +73,11 @@ Completed Phase-1 Sub-Issues:
 
 - #58 P1-1: Audit Parqet API fields for Global Asset Timeline.
 - #62 P1-2: ADR Global Asset Timeline.
+- #64 P1-3: Define Global Asset Timeline type model.
 
 Current Phase-1 Sub-Issue:
 
-- #64 P1-3: Define Global Asset Timeline type model.
+- #66 P1-4: Implement Global Asset activity normalization pipeline.
 
 Known follow-ups outside the Phase-1 core:
 
@@ -89,9 +91,9 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 - [x] API audit completed.
 - [x] `docs/PARQET_API_AUDIT.md` created without private values.
 - [x] ADR Global Asset Timeline created.
-- [ ] Global Asset types defined.
-- [ ] NormalizedActivity model defined.
-- [ ] Reconciliation warning model defined.
+- [x] Global Asset types defined.
+- [x] NormalizedActivity model defined.
+- [x] Reconciliation warning model defined.
 - [ ] Audit/report mode works.
 - [ ] No real Parqet data committed.
 - [ ] Existing asset calculation has not been replaced.
@@ -100,9 +102,9 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 
 ## Next Steps
 
-1. Complete #64 with the TypeScript type model for `NormalizedActivity`, `GlobalAsset`, portfolio breakdowns, timeline entries, warnings and confidence.
-2. Continue with P1-4 Normalization Pipeline.
-3. Continue Phase 1 with Global Asset aggregation, transfer detection, warning/confidence and audit-report work.
+1. Complete #66 with the Global Asset activity normalization pipeline.
+2. Continue with P1-5 Global Asset Builder / Aggregation.
+3. Continue Phase 1 with transfer detection, warning/confidence and audit-report work.
 4. Create later follow-ups for transfer pairing and OpenAPI cross-check.
 
 ## Risks

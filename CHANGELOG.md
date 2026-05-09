@@ -18,6 +18,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Phase-1 Global Asset Timeline Foundation parent and privacy-safe Parqet API field audit route.
 - ADR 0002 for the Phase-1 Global Asset Timeline architecture decision.
 - Phase-1 Global Asset Timeline type model under `src/lib/parqet/global-assets/`.
+- Phase-1 Global Asset activity normalization pipeline under `src/lib/parqet/global-assets/`.
 
 ### Changed
 
@@ -48,6 +49,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Recorded non-private local Parqet API field audit findings for Phase 1.
 - Documented the Global Asset Timeline architecture decision in `docs/adr/0002-global-asset-timeline.md`.
 - Added `docs/GLOBAL_ASSET_TYPE_MODEL.md` for the Phase-1 type boundary.
+- Added `docs/GLOBAL_ASSET_NORMALIZATION.md` for the Phase-1 normalization mapping.
 
 ### Governance
 

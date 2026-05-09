@@ -44,6 +44,24 @@ export type ReconciliationWarningSource =
   | "pricing"
   | "audit";
 
+export type ReconciliationWarningCode =
+  | "RAW_ACTIVITY_NOT_OBJECT"
+  | "UNKNOWN_ACTIVITY_TYPE"
+  | "MISSING_ACTIVITY_ID"
+  | "MISSING_DATETIME"
+  | "INVALID_DATETIME"
+  | "MISSING_ASSET_KEY"
+  | "MISSING_ISIN"
+  | "INVALID_ISIN"
+  | "MISSING_CURRENCY"
+  | "FALLBACK_PORTFOLIO_CURRENCY_USED"
+  | "MISSING_PORTFOLIO_CONTEXT"
+  | "MONEY_FIELD_WITHOUT_CURRENCY"
+  | "NUMERIC_PARSE_FAILED"
+  | "MISSING_QUANTITY"
+  | "MISSING_PRICE"
+  | "DUPLICATE_INTERNAL_ACTIVITY_ID";
+
 export type BlockedMetric =
   | "portfolio_breakdown"
   | "cost_basis"
@@ -134,7 +152,7 @@ export type WarningEntityRefs = {
 };
 
 export type ReconciliationWarning = {
-  code: string;
+  code: ReconciliationWarningCode | string;
   severity: ReconciliationWarningSeverity;
   /** Short UI-capable message. */
   message: string;
@@ -218,6 +236,27 @@ export type GlobalAsset = {
   confidence: AssetConfidence;
   status: GlobalAssetStatus;
   totals: GlobalAssetTotals;
+};
+
+export type ActivityNormalizationResult = {
+  activity: NormalizedActivity | null;
+  warnings: ReconciliationWarning[];
+};
+
+export type ActivitiesNormalizationSummary = {
+  inputCount: number;
+  normalizedCount: number;
+  rejectedCount: number;
+  warningCount: number;
+  blockerCount: number;
+  duplicateInternalIdCount: number;
+};
+
+export type ActivitiesNormalizationResult = {
+  activities: NormalizedActivity[];
+  results: ActivityNormalizationResult[];
+  warnings: ReconciliationWarning[];
+  summary: ActivitiesNormalizationSummary;
 };
 
 export function isGlobalAssetKey(value: unknown): value is GlobalAssetKey {
