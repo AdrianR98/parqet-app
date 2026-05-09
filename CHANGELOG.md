@@ -22,6 +22,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Phase-1 Global Asset aggregation layer under `src/lib/parqet/global-assets/`.
 - Phase-1 guarded Global Asset audit/report mode and local debug route.
 - Windows-first local Global Asset audit helper scripts.
+- Global Asset unresolved negative quantity decision foundation.
 
 ### Changed
 
@@ -35,6 +36,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Project status now marks Phase 1 as active and Phase 0.1 as complete.
 - Vercel ignored-build helper now skips local/development-only Parqet audit tooling changes.
 - Phase plan now describes Phase 1 as Global Asset Timeline Foundation.
+- Global Asset aggregation now classifies unresolved negative quantity cases without applying corrections.
 
 ### Fixed
 
@@ -56,6 +58,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Added `docs/GLOBAL_ASSET_AGGREGATION.md` for the Phase-1 aggregation mapping.
 - Added `docs/GLOBAL_ASSET_AUDIT_REPORT.md` for the Phase-1 audit/report mode.
 - Added `docs/LOCAL_AUDIT_WORKFLOW.md` for terminal-based local audit helpers.
+- Added `docs/GLOBAL_ASSET_OVERRIDES.md` for future user-confirmed correction decisions.
 
 ### Governance
 
@@ -75,3 +78,4 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Added feature-flag and production-blocking requirements for Parqet API audit routes.
 - Added feature-flag, production-blocking and redaction rules for the Global Asset audit/report route.
 - Documented that local audit helpers must not print cookies, tokens, `.env.local` values or raw payloads.
+- Added safety rules for future user-confirmed Global Asset overrides.
