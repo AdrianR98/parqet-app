@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { getCookieValue, refreshParqetAccessToken } from "../../../../../lib/parqet";
+import {
+  buildActivityScanBudgetInfo,
+  classifyParqetApiError,
+  getErrorMessage,
+  messageForDiagnostic,
+  redactProviderErrorMessage,
+  type ParqetApiDiagnostic,
+} from "../../../../../lib/parqet-api-diagnostics";
 import { buildActivityContext } from "../../../../../lib/parqet-assets/build-activity-context";
 import {
   runGlobalAssetPipelineAudit,
@@ -11,11 +19,10 @@ import type { ParqetActivityWithPortfolioContext } from "../../../../../lib/parq
 const FEATURE_FLAG = "ENABLE_GLOBAL_ASSET_AUDIT_ROUTES";
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 250;
-
-type AuditDiagnostic = {
-  category: "missing_access_token" | "auth_refresh_failed" | "rate_limit" | "auth_error" | "pipeline_error";
-  retryAfterSeconds?: number | null;
-};
+const AUDIT_API_BUDGET = buildActivityScanBudgetInfo({
+  activityFetchScope: "authorized_portfolios",
+  responseFlagsReduceProviderCalls: false,
+});
 
 function parseBoolean(value: string | null, fallback: boolean): boolean {
   if (value === null) return fallback;
@@ -102,85 +109,40 @@ function emptyReport(options: GlobalAssetAuditOptions, note: string) {
   });
 }
 
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isLikelyAuthError(error: unknown): boolean {
-  const message = getErrorMessage(error);
-  return (
-    message.includes("(401)") ||
-    message.includes(" 401 ") ||
-    message.includes("401:") ||
-    message.toLowerCase().includes("unauthorized")
-  );
-}
-
-function getRetryAfterSeconds(message: string): number | null {
-  const match = message.match(/try again in\s+(\d+)\s+seconds/i);
-  if (!match) return null;
-
-  const parsed = Number(match[1]);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function redactErrorMessage(message: string): string {
-  return message
-    .replace(/portfolio [A-Za-z0-9_-]+/g, "portfolio [redacted]")
-    .replace(/portfolios\/[A-Za-z0-9_-]+/g, "portfolios/[redacted]")
-    .replace(/hld_[A-Za-z0-9_-]+/g, "hld_[redacted]")
-    .replace(/cpa_[A-Za-z0-9_-]+/g, "cpa_[redacted]")
-    .slice(0, 500);
-}
-
-function classifyError(error: unknown): AuditDiagnostic {
-  const message = getErrorMessage(error);
-  const lowerMessage = message.toLowerCase();
-
-  if (message.includes("(429)") || lowerMessage.includes("rate limit")) {
-    return { category: "rate_limit", retryAfterSeconds: getRetryAfterSeconds(message) };
-  }
-
-  if (isLikelyAuthError(error)) {
-    return { category: "auth_error" };
-  }
-
-  return { category: "pipeline_error" };
-}
-
-function noteForDiagnostic(diagnostic: AuditDiagnostic): string {
+function getStatusForDiagnostic(diagnostic: ParqetApiDiagnostic): number {
   switch (diagnostic.category) {
-    case "missing_access_token":
-      return "No access token found.";
-    case "auth_refresh_failed":
-      return "Access token expired and refresh failed.";
     case "rate_limit":
-      return "Parqet rate limit reached. Retry later before running another local audit.";
+      return 429;
     case "auth_error":
-      return "Global Asset audit authorization failed.";
+    case "auth_refresh_failed":
+    case "missing_access_token":
+      return 401;
+    case "provider_error":
     case "pipeline_error":
-      return "Global Asset audit route failed before auth refresh.";
+      return 500;
   }
 }
 
-function buildFailedAuditResponse(options: GlobalAssetAuditOptions, diagnostic: AuditDiagnostic, error: unknown, status: number) {
+function buildFailedAuditResponse(options: GlobalAssetAuditOptions, diagnostic: ParqetApiDiagnostic, error: unknown) {
   return NextResponse.json(
     {
-      ...emptyReport(options, noteForDiagnostic(diagnostic)),
+      ...emptyReport(options, messageForDiagnostic(diagnostic)),
       diagnostic,
-      error: redactErrorMessage(getErrorMessage(error)),
+      error: redactProviderErrorMessage(getErrorMessage(error)),
+      apiBudget: AUDIT_API_BUDGET,
     },
-    { status }
+    { status: getStatusForDiagnostic(diagnostic) }
   );
 }
 
-function buildDiagnosticResponse(options: GlobalAssetAuditOptions, diagnostic: AuditDiagnostic, status: number) {
+function buildDiagnosticResponse(options: GlobalAssetAuditOptions, diagnostic: ParqetApiDiagnostic) {
   return NextResponse.json(
     {
-      ...emptyReport(options, noteForDiagnostic(diagnostic)),
+      ...emptyReport(options, messageForDiagnostic(diagnostic)),
       diagnostic,
+      apiBudget: AUDIT_API_BUDGET,
     },
-    { status }
+    { status: getStatusForDiagnostic(diagnostic) }
   );
 }
 
@@ -204,7 +166,7 @@ export async function GET(req: Request) {
   const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
   if (!accessToken) {
-    return buildDiagnosticResponse(options, { category: "missing_access_token" }, 401);
+    return buildDiagnosticResponse(options, { category: "missing_access_token" });
   }
 
   async function buildReport(currentAccessToken: string) {
@@ -220,30 +182,36 @@ export async function GET(req: Request) {
 
     const contextualActivities = toContextualActivities(activityContext, selectedIds);
 
-    return runGlobalAssetPipelineAudit(contextualActivities, options, {
-      sourceActivityCount: contextualActivities.length,
-      selectedPortfolioCount: selectedIds.length,
-      portfolioFilterApplied: requestedPortfolioIds.length > 0,
-      note: contextualActivities.length === 0 ? "No security activities available for the selected portfolios." : undefined,
-    });
+    return {
+      ...runGlobalAssetPipelineAudit(contextualActivities, options, {
+        sourceActivityCount: contextualActivities.length,
+        selectedPortfolioCount: selectedIds.length,
+        portfolioFilterApplied: requestedPortfolioIds.length > 0,
+        note: contextualActivities.length === 0 ? "No security activities available for the selected portfolios." : undefined,
+      }),
+      apiBudget: {
+        ...AUDIT_API_BUDGET,
+        activityFetchScope: requestedPortfolioIds.length > 0 ? "selected_portfolios" : "authorized_portfolios",
+      },
+    };
   }
 
   try {
     return NextResponse.json(await buildReport(accessToken));
   } catch (error) {
-    const diagnostic = classifyError(error);
+    const diagnostic = classifyParqetApiError(error);
 
     if (diagnostic.category !== "auth_error") {
-      return buildFailedAuditResponse(options, diagnostic, error, diagnostic.category === "rate_limit" ? 429 : 500);
+      return buildFailedAuditResponse(options, diagnostic, error);
     }
 
     if (!refreshToken) {
-      return buildFailedAuditResponse(options, diagnostic, error, 401);
+      return buildFailedAuditResponse(options, diagnostic, error);
     }
 
     const refreshed = await refreshParqetAccessToken(refreshToken);
     if (!refreshed.accessToken) {
-      return buildDiagnosticResponse(options, { category: "auth_refresh_failed" }, 401);
+      return buildDiagnosticResponse(options, { category: "auth_refresh_failed" });
     }
 
     accessToken = refreshed.accessToken;
@@ -259,8 +227,8 @@ export async function GET(req: Request) {
 
       return response;
     } catch (retryError) {
-      const retryDiagnostic = classifyError(retryError);
-      return buildFailedAuditResponse(options, retryDiagnostic, retryError, retryDiagnostic.category === "rate_limit" ? 429 : 500);
+      const retryDiagnostic = classifyParqetApiError(retryError);
+      return buildFailedAuditResponse(options, retryDiagnostic, retryError);
     }
   }
 }

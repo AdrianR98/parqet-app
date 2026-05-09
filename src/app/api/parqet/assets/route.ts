@@ -21,6 +21,14 @@ import {
     getCookieValue,
     refreshParqetAccessToken,
 } from "../../../../lib/parqet";
+import {
+    buildActivityScanBudgetInfo,
+    classifyParqetApiError,
+    getErrorMessage,
+    messageForDiagnostic,
+    redactProviderErrorMessage,
+    type ParqetApiDiagnostic,
+} from "../../../../lib/parqet-api-diagnostics";
 import { buildActivityContext } from "../../../../lib/parqet-assets/build-activity-context";
 import { loadAssetMetadataByIsin } from "../../../../lib/parqet-assets/metadata";
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
@@ -28,6 +36,11 @@ import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-correc
 import { resolveAssetDisplay } from "../../../../lib/metadata-utils";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
+const ASSETS_API_BUDGET = buildActivityScanBudgetInfo({
+    activityFetchScope: "selected_portfolios",
+    responseFlagsReduceProviderCalls: false,
+});
+
 function buildReconnectResponse(message: string) {
     const response = NextResponse.json(
         {
@@ -45,6 +58,7 @@ function buildReconnectResponse(message: string) {
             authRequired: true,
             reconnectUrl: "/api/auth/start",
             message,
+            apiBudget: ASSETS_API_BUDGET,
         },
         { status: 401 }
     );
@@ -65,6 +79,39 @@ function buildReconnectResponse(message: string) {
 
     return response;
 }
+
+function getStatusForDiagnostic(diagnostic: ParqetApiDiagnostic): number {
+    switch (diagnostic.category) {
+        case "rate_limit":
+            return 429;
+        case "auth_error":
+        case "auth_refresh_failed":
+        case "missing_access_token":
+            return 401;
+        case "provider_error":
+        case "pipeline_error":
+            return 500;
+    }
+}
+
+function buildFailureResponse(input: {
+    diagnostic: ParqetApiDiagnostic;
+    error: unknown;
+    refreshed: boolean;
+}) {
+    return NextResponse.json(
+        {
+            ok: false,
+            message: messageForDiagnostic(input.diagnostic),
+            refreshed: input.refreshed,
+            diagnostic: input.diagnostic,
+            error: redactProviderErrorMessage(getErrorMessage(input.error)),
+            apiBudget: ASSETS_API_BUDGET,
+        },
+        { status: getStatusForDiagnostic(input.diagnostic) }
+    );
+}
+
 // ============================================================
 // GET /api/parqet/assets
 // ============================================================
@@ -79,6 +126,7 @@ export async function GET(req: Request) {
                 {
                     ok: false,
                     message: "No portfolioId parameters provided.",
+                    apiBudget: ASSETS_API_BUDGET,
                 },
                 { status: 400 }
             );
@@ -154,7 +202,6 @@ export async function GET(req: Request) {
                         },
                     };
                 }
-         
             );
 
             const activeAssets = enrichedAssets.filter(
@@ -178,6 +225,7 @@ export async function GET(req: Request) {
                 consistencyReport,
                 reconciliationWarnings: activityContext.reconciliationWarnings,
                 generatedAt: new Date().toISOString(),
+                apiBudget: ASSETS_API_BUDGET,
             };
         }
 
@@ -195,12 +243,18 @@ export async function GET(req: Request) {
                 ...result,
             });
         } catch (error) {
+            const diagnostic = classifyParqetApiError(error);
+
+            if (diagnostic.category !== "auth_error") {
+                return buildFailureResponse({ diagnostic, error, refreshed: false });
+            }
+
             if (!refreshToken) {
-                throw error;
+                return buildFailureResponse({ diagnostic, error, refreshed: false });
             }
 
             // ====================================================
-            // Fallback: Token erneuern und erneut versuchen
+            // Fallback: Token nur bei wahrscheinlichem Auth-Fehler erneuern
             // ====================================================
 
             const refreshed = await refreshParqetAccessToken(refreshToken);
@@ -211,37 +265,46 @@ export async function GET(req: Request) {
 
             accessToken = refreshed.accessToken;
 
-            const result = await buildAssetView(accessToken);
+            try {
+                const result = await buildAssetView(accessToken);
 
-            const response = NextResponse.json({
-                ok: true,
-                refreshed: true,
-                requestedPortfolioIds: portfolioIds,
-                ...result,
-            });
+                const response = NextResponse.json({
+                    ok: true,
+                    refreshed: true,
+                    requestedPortfolioIds: portfolioIds,
+                    ...result,
+                });
 
-            response.cookies.set("parqet_access_token", accessToken, {
-                httpOnly: true,
-                sameSite: "lax",
-                path: "/",
-            });
-
-            if (refreshed.newRefreshToken) {
-                response.cookies.set("parqet_refresh_token", refreshed.newRefreshToken, {
+                response.cookies.set("parqet_access_token", accessToken, {
                     httpOnly: true,
                     sameSite: "lax",
                     path: "/",
                 });
-            }
 
-            return response;
+                if (refreshed.newRefreshToken) {
+                    response.cookies.set("parqet_refresh_token", refreshed.newRefreshToken, {
+                        httpOnly: true,
+                        sameSite: "lax",
+                        path: "/",
+                    });
+                }
+
+                return response;
+            } catch (retryError) {
+                return buildFailureResponse({
+                    diagnostic: classifyParqetApiError(retryError),
+                    error: retryError,
+                    refreshed: true,
+                });
+            }
         }
     } catch (error: unknown) {
         return NextResponse.json(
             {
                 ok: false,
                 message: "Assets route failed.",
-                details: error instanceof Error ? error.message : String(error),
+                details: redactProviderErrorMessage(getErrorMessage(error)),
+                apiBudget: ASSETS_API_BUDGET,
             },
             { status: 500 }
         );

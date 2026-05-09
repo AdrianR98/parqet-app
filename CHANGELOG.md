@@ -29,6 +29,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Refined Global Asset negative quantity candidate metadata for ratio and factor mismatch cases.
 - Configurable Parqet activity fetch concurrency for local audit rate-limit mitigation.
 - Project-wide API budget minimization principle for Parqet and external provider calls.
+- Lightweight `/api/parqet/health` route for auth/portfolio checks without Activity fetches.
+- Shared Parqet API diagnostics helpers and safe API-budget metadata for asset/audit flows.
 
 ### Changed
 
@@ -46,12 +48,16 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Global Asset audit reports now expose redacted applied override metadata and applied override counts.
 - Local audit helpers now support `-UseCookieJar` so refreshed cookies can persist across terminal calls.
 - Local audit helpers now print safe diagnostic and error sections when returned by the audit route.
+- Local audit helpers now print safe API-budget metadata when returned by the audit route.
 - Global Asset negative quantity suggestions are now more conservative for non-duplicate ratio mismatch cases.
+- Global Asset audit docs now distinguish response-size reduction from provider-call reduction.
+- Assets route now classifies non-auth provider failures before retrying after token refresh.
 
 ### Fixed
 
 - Consolidated obsolete duplicated masterprompt guidance into the new `prompts/` structure.
 - Improved Global Asset audit error classification so provider rate limits are not misreported as expired sessions.
+- Prevented `/api/parqet/assets` from retrying the full Activity pipeline after non-auth failures such as provider rate limits.
 
 ### Docs
 
@@ -75,6 +81,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented refined negative quantity cause categories and ratio metadata.
 - Documented local audit activity fetch concurrency guidance.
 - Documented API budget minimization in the master prompt, agent entrypoint, workflow and phase plan.
+- Documented `/api/parqet/health` as the preferred lightweight auth/session check before expensive audits.
 
 ### Governance
 
@@ -98,4 +105,4 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Added safety rules for future user-confirmed Global Asset overrides.
 - Documented that real local override decisions must not be committed.
 - Documented that local audit cookie jars remain under `.local/` and must not be committed.
-- Redacted local audit diagnostic error messages before returning them from the guarded audit route.
+- Redacted local audit diagnostic error messages before returning them from guarded API-budget/audit routes.

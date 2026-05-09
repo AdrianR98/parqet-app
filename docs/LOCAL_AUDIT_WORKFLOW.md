@@ -4,9 +4,11 @@ Status: developer workflow helper
 
 ## Purpose
 
-This guide explains how to run the local Global Asset audit helpers without copying large JSON responses from the browser.
+This guide explains how to run local Global Asset audit helpers without copying large JSON responses from the browser.
 
 The scripts are Windows-first PowerShell helpers. They call the guarded local audit route and print selected redacted sections.
+
+API budget note: summary and asset audit routes may fetch Parqet Activities. Use the lightweight health route for auth/session checks.
 
 ## Prerequisites
 
@@ -37,6 +39,28 @@ http://localhost:3000/api/auth/start
 ```
 
 Do not commit real audit outputs.
+
+## Lightweight health check
+
+Use this route for auth/session checks before expensive audit calls:
+
+```powershell
+curl.exe -sS "http://localhost:3000/api/parqet/health" -H "Cookie: $cookie"
+```
+
+The health route may call the Parqet portfolios endpoint, but it does not fetch Activities.
+
+Expected safe fields include:
+
+```text
+ok
+portfolioAccessOk
+portfolioCount
+activityFetchPerformed
+apiBudget
+```
+
+Use the health route instead of summary or asset audit when the goal is only to verify that the local Cookie header still works.
 
 ## Persistent local audit authentication
 
@@ -133,6 +157,7 @@ PARQET_ACTIVITY_FETCH_CONCURRENCY=1
 
 Rules:
 
+- Use `/api/parqet/health` for auth checks.
 - Prefer focused asset audits over repeated full summaries.
 - Stop audit calls when `diagnostic.category` is `rate_limit`.
 - Wait for the displayed retry window before trying again.
@@ -158,6 +183,7 @@ The summary helper prints:
 
 - diagnostic, if present
 - error, if present
+- apiBudget, if present
 - sources
 - normalization.summary
 - aggregation.summary
@@ -165,6 +191,8 @@ The summary helper prints:
 - privacy
 - warningsTruncated
 - nextSteps
+
+Important: `includeAssets=false` and `includeActivities=false` reduce response size, not necessarily upstream provider calls.
 
 ## Single asset audit
 
@@ -189,6 +217,8 @@ Defaults stay privacy-safe:
 - portfolio names are redacted,
 - activity IDs are redacted,
 - raw payloads are never returned.
+
+Important: ISIN filtering happens after the currently available Activity retrieval path. A focused asset audit reduces output scope, but may still need to fetch Activities from authorized or selected portfolios.
 
 ## Error handling
 
