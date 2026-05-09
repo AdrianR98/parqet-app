@@ -52,6 +52,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Global Asset negative quantity suggestions are now more conservative for non-duplicate ratio mismatch cases.
 - Global Asset audit docs now distinguish response-size reduction from provider-call reduction.
 - Assets route now classifies non-auth provider failures before retrying after token refresh.
+- Activity fetching now requests security assets by default and uses a larger page limit to reduce unnecessary provider payload for current asset flows.
 
 ### Fixed
 
