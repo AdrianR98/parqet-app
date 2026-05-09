@@ -30,11 +30,67 @@ http://localhost:3000/api/auth/start
 
 Do not commit real audit outputs.
 
-## Cookie header for terminal requests
+## Persistent local audit authentication
 
 The browser has Parqet cookies after OAuth. PowerShell does not automatically share those browser cookies.
 
-If the browser route works but the helper script returns `401 Unauthorized`, copy the local Cookie header from the browser request and pass it explicitly.
+The recommended workflow is to seed a local cookie jar once and then let `curl.exe` reuse and update it automatically.
+
+Default cookie jar path:
+
+```text
+.local/parqet-audit-cookies.txt
+```
+
+`.local/` is gitignored. Do not commit cookie jar files.
+
+### One-time bootstrap
+
+After browser OAuth, copy the local Cookie header once and run:
+
+```powershell
+npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..." -UseCookieJar
+```
+
+The script writes a local cookie jar without printing cookie values.
+
+### Later calls
+
+After bootstrap, use only `-UseCookieJar`:
+
+```powershell
+npm run audit:summary -- -UseCookieJar
+```
+
+```powershell
+npm run audit:asset -- -Isin US83444M1018 -UseCookieJar
+```
+
+For a custom local cookie jar path:
+
+```powershell
+npm run audit:summary -- -UseCookieJar -CookieJarPath ".local/my-audit-cookies.txt"
+```
+
+### When reauthorization is still required
+
+This workflow cannot bypass Parqet OAuth. If Parqet revokes or expires the refresh token server-side, reauthorize once through:
+
+```text
+http://localhost:3000/api/auth/start
+```
+
+Then reseed the jar:
+
+```powershell
+npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..." -UseCookieJar
+```
+
+If the audit report contains `Access token expired and refresh failed.`, the helpers print a clear reauthorization warning.
+
+## Cookie header fallback
+
+Direct `-CookieHeader` still works for one-off local requests.
 
 When `-CookieHeader` is provided, the helpers use `curl.exe` on Windows because `Invoke-RestMethod` can mishandle this local Cookie scenario.
 
@@ -54,21 +110,22 @@ Rules:
 - Do not commit cookie values.
 - Do not paste cookie values into issues, PRs, chats or screenshots.
 - The scripts do not print cookie values.
+- Prefer `-UseCookieJar` after one-time bootstrap.
 
 ## Summary audit
 
-Run:
+Run after cookie jar bootstrap:
 
 ```powershell
-npm run audit:summary
+npm run audit:summary -- -UseCookieJar
 ```
 
 Optional:
 
 ```powershell
-npm run audit:summary -- -Limit 5
-npm run audit:summary -- -BaseUrl "http://localhost:3000" -Limit 5
-npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..."
+npm run audit:summary -- -Limit 5 -UseCookieJar
+npm run audit:summary -- -BaseUrl "http://localhost:3000" -Limit 5 -UseCookieJar
+npm run audit:summary -- -CookieHeader "parqet_access_token=...; parqet_refresh_token=..." -UseCookieJar
 ```
 
 The summary helper prints only:
@@ -83,19 +140,19 @@ The summary helper prints only:
 
 ## Single asset audit
 
-Run:
+Run after cookie jar bootstrap:
 
 ```powershell
-npm run audit:asset -- -Isin US83444M1018
+npm run audit:asset -- -Isin US83444M1018 -UseCookieJar
 ```
 
 Optional flags:
 
 ```powershell
-npm run audit:asset -- -Isin US83444M1018 -Limit 100 -IncludeActivities
-npm run audit:asset -- -Isin US83444M1018 -IncludeActivities -IncludeAmounts
-npm run audit:asset -- -Isin US83444M1018 -IncludePortfolioNames -IncludeActivityIds
-npm run audit:asset -- -Isin US83444M1018 -CookieHeader "parqet_access_token=...; parqet_refresh_token=..."
+npm run audit:asset -- -Isin US83444M1018 -Limit 100 -IncludeActivities -UseCookieJar
+npm run audit:asset -- -Isin US83444M1018 -IncludeActivities -IncludeAmounts -UseCookieJar
+npm run audit:asset -- -Isin US83444M1018 -IncludePortfolioNames -IncludeActivityIds -UseCookieJar
+npm run audit:asset -- -Isin US83444M1018 -CookieHeader "parqet_access_token=...; parqet_refresh_token=..." -UseCookieJar
 ```
 
 Defaults stay privacy-safe:
@@ -112,9 +169,11 @@ If a script fails, check:
 - `npm run dev` is running,
 - `ENABLE_GLOBAL_ASSET_AUDIT_ROUTES=true` is set,
 - Parqet is connected locally,
-- terminal requests may require an explicit `-CookieHeader`,
+- the cookie jar exists after bootstrap,
 - `curl.exe` is available on Windows,
 - the requested ISIN exists in the authorized portfolios.
+
+If the helper reports that refresh failed, reauthorize via `/api/auth/start` and reseed the cookie jar once.
 
 ## Non-goals
 
