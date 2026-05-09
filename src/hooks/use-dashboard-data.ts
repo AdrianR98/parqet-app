@@ -49,6 +49,7 @@ type UseDashboardDataResult = {
     consistencyReport: ConsistencyReport | null;
     reconciliationWarnings: ReconciliationWarning[];
     lastUpdatedAt: string | null;
+    hasPendingPortfolioSelection: boolean;
 
     loadingPortfolios: boolean;
     loadingAssets: boolean;
@@ -70,6 +71,17 @@ type UseDashboardDataResult = {
     loadAssets: () => Promise<void>;
     startReconnect: () => void;
 };
+
+function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+        return false;
+    }
+
+    const sortedLeft = [...left].sort();
+    const sortedRight = [...right].sort();
+
+    return sortedLeft.every((id, index) => id === sortedRight[index]);
+}
 
 export function useDashboardData(): UseDashboardDataResult {
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -100,6 +112,7 @@ export function useDashboardData(): UseDashboardDataResult {
         ReconciliationWarning[]
     >([]);
     const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+    const [lastLoadedPortfolioIds, setLastLoadedPortfolioIds] = useState<string[]>([]);
 
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
     const [loadingAssets, setLoadingAssets] = useState(false);
@@ -191,6 +204,7 @@ export function useDashboardData(): UseDashboardDataResult {
         setConsistencyReport(cached.consistencyReport ?? null);
         setReconciliationWarnings(cached.reconciliationWarnings ?? []);
         setLastUpdatedAt(cached.lastUpdatedAt ?? null);
+        setLastLoadedPortfolioIds(cached.selectedPortfolioIds ?? []);
         setHasCachedData(true);
 
         if (cached.selectedPortfolioIds?.length) {
@@ -253,6 +267,7 @@ export function useDashboardData(): UseDashboardDataResult {
             setConsistencyReport(data.consistencyReport ?? null);
             setReconciliationWarnings(data.reconciliationWarnings ?? []);
             setLastUpdatedAt(nextGeneratedAt);
+            setLastLoadedPortfolioIds(selectedPortfolioIds);
             setHasCachedData(true);
 
             const cachePayload: DashboardCache = {
@@ -293,6 +308,10 @@ export function useDashboardData(): UseDashboardDataResult {
             selectedPortfolioIds.includes(portfolio.id)
         ).length;
     }, [portfolios, selectedPortfolioIds]);
+
+    const hasPendingPortfolioSelection = useMemo(() => {
+        return hasCachedData && !haveSamePortfolioSelection(selectedPortfolioIds, lastLoadedPortfolioIds);
+    }, [hasCachedData, selectedPortfolioIds, lastLoadedPortfolioIds]);
 
     const stats: DashboardStats = useMemo(() => {
         return buildDashboardStats({
@@ -348,6 +367,7 @@ export function useDashboardData(): UseDashboardDataResult {
         consistencyReport,
         reconciliationWarnings,
         lastUpdatedAt,
+        hasPendingPortfolioSelection,
 
         loadingPortfolios,
         loadingAssets,
