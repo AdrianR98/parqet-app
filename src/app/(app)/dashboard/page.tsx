@@ -39,6 +39,7 @@ export default function DashboardPage() {
         consistencyReport,
         reconciliationWarnings,
         lastUpdatedAt,
+        hasPendingPortfolioSelection,
 
         loadingPortfolios,
         loadingAssets,
@@ -126,6 +127,12 @@ export default function DashboardPage() {
                     {loadingPortfolios ? (
                         <div className="ui-banner ui-banner-info">
                             Daten werden geladen...
+                        </div>
+                    ) : null}
+
+                    {hasPendingPortfolioSelection ? (
+                        <div className="ui-banner ui-banner-info">
+                            Die Portfolio-Auswahl wurde geändert. Die angezeigten Asset-Daten stammen noch aus dem letzten geladenen Stand. Klicke auf „Assets laden“, um die Auswahl zu aktualisieren.
                         </div>
                     ) : null}
 

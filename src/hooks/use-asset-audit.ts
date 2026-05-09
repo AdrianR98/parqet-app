@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ActivitiesAuditApiResponse } from "../lib/types";
 
 type LoadAuditInput = {
@@ -25,12 +25,17 @@ export function useAssetAudit(): UseAssetAuditResult {
     const [error, setError] = useState<string | null>(null);
     const [authRequired, setAuthRequired] = useState(false);
     const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
+    const auditLoadInFlightRef = useRef(false);
 
     function startReconnect() {
         window.location.href = reconnectUrl || "/api/auth/start";
     }
 
     function resetAudit() {
+        if (auditLoadInFlightRef.current) {
+            return;
+        }
+
         setData(null);
         setError(null);
         setAuthRequired(false);
@@ -38,6 +43,11 @@ export function useAssetAudit(): UseAssetAuditResult {
     }
 
     async function loadAudit(input: LoadAuditInput) {
+        if (auditLoadInFlightRef.current) {
+            return;
+        }
+
+        auditLoadInFlightRef.current = true;
         setLoading(true);
         setError(null);
 
@@ -81,6 +91,7 @@ export function useAssetAudit(): UseAssetAuditResult {
             );
             setData(null);
         } finally {
+            auditLoadInFlightRef.current = false;
             setLoading(false);
         }
     }
