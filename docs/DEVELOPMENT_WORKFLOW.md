@@ -283,6 +283,8 @@ Missing docs, changelog or ADR is a Blocker only if the change is documentation-
 
 For Parqet/API-touching changes, unbounded retries, accidental full reloads, missing rate-limit handling or unclear request impact are review findings.
 
+AssetTrace v1 data, analytics, report, UI and diagnostics PRs must also satisfy `docs/ASSETTRACE_V1_GUARDRAILS.md`: no duplicate calculation pipelines, no avoidable provider DTO passthrough into UI, no private raw data in UI/logs/exports, no automatic provider calls from local UI actions, documented API budget impact, and honest source/freshness/confidence disclosure.
+
 ## Documentation Impact
 
 Every PR has a Documentation impact section. `No documentation impact` is allowed if briefly justified.
