@@ -10,11 +10,11 @@
  */
 
 export type Portfolio = {
-    id: string;
-    name: string;
-    currency: string;
-    createdAt: string;
-    distinctBrokers: string[];
+  id: string;
+  name: string;
+  currency: string;
+  createdAt: string;
+  distinctBrokers: string[];
 };
 
 /**
@@ -32,24 +32,24 @@ export type Portfolio = {
  */
 
 export type AssetMetadata = {
-    name?: string | null;
-    assetName?: string | null;
-    displayName?: string | null;
-    title?: string | null;
+  name?: string | null;
+  assetName?: string | null;
+  displayName?: string | null;
+  title?: string | null;
 
-    symbol?: string | null;
-    ticker?: string | null;
-    tickerSymbol?: string | null;
+  symbol?: string | null;
+  ticker?: string | null;
+  tickerSymbol?: string | null;
 
-    wkn?: string | null;
+  wkn?: string | null;
 
-    marketPrice?: number | null;
-    marketPriceAt?: string | null;
-    marketPriceSource?: string | null;
+  marketPrice?: number | null;
+  marketPriceAt?: string | null;
+  marketPriceSource?: string | null;
 
-    currency?: string | null;
-    assetType?: string | null;
-    exchange?: string | null;
+  currency?: string | null;
+  assetType?: string | null;
+  exchange?: string | null;
 };
 
 /**
@@ -62,20 +62,20 @@ export type AssetMetadata = {
  */
 
 export type PortfolioPosition = {
-    portfolioId: string;
-    portfolioName: string;
+  portfolioId: string;
+  portfolioName: string;
 
-    netShares: number;
-    remainingCostBasis: number;
-    avgBuyPrice: number | null;
+  netShares: number;
+  remainingCostBasis: number;
+  avgBuyPrice: number | null;
 
-    latestTradePrice: number | null;
-    marketPrice: number | null;
+  latestTradePrice: number | null;
+  marketPrice: number | null;
 
-    positionValue: number | null;
-    unrealizedPnL: number | null;
+  positionValue: number | null;
+  unrealizedPnL: number | null;
 
-    totalDividendNet: number;
+  totalDividendNet: number;
 };
 
 /**
@@ -93,52 +93,52 @@ export type PortfolioPosition = {
  */
 
 export type AssetSummary = {
-    isin: string;
+  isin: string;
 
-    portfolioIds: string[];
-    portfolioNames: string[];
+  portfolioIds: string[];
+  portfolioNames: string[];
 
-    portfolioBreakdown: PortfolioPosition[];
+  portfolioBreakdown: PortfolioPosition[];
 
-    activityCount: number;
-    buyCount: number;
-    sellCount: number;
-    dividendCount: number;
+  activityCount: number;
+  buyCount: number;
+  sellCount: number;
+  dividendCount: number;
 
-    totalBoughtShares: number;
-    totalSoldShares: number;
-    netShares: number;
+  totalBoughtShares: number;
+  totalSoldShares: number;
+  netShares: number;
 
-    totalInvestedGross: number;
-    remainingCostBasis: number;
-    avgBuyPrice: number | null;
+  totalInvestedGross: number;
+  remainingCostBasis: number;
+  avgBuyPrice: number | null;
 
-    latestTradePrice: number | null;
-    marketPrice: number | null;
-    marketPriceAt: string | null;
-    marketPriceSource: string | null;
+  latestTradePrice: number | null;
+  marketPrice: number | null;
+  marketPriceAt: string | null;
+  marketPriceSource: string | null;
 
-    positionValue: number | null;
-    unrealizedPnL: number | null;
+  positionValue: number | null;
+  unrealizedPnL: number | null;
 
-    totalDividendNet: number;
+  totalDividendNet: number;
 
-    latestActivityAt: string | null;
+  latestActivityAt: string | null;
 
-    name?: string | null;
-    assetName?: string | null;
-    displayName?: string | null;
-    title?: string | null;
+  name?: string | null;
+  assetName?: string | null;
+  displayName?: string | null;
+  title?: string | null;
 
-    symbol?: string | null;
-    ticker?: string | null;
-    tickerSymbol?: string | null;
+  symbol?: string | null;
+  ticker?: string | null;
+  tickerSymbol?: string | null;
 
-    wkn?: string | null;
+  wkn?: string | null;
 
-    metadata?: Partial<AssetMetadata> | null;
-    externalMetadata?: Partial<AssetMetadata> | null;
-    assetMeta?: Partial<AssetMetadata> | null;
+  metadata?: Partial<AssetMetadata> | null;
+  externalMetadata?: Partial<AssetMetadata> | null;
+  assetMeta?: Partial<AssetMetadata> | null;
 };
 
 /**
@@ -151,25 +151,25 @@ export type AssetSummary = {
  */
 
 export type AssetConsistencyCheck = {
-    isin: string;
-    name?: string | null;
+  isin: string;
+  name?: string | null;
 
-    reconstructedNetShares: number;
-    remainingCostBasis: number;
+  reconstructedNetShares: number;
+  remainingCostBasis: number;
 
-    isNegativeShares: boolean;
-    isNegativeCostBasis: boolean;
-    hasZeroSharesButCostBasis: boolean;
-    hasSharesButNoBuyHistory: boolean;
-    soldMoreThanBought: boolean;
+  isNegativeShares: boolean;
+  isNegativeCostBasis: boolean;
+  hasZeroSharesButCostBasis: boolean;
+  hasSharesButNoBuyHistory: boolean;
+  soldMoreThanBought: boolean;
 
-    warnings: string[];
+  warnings: string[];
 };
 
 export type ConsistencyReport = {
-    checkedAssets: number;
-    warningCount: number;
-    assetsWithWarnings: AssetConsistencyCheck[];
+  checkedAssets: number;
+  warningCount: number;
+  assetsWithWarnings: AssetConsistencyCheck[];
 };
 
 /**
@@ -189,14 +189,14 @@ export type ConsistencyReport = {
  */
 
 export type ReconciliationWarning = {
-    isin: string;
-    message: string;
-    severity: "info" | "warning" | "error";
-    reviewStatus?: "open" | "overridden" | "accepted";
-    source?: "reconciliation" | "override";
-    originalValue?: string | number | null;
-    overrideValue?: string | number | null;
-    lastChangedAt?: string | null;
+  isin: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  reviewStatus?: "open" | "overridden" | "accepted";
+  source?: "reconciliation" | "override";
+  originalValue?: string | number | null;
+  overrideValue?: string | number | null;
+  lastChangedAt?: string | null;
 };
 
 /**
@@ -208,39 +208,63 @@ export type ReconciliationWarning = {
  * Auth-Reconnect-Logik ist hier bereits eingeplant.
  */
 
+export type SnapshotFreshness = {
+  present: boolean;
+  loadedAt: string | null;
+  updatedAt: string | null;
+  status: "missing" | "fresh" | "stale" | "refresh_failed";
+  source: "provider" | "snapshot" | "local_derived" | "none";
+  refreshStatus: "idle" | "refreshing" | "refreshed" | "failed";
+  stale: boolean;
+  scope: {
+    portfolioCount: number;
+    fingerprint: string;
+  };
+  lastRefreshErrorCategory?:
+    | "rate_limit"
+    | "auth_error"
+    | "provider_error"
+    | "pipeline_error"
+    | "auth_refresh_failed"
+    | "missing_access_token"
+    | null;
+};
+
 export type PortfoliosApiResponse = {
-    ok: boolean;
-    portfolios?: {
-        items: Portfolio[];
-    };
-    authRequired?: boolean;
-    reconnectUrl?: string;
-    message?: string;
-    details?: string;
+  ok: boolean;
+  portfolios?: {
+    items: Portfolio[];
+  };
+  authRequired?: boolean;
+  reconnectUrl?: string;
+  message?: string;
+  details?: string;
 };
 
 export type AssetsApiResponse = {
-    ok: boolean;
+  ok: boolean;
 
-    rawActivityCount?: number;
-    filteredActivityCount?: number;
+  rawActivityCount?: number;
+  filteredActivityCount?: number;
 
-    assetCount?: number;
-    activeAssetCount?: number;
-    closedAssetCount?: number;
+  assetCount?: number;
+  activeAssetCount?: number;
+  closedAssetCount?: number;
 
-    assets?: AssetSummary[];
-    activeAssets?: AssetSummary[];
-    closedAssets?: AssetSummary[];
+  assets?: AssetSummary[];
+  activeAssets?: AssetSummary[];
+  closedAssets?: AssetSummary[];
 
-    generatedAt?: string;
-    consistencyReport?: ConsistencyReport | null;
-    reconciliationWarnings?: ReconciliationWarning[];
+  generatedAt?: string;
+  freshness?: SnapshotFreshness;
+  activityItems?: ActivitiesAuditItem[];
+  consistencyReport?: ConsistencyReport | null;
+  reconciliationWarnings?: ReconciliationWarning[];
 
-    authRequired?: boolean;
-    reconnectUrl?: string;
-    message?: string;
-    details?: string;
+  authRequired?: boolean;
+  reconnectUrl?: string;
+  message?: string;
+  details?: string;
 };
 
 /**
@@ -253,14 +277,14 @@ export type AssetsApiResponse = {
  */
 
 export type DashboardStats = {
-    rawActivityCount: number;
-    filteredActivityCount: number;
-    assetCount: number;
-    activeAssetCount: number;
-    closedAssetCount: number;
-    totalDividendNet: number;
-    totalPositionValue: number;
-    totalUnrealizedPnL: number;
+  rawActivityCount: number;
+  filteredActivityCount: number;
+  assetCount: number;
+  activeAssetCount: number;
+  closedAssetCount: number;
+  totalDividendNet: number;
+  totalPositionValue: number;
+  totalUnrealizedPnL: number;
 };
 
 /**
@@ -274,12 +298,12 @@ export type DashboardStats = {
  */
 
 export type AuditActivityType =
-    | "buy"
-    | "sell"
-    | "dividend"
-    | "transfer_in"
-    | "transfer_out"
-    | "unknown";
+  | "buy"
+  | "sell"
+  | "dividend"
+  | "transfer_in"
+  | "transfer_out"
+  | "unknown";
 
 /**
  * ============================================================
@@ -302,29 +326,29 @@ export type AuditActivityType =
  */
 
 export type ActivityOverrideField =
-    | "type"
-    | "datetime"
-    | "shares"
-    | "price"
-    | "amount"
-    | "amountNet"
-    | "portfolioId"
-    | "portfolioName"
-    | "isin"
-    | "name"
-    | "symbol"
-    | "wkn";
+  | "type"
+  | "datetime"
+  | "shares"
+  | "price"
+  | "amount"
+  | "amountNet"
+  | "portfolioId"
+  | "portfolioName"
+  | "isin"
+  | "name"
+  | "symbol"
+  | "wkn";
 
 export type ActivityOverrideValue = string | number | null;
 
 export type ActivityOverride = {
-    id: string;
-    activityId: string;
-    field: ActivityOverrideField;
-    value: ActivityOverrideValue;
-    reason?: string | null;
-    createdAt: string;
-    source: "manual";
+  id: string;
+  activityId: string;
+  field: ActivityOverrideField;
+  value: ActivityOverrideValue;
+  reason?: string | null;
+  createdAt: string;
+  source: "manual";
 };
 
 /**
@@ -352,106 +376,106 @@ export type AppliedOverrideMap = Partial<Record<ActivityOverrideField, true>>;
  */
 
 export type ActivitiesAuditItem = {
-    id: string;
-    datetime: string;
+  id: string;
+  datetime: string;
 
-    year: number;
-    monthKey: string;
-    monthLabel: string;
+  year: number;
+  monthKey: string;
+  monthLabel: string;
 
-    portfolioId: string | null;
-    portfolioName: string;
+  portfolioId: string | null;
+  portfolioName: string;
 
-    isin: string;
-    name: string | null;
-    symbol: string | null;
-    wkn: string | null;
+  isin: string;
+  name: string | null;
+  symbol: string | null;
+  wkn: string | null;
 
-    type: AuditActivityType;
-    rawType: string;
+  type: AuditActivityType;
+  rawType: string;
 
-    shares: number;
-    price: number;
-    amount: number;
-    amountNet: number;
+  shares: number;
+  price: number;
+  amount: number;
+  amountNet: number;
 
-    warningMessages: string[];
+  warningMessages: string[];
 
-    /**
-     * ------------------------------------------------------------
-     * OVERRIDE STATUS
-     * ------------------------------------------------------------
-     */
-    hasOverrides?: boolean;
-    overrideFlags?: AppliedOverrideMap;
-    overrideCount?: number;
+  /**
+   * ------------------------------------------------------------
+   * OVERRIDE STATUS
+   * ------------------------------------------------------------
+   */
+  hasOverrides?: boolean;
+  overrideFlags?: AppliedOverrideMap;
+  overrideCount?: number;
 
-    /**
-     * ------------------------------------------------------------
-     * ORIGINALWERTE VOR APPLY OVERRIDES
-     * ------------------------------------------------------------
-     *
-     * Diese Werte kommen bewusst aus der normalisierten Activity
-     * VOR dem Override-Layer.
-     *
-     * Typischer Erweiterungspunkt:
-     * - datetime
-     * - portfolioId
-     * - portfolioName
-     * - isin
-     * - symbol
-     * - wkn
-     */
-    originalValues?: {
-        shares?: number | null;
-        price?: number | null;
-        amount?: number | null;
-        amountNet?: number | null;
-        type?: string | null;
-    };
+  /**
+   * ------------------------------------------------------------
+   * ORIGINALWERTE VOR APPLY OVERRIDES
+   * ------------------------------------------------------------
+   *
+   * Diese Werte kommen bewusst aus der normalisierten Activity
+   * VOR dem Override-Layer.
+   *
+   * Typischer Erweiterungspunkt:
+   * - datetime
+   * - portfolioId
+   * - portfolioName
+   * - isin
+   * - symbol
+   * - wkn
+   */
+  originalValues?: {
+    shares?: number | null;
+    price?: number | null;
+    amount?: number | null;
+    amountNet?: number | null;
+    type?: string | null;
+  };
 
-    /**
-     * ------------------------------------------------------------
-     * OVERRIDEWERTE PRO FELD
-     * ------------------------------------------------------------
-     *
-     * Für das UI ist ein Feld->Wert Mapping oft praktischer
-     * als das rohe appliedOverrides-Array.
-     */
-    overrideValues?: Record<string, string | number | null> | null;
+  /**
+   * ------------------------------------------------------------
+   * OVERRIDEWERTE PRO FELD
+   * ------------------------------------------------------------
+   *
+   * Für das UI ist ein Feld->Wert Mapping oft praktischer
+   * als das rohe appliedOverrides-Array.
+   */
+  overrideValues?: Record<string, string | number | null> | null;
 };
 
 export type ActivitiesAuditSummary = {
-    total: number;
-    buyCount: number;
-    sellCount: number;
-    dividendCount: number;
-    transferInCount: number;
-    transferOutCount: number;
-    unknownCount: number;
+  total: number;
+  buyCount: number;
+  sellCount: number;
+  dividendCount: number;
+  transferInCount: number;
+  transferOutCount: number;
+  unknownCount: number;
 };
 
 export type ActivitiesAuditPagination = {
-    page: number;
-    pageSize: number;
-    totalItems: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 };
 
 export type ActivitiesAuditApiResponse = {
-    ok: boolean;
-    generatedAt: string;
-    portfolios: Portfolio[];
-    items: ActivitiesAuditItem[];
-    reconciliationWarnings: ReconciliationWarning[];
-    summary: ActivitiesAuditSummary;
-    pagination?: ActivitiesAuditPagination;
-    authRequired?: boolean;
-    reconnectUrl?: string;
-    message?: string;
-    details?: string;
+  ok: boolean;
+  generatedAt: string;
+  portfolios: Portfolio[];
+  items: ActivitiesAuditItem[];
+  reconciliationWarnings: ReconciliationWarning[];
+  summary: ActivitiesAuditSummary;
+  pagination?: ActivitiesAuditPagination;
+  authRequired?: boolean;
+  reconnectUrl?: string;
+  message?: string;
+  details?: string;
 };
 
 /**
@@ -464,16 +488,16 @@ export type ActivitiesAuditApiResponse = {
  */
 
 export type ActivityOverridesApiResponse = {
-    ok: boolean;
-    items: ActivityOverride[];
-    message?: string;
-    details?: string;
+  ok: boolean;
+  items: ActivityOverride[];
+  message?: string;
+  details?: string;
 };
 
 export type SaveActivityOverrideApiResponse = {
-    ok: boolean;
-    item?: ActivityOverride;
-    deleted?: boolean;
-    message?: string;
-    details?: string;
+  ok: boolean;
+  item?: ActivityOverride;
+  deleted?: boolean;
+  message?: string;
+  details?: string;
 };

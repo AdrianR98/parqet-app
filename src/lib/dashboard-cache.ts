@@ -1,9 +1,11 @@
 ﻿// src/lib/dashboard-cache.ts
 
 import type {
-    AssetSummary,
-    ConsistencyReport,
-    ReconciliationWarning,
+  ActivitiesAuditItem,
+  AssetSummary,
+  ConsistencyReport,
+  ReconciliationWarning,
+  SnapshotFreshness,
 } from "./types";
 
 /**
@@ -25,18 +27,20 @@ export const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
  * Struktur des localStorage-Caches fuer das Dashboard.
  */
 export type DashboardCache = {
-    activeAssets: AssetSummary[];
-    closedAssets: AssetSummary[];
-    rawActivityCount: number;
-    filteredActivityCount: number;
-    assetCount: number;
-    activeAssetCount: number;
-    closedAssetCount: number;
-    consistencyReport: ConsistencyReport | null;
-    reconciliationWarnings: ReconciliationWarning[];
-    generatedAt: string | null;
-    lastUpdatedAt: string | null;
-    selectedPortfolioIds: string[];
+  activeAssets: AssetSummary[];
+  closedAssets: AssetSummary[];
+  rawActivityCount: number;
+  filteredActivityCount: number;
+  assetCount: number;
+  activeAssetCount: number;
+  closedAssetCount: number;
+  consistencyReport: ConsistencyReport | null;
+  reconciliationWarnings: ReconciliationWarning[];
+  generatedAt: string | null;
+  lastUpdatedAt: string | null;
+  selectedPortfolioIds: string[];
+  freshness?: SnapshotFreshness;
+  activityItems?: ActivitiesAuditItem[];
 };
 
 /**
@@ -44,7 +48,7 @@ export type DashboardCache = {
  * localStorage darf nur dort angesprochen werden.
  */
 function isBrowser(): boolean {
-    return typeof window !== "undefined";
+  return typeof window !== "undefined";
 }
 
 /**
@@ -59,18 +63,18 @@ function isBrowser(): boolean {
  * neue AssetTable sonst nur Fallback-Zeilen mit 0-Werten anzeigt.
  */
 function isCacheAssetCompatible(asset: unknown): asset is AssetSummary {
-    if (!asset || typeof asset !== "object") {
-        return false;
-    }
+  if (!asset || typeof asset !== "object") {
+    return false;
+  }
 
-    const candidate = asset as Partial<AssetSummary>;
+  const candidate = asset as Partial<AssetSummary>;
 
-    return (
-        typeof candidate.isin === "string" &&
-        Array.isArray(candidate.portfolioIds) &&
-        Array.isArray(candidate.portfolioNames) &&
-        Array.isArray(candidate.portfolioBreakdown)
-    );
+  return (
+    typeof candidate.isin === "string" &&
+    Array.isArray(candidate.portfolioIds) &&
+    Array.isArray(candidate.portfolioNames) &&
+    Array.isArray(candidate.portfolioBreakdown)
+  );
 }
 
 /**
@@ -80,31 +84,44 @@ function isCacheAssetCompatible(asset: unknown): asset is AssetSummary {
  * verworfen, damit die App sauber frische Daten vom Server holt.
  */
 function isDashboardCacheCompatible(cache: unknown): cache is DashboardCache {
-    if (!cache || typeof cache !== "object") {
-        return false;
-    }
+  if (!cache || typeof cache !== "object") {
+    return false;
+  }
 
-    const candidate = cache as Partial<DashboardCache>;
+  const candidate = cache as Partial<DashboardCache>;
 
-    if (!Array.isArray(candidate.activeAssets) || !Array.isArray(candidate.closedAssets)) {
-        return false;
-    }
+  if (
+    !Array.isArray(candidate.activeAssets) ||
+    !Array.isArray(candidate.closedAssets)
+  ) {
+    return false;
+  }
 
-    const activeAssetsValid = candidate.activeAssets.every(isCacheAssetCompatible);
-    const closedAssetsValid = candidate.closedAssets.every(isCacheAssetCompatible);
+  const activeAssetsValid = candidate.activeAssets.every(
+    isCacheAssetCompatible,
+  );
+  const closedAssetsValid = candidate.closedAssets.every(
+    isCacheAssetCompatible,
+  );
 
-    const reconciliationWarnings = candidate.reconciliationWarnings;
-    const generatedAtValid =
-        candidate.generatedAt === null || typeof candidate.generatedAt === "string";
-    const selectedPortfolioIdsValid = Array.isArray(candidate.selectedPortfolioIds);
+  const reconciliationWarnings = candidate.reconciliationWarnings;
+  const generatedAtValid =
+    candidate.generatedAt === null || typeof candidate.generatedAt === "string";
+  const selectedPortfolioIdsValid = Array.isArray(
+    candidate.selectedPortfolioIds,
+  );
+  const activityItemsValid =
+    candidate.activityItems === undefined ||
+    Array.isArray(candidate.activityItems);
 
-    return (
-        activeAssetsValid &&
-        closedAssetsValid &&
-        selectedPortfolioIdsValid &&
-        Array.isArray(reconciliationWarnings) &&
-        generatedAtValid
-    );
+  return (
+    activeAssetsValid &&
+    closedAssetsValid &&
+    selectedPortfolioIdsValid &&
+    Array.isArray(reconciliationWarnings) &&
+    generatedAtValid &&
+    activityItemsValid
+  );
 }
 
 /**
@@ -115,27 +132,27 @@ function isDashboardCacheCompatible(cache: unknown): cache is DashboardCache {
  * - null bei leerem, defektem oder veraltetem Cache
  */
 export function loadDashboardCache(): DashboardCache | null {
-    if (!isBrowser()) {
-        return null;
+  if (!isBrowser()) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_CACHE_KEY);
+
+    if (!raw) {
+      return null;
     }
 
-    try {
-        const raw = window.localStorage.getItem(DASHBOARD_CACHE_KEY);
+    const parsed = JSON.parse(raw) as unknown;
 
-        if (!raw) {
-            return null;
-        }
-
-        const parsed = JSON.parse(raw) as unknown;
-
-        if (!isDashboardCacheCompatible(parsed)) {
-            return null;
-        }
-
-        return parsed;
-    } catch {
-        return null;
+    if (!isDashboardCacheCompatible(parsed)) {
+      return null;
     }
+
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -145,28 +162,28 @@ export function loadDashboardCache(): DashboardCache | null {
  * auch dann weiter funktioniert, wenn localStorage blockiert ist.
  */
 export function saveDashboardCache(cache: DashboardCache): void {
-    if (!isBrowser()) {
-        return;
-    }
+  if (!isBrowser()) {
+    return;
+  }
 
-    try {
-        window.localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(cache));
-    } catch {
-        // localStorage-Fehler bewusst ignorieren
-    }
+  try {
+    window.localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // localStorage-Fehler bewusst ignorieren
+  }
 }
 
 /**
  * Entfernt den Dashboard-Cache komplett.
  */
 export function clearDashboardCache(): void {
-    if (!isBrowser()) {
-        return;
-    }
+  if (!isBrowser()) {
+    return;
+  }
 
-    try {
-        window.localStorage.removeItem(DASHBOARD_CACHE_KEY);
-    } catch {
-        // localStorage-Fehler bewusst ignorieren
-    }
+  try {
+    window.localStorage.removeItem(DASHBOARD_CACHE_KEY);
+  } catch {
+    // localStorage-Fehler bewusst ignorieren
+  }
 }

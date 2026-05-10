@@ -8,6 +8,10 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added bounded in-memory Activity snapshot reuse with safe freshness metadata for AssetTrace v1 API-budget flows.
+- Added snapshot-backed Activities rendering from the local Dashboard read model so opening Activities does not trigger a hidden provider fetch.
+- Documented the v1 production cache boundary: no durable server/database persistence before a separate ADR.
+
 - Local Reports v1 surface with loaded-data report tiles, portfolio breakdown, data-quality summary and local Markdown/CSV export actions without new provider calls.
 - Chart-based Assetdetail Timeline v1 with local marker visualization, range controls, disabled unsafe chart modes and marker-only empty fallback without new provider calls.
 - Asset detail foundation route with local Dashboard-cache lookup, readable slug plus stable `id` query key, read-only sections and a timeline placeholder without new provider calls.

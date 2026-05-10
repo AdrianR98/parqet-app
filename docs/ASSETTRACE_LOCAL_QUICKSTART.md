@@ -46,7 +46,6 @@ The scope is persisted in the browser and is intended for Dashboard, Aktivitäte
 
 If a stored portfolio is no longer available, AssetTrace shows a safe notice and falls back to available portfolios instead of keeping an invalid hidden selection.
 
-
 ## 5. Open asset details from the Dashboard
 
 After Dashboard assets are loaded, use the `Detail` action in the AssetTable to open a read-only Assetdetail page. The URL contains a readable slug and the stable asset key as `id`, for example `/assets/vanguard-ftse-all-world-high-dividend-yield?id=IE00B8GKDB10`.
@@ -54,7 +53,6 @@ After Dashboard assets are loaded, use the `Detail` action in the AssetTable to 
 Assetdetails use only the locally loaded Dashboard read model and the current global portfolio scope. Opening or changing an Assetdetail URL does not trigger Parqet provider calls, audit routes or a full activity fetch. If local data is missing, the page asks you to explicitly load or refresh Dashboard data first.
 
 The Assetdetail page includes a local visual Timeline/marker area. It displays marker data only when it is already present in the local read model, falls back to a marker-only/empty state when no safe event timeline is available and never loads chart data automatically. Range controls and chart-mode toggles are local UI controls; use the Dashboard refresh action for any explicit data update.
-
 
 ## 6. Use local Reports and exports
 
@@ -93,3 +91,15 @@ These actions do not delete Parqet data and do not perform destructive server-si
 Treat Parqet/API budget as limited. Avoid unnecessary refreshes. Prefer reviewing the current local data stand first, then refresh explicitly only when you want to update the local snapshot from Parqet.
 
 Developer diagnostics in Settings are local and safe-gated. They may show freshness/cache metadata and API-budget notes, but must not show tokens, cookies, raw provider payloads, private activity rows or unredacted private identifiers.
+
+## Snapshot and explicit refresh behavior
+
+AssetTrace v1 now separates explicit data loading from normal navigation:
+
+- Use the Dashboard load/refresh action when you intentionally want to fetch the current Parqet data for the selected portfolio scope.
+- Dashboard data is written into a local read model with freshness metadata after a successful explicit load.
+- Activities, Reports and Assetdetail views reuse local snapshot/read-model data and must not start hidden provider full-fetches while opening, filtering or sorting.
+- If no local activity snapshot exists, the Activities page shows an empty state that asks you to load or refresh data explicitly in the Dashboard.
+- Settings diagnostics may show whether a local snapshot/cache exists, its freshness status, scope count/fingerprint and redacted refresh error category. They must not show tokens, cookies or raw provider payloads.
+
+The server-side v1 snapshot is bounded and in-memory. It is an API-budget optimization only, not durable production storage.
