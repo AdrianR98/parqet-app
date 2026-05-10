@@ -115,8 +115,6 @@ export default function SettingsPage() {
     setCacheAssetCount(0);
     setCacheActivityCount(0);
     setCacheFreshness(null);
-    setCacheActivityCount(0);
-    setCacheFreshness(null);
     setResetMessage(
       "Der lokale Dashboard-Cache wurde gelöscht. Parqet-Daten bleiben unverändert.",
     );
@@ -130,6 +128,8 @@ export default function SettingsPage() {
     setAppearanceMode("system");
     setCacheUpdatedAt(null);
     setCacheAssetCount(0);
+    setCacheActivityCount(0);
+    setCacheFreshness(null);
     setResetMessage(
       "Lokale UI-Einstellungen und Cache wurden zurückgesetzt. In Parqet wurde nichts gelöscht.",
     );

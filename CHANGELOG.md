@@ -73,6 +73,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Fixed
 
+- Hardened Snapshot/API-budget follow-up behavior so explicit refresh semantics, snapshot-first audit routes and local diagnostics reset state stay provider-call-safe.
 - Consolidated obsolete duplicated masterprompt guidance into the new `prompts/` structure.
 - Improved Global Asset audit error classification so provider rate limits are not misreported as expired sessions.
 - Prevented `/api/parqet/assets` from retrying the full Activity pipeline after non-auth failures such as provider rate limits.

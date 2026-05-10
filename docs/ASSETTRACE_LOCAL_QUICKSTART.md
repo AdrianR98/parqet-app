@@ -97,9 +97,9 @@ Developer diagnostics in Settings are local and safe-gated. They may show freshn
 AssetTrace v1 now separates explicit data loading from normal navigation:
 
 - Use the Dashboard load/refresh action when you intentionally want to fetch the current Parqet data for the selected portfolio scope.
-- Dashboard data is written into a local read model with freshness metadata after a successful explicit load.
+- Dashboard data is written into a browser-local read model with freshness metadata after a successful explicit load; this is not production persistence.
 - Activities, Reports and Assetdetail views reuse local snapshot/read-model data and must not start hidden provider full-fetches while opening, filtering or sorting.
 - If no local activity snapshot exists, the Activities page shows an empty state that asks you to load or refresh data explicitly in the Dashboard.
 - Settings diagnostics may show whether a local snapshot/cache exists, its freshness status, scope count/fingerprint and redacted refresh error category. They must not show tokens, cookies or raw provider payloads.
 
-The server-side v1 snapshot is bounded and in-memory. It is an API-budget optimization only, not durable production storage.
+The server-side v1 snapshot is bounded, process-local, in-memory and non-durable. It is an API-budget optimization for explicit v1 route reuse only, not production storage. Filtered/normalized Activity data is retained only within those bounded snapshot/read-model paths; tokens, cookies and raw provider payloads must never appear in UI, diagnostics or exports.

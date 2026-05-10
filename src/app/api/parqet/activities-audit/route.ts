@@ -74,6 +74,7 @@ export async function GET(req: Request) {
     try {
         const url = new URL(req.url);
         const portfolioIds = url.searchParams.getAll("portfolioId");
+        const explicitRefresh = url.searchParams.get("refresh") === "1";
         const requestedPage = parsePositiveInt(url.searchParams.get("page"), DEFAULT_PAGE);
         const requestedPageSize = parsePositiveInt(
             url.searchParams.get("pageSize"),
@@ -115,7 +116,7 @@ export async function GET(req: Request) {
         let accessToken = getCookieValue(cookieHeader, "parqet_access_token");
         const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
-        if (!accessToken) {
+        if (explicitRefresh && !accessToken) {
             return NextResponse.json(
                 {
                     ok: false,
@@ -135,8 +136,30 @@ export async function GET(req: Request) {
         ): Promise<ActivitiesAuditApiResponse> {
             const activityContext = await buildActivityContext(
                 currentAccessToken,
-                portfolioIds
+                portfolioIds,
+                { refresh: explicitRefresh }
             );
+
+            if (!explicitRefresh && !activityContext.freshness.present) {
+                return {
+                    ok: true,
+                    generatedAt: new Date().toISOString(),
+                    portfolios: [],
+                    items: [],
+                    reconciliationWarnings: [],
+                    summary: buildAuditSummary([]),
+                    pagination: {
+                        page: 1,
+                        pageSize,
+                        totalItems: 0,
+                        totalPages: 0,
+                        hasNextPage: false,
+                        hasPreviousPage: false,
+                    },
+                    message:
+                        "No Activity snapshot exists for this portfolio scope. Re-run with refresh=1 only when an explicit provider refresh is intended.",
+                };
+            }
             const portfolios = activityContext.authorizedPortfolios;
             const warnings = activityContext.reconciliationWarnings;
 
@@ -223,10 +246,10 @@ export async function GET(req: Request) {
         }
 
         try {
-            const result = await buildAuditView(accessToken);
+            const result = await buildAuditView(accessToken ?? "");
             return NextResponse.json(result);
         } catch (error) {
-            if (!refreshToken) {
+            if (!explicitRefresh || !refreshToken) {
                 throw error;
             }
 
