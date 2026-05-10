@@ -17,6 +17,16 @@ import type {
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
+const SNAPSHOT_ONLY_API_BUDGET = {
+    providerCallsMayOccur: false,
+    activityFetchMayOccur: false,
+    activityFetchScope: "none" as const,
+    responseFlagsReduceProviderCalls: true,
+    notes: [
+        "No provider call is made because this activities audit request did not include refresh=1.",
+        "Use refresh=1 only for an intentional explicit provider-backed activities audit.",
+    ],
+};
 
 function getMonthKey(value: string): string {
     return value.slice(0, 7);
@@ -74,6 +84,7 @@ export async function GET(req: Request) {
     try {
         const url = new URL(req.url);
         const portfolioIds = url.searchParams.getAll("portfolioId");
+        const explicitRefresh = url.searchParams.get("refresh") === "1";
         const requestedPage = parsePositiveInt(url.searchParams.get("page"), DEFAULT_PAGE);
         const requestedPageSize = parsePositiveInt(
             url.searchParams.get("pageSize"),
@@ -115,7 +126,7 @@ export async function GET(req: Request) {
         let accessToken = getCookieValue(cookieHeader, "parqet_access_token");
         const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
-        if (!accessToken) {
+        if (explicitRefresh && !accessToken) {
             return NextResponse.json(
                 {
                     ok: false,
@@ -135,8 +146,32 @@ export async function GET(req: Request) {
         ): Promise<ActivitiesAuditApiResponse> {
             const activityContext = await buildActivityContext(
                 currentAccessToken,
-                portfolioIds
+                portfolioIds,
+                { refresh: explicitRefresh }
             );
+
+            if (!explicitRefresh && !activityContext.freshness.present) {
+                return {
+                    ok: true,
+                    generatedAt: new Date().toISOString(),
+                    portfolios: [],
+                    items: [],
+                    reconciliationWarnings: [],
+                    summary: buildAuditSummary([]),
+                    pagination: {
+                        page: 1,
+                        pageSize,
+                        totalItems: 0,
+                        totalPages: 0,
+                        hasNextPage: false,
+                        hasPreviousPage: false,
+                    },
+                    freshness: activityContext.freshness,
+                    apiBudget: SNAPSHOT_ONLY_API_BUDGET,
+                    message:
+                        "No Activity snapshot exists for this portfolio scope. Without refresh=1 this route is snapshot-only and makes no provider calls; use refresh=1 only for an explicit provider-backed activities audit.",
+                };
+            }
             const portfolios = activityContext.authorizedPortfolios;
             const warnings = activityContext.reconciliationWarnings;
 
@@ -223,10 +258,10 @@ export async function GET(req: Request) {
         }
 
         try {
-            const result = await buildAuditView(accessToken);
+            const result = await buildAuditView(accessToken ?? "");
             return NextResponse.json(result);
         } catch (error) {
-            if (!refreshToken) {
+            if (!explicitRefresh || !refreshToken) {
                 throw error;
             }
 

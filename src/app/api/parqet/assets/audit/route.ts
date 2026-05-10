@@ -316,7 +316,8 @@ export async function GET(req: Request) {
              */
             const activityContext = await buildActivityContext(
                 currentAccessToken,
-                portfolioIds
+                portfolioIds,
+                { refresh: true }
             );
             const selectedPortfolios = activityContext.selectedPortfolios;
             const portfolioNameById = activityContext.portfolioNameById;

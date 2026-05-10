@@ -2,6 +2,7 @@ import type { Portfolio, ReconciliationWarning } from "../types";
 import type { Activity } from "./activity-types";
 import {
   getActivitySnapshot,
+  getActivitySnapshotFreshness,
   saveActivitySnapshot,
   snapshotEntryToContext,
   snapshotEntryToFreshContext,
@@ -16,6 +17,10 @@ import { applyOverrides, type CorrectedActivity } from "./overrides";
 import { buildReconciliationWarnings } from "./reconciliation";
 
 export type BuildActivityContextOptions = {
+  /**
+   * Explicitly allow provider-backed portfolio/activity fetches.
+   * Defaults to false so omitted options stay snapshot/local-first.
+   */
   refresh?: boolean;
 };
 
@@ -37,7 +42,7 @@ export async function buildActivityContext(
   portfolioIds: string[],
   options: BuildActivityContextOptions = {},
 ): Promise<ActivityContext> {
-  const shouldRefresh = options.refresh ?? true;
+  const shouldRefresh = options.refresh ?? false;
 
   if (!shouldRefresh) {
     const snapshot = getActivitySnapshot(portfolioIds);
@@ -45,6 +50,19 @@ export async function buildActivityContext(
     if (snapshot) {
       return snapshotEntryToContext(snapshot);
     }
+
+    return {
+      authorizedPortfolios: [],
+      selectedPortfolios: [],
+      portfolioNameById: new Map(),
+      rawActivities: [],
+      rawActivityCount: 0,
+      filteredActivities: [],
+      normalizedActivities: [],
+      correctedActivities: [],
+      reconciliationWarnings: [],
+      freshness: getActivitySnapshotFreshness(portfolioIds),
+    };
   }
   const portfolios = await fetchAuthorizedPortfolios(accessToken);
   const selectedPortfolios = portfolios.filter((portfolio) =>

@@ -23,6 +23,17 @@ const AUDIT_API_BUDGET = buildActivityScanBudgetInfo({
   activityFetchScope: "authorized_portfolios",
   responseFlagsReduceProviderCalls: false,
 });
+const SNAPSHOT_ONLY_API_BUDGET = {
+  providerCallsMayOccur: false,
+  activityFetchMayOccur: false,
+  activityFetchScope: "none" as const,
+  responseFlagsReduceProviderCalls: true,
+  notes: [
+    "No provider call is made unless this audit request includes refresh=1.",
+    "Local filters, response flags and pagination reuse the current in-memory snapshot when present.",
+    "Run an explicit refresh only when provider-backed audit data is required.",
+  ],
+};
 
 function parseBoolean(value: string | null, fallback: boolean): boolean {
   if (value === null) return fallback;
@@ -161,24 +172,35 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const options = getQueryOptions(url);
   const requestedPortfolioIds = getPortfolioIds(url);
+  const explicitRefresh = url.searchParams.get("refresh") === "1";
   const cookieHeader = req.headers.get("cookie") || "";
   let accessToken = getCookieValue(cookieHeader, "parqet_access_token");
   const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
-  if (!accessToken) {
+  if (explicitRefresh && !accessToken) {
     return buildDiagnosticResponse(options, { category: "missing_access_token" });
   }
 
   async function buildReport(currentAccessToken: string) {
     const initialIds = requestedPortfolioIds;
-    const firstContext = await buildActivityContext(currentAccessToken, initialIds);
+    const firstContext = await buildActivityContext(currentAccessToken, initialIds, { refresh: explicitRefresh });
+
+    if (!explicitRefresh && !firstContext.freshness.present) {
+      return {
+        ...emptyReport(
+          options,
+          "No Activity snapshot exists for this portfolio scope. Re-run with refresh=1 only when an explicit provider refresh is intended."
+        ),
+        apiBudget: SNAPSHOT_ONLY_API_BUDGET,
+      };
+    }
     const selectedIds = initialIds.length > 0
       ? initialIds
       : firstContext.authorizedPortfolios.map((portfolio) => portfolio.id);
 
     const activityContext = initialIds.length > 0
       ? firstContext
-      : await buildActivityContext(currentAccessToken, selectedIds);
+      : await buildActivityContext(currentAccessToken, selectedIds, { refresh: explicitRefresh });
 
     const contextualActivities = toContextualActivities(activityContext, selectedIds);
 
@@ -189,19 +211,24 @@ export async function GET(req: Request) {
         portfolioFilterApplied: requestedPortfolioIds.length > 0,
         note: contextualActivities.length === 0 ? "No security activities available for the selected portfolios." : undefined,
       }),
-      apiBudget: {
-        ...AUDIT_API_BUDGET,
-        activityFetchScope: requestedPortfolioIds.length > 0 ? "selected_portfolios" : "authorized_portfolios",
-      },
+      apiBudget: explicitRefresh
+        ? {
+            ...AUDIT_API_BUDGET,
+            activityFetchScope: requestedPortfolioIds.length > 0 ? "selected_portfolios" : "authorized_portfolios",
+          }
+        : {
+            ...SNAPSHOT_ONLY_API_BUDGET,
+            activityFetchScope: requestedPortfolioIds.length > 0 ? "selected_portfolios" as const : "none" as const,
+          },
     };
   }
 
   try {
-    return NextResponse.json(await buildReport(accessToken));
+    return NextResponse.json(await buildReport(accessToken ?? ""));
   } catch (error) {
     const diagnostic = classifyParqetApiError(error);
 
-    if (diagnostic.category !== "auth_error") {
+    if (!explicitRefresh || diagnostic.category !== "auth_error") {
       return buildFailedAuditResponse(options, diagnostic, error);
     }
 

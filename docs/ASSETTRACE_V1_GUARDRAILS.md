@@ -109,7 +109,9 @@ Rules:
 
 - Snapshot-backed data should include freshness metadata: source, last successful sync/load time and known warnings.
 - A stale snapshot should be labelled stale rather than silently refreshed through a hidden full fetch.
-- Explicit refresh/sync actions may update snapshots later, but this guardrail batch does not implement snapshot storage.
+- Explicit refresh/sync actions may update bounded v1 snapshots, but omitted refresh options must remain snapshot/local-first and must not trigger provider fetches.
+- Audit routes without `refresh=1` must be snapshot-only/no-provider-call reads and return a clear no-snapshot response when no matching snapshot exists. Audit routes with `refresh=1` may run provider-backed only when the route is explicitly designed and gated for provider-backed audit use.
+- The guarded Global Asset audit route may keep its deliberate two-step provider-backed `refresh=1` flow for requests without `portfolioId`: resolve authorized portfolios first, then load the selected Activity scope.
 
 ## Local-only UI interaction rules
 
@@ -225,9 +227,9 @@ Future AssetTrace data, analytics, report, UI or diagnostics PRs must be reviewe
 
 ## Snapshot/Freshness terms
 
-- `snapshot`: bounded in-memory or browser-local read model created only after an explicit load/refresh path.
+- `snapshot`: bounded process-local in-memory server reuse or browser-local read model created only after an explicit load/refresh path. It is non-durable and may disappear across deploys, cold starts, server restarts or browser cache resets.
 - `freshness`: safe metadata such as `loadedAt`, `updatedAt`, `status`, `source`, `stale`, scope count/fingerprint and redacted error category.
 - `source=provider`: data was produced by an explicit provider load/refresh.
 - `source=snapshot` or `source=local_derived`: data was reused locally without a new provider call.
 
-Normal UI surfaces must prefer snapshot/local-derived data or clear empty states over hidden full provider refreshes.
+Normal UI surfaces must prefer snapshot/local-derived data or clear empty states over hidden full provider refreshes. Tokens, cookies, authorization headers and raw provider payloads must not be exposed in UI, diagnostics or exports; filtered/normalized activity data may be retained only within bounded v1 snapshot/read-model reuse paths.
