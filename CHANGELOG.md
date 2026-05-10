@@ -55,6 +55,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 - Neutralized governance, workflow, v1 guardrail and template wording so durable repository rules do not depend on the current visible product name.
 - Strengthened the PR template with required Phase, Scope, Non-goals, API Budget Impact, Privacy / Data Impact, UI / UX Impact, Testing, Reviewer Checklist and Post-merge Cleanup sections.
+- Strengthened Codex task governance so non-trivial prompts must include scope, non-goals, acceptance criteria, verification, API Budget Impact and Privacy/Data Impact before issue.
 - Renamed the phase-plan, v1-guardrail, local quickstart and ADR 0005 references to the app-neutral document structure.
 - Removed deprecated app-name-specific compatibility docs after all repository references moved to neutral targets.
 

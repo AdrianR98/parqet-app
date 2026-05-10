@@ -86,7 +86,7 @@ Before GitHub actions such as issue updates, PR creation, review comments, branc
 - `docs/PHASE_PLAN.md`
 - `docs/V1_GUARDRAILS.md`
 
-Every non-trivial Codex task should include:
+Every non-trivial Codex task must include:
 
 ```text
 Repo:
@@ -94,9 +94,15 @@ Mode:
 Branch:
 Create PR:
 Linked issues:
+Allowed changes:
+Non-goals:
+Acceptance criteria:
+Verification:
+API Budget Impact:
+Privacy/Data Impact:
 ```
 
-`Allowed changes` and `Non-goals` are required for code, `Normal`, `Voll`, governance, CI, agent and workflow tasks. They may be omitted only for clear `Mini` documentation tasks with exactly named files.
+If any required field is missing, the prompt is not ready to be issued and must be corrected before it is given to Codex.
 
 Codex may commit only when the task explicitly allows commits. Codex may open a PR only when `Create PR: yes`. Codex must not choose a branch name if none was provided. Codex must never merge.
 

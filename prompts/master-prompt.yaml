@@ -101,7 +101,8 @@ guardrails:
     - Expose rate limits and stale data clearly rather than hiding them behind generic errors.
     - Any Parqet/API-touching issue or PR must describe request impact, caching strategy and retry behavior.
   codex_execution:
-    - Every task should specify repo, mode, branch, Create PR and linked issues.
+    - Every non-trivial Codex task must include repo, mode, branch, Create PR, linked issues, allowed changes, non-goals, acceptance criteria, verification, API Budget Impact and Privacy/Data Impact.
+    - If any required Codex task field is missing, the prompt is not ready to issue and must be corrected before Codex receives it.
     - Codex may commit only if explicitly allowed.
     - Codex may open a PR only if Create PR is yes.
     - Codex must not choose a branch name if none is provided.
