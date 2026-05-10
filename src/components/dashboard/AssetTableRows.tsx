@@ -1,7 +1,8 @@
-﻿// src/components/dashboard/AssetTableRows.tsx
+// src/components/dashboard/AssetTableRows.tsx
 
 "use client";
 
+import { Fragment } from "react";
 import Image from "next/image";
 import styles from "./AssetTable.module.css";
 import type { AssetSummary } from "../../lib/types";
@@ -16,7 +17,6 @@ type AssetTableRowsProps = {
     visibleColumns: VisibleColumnKey[];
     expandedIsins: string[];
     onToggleExpandedAction: (isin: string) => void;
-    onAuditAssetAction?: (asset: AssetSummary) => void | Promise<void>;
 };
 
 /**
@@ -168,7 +168,6 @@ export default function AssetTableRows({
     visibleColumns,
     expandedIsins,
     onToggleExpandedAction,
-    onAuditAssetAction,
 }: AssetTableRowsProps) {
     return (
         <table className={styles.table}>
@@ -178,7 +177,7 @@ export default function AssetTableRows({
                     const breakdown = getSafePortfolioBreakdown(asset);
 
                     return (
-                        <>
+                        <Fragment key={asset.isin}>
                             <tr key={asset.isin}>
                                 {visibleColumns.map((columnKey) => {
                                     if (columnKey === "actions") {
@@ -190,9 +189,10 @@ export default function AssetTableRows({
                                                 <button
                                                     type="button"
                                                     className="ui-btn ui-btn-ghost"
-                                                    onClick={() => onAuditAssetAction?.(asset)}
+                                                    disabled
+                                                    title="Assetdetail folgt in einem späteren Batch"
                                                 >
-                                                    Bearbeiten
+                                                    Detail folgt
                                                 </button>
 
                                                 <button
@@ -244,7 +244,7 @@ export default function AssetTableRows({
                                     </td>
                                 </tr>
                             ) : null}
-                        </>
+                        </Fragment>
                     );
                 })}
             </tbody>

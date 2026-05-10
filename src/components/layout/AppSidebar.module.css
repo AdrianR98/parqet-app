@@ -1,11 +1,11 @@
 .sidebar {
-    width: 252px;
+    width: 264px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     gap: 20px;
     padding: 18px 10px 18px 12px;
-    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    border-right: 1px solid var(--panel-border);
     background: linear-gradient(180deg, rgba(10, 23, 43, 0.96), rgba(11, 22, 41, 0.98));
 }
 
@@ -25,14 +25,15 @@
 .logoMark {
     width: 36px;
     height: 36px;
-    border-radius: 0;
     display: grid;
     grid-template-columns: repeat(2, 8px);
     grid-template-rows: repeat(2, 8px);
     gap: 3px;
     align-content: center;
     justify-content: center;
-    background: #18b8bb;
+    border-radius: 10px;
+    background: var(--accent-cyan);
+    box-shadow: var(--shadow-soft);
 }
 
 .logoTile {
@@ -47,6 +48,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
+    min-width: 0;
 }
 
 .brandTitle {
@@ -57,95 +59,108 @@
 }
 
 .brandSubtitle {
-    font-size: 0.74rem;
+    font-size: 12px;
     color: var(--text-soft);
 }
 
 .viewBlock {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
+    padding: 12px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .viewLabel {
-    font-size: 0.72rem;
+    margin-bottom: 5px;
+    font-size: 11px;
     font-weight: 700;
-    color: var(--accent-cyan);
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    text-transform: uppercase;
 }
 
 .viewValue {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--text-main);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-soft);
 }
 
 .nav {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .navItem {
-    min-height: 40px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 0 12px;
-    border-radius: 8px;
-    color: var(--text-main);
-    transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+    gap: 11px;
+    min-height: 48px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    color: var(--text-soft);
+    transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 
 .navItem:hover {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.navItemActive {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.navItemDisabled {
-    color: var(--text-soft);
-    opacity: 0.92;
-}
-
-.itemIcon {
-    width: 22px;
-    flex-shrink: 0;
-    display: inline-flex;
-    justify-content: center;
-    font-size: 0.95rem;
-    color: var(--text-soft);
-}
-
-.navItemActive .itemIcon,
-.navItem:hover .itemIcon {
+    background: rgba(255, 255, 255, 0.04);
     color: var(--text-main);
 }
 
+.navItemActive {
+    background: var(--accent-cyan-soft);
+    color: var(--text-main);
+    box-shadow: inset 3px 0 0 var(--accent-cyan);
+}
+
+.itemIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+    font-size: 14px;
+}
+
+.itemText {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .itemLabel {
-    font-size: 0.98rem;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 650;
 }
 
-.itemBadge {
-    margin-left: auto;
-    padding: 3px 7px;
-    border-radius: 6px;
-    background: rgba(30, 199, 195, 0.14);
-    color: var(--accent-cyan);
-    font-size: 0.7rem;
-    font-weight: 700;
-}
-
-@media (max-width: 1100px) {
-    .sidebar {
-        width: 220px;
-    }
+.itemDescription {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 @media (max-width: 900px) {
     .sidebar {
-        display: none;
+        width: 100%;
+        max-height: none;
+        border-right: none;
+        border-bottom: 1px solid var(--panel-border);
+    }
+
+    .nav {
+        flex-direction: row;
+        overflow-x: auto;
+    }
+
+    .navItem {
+        min-width: 168px;
     }
 }

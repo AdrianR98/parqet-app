@@ -1,4 +1,4 @@
-﻿.hero {
+.hero {
     padding: 22px;
 }
 
@@ -39,7 +39,15 @@
 .warningLine {
     margin-top: 10px;
     font-size: 13px;
-    color: var(--accent-orange);
+    color: var(--warning-text, var(--accent-orange));
+}
+
+.description {
+    max-width: 720px;
+    margin: 12px 0 0;
+    color: var(--text-soft);
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 .actions {

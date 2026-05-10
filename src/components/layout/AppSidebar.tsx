@@ -3,60 +3,78 @@
 import Link from "next/link";
 import styles from "./AppSidebar.module.css";
 
+export type AppNavItemKey =
+    | "dashboard"
+    | "activities"
+    | "timeline"
+    | "reports"
+    | "settings";
+
 type AppSidebarProps = {
-    activeItem: "dashboard" | "activities";
+    activeItem: AppNavItemKey;
 };
 
 type NavItem = {
-    key: string;
+    key: AppNavItemKey;
     label: string;
-    href?: string;
+    href: string;
     icon: string;
-    badge?: string;
+    description: string;
 };
 
 const MAIN_ITEMS: NavItem[] = [
-    { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "◫" },
-    { key: "analysis", label: "Analyse", icon: "◔" },
-    { key: "activities", label: "Aktivitäten", href: "/activities", icon: "↹" },
-    { key: "dividends", label: "Dividenden", icon: "◌" },
-    { key: "portfolios", label: "Portfolios", icon: "◎" },
-    { key: "watchlists", label: "Watchlists", icon: "★" },
-    { key: "news", label: "News Feed", icon: "≣" },
-    { key: "markets", label: "Märkte", icon: "◍" },
-    { key: "calendar", label: "Dividendenkalender", icon: "□" },
-    { key: "integrations", label: "Integrationen", icon: "✣", badge: "Neu" },
-    { key: "calc", label: "Finanzrechner", icon: "⌘" },
-    { key: "community", label: "Community", icon: "◉" },
+    {
+        key: "dashboard",
+        label: "Dashboard",
+        href: "/dashboard",
+        icon: "◫",
+        description: "Portfolio-Überblick",
+    },
+    {
+        key: "activities",
+        label: "Aktivitäten",
+        href: "/activities",
+        icon: "↹",
+        description: "Lokale Prüfung",
+    },
+    {
+        key: "timeline",
+        label: "Timeline",
+        href: "/timeline",
+        icon: "◷",
+        description: "AssetTrace Zielbereich",
+    },
+    {
+        key: "reports",
+        label: "Reports",
+        href: "/reports",
+        icon: "▤",
+        description: "Auswertungen vorbereiten",
+    },
+    {
+        key: "settings",
+        label: "Einstellungen",
+        href: "/settings",
+        icon: "⚙",
+        description: "App und Verbindung",
+    },
 ];
 
 function SidebarItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
-    const content = (
-        <>
+    return (
+        <Link
+            href={item.href}
+            className={`${styles.navItem} ${isActive ? styles.navItemActive : ""}`.trim()}
+            aria-current={isActive ? "page" : undefined}
+        >
             <span className={styles.itemIcon} aria-hidden="true">
                 {item.icon}
             </span>
-            <span className={styles.itemLabel}>{item.label}</span>
-            {item.badge ? <span className={styles.itemBadge}>{item.badge}</span> : null}
-        </>
-    );
-
-    if (item.href) {
-        return (
-            <Link
-                href={item.href}
-                className={`${styles.navItem} ${isActive ? styles.navItemActive : ""}`.trim()}
-                aria-current={isActive ? "page" : undefined}
-            >
-                {content}
-            </Link>
-        );
-    }
-
-    return (
-        <div className={`${styles.navItem} ${styles.navItemDisabled}`.trim()} aria-disabled="true">
-            {content}
-        </div>
+            <span className={styles.itemText}>
+                <span className={styles.itemLabel}>{item.label}</span>
+                <span className={styles.itemDescription}>{item.description}</span>
+            </span>
+        </Link>
     );
 }
 
@@ -73,18 +91,20 @@ export default function AppSidebar({ activeItem }: AppSidebarProps) {
                     </div>
 
                     <div className={styles.brandText}>
-                        <div className={styles.brandTitle}>parqet</div>
-                        <div className={styles.brandSubtitle}>Asset View</div>
+                        <div className={styles.brandTitle}>AssetTrace</div>
+                        <div className={styles.brandSubtitle}>für Parqet-Daten</div>
                     </div>
                 </div>
 
                 <div className={styles.viewBlock}>
-                    <div className={styles.viewLabel}>Ansicht</div>
-                    <div className={styles.viewValue}>Deine Gesamtansicht</div>
+                    <div className={styles.viewLabel}>Produktfokus</div>
+                    <div className={styles.viewValue}>
+                        Analyse- und Transparenzschicht für Parqet-Daten
+                    </div>
                 </div>
             </div>
 
-            <nav className={styles.nav} aria-label="Hauptnavigation">
+            <nav className={styles.nav} aria-label="Hauptnavigation AssetTrace">
                 {MAIN_ITEMS.map((item) => (
                     <SidebarItem
                         key={item.key}
