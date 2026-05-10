@@ -26,6 +26,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Narrow Global Asset `ignore_activity_for_position` override application for position quantity effects.
 - Persistent local cookie-jar support for Global Asset audit helpers.
 - Safe diagnostic output for Global Asset audit failures, including category and retry hints where available.
+- AssetTrace v1 guardrails for provider/internal/UI model separation, purpose-specific data sources, API-budget review, feature capability matrix and analytics safety disclosure.
 - Refined Global Asset negative quantity candidate metadata for ratio and factor mismatch cases.
 - Configurable Parqet activity fetch concurrency for local audit rate-limit mitigation.
 - Project-wide API budget minimization principle for Parqet and external provider calls.

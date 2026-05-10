@@ -69,4 +69,6 @@ Relevant for larger PRs.
 - [ ] `.env.example` contains placeholders only
 - [ ] If auth/API/token behavior changed, Full Review is documented
 - [ ] If architecture changed, ADR added or updated
+- [ ] If AssetTrace data, analytics, report, UI or diagnostics behavior changed, `docs/ASSETTRACE_V1_GUARDRAILS.md` review checks were applied
+- [ ] If Parqet/API behavior changed, API budget impact, cache/snapshot reuse, retry behavior and rate-limit handling are documented
 - [ ] If a matching German placeholder exists, translation impact is documented
