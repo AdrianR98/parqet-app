@@ -336,7 +336,7 @@ Check documentation as relevant:
 - `docs/ROADMAP.md` for larger direction or priority changes.
 - `docs/PROJECT_PRODUCT_BRIEF.md` for product goal/scope changes.
 - `docs/ARCHITECTURE.md` for current architecture/target-state changes.
-- ADRs for durable architecture, workflow or data decisions.
+- ADRs for durable architecture, workflow or data decisions, including `docs/adr/0005-v1-snapshot-cache.md` for the v1 snapshot cache and production storage boundary.
 - Matching `.de.md` files for translation follow-up checks.
 
 Changelog categories:

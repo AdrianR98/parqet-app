@@ -24,11 +24,7 @@ Important guardrail: do not create a second activity or asset pipeline before Ph
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Phase-0 architecture note.
 - [docs/ROADMAP.md](docs/ROADMAP.md) - longer-term roadmap and governance.
 - [docs/adr/](docs/adr) - architecture and collaboration decision records.
-
-Deprecated compatibility links:
-
-- [docs/ASSETTRACE_V1_GUARDRAILS.md](docs/ASSETTRACE_V1_GUARDRAILS.md) - moved to `docs/V1_GUARDRAILS.md`.
-- [docs/ASSETTRACE_LOCAL_QUICKSTART.md](docs/ASSETTRACE_LOCAL_QUICKSTART.md) - moved to `docs/LOCAL_QUICKSTART.md`.
+- [docs/adr/0005-v1-snapshot-cache.md](docs/adr/0005-v1-snapshot-cache.md) - v1 snapshot cache and production storage boundary.
 
 German placeholders:
 

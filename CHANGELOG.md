@@ -55,7 +55,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 - Neutralized governance, workflow, v1 guardrail and template wording so durable repository rules do not depend on the current visible product name.
 - Strengthened the PR template with required Phase, Scope, Non-goals, API Budget Impact, Privacy / Data Impact, UI / UX Impact, Testing, Reviewer Checklist and Post-merge Cleanup sections.
-- Renamed the phase-plan and v1-guardrail references to the app-neutral document structure while keeping deprecated compatibility redirects for old document names.
+- Renamed the phase-plan, v1-guardrail, local quickstart and ADR 0005 references to the app-neutral document structure.
+- Removed deprecated app-name-specific compatibility docs after all repository references moved to neutral targets.
 
 - Documented that Activities and Timeline use local/snapshot-backed Activity Items and require explicit Dashboard refresh for new provider data.
 - AssetTrace v1 navigation, activity detail fields, timeline summary, app-bar status and user-facing severity/freshness wording are now more consistent across local snapshot-backed surfaces.
