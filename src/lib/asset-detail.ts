@@ -29,6 +29,16 @@ function normalizeAssetKey(value: string | null | undefined): string {
     return value?.trim().toUpperCase() ?? "";
 }
 
+function createReadableSlug(label: string): string {
+    return label
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80);
+}
+
 export function getAssetDetailKey(asset: Pick<AssetSummary, "isin">): string {
     return normalizeAssetKey(asset.isin);
 }
@@ -81,13 +91,7 @@ export function getAssetInitials(asset: AssetSummary): string {
 }
 
 export function createAssetSlug(asset: AssetSummary): string {
-    const label = getAssetDisplayName(asset)
-        .normalize("NFKD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 80);
+    const label = createReadableSlug(getAssetDisplayName(asset));
 
     return label || asset.isin.toLowerCase();
 }
@@ -100,6 +104,21 @@ export function createAssetDetailHref(asset: AssetSummary): string | null {
     }
 
     return `/assets/${createAssetSlug(asset)}?id=${encodeURIComponent(key)}`;
+}
+
+export function createAssetDetailHrefFromParts(input: {
+    stableKey: string | null | undefined;
+    label: string | null | undefined;
+}): string | null {
+    const key = normalizeAssetKey(input.stableKey);
+
+    if (!key) {
+        return null;
+    }
+
+    const slug = createReadableSlug(input.label ?? "") || key.toLowerCase();
+
+    return `/assets/${slug}?id=${encodeURIComponent(key)}`;
 }
 
 export function findAssetByKey(assets: AssetSummary[], key: string): AssetSummary | null {

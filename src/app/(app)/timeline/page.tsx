@@ -16,10 +16,19 @@ import {
 } from "../../../lib/local-activity-read-model";
 import type { AuditActivityType } from "../../../lib/types";
 
+type TimelineSummaryItem = {
+  label: string;
+  value: number;
+};
+
 function toggleType(current: AuditActivityType[], type: AuditActivityType) {
   return current.includes(type)
     ? current.filter((entry) => entry !== type)
     : [...current, type];
+}
+
+function uniqueCount(values: Array<string | null | undefined>): number {
+  return new Set(values.filter((value): value is string => Boolean(value))).size;
 }
 
 export default function TimelinePage() {
@@ -44,6 +53,20 @@ export default function TimelinePage() {
   const projected = useMemo(() => {
     return sortActivities(filterActivities(scopedItems, filters), { key: "date", direction: "desc" }).map(projectActivity);
   }, [filters, scopedItems]);
+  const timelineSummary = useMemo<TimelineSummaryItem[]>(() => {
+    const transferCount = projected.filter((item) => item.type === "transfer_in" || item.type === "transfer_out").length;
+
+    return [
+      { label: "Events", value: projected.length },
+      { label: "Käufe", value: projected.filter((item) => item.type === "buy").length },
+      { label: "Verkäufe", value: projected.filter((item) => item.type === "sell").length },
+      { label: "Dividenden", value: projected.filter((item) => item.type === "dividend").length },
+      { label: "Transfers/Buchungen", value: transferCount },
+      { label: "Prüfung nötig", value: projected.filter((item) => item.hasWarnings).length },
+      { label: "Assets", value: uniqueCount(projected.map((item) => item.assetMeta === "Keine Kennung lokal vorhanden" ? item.assetLabel : item.assetMeta)) },
+      { label: "Portfolios", value: uniqueCount(projected.map((item) => item.portfolioLabel)) },
+    ];
+  }, [projected]);
   const groupingMode = projected.length > 140 ? "year" : "month";
   const groups = groupProjectedActivities(projected, groupingMode);
   const portfolioOptions = readModel.portfolios.filter((portfolio) => readModel.scopedPortfolioIds.includes(portfolio.id));
@@ -190,38 +213,55 @@ export default function TimelinePage() {
           <p>Ändere Filter oder Portfolio-Scope. Die Seite startet keine Provider-Calls.</p>
         </section>
       ) : (
-        <section className={styles.timeline} aria-label="Globale Asset-Timeline">
-          {groups.map((group) => (
-            <div key={group.key} className={styles.timelineGroup}>
-              <div className={styles.timelineGroupHeader}>
-                <h2>{group.label}</h2>
-                <span>{group.items.length} Ereignisse</span>
-              </div>
-              <div className={styles.eventRail}>
-                {group.items.map((event) => (
-                  <article key={event.id} className={styles.eventCard}>
-                    <div className={styles.eventTop}>
-                      <span className={styles.typeBadge}>{event.hasWarnings ? "Warnung/Datenproblem" : event.typeLabel}</span>
-                      <span className={styles.eventDate}>{event.dateLabel}</span>
-                    </div>
-                    <div className={styles.eventTitle}>{event.assetLabel}</div>
-                    <div className={styles.eventMeta}>{event.assetMeta}</div>
-                    <div className={styles.eventPortfolio}>{event.portfolioLabel}</div>
-                    <div className={styles.eventMetrics}>
-                      <span>Stückzahl {event.sharesLabel}</span>
-                      <span>Preis {event.priceLabel}</span>
-                      <span>Netto {event.amountNetLabel}</span>
-                    </div>
-                    <div className={styles.badgeRow}>
-                      {event.hasWarnings ? <span className={styles.warningBadge}>{event.warningMessages.length} Warnung(en)</span> : null}
-                      {event.overrideLabel ? <span className={styles.overrideBadge}>{event.overrideLabel}</span> : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
+        <>
+          <section className={`ui-surface ${styles.summary}`} aria-label="Timeline-Zusammenfassung">
+            <div>
+              <p className={styles.eyebrow}>Lokale Summary</p>
+              <h2>Aktueller Scope und Filter</h2>
             </div>
-          ))}
-        </section>
+            <div className={styles.summaryGrid}>
+              {timelineSummary.map((item) => (
+                <div key={item.label} className={styles.summaryItem}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.timeline} aria-label="Globale Asset-Timeline">
+            {groups.map((group) => (
+              <div key={group.key} className={styles.timelineGroup}>
+                <div className={styles.timelineGroupHeader}>
+                  <h2>{group.label}</h2>
+                  <span>{group.items.length} Ereignisse</span>
+                </div>
+                <div className={styles.eventRail}>
+                  {group.items.map((event) => (
+                    <article key={event.id} className={styles.eventCard}>
+                      <div className={styles.eventTop}>
+                        <span className={styles.typeBadge}>{event.hasWarnings ? "Prüfung nötig" : event.typeLabel}</span>
+                        <span className={styles.eventDate}>{event.dateLabel}</span>
+                      </div>
+                      <div className={styles.eventTitle}>{event.assetLabel}</div>
+                      <div className={styles.eventMeta}>{event.assetMeta}</div>
+                      <div className={styles.eventPortfolio}>{event.portfolioLabel}</div>
+                      <div className={styles.eventMetrics}>
+                        <span>Stückzahl {event.sharesLabel}</span>
+                        <span>Preis {event.priceLabel}</span>
+                        <span>Netto {event.amountNetLabel}</span>
+                      </div>
+                      <div className={styles.badgeRow}>
+                        {event.hasWarnings ? <span className={styles.warningBadge}>{event.warningMessages.length} Prüfung nötig</span> : null}
+                        {event.overrideLabel ? <span className={styles.overrideBadge}>{event.overrideLabel}</span> : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        </>
       )}
     </main>
   );

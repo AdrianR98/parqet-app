@@ -62,7 +62,11 @@ If no local Activity Items are available, the pages show an empty state and ask 
 
 The global portfolio scope from `Einstellungen` is respected locally. If the saved scope references portfolios that are not part of the loaded local data, Activities and Timeline show a clear mismatch notice and do not auto-load missing data.
 
-Activity detail is read-only in v1. It shows safe local fields such as type, date, asset, portfolio, quantity, price, amount, warnings and override hints. It must not show tokens, cookies, raw provider payloads, internal debug data or editing controls.
+Activity cards open the local Activity detail panel. If a stable asset key such as an ISIN is available, the asset name inside the card is a separate Assetdetail link using the same readable slug plus `id` query pattern as the Dashboard AssetTable. Clicking that link navigates to Assetdetail and does not also open the Activity detail panel.
+
+Activity detail is read-only in v1. It shows safe local fields such as date, type, asset, portfolio, quantity, price, amount and net amount. Fees, taxes and notes are shown only if they already exist as safe fields in the local read model. It must not show tokens, cookies, raw provider payloads, internal debug data or editing controls.
+
+The Timeline page starts with a compact local summary for the current scope and filters, such as event, buy, sell, dividend, transfer, warning, asset and portfolio counts. The summary is calculated from the already loaded local Activity Items and does not start a provider call.
 
 ## 7. Use local Reports and exports
 
@@ -107,6 +111,7 @@ Developer diagnostics in Settings are local and safe-gated. They may show freshn
 AssetTrace v1 now separates explicit data loading from normal navigation:
 
 - Use the Dashboard load/refresh action when you intentionally want to fetch the current Parqet data for the selected portfolio scope.
+- The app bar shows a compact local scope/freshness status and links to the Dashboard refresh path. This affordance is non-fetching by itself.
 - Dashboard data is written into a browser-local read model with freshness metadata after a successful explicit load; this is not production persistence.
 - Activities, Timeline, Reports and Assetdetail views reuse local snapshot/read-model data and must not start hidden provider full-fetches while opening, filtering, sorting, paginating or showing details.
 - If no local activity snapshot exists, the Activities page shows an empty state that asks you to load or refresh data explicitly in the Dashboard.

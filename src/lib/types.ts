@@ -398,6 +398,9 @@ export type ActivitiesAuditItem = {
   price: number;
   amount: number;
   amountNet: number;
+  fee?: number | null;
+  tax?: number | null;
+  note?: string | null;
 
   warningMessages: string[];
 

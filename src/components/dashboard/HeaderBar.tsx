@@ -1,4 +1,11 @@
 import type { AppNavItemKey } from "../layout/AppSidebar";
+import { useState } from "react";
+import Link from "next/link";
+import {
+    getFreshnessStatusLabel,
+    getScopeIndicatorLabel,
+    loadLocalActivityReadModel,
+} from "../../lib/local-activity-read-model";
 import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
@@ -22,6 +29,8 @@ export default function HeaderBar({
     activeView,
     onToggleThemeAction,
 }: HeaderBarProps) {
+    const [localStatus] = useState(() => loadLocalActivityReadModel());
+
     return (
         <header className={styles.header}>
             <div className={styles.left}>
@@ -37,8 +46,15 @@ export default function HeaderBar({
 
             <div className={styles.center} aria-label="Aktueller App-Status">
                 <span className={styles.scopePill}>Bereich: {VIEW_LABELS[activeView]}</span>
-                <span className={styles.statusPill}>Globaler Scope lokal</span>
-                <span className={styles.statusPill}>Aktualisierung manuell</span>
+                <span className={styles.statusPill}>{getScopeIndicatorLabel(localStatus)}</span>
+                <span className={styles.statusPill}>{getFreshnessStatusLabel(localStatus)}</span>
+                <Link
+                    href="/dashboard"
+                    className={styles.refreshPill}
+                    title="Explizite Aktualisierung im Dashboard öffnen"
+                >
+                    Refresh im Dashboard
+                </Link>
             </div>
 
             <div className={styles.right}>

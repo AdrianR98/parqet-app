@@ -204,6 +204,19 @@
   font-weight: 700;
 }
 
+.assetLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.assetLink:hover,
+.assetLink:focus-visible {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: none;
+}
+
 .assetMeta,
 .portfolioLine {
   margin-top: 5px;

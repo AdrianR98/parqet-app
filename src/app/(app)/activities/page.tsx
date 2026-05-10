@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import styles from "./ActivitiesPage.module.css";
 import {
   ALL_ACTIVITY_TYPES,
@@ -46,6 +47,10 @@ function DetailPanel({ activity, onClose }: { activity: ProjectedActivity; onClo
           <dd>{activity.dateLabel}</dd>
         </div>
         <div>
+          <dt>Typ</dt>
+          <dd>{activity.typeLabel}</dd>
+        </div>
+        <div>
           <dt>Asset</dt>
           <dd>{activity.assetLabel}</dd>
         </div>
@@ -73,6 +78,24 @@ function DetailPanel({ activity, onClose }: { activity: ProjectedActivity; onClo
           <dt>Netto-Betrag</dt>
           <dd>{activity.amountNetLabel}</dd>
         </div>
+        {activity.feeLabel ? (
+          <div>
+            <dt>Gebühren</dt>
+            <dd>{activity.feeLabel}</dd>
+          </div>
+        ) : null}
+        {activity.taxLabel ? (
+          <div>
+            <dt>Steuern</dt>
+            <dd>{activity.taxLabel}</dd>
+          </div>
+        ) : null}
+        {activity.noteLabel ? (
+          <div>
+            <dt>Notiz</dt>
+            <dd>{activity.noteLabel}</dd>
+          </div>
+        ) : null}
       </dl>
 
       {activity.hasWarnings ? (
@@ -99,13 +122,38 @@ function DetailPanel({ activity, onClose }: { activity: ProjectedActivity; onClo
 
 function ActivityCard({ activity, onSelect }: { activity: ProjectedActivity; onSelect: () => void }) {
   return (
-    <button type="button" className={styles.activityCard} onClick={onSelect}>
+    <article
+      className={styles.activityCard}
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      aria-label={`${activity.typeLabel} ${activity.assetLabel} öffnen`}
+    >
       <div className={styles.activityTop}>
         <span className={styles.typeBadge}>{activity.typeLabel}</span>
         <span className={styles.dateText}>{activity.dateLabel}</span>
       </div>
 
-      <div className={styles.assetName}>{activity.assetLabel}</div>
+      <div className={styles.assetName}>
+        {activity.assetHref ? (
+          <Link
+            href={activity.assetHref}
+            className={styles.assetLink}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            {activity.assetLabel}
+          </Link>
+        ) : (
+          activity.assetLabel
+        )}
+      </div>
       <div className={styles.assetMeta}>{activity.assetMeta}</div>
       <div className={styles.portfolioLine}>{activity.portfolioLabel}</div>
 
@@ -129,10 +177,10 @@ function ActivityCard({ activity, onSelect }: { activity: ProjectedActivity; onS
       </div>
 
       <div className={styles.badgeRow}>
-        {activity.hasWarnings ? <span className={styles.warningBadge}>Warnung</span> : null}
+        {activity.hasWarnings ? <span className={styles.warningBadge}>Prüfung nötig</span> : null}
         {activity.overrideLabel ? <span className={styles.overrideBadge}>{activity.overrideLabel}</span> : null}
       </div>
-    </button>
+    </article>
   );
 }
 
