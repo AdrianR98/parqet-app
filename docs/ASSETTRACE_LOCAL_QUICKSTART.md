@@ -46,7 +46,14 @@ The scope is persisted in the browser and is intended for Dashboard, Aktivitäte
 
 If a stored portfolio is no longer available, AssetTrace shows a safe notice and falls back to available portfolios instead of keeping an invalid hidden selection.
 
-## 5. Change appearance mode
+
+## 5. Open asset details from the Dashboard
+
+After Dashboard assets are loaded, use the `Detail` action in the AssetTable to open a read-only Assetdetail page. The URL contains a readable slug and the stable asset key as `id`, for example `/assets/vanguard-ftse-all-world-high-dividend-yield?id=IE00B8GKDB10`.
+
+Assetdetails use only the locally loaded Dashboard read model and the current global portfolio scope. Opening or changing an Assetdetail URL does not trigger Parqet provider calls, audit routes or a full activity fetch. If local data is missing, the page asks you to explicitly load or refresh Dashboard data first.
+
+## 6. Change appearance mode
 
 Open `Einstellungen` and use `Darstellung`:
 
@@ -56,7 +63,7 @@ Open `Einstellungen` and use `Darstellung`:
 
 The value is stored locally in the browser. Invalid stored values fall back to `System`.
 
-## 6. Clear local data and settings
+## 7. Clear local data and settings
 
 Open `Einstellungen` and use `Datenschutz/Debug`:
 
@@ -65,7 +72,7 @@ Open `Einstellungen` and use `Datenschutz/Debug`:
 
 These actions do not delete Parqet data and do not perform destructive server-side work.
 
-## 7. API-budget note
+## 8. API-budget note
 
 Treat Parqet/API budget as limited. Avoid unnecessary refreshes. Prefer reviewing the current local data stand first, then refresh explicitly only when you want to update the local snapshot from Parqet.
 

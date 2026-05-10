@@ -4,8 +4,10 @@
 
 import { Fragment } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import styles from "./AssetTable.module.css";
 import type { AssetSummary } from "../../lib/types";
+import { createAssetDetailHref } from "../../lib/asset-detail";
 import { formatCurrency } from "../../lib/format";
 import {
     getSafePortfolioBreakdown,
@@ -175,6 +177,7 @@ export default function AssetTableRows({
                 {assets.map((asset) => {
                     const isExpanded = expandedIsins.includes(asset.isin);
                     const breakdown = getSafePortfolioBreakdown(asset);
+                    const detailHref = createAssetDetailHref(asset);
 
                     return (
                         <Fragment key={asset.isin}>
@@ -186,14 +189,24 @@ export default function AssetTableRows({
                                                 key={`${asset.isin}-${columnKey}`}
                                                 className={styles.actionCell}
                                             >
-                                                <button
-                                                    type="button"
-                                                    className="ui-btn ui-btn-ghost"
-                                                    disabled
-                                                    title="Assetdetail folgt in einem späteren Batch"
-                                                >
-                                                    Detail folgt
-                                                </button>
+                                                {detailHref ? (
+                                                    <Link
+                                                        href={detailHref}
+                                                        className="ui-btn ui-btn-ghost"
+                                                        title="Assetdetail lokal öffnen"
+                                                    >
+                                                        Detail
+                                                    </Link>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        className="ui-btn ui-btn-ghost"
+                                                        disabled
+                                                        title="Assetdetail benötigt einen stabilen Asset-Key"
+                                                    >
+                                                        Detail
+                                                    </button>
+                                                )}
 
                                                 <button
                                                     type="button"
