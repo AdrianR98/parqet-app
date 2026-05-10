@@ -18,6 +18,7 @@ import {
     scopeAssetMetrics,
 } from "../../../lib/asset-detail";
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
+import { AssetDetailTimelineChart } from "../../../components/asset-detail/AssetDetailTimelineChart";
 import { formatCurrency, formatShares } from "../../../lib/format";
 import type { AssetSummary, PortfolioPosition } from "../../../lib/types";
 import styles from "./AssetDetailPage.module.css";
@@ -333,16 +334,10 @@ export default function AssetDetailPage() {
 
                 <section className={`${styles.card} ${styles.timelineCard}`}>
                     <div className={styles.sectionHeader}>
-                        <h2>Timeline-Placeholder</h2>
-                        <p>Vorbereiteter Bereich für die spätere chartbasierte Asset-Timeline.</p>
+                        <h2>Asset-Timeline</h2>
+                        <p>Lokale Marker-Visualisierung ohne Provider-Nachladen oder externe Kursdaten.</p>
                     </div>
-                    <div className={styles.timelinePlaceholder}>
-                        <strong>Visuelle Asset-Timeline folgt im nächsten Schritt.</strong>
-                        <span>Es werden keine Daten automatisch nachgeladen.</span>
-                        <span>
-                            Eine vollständige Chart-/Eventmarker-Visualisierung bleibt Folge-Issue #191.
-                        </span>
-                    </div>
+                    <AssetDetailTimelineChart asset={asset} metrics={metrics} warnings={warnings} />
                 </section>
             </div>
         </main>

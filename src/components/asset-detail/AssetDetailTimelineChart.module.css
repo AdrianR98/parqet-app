@@ -1,0 +1,362 @@
+.timelineShell {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.rangeGroup,
+.modeGroup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.rangeButton,
+.activeRangeButton,
+.modeButton,
+.activeModeButton {
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-soft);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.rangeButton:hover,
+.activeRangeButton,
+.activeModeButton {
+    border-color: var(--accent-cyan);
+    background: var(--accent-cyan-soft);
+    color: var(--text-main);
+}
+
+.modeButton:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.rangeButton:focus-visible,
+.activeRangeButton:focus-visible,
+.modeButton:focus-visible,
+.activeModeButton:focus-visible,
+.marker:focus-visible {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14);
+}
+
+.chartStage {
+    position: relative;
+    min-height: 280px;
+    overflow: hidden;
+    border: 1px solid var(--panel-border);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 12% 18%, var(--accent-cyan-soft), transparent 30%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+}
+
+.chartBackdrop {
+    position: absolute;
+    inset: 28px 20px 58px;
+    display: grid;
+    grid-template-rows: repeat(3, 1fr);
+    pointer-events: none;
+}
+
+.chartBackdrop span {
+    border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 72%, transparent);
+}
+
+.axis {
+    position: absolute;
+    right: 28px;
+    bottom: 72px;
+    left: 28px;
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--panel-border), var(--accent-cyan), var(--panel-border));
+    box-shadow: 0 0 20px var(--accent-cyan-soft);
+}
+
+.markerLayer {
+    position: absolute;
+    right: 28px;
+    bottom: 72px;
+    left: 28px;
+    height: 120px;
+}
+
+.marker {
+    position: absolute;
+    bottom: -17px;
+    width: 34px;
+    height: 34px;
+    transform: translateX(-50%);
+    border: 2px solid var(--panel-bg);
+    border-radius: 999px;
+    background: var(--accent-cyan);
+    color: #ffffff;
+    cursor: pointer;
+    font-weight: 900;
+    box-shadow: var(--shadow-soft);
+}
+
+.marker::before {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    width: 1px;
+    height: 52px;
+    transform: translateX(-50%);
+    background: color-mix(in srgb, currentColor 54%, transparent);
+    content: "";
+}
+
+.marker span {
+    position: relative;
+    z-index: 1;
+}
+
+.selectedMarker {
+    width: 42px;
+    height: 42px;
+    bottom: -21px;
+    box-shadow: 0 0 0 6px var(--accent-cyan-soft), var(--shadow-soft);
+}
+
+.buy,
+.legendDot.buy {
+    background: var(--positive);
+    color: #ffffff;
+}
+
+.sell,
+.legendDot.sell {
+    background: var(--negative);
+    color: #ffffff;
+}
+
+.dividend,
+.legendDot.dividend {
+    background: var(--accent-green);
+    color: #ffffff;
+}
+
+.transfer,
+.legendDot.transfer {
+    background: var(--accent-cyan);
+    color: #ffffff;
+}
+
+.warning,
+.legendDot.warning {
+    background: var(--accent-orange);
+    color: #111827;
+}
+
+.summary,
+.legendDot.summary {
+    background: var(--accent-cyan);
+    color: #ffffff;
+}
+
+.emptyOverlay {
+    position: absolute;
+    inset: 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 20px;
+    border: 1px dashed var(--panel-border);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-soft);
+    text-align: center;
+}
+
+.emptyOverlay strong {
+    color: var(--text-main);
+    font-size: 17px;
+}
+
+.axisLabels {
+    position: absolute;
+    right: 28px;
+    bottom: 28px;
+    left: 28px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.detailGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.8fr);
+    gap: 12px;
+}
+
+.inspectPanel,
+.contextPanel {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.panelHeader {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.panelHeader strong,
+.contextPanel strong {
+    color: var(--text-main);
+}
+
+.panelHeader span,
+.contextPanel p,
+.fallbackCopy,
+.eventCard span,
+.eventCard small {
+    color: var(--text-soft);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.eventStack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.eventCard {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.eventCard strong,
+.eventCard span,
+.eventCard small {
+    display: block;
+}
+
+.eventCard p {
+    margin: 6px 0;
+    color: var(--text-main);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.eventIcon {
+    display: inline-flex;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-weight: 900;
+}
+
+.contextPanel dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.contextPanel dl div {
+    padding: 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.contextPanel dt {
+    color: var(--text-soft);
+    font-size: 11px;
+}
+
+.contextPanel dd {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+    color: var(--text-main);
+    font-weight: 800;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    color: var(--text-soft);
+    font-size: 12px;
+}
+
+.legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legendDot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+}
+
+@media (max-width: 860px) {
+    .toolbar,
+    .detailGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .detailGrid {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chartStage {
+        min-height: 250px;
+    }
+}
+
+@media (max-width: 560px) {
+    .chartStage {
+        min-height: 230px;
+    }
+
+    .emptyOverlay {
+        inset: 22px;
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .contextPanel dl {
+        grid-template-columns: 1fr;
+    }
+}

@@ -9,6 +9,7 @@ export type AssetDetailWarning = {
     label: "Hinweis" | "Prüfung nötig" | "Kritisch";
     message: string;
     source: string;
+    occurredAt?: string | null;
 };
 
 export type ScopedAssetMetrics = {
@@ -215,6 +216,7 @@ export function getAssetWarnings(params: {
                       : "Hinweis" as const,
             message: warning.message,
             source: warning.source === "override" ? "Override-Prüfung" : "Reconciliation",
+            occurredAt: warning.lastChangedAt ?? null,
         }));
 
     return [...consistencyWarnings, ...reconciliationWarnings];
