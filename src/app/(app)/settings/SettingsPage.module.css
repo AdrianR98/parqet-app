@@ -1,0 +1,136 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.hero {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px;
+}
+
+.eyebrow {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.title {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 30px;
+}
+
+.description,
+.text,
+.meta {
+    margin: 0;
+    color: var(--text-soft);
+    line-height: 1.5;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+}
+
+.cardHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cardTitle {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 18px;
+}
+
+.optionGroup,
+.portfolioList,
+.diagnosticsGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.segmented {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.segmentButton,
+.portfolioItem {
+    min-height: 44px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+}
+
+.segmentButton {
+    cursor: pointer;
+}
+
+.segmentButtonActive {
+    border-color: var(--accent-cyan);
+    background: var(--accent-cyan-soft);
+}
+
+.portfolioItem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.portfolioItem input {
+    accent-color: var(--accent-cyan);
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.diagnosticItem {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-soft);
+}
+
+.diagnosticValue {
+    color: var(--text-main);
+    font-weight: 600;
+    text-align: right;
+}
+
+@media (max-width: 1000px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .segmented {
+        grid-template-columns: 1fr;
+    }
+}

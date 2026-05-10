@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    DESIGN TOKENS
    ============================================================ */
 
@@ -24,6 +24,27 @@
     --radius-input: 8px;
     --radius-pill: 8px;
 }
+
+html[data-assettrace-theme="light"] {
+    --page-bg: #f5f7fb;
+    --page-bg-2: #ecf1f7;
+    --sidebar-bg: #ffffff;
+    --panel-bg: #ffffff;
+    --panel-bg-2: #f5f7fb;
+    --panel-border: rgba(16, 32, 51, 0.08);
+    --text-main: #142236;
+    --text-soft: #5f7187;
+    --text-muted: #79899e;
+    --accent-cyan: #0f9fb0;
+    --accent-cyan-soft: rgba(15, 159, 176, 0.12);
+    --accent-green: #19824e;
+    --accent-green-soft: rgba(25, 130, 78, 0.12);
+    --accent-orange: #c57618;
+    --positive: #19824e;
+    --negative: #cf4757;
+    --shadow-soft: 0 10px 30px rgba(16, 32, 51, 0.12);
+}
+
 
 /* ============================================================
    BASE RESET

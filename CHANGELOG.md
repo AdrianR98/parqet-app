@@ -8,6 +8,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- AssetTrace Settings page with local appearance mode, portfolio scope, privacy/reset controls and safe development diagnostics.
+- Local AssetTrace quickstart covering connection, explicit refresh, global portfolio scope, appearance mode, reset controls and API-budget guidance.
 - AssetTrace v1 UI foundation with main navigation placeholders for Dashboard, Aktivitäten, Timeline, Reports and Einstellungen.
 - Local AssetTable search, clearer loaded/empty/loading states and future drilldown affordance without implementing an Assetdetail route.
 - Phase-0 repository operating baseline for collaboration, documentation, prompts, templates and CI.
@@ -37,6 +39,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- Dashboard portfolio selection now persists through the local global portfolio scope without triggering hidden provider refreshes.
+- App shell theme control now reflects the persisted System/Hell/Dunkel appearance mode.
 - Dashboard branding, refresh wording, app-shell status area and empty-state copy now consistently present AssetTrace as an analysis and transparency layer for Parqet data.
 - AssetTable interactions now emphasize local filtering, sorting and column selection without provider calls.
 - README structure rebuilt around English source-of-truth documentation and Phase-0 workflow links.

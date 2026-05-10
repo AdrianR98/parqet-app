@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -10,6 +10,13 @@ import {
     saveDashboardCache,
     type DashboardCache,
 } from "../lib/dashboard-cache";
+import {
+    loadPortfolioScope,
+    resolvePortfolioScope,
+    saveKnownPortfolios,
+    savePortfolioScope,
+    type PortfolioScope,
+} from "../lib/app-settings";
 import {
     buildDashboardStats,
     isDashboardDataStale,
@@ -50,6 +57,8 @@ type UseDashboardDataResult = {
     reconciliationWarnings: ReconciliationWarning[];
     lastUpdatedAt: string | null;
     hasPendingPortfolioSelection: boolean;
+    missingPortfolioScopeIds: string[];
+    usedPortfolioScopeFallback: boolean;
 
     loadingPortfolios: boolean;
     loadingAssets: boolean;
@@ -113,6 +122,9 @@ export function useDashboardData(): UseDashboardDataResult {
     >([]);
     const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
     const [lastLoadedPortfolioIds, setLastLoadedPortfolioIds] = useState<string[]>([]);
+    const [portfolioScope, setPortfolioScope] = useState<PortfolioScope>(() => loadPortfolioScope());
+    const [missingPortfolioScopeIds, setMissingPortfolioScopeIds] = useState<string[]>([]);
+    const [usedPortfolioScopeFallback, setUsedPortfolioScopeFallback] = useState(false);
 
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
     const [loadingAssets, setLoadingAssets] = useState(false);
@@ -162,17 +174,19 @@ export function useDashboardData(): UseDashboardDataResult {
                 clearAuthState();
 
                 const items = data.portfolios?.items ?? [];
-                const allIds = items.map((item) => item.id);
-
                 setPortfolios(items);
+                saveKnownPortfolios(items);
 
-                const cached = loadDashboardCache();
-                const cachedIds = cached?.selectedPortfolioIds ?? [];
+                const scope = loadPortfolioScope();
+                const resolvedScope = resolvePortfolioScope(scope, items);
 
-                if (cachedIds.length > 0) {
-                    hydratePortfolioSelection(cachedIds);
-                } else {
-                    hydratePortfolioSelection(allIds);
+                setPortfolioScope(resolvedScope.scope);
+                setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
+                setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+                hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
+
+                if (resolvedScope.usedFallback) {
+                    savePortfolioScope(resolvedScope.scope);
                 }
             } catch (error) {
                 setErrorMessage(
@@ -298,6 +312,19 @@ export function useDashboardData(): UseDashboardDataResult {
         }
     }
 
+    function applyPortfolioFilterWithPersistence() {
+        const allIds = portfolios.map((portfolio) => portfolio.id);
+        const nextScope: PortfolioScope = haveSamePortfolioSelection(draftPortfolioIds, allIds)
+            ? { mode: "all", selectedPortfolioIds: [] }
+            : { mode: "manual", selectedPortfolioIds: draftPortfolioIds };
+
+        savePortfolioScope(nextScope);
+        setPortfolioScope(nextScope);
+        setMissingPortfolioScopeIds([]);
+        setUsedPortfolioScopeFallback(false);
+        applyPortfolioFilter();
+    }
+
     function resetPortfolioFilter() {
         const allIds = portfolios.map((portfolio) => portfolio.id);
         resetPortfolioFilterInternal(allIds);
@@ -312,6 +339,16 @@ export function useDashboardData(): UseDashboardDataResult {
     const hasPendingPortfolioSelection = useMemo(() => {
         return hasCachedData && !haveSamePortfolioSelection(selectedPortfolioIds, lastLoadedPortfolioIds);
     }, [hasCachedData, selectedPortfolioIds, lastLoadedPortfolioIds]);
+
+    useEffect(() => {
+        if (portfolios.length === 0) {
+            return;
+        }
+
+        const resolvedScope = resolvePortfolioScope(portfolioScope, portfolios);
+        setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
+        setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+    }, [portfolioScope, portfolios]);
 
     const stats: DashboardStats = useMemo(() => {
         return buildDashboardStats({
@@ -368,6 +405,8 @@ export function useDashboardData(): UseDashboardDataResult {
         reconciliationWarnings,
         lastUpdatedAt,
         hasPendingPortfolioSelection,
+        missingPortfolioScopeIds,
+        usedPortfolioScopeFallback,
 
         loadingPortfolios,
         loadingAssets,
@@ -384,7 +423,7 @@ export function useDashboardData(): UseDashboardDataResult {
         setShowWarningsPanel,
 
         toggleDraftPortfolio,
-        applyPortfolioFilter,
+        applyPortfolioFilter: applyPortfolioFilterWithPersistence,
         resetPortfolioFilter,
         loadAssets,
         startReconnect,
