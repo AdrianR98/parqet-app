@@ -127,6 +127,12 @@ function getReviewStatusLabel(status: string) {
     }
 }
 
+function getSeverityLabel(severity: "info" | "warning" | "error") {
+    if (severity === "error") return "Kritisch";
+    if (severity === "warning") return "Prüfung nötig";
+    return "Hinweis";
+}
+
 type ActivityEditFormProps = {
     item: ActivitiesAuditItem;
     onSavedAction?: () => Promise<void> | void;
@@ -355,7 +361,7 @@ export default function AssetAuditPanel({
                 </section>
 
                 <section className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Reconciliation Warnings</h3>
+                    <h3 className={styles.sectionTitle}>Reconciliation-Hinweise</h3>
 
                     {loading ? <div className="ui-banner ui-banner-info">Lade Audit-Daten...</div> : null}
 
@@ -378,7 +384,7 @@ export default function AssetAuditPanel({
                     ) : null}
 
                     {!loading && !error && (data?.reconciliationWarnings?.length ?? 0) === 0 ? (
-                        <div className="ui-banner ui-banner-info">Keine Warnings für dieses Asset.</div>
+                        <div className="ui-banner ui-banner-info">Keine lokalen Hinweise für dieses Asset.</div>
                     ) : null}
 
                     {!loading &&
@@ -390,7 +396,7 @@ export default function AssetAuditPanel({
                                         warning.severity
                                     )}`}
                                 >
-                                    {warning.severity === "error" ? "Kritisch" : warning.severity === "warning" ? "Prüfen" : "Info"}
+                                    {getSeverityLabel(warning.severity)}
                                 </div>
                                 <div><strong>Review-Fall:</strong> {warning.message}</div>
                                 <div>Status: {getReviewStatusLabel(getWarningStatus(warning))}</div>

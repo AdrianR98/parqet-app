@@ -1,4 +1,5 @@
 import { loadDashboardCache } from "./dashboard-cache";
+import { createAssetDetailHrefFromParts } from "./asset-detail";
 import { formatCurrency, formatDateTime, formatMonth, formatShares } from "./format";
 import {
   loadKnownPortfolios,
@@ -55,11 +56,15 @@ export type ProjectedActivity = {
   typeLabel: string;
   assetLabel: string;
   assetMeta: string;
+  assetHref: string | null;
   portfolioLabel: string;
   sharesLabel: string;
   priceLabel: string;
   amountLabel: string;
   amountNetLabel: string;
+  feeLabel: string | null;
+  taxLabel: string | null;
+  noteLabel: string | null;
   warningMessages: string[];
   hasWarnings: boolean;
   hasOverrides: boolean;
@@ -233,6 +238,15 @@ export function formatOptionalCurrency(value: number | null | undefined): string
   return formatCurrency(value);
 }
 
+function formatOptionalSafeCurrency(value: number | null | undefined): string | null {
+  return value == null ? null : formatCurrency(value);
+}
+
+function formatOptionalSafeText(value: string | null | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
 export function getActivityMonthKey(item: ActivitiesAuditItem): string {
   if (item.monthKey) return item.monthKey;
 
@@ -256,6 +270,7 @@ export function projectActivity(item: ActivitiesAuditItem): ProjectedActivity {
     .filter(Boolean)
     .map(String);
   const overrideCount = item.overrideCount ?? Object.keys(item.overrideFlags ?? {}).length;
+  const assetLabel = item.name || item.isin || item.symbol || "Unbekanntes Asset";
 
   return {
     id: item.id,
@@ -266,13 +281,20 @@ export function projectActivity(item: ActivitiesAuditItem): ProjectedActivity {
     year: item.year || new Date(item.datetime).getFullYear(),
     type: item.type,
     typeLabel: getActivityTypeLabel(item.type),
-    assetLabel: item.name || item.isin || item.symbol || "Unbekanntes Asset",
+    assetLabel,
     assetMeta: identifierParts.length ? identifierParts.join(" · ") : "Keine Kennung lokal vorhanden",
+    assetHref: createAssetDetailHrefFromParts({
+      stableKey: item.isin,
+      label: assetLabel,
+    }),
     portfolioLabel: item.portfolioName || "Kein Portfolio-Kontext",
     sharesLabel: formatOptionalNumber(item.shares),
     priceLabel: formatOptionalCurrency(item.price),
     amountLabel: formatOptionalCurrency(item.amount),
     amountNetLabel: formatOptionalCurrency(item.amountNet),
+    feeLabel: formatOptionalSafeCurrency(item.fee),
+    taxLabel: formatOptionalSafeCurrency(item.tax),
+    noteLabel: formatOptionalSafeText(item.note),
     warningMessages: item.warningMessages ?? [],
     hasWarnings: (item.warningMessages ?? []).length > 0,
     hasOverrides: Boolean(item.hasOverrides || overrideCount > 0),
@@ -389,6 +411,10 @@ export function getFreshnessLabel(model: Pick<LocalActivityReadModel, "generated
 
   const base = `Datenstand: ${formatActivityDate(model.generatedAt)}`;
 
+  if (model.freshness?.status === "refresh_failed" || model.freshness?.refreshStatus === "failed") {
+    return `${base} · Aktualisierung fehlgeschlagen`;
+  }
+
   if (model.freshness?.stale) {
     return `${base} · möglicherweise veraltet`;
   }
@@ -398,4 +424,40 @@ export function getFreshnessLabel(model: Pick<LocalActivityReadModel, "generated
   }
 
   return base;
+}
+
+export function getFreshnessStatusLabel(
+  model: Pick<LocalActivityReadModel, "generatedAt" | "freshness">,
+): string {
+  if (!model.generatedAt || model.freshness?.status === "missing") {
+    return "Nicht geladen / Datenstand unbekannt";
+  }
+
+  if (model.freshness?.status === "refresh_failed" || model.freshness?.refreshStatus === "failed") {
+    return "Aktualisierung fehlgeschlagen";
+  }
+
+  if (model.freshness?.stale || model.freshness?.status === "stale") {
+    return "Möglicherweise veraltet";
+  }
+
+  if (model.freshness?.status === "fresh") {
+    return "Aktuell";
+  }
+
+  return "Datenstand bekannt";
+}
+
+export function getScopeIndicatorLabel(
+  model: Pick<LocalActivityReadModel, "scope" | "scopedPortfolioIds">,
+): string {
+  if (model.scope.mode === "all") {
+    return model.scopedPortfolioIds.length > 0
+      ? `Scope: alle (${model.scopedPortfolioIds.length})`
+      : "Scope: alle";
+  }
+
+  return model.scopedPortfolioIds.length === 1
+    ? "Scope: 1 Portfolio"
+    : `Scope: ${model.scopedPortfolioIds.length} Portfolios`;
 }

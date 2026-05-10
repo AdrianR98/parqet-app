@@ -61,7 +61,8 @@
 }
 
 .scopePill,
-.statusPill {
+.statusPill,
+.refreshPill {
     display: inline-flex;
     align-items: center;
     min-height: 28px;
@@ -71,11 +72,24 @@
     background: rgba(255, 255, 255, 0.03);
     color: var(--text-soft);
     font-size: 12px;
+    text-decoration: none;
 }
 
 .scopePill {
     color: var(--text-main);
     background: var(--accent-cyan-soft);
+}
+
+.refreshPill {
+    color: var(--accent-cyan);
+    background: var(--accent-cyan-soft);
+}
+
+.refreshPill:hover,
+.refreshPill:focus-visible {
+    border-color: var(--accent-cyan);
+    color: var(--text-main);
+    outline: none;
 }
 
 .right {

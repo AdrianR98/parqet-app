@@ -6,6 +6,7 @@
 
 .hero,
 .filters,
+.summary,
 .emptyState {
   padding: 20px;
 }
@@ -78,6 +79,46 @@
   margin-top: 6px;
   color: var(--text-main);
   font-size: 14px;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.summary h2 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 18px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summaryItem {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.summaryItem span {
+  display: block;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.summaryItem strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-main);
+  font-size: 18px;
 }
 
 .filtersHeader h2,
@@ -258,6 +299,8 @@
 
   .statusGrid,
   .filtersGrid,
+  .summary,
+  .summaryGrid,
   .timelineGroup {
     grid-template-columns: 1fr;
   }
