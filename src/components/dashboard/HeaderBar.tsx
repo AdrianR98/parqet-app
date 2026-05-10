@@ -3,6 +3,7 @@ import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
     theme: "light" | "dark";
+    appearanceMode: "system" | "light" | "dark";
     activeView: AppNavItemKey;
     onToggleThemeAction: () => void;
 };
@@ -17,6 +18,7 @@ const VIEW_LABELS: Record<AppNavItemKey, string> = {
 
 export default function HeaderBar({
     theme,
+    appearanceMode,
     activeView,
     onToggleThemeAction,
 }: HeaderBarProps) {
@@ -35,7 +37,7 @@ export default function HeaderBar({
 
             <div className={styles.center} aria-label="Aktueller App-Status">
                 <span className={styles.scopePill}>Bereich: {VIEW_LABELS[activeView]}</span>
-                <span className={styles.statusPill}>Portfolio-Scope folgt</span>
+                <span className={styles.statusPill}>Globaler Scope lokal</span>
                 <span className={styles.statusPill}>Aktualisierung manuell</span>
             </div>
 
@@ -46,7 +48,11 @@ export default function HeaderBar({
                     onClick={onToggleThemeAction}
                     aria-label="Darstellung wechseln"
                 >
-                    {theme === "dark" ? "Dark" : "Light"}
+                    {appearanceMode === "system"
+                        ? `System (${theme === "dark" ? "Dunkel" : "Hell"})`
+                        : theme === "dark"
+                            ? "Dunkel"
+                            : "Hell"}
                 </button>
             </div>
         </header>

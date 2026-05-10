@@ -20,6 +20,7 @@ Important guardrail: do not create a second activity or asset pipeline before Ph
 - [docs/PROJECT_PRODUCT_BRIEF.md](docs/PROJECT_PRODUCT_BRIEF.md) - product idea and Phase-1 questions.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Phase-0 architecture note.
 - [docs/ASSETTRACE_V1_GUARDRAILS.md](docs/ASSETTRACE_V1_GUARDRAILS.md) - AssetTrace v1 data, API-budget and analytics-safety guardrails.
+- [docs/ASSETTRACE_LOCAL_QUICKSTART.md](docs/ASSETTRACE_LOCAL_QUICKSTART.md) - local AssetTrace usage, Settings, scope, refresh and reset guide.
 - [docs/PHASE_PLAN.md](docs/PHASE_PLAN.md) - phase plan.
 - [docs/ROADMAP.md](docs/ROADMAP.md) - longer-term roadmap and governance.
 - [docs/adr/](docs/adr) - architecture and collaboration decision records.

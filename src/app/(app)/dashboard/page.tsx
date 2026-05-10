@@ -36,6 +36,8 @@ export default function DashboardPage() {
         reconciliationWarnings,
         lastUpdatedAt,
         hasPendingPortfolioSelection,
+        missingPortfolioScopeIds,
+        usedPortfolioScopeFallback,
 
         loadingPortfolios,
         loadingAssets,
@@ -97,6 +99,12 @@ export default function DashboardPage() {
                     {loadingPortfolios ? (
                         <div className="ui-banner ui-banner-info">
                             Portfolios werden geladen. Die Asset-Liste startet erst nach deiner expliziten Ladeaktion.
+                        </div>
+                    ) : null}
+
+                    {missingPortfolioScopeIds.length > 0 || usedPortfolioScopeFallback ? (
+                        <div className="ui-banner ui-banner-info">
+                            Einige gespeicherte Portfolios sind nicht mehr lokal verfügbar oder nicht mehr autorisiert. AssetTrace nutzt sicher die verfügbaren Portfolios; prüfe den globalen Scope in den Einstellungen.
                         </div>
                     ) : null}
 
