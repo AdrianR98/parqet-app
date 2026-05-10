@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Asset detail foundation route with local Dashboard-cache lookup, readable slug plus stable `id` query key, read-only sections and a timeline placeholder without new provider calls.
 - AssetTrace Settings page with local appearance mode, portfolio scope, privacy/reset controls and safe development diagnostics.
 - Local AssetTrace quickstart covering connection, explicit refresh, global portfolio scope, appearance mode, reset controls and API-budget guidance.
 - AssetTrace v1 UI foundation with main navigation placeholders for Dashboard, Aktivitäten, Timeline, Reports and Einstellungen.
