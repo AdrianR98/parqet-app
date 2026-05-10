@@ -202,8 +202,7 @@
 
 .breakdownItem,
 .warningItem,
-.inlineEmpty,
-.timelinePlaceholder {
+.inlineEmpty {
     border: 1px solid var(--panel-border);
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.02);
@@ -271,25 +270,6 @@
 
 .timelineCard {
     grid-column: 1 / -1;
-}
-
-.timelinePlaceholder {
-    display: flex;
-    min-height: 180px;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-    padding: 22px;
-    background:
-        radial-gradient(circle at top left, var(--accent-cyan-soft), transparent 34%),
-        rgba(255, 255, 255, 0.02);
-    color: var(--text-soft);
-    text-align: center;
-}
-
-.timelinePlaceholder strong {
-    color: var(--text-main);
-    font-size: 18px;
 }
 
 .stateBox {

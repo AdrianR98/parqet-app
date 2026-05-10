@@ -53,6 +53,8 @@ After Dashboard assets are loaded, use the `Detail` action in the AssetTable to 
 
 Assetdetails use only the locally loaded Dashboard read model and the current global portfolio scope. Opening or changing an Assetdetail URL does not trigger Parqet provider calls, audit routes or a full activity fetch. If local data is missing, the page asks you to explicitly load or refresh Dashboard data first.
 
+The Assetdetail page includes a local visual Timeline/marker area. It displays marker data only when it is already present in the local read model, falls back to a marker-only/empty state when no safe event timeline is available and never loads chart data automatically. Range controls and chart-mode toggles are local UI controls; use the Dashboard refresh action for any explicit data update.
+
 ## 6. Change appearance mode
 
 Open `Einstellungen` and use `Darstellung`:
