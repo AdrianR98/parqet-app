@@ -1,4 +1,4 @@
-﻿// src/components/dashboard/AssetTable.tsx
+// src/components/dashboard/AssetTable.tsx
 
 "use client";
 
@@ -19,26 +19,33 @@ import {
 
 type AssetTableProps = {
     assets: AssetSummary[];
-    onAuditAssetAction?: (asset: AssetSummary) => void | Promise<void>;
+    loading?: boolean;
+    emptyTitle?: string;
+    emptyDescription?: string;
 };
 
-/**
- * ============================================================
- * COMPONENT: ASSET TABLE
- * ============================================================
- *
- * Wichtig:
- * - Prop-Namen enden bewusst auf "Action"
- * - das reduziert die Next TS71007 Hinweise in Client-Entry-Dateien
- *
- * Typische Erweiterungspunkte:
- * - persistente Spaltenprofile
- * - serverseitige Sortierung
- * - zusätzliche Tabellenaktionen
- */
+function getSearchText(asset: AssetSummary): string {
+    return [
+        asset.name,
+        asset.assetName,
+        asset.displayName,
+        asset.title,
+        asset.symbol,
+        asset.ticker,
+        asset.tickerSymbol,
+        asset.wkn,
+        asset.isin,
+    ]
+        .filter((value): value is string => typeof value === "string")
+        .join(" ")
+        .toLowerCase();
+}
+
 export default function AssetTable({
     assets,
-    onAuditAssetAction,
+    loading = false,
+    emptyTitle = "Keine Assets im geladenen Stand",
+    emptyDescription = "Passe die lokale Suche an oder lade Assets explizit neu, wenn du einen anderen Parqet-Stand erwartest.",
 }: AssetTableProps) {
     const [visibleColumns, setVisibleColumns] =
         useState<VisibleColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
@@ -47,6 +54,7 @@ export default function AssetTable({
     const [expandedIsins, setExpandedIsins] = useState<string[]>([]);
     const [showColumnMenu, setShowColumnMenu] = useState(false);
     const [showTopScrollbar, setShowTopScrollbar] = useState(false);
+    const [query, setQuery] = useState("");
 
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const columnMenuRef = useRef<HTMLDivElement | null>(null);
@@ -69,15 +77,20 @@ export default function AssetTable({
         }, 0);
     }, [normalizedVisibleColumns]);
 
-    const sortedAssets = useMemo(() => {
-        return sortAssets(assets, sortKey, sortDirection);
-    }, [assets, sortKey, sortDirection]);
+    const filteredAssets = useMemo(() => {
+        const normalizedQuery = query.trim().toLowerCase();
 
-    /**
-     * ------------------------------------------------------------
-     * OVERFLOW-CHECK
-     * ------------------------------------------------------------
-     */
+        if (!normalizedQuery) {
+            return assets;
+        }
+
+        return assets.filter((asset) => getSearchText(asset).includes(normalizedQuery));
+    }, [assets, query]);
+
+    const sortedAssets = useMemo(() => {
+        return sortAssets(filteredAssets, sortKey, sortDirection);
+    }, [filteredAssets, sortKey, sortDirection]);
+
     useEffect(() => {
         const node = tableScrollRef.current;
         if (!node) return;
@@ -101,11 +114,6 @@ export default function AssetTable({
         return () => observer.disconnect();
     }, [normalizedVisibleColumns, sortedAssets]);
 
-    /**
-     * ------------------------------------------------------------
-     * OUTSIDE CLICK COLUMN MENU
-     * ------------------------------------------------------------
-     */
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             const target = event.target as Node;
@@ -154,38 +162,92 @@ export default function AssetTable({
         );
     }
 
+    const hasRows = sortedAssets.length > 0;
+    const isSearchEmpty = !hasRows && query.trim().length > 0;
+
     return (
-        <div className={styles.container}>
-            {showTopScrollbar ? (
-                <div className={styles.topScrollbarWrap}>
-                    <SyncedHorizontalScroll scrollTargetRef={tableScrollRef} />
+        <div className={styles.container} aria-busy={loading}>
+            <div className={styles.toolbar}>
+                <div className={styles.toolbarLeft}>
+                    <div className={styles.toolbarTitle}>Geladener Stand</div>
+                    <div className={styles.toolbarMeta}>
+                        {loading
+                            ? "Initiale Daten werden geladen"
+                            : `${sortedAssets.length} von ${assets.length} Assets sichtbar`}
+                    </div>
                 </div>
-            ) : null}
 
-            <div ref={tableScrollRef} className={styles.tableScroll}>
-                <div className={styles.tableShell} style={{ minWidth: tableMinWidth }}>
-                    <AssetTableHeader
-                        visibleColumns={normalizedVisibleColumns}
-                        sortKey={sortKey}
-                        sortDirection={sortDirection}
-                        showColumnMenu={showColumnMenu}
-                        columnMenuRef={columnMenuRef}
-                        onToggleColumnMenuAction={() =>
-                            setShowColumnMenu((current) => !current)
-                        }
-                        onToggleColumnAction={toggleColumnAction}
-                        onSortAction={sortAction}
+                <div className={styles.toolbarRight}>
+                    <input
+                        className={`ui-input ${styles.searchInput}`}
+                        type="search"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Lokal suchen: Name, ISIN, WKN"
+                        aria-label="Assets lokal suchen"
+                        disabled={loading}
                     />
-
-                    <AssetTableRows
-                        assets={sortedAssets}
-                        visibleColumns={normalizedVisibleColumns}
-                        expandedIsins={expandedIsins}
-                        onToggleExpandedAction={toggleExpandedAction}
-                        onAuditAssetAction={onAuditAssetAction}
-                    />
+                    {query ? (
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn-ghost"
+                            onClick={() => setQuery("")}
+                            disabled={loading}
+                        >
+                            Suche zurücksetzen
+                        </button>
+                    ) : null}
                 </div>
             </div>
+
+            {loading ? (
+                <div className={styles.stateBox}>
+                    <div className={styles.skeletonLine} />
+                    <div className={styles.skeletonLineShort} />
+                    <p>AssetTrace lädt den explizit angeforderten Parqet-Stand.</p>
+                </div>
+            ) : !hasRows ? (
+                <div className={styles.stateBox}>
+                    <strong>{isSearchEmpty ? "Keine Treffer für die lokale Suche" : emptyTitle}</strong>
+                    <p>
+                        {isSearchEmpty
+                            ? "Passe den Suchbegriff an oder setze die Suche zurück. Es wird keine neue Provider-Anfrage ausgelöst."
+                            : emptyDescription}
+                    </p>
+                </div>
+            ) : (
+                <>
+                    {showTopScrollbar ? (
+                        <div className={styles.topScrollbarWrap}>
+                            <SyncedHorizontalScroll scrollTargetRef={tableScrollRef} />
+                        </div>
+                    ) : null}
+
+                    <div ref={tableScrollRef} className={styles.tableScroll}>
+                        <div className={styles.tableShell} style={{ minWidth: tableMinWidth }}>
+                            <AssetTableHeader
+                                visibleColumns={normalizedVisibleColumns}
+                                sortKey={sortKey}
+                                sortDirection={sortDirection}
+                                showColumnMenu={showColumnMenu}
+                                columnMenuRef={columnMenuRef}
+                                onToggleColumnMenuAction={() =>
+                                    setShowColumnMenu((current) => !current)
+                                }
+                                onToggleColumnAction={toggleColumnAction}
+                                onSortAction={sortAction}
+                            />
+
+                            <AssetTableRows
+                                assets={sortedAssets}
+                                visibleColumns={normalizedVisibleColumns}
+                                expandedIsins={expandedIsins}
+                                onToggleExpandedAction={toggleExpandedAction}
+                            />
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 }

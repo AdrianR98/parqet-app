@@ -1,14 +1,10 @@
-﻿"use client";
+"use client";
 
 import CollapsibleAssetTableSection from "../../../components/dashboard/CollapsibleAssetTableSection";
 import DataWarningsPanel from "../../../components/dashboard/DataWarningsPanel";
-import AssetAuditPanel from "../../../components/dashboard/AssetAuditPanel";
 import HeroSection from "../../../components/dashboard/HeroSection";
 import StatsGrid from "../../../components/dashboard/StatsGrid";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
-import { useAssetAudit } from "../../../hooks/use-asset-audit";
-import { useState } from "react";
-import type { AssetSummary } from "../../../lib/types";
 
 /**
  * ============================================================
@@ -64,32 +60,6 @@ export default function DashboardPage() {
         loadAssets,
     } = useDashboardData();
 
-    const [auditAsset, setAuditAsset] = useState<AssetSummary | null>(null);
-
-    const {
-        data: auditData,
-        loading: loadingAudit,
-        error: auditError,
-        authRequired: auditAuthRequired,
-        loadAudit,
-        resetAudit,
-        startReconnect: startAuditReconnect,
-    } = useAssetAudit();
-
-    async function handleAuditAsset(asset: AssetSummary) {
-        setAuditAsset(asset);
-
-        await loadAudit({
-            isin: asset.isin,
-            portfolioIds: selectedPortfolioIds,
-        });
-    }
-
-    function handleCloseAudit() {
-        setAuditAsset(null);
-        resetAudit();
-    }
-
     return (
         <>
             <div className="app-content" ref={portfolioDropdownRef}>
@@ -126,19 +96,19 @@ export default function DashboardPage() {
 
                     {loadingPortfolios ? (
                         <div className="ui-banner ui-banner-info">
-                            Daten werden geladen...
+                            Portfolios werden geladen. Die Asset-Liste startet erst nach deiner expliziten Ladeaktion.
                         </div>
                     ) : null}
 
                     {hasPendingPortfolioSelection ? (
                         <div className="ui-banner ui-banner-info">
-                            Die Portfolio-Auswahl wurde geändert. Die angezeigten Asset-Daten stammen noch aus dem letzten geladenen Stand. Klicke auf „Assets laden“, um die Auswahl zu aktualisieren.
+                            Die Portfolio-Auswahl wurde geändert. Die Ansicht zeigt weiterhin den letzten geladenen Stand. Klicke auf „Manuell aktualisieren“, um die neue Auswahl zu übernehmen.
                         </div>
                     ) : null}
 
                     {refreshingAssets ? (
                         <div className="ui-banner ui-banner-info">
-                            Daten werden aktualisiert. Vorherige Ergebnisse bleiben sichtbar.
+                            Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar, bis neue Daten bereitstehen.
                         </div>
                     ) : null}
 
@@ -170,18 +140,22 @@ export default function DashboardPage() {
                     <div className="app-section-stack">
                         <CollapsibleAssetTableSection
                             title="Wertpapiere"
-                            subtitle="Offene Positionen über alle ausgewählten Portfolios"
+                            subtitle="Offene Positionen über alle ausgewählten Portfolios. Suche, Sortierung und Spaltenauswahl bleiben lokal."
                             assets={sortedActiveAssets}
+                            loading={loadingAssets && !hasCachedData}
+                            emptyTitle="Noch keine Wertpapiere geladen"
+                            emptyDescription="Wähle Portfolios aus und lade Assets explizit, um den aktuellen Parqet-Stand in AssetTrace zu betrachten."
                             defaultExpanded={true}
-                            onAuditAssetAction={handleAuditAsset}
                         />
 
                         <CollapsibleAssetTableSection
                             title="Geschlossene Wertpapiere"
-                            subtitle="Positionen ohne aktuellen Bestand"
+                            subtitle="Positionen ohne aktuellen Bestand aus dem geladenen Stand"
                             assets={sortedClosedAssets}
+                            loading={loadingAssets && !hasCachedData}
+                            emptyTitle="Keine geschlossenen Positionen im geladenen Stand"
+                            emptyDescription="Wenn Parqet geschlossene Positionen für die Auswahl liefert, erscheinen sie nach einer manuellen Aktualisierung hier."
                             defaultExpanded={false}
-                            onAuditAssetAction={handleAuditAsset}
                         />
                     </div>
                 </div>
@@ -192,24 +166,6 @@ export default function DashboardPage() {
                 reconciliationWarnings={reconciliationWarnings}
                 isOpen={showWarningsPanel}
                 onCloseAction={() => setShowWarningsPanel(false)}
-            />
-
-            <AssetAuditPanel
-                asset={auditAsset}
-                data={auditData}
-                loading={loadingAudit}
-                error={auditError}
-                authRequired={auditAuthRequired}
-                isOpen={Boolean(auditAsset)}
-                onCloseAction={handleCloseAudit}
-                onReconnectAction={startAuditReconnect}
-                onOverridesSavedAction={async () => {
-                    await loadAssets();
-
-                    if (auditAsset) {
-                        await handleAuditAsset(auditAsset);
-                    }
-                }}
             />
         </>
     );

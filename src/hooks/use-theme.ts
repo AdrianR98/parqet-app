@@ -10,6 +10,13 @@ type ThemeMode = "dark" | "light";
 type ThemeStyle = CSSProperties & {
     "--page-bg": string;
     "--page-bg-secondary": string;
+    "--page-bg-2": string;
+    "--panel-bg": string;
+    "--panel-bg-2": string;
+    "--panel-border": string;
+    "--accent-cyan-soft": string;
+    "--accent-orange": string;
+    "--shadow-soft": string;
     "--surface-header": string;
     "--surface-panel": string;
     "--surface-raised": string;
@@ -87,6 +94,13 @@ export function useTheme() {
             return {
                 "--page-bg": "#f5f7fb",
                 "--page-bg-secondary": "#ecf1f7",
+                "--page-bg-2": "#ecf1f7",
+                "--panel-bg": "#ffffff",
+                "--panel-bg-2": "#f5f7fb",
+                "--panel-border": "rgba(16, 32, 51, 0.08)",
+                "--accent-cyan-soft": "rgba(15, 159, 176, 0.12)",
+                "--accent-orange": "#c57618",
+                "--shadow-soft": "0 10px 30px rgba(16, 32, 51, 0.12)",
                 "--surface-header": "rgba(255, 255, 255, 0.9)",
                 "--surface-panel": "#ffffff",
                 "--surface-raised": "#ffffff",
@@ -128,6 +142,13 @@ export function useTheme() {
         return {
             "--page-bg": "#081325",
             "--page-bg-secondary": "#0b172d",
+            "--page-bg-2": "#0b172d",
+            "--panel-bg": "#0f1d34",
+            "--panel-bg-2": "#10203a",
+            "--panel-border": "rgba(255, 255, 255, 0.08)",
+            "--accent-cyan-soft": "rgba(25, 181, 195, 0.14)",
+            "--accent-orange": "#ffae4d",
+            "--shadow-soft": "0 10px 30px rgba(0, 0, 0, 0.22)",
             "--surface-header": "rgba(9, 22, 43, 0.9)",
             "--surface-panel": "#0f1d34",
             "--surface-raised": "#11213a",

@@ -1,44 +1,42 @@
-﻿import styles from "./HeaderBar.module.css";
+import type { AppNavItemKey } from "../layout/AppSidebar";
+import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
     theme: "light" | "dark";
+    activeView: AppNavItemKey;
     onToggleThemeAction: () => void;
 };
 
-/**
- * ============================================================
- * COMPONENT: HEADER BAR
- * ============================================================
- *
- * Wichtig:
- * - Callback-Prop endet auf "Action"
- * - kein CSS-Module-:global Hack mehr nötig
- */
+const VIEW_LABELS: Record<AppNavItemKey, string> = {
+    dashboard: "Dashboard",
+    activities: "Aktivitäten",
+    timeline: "Timeline",
+    reports: "Reports",
+    settings: "Einstellungen",
+};
+
 export default function HeaderBar({
     theme,
+    activeView,
     onToggleThemeAction,
 }: HeaderBarProps) {
     return (
         <header className={styles.header}>
             <div className={styles.left}>
-                <div className={styles.brandMark}>A</div>
+                <div className={styles.brandMark}>AT</div>
 
                 <div className={styles.brandText}>
-                    <div className={styles.brandTitle}>Asset View</div>
-                    <div className={styles.brandSubtitle}>Ansicht</div>
+                    <div className={styles.brandTitle}>AssetTrace</div>
+                    <div className={styles.brandSubtitle}>
+                        Analyse- und Transparenzschicht für Parqet-Daten
+                    </div>
                 </div>
             </div>
 
-            <div className={styles.center}>
-                <div className={styles.searchShell}>
-                    <span className={styles.searchIcon}>⌕</span>
-                    <input
-                        className={`ui-input ${styles.searchInput}`}
-                        type="text"
-                        placeholder="Name, WKN, ISIN, ..."
-                        aria-label="Globale Suche"
-                    />
-                </div>
+            <div className={styles.center} aria-label="Aktueller App-Status">
+                <span className={styles.scopePill}>Bereich: {VIEW_LABELS[activeView]}</span>
+                <span className={styles.statusPill}>Portfolio-Scope folgt</span>
+                <span className={styles.statusPill}>Aktualisierung manuell</span>
             </div>
 
             <div className={styles.right}>
@@ -46,18 +44,10 @@ export default function HeaderBar({
                     type="button"
                     className="ui-btn ui-btn-ghost"
                     onClick={onToggleThemeAction}
+                    aria-label="Darstellung wechseln"
                 >
                     {theme === "dark" ? "Dark" : "Light"}
                 </button>
-
-                <button type="button" className="ui-icon-btn" aria-label="Profil">
-                    A
-                </button>
-
-                <div className={styles.userBlock}>
-                    <div className={styles.userPlan}>Plus</div>
-                    <div className={styles.userName}>Adrian Roeschl</div>
-                </div>
             </div>
         </header>
     );

@@ -8,6 +8,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- AssetTrace v1 UI foundation with main navigation placeholders for Dashboard, Aktivitäten, Timeline, Reports and Einstellungen.
+- Local AssetTable search, clearer loaded/empty/loading states and future drilldown affordance without implementing an Assetdetail route.
 - Phase-0 repository operating baseline for collaboration, documentation, prompts, templates and CI.
 - Conservative Vercel ignored-build helper for documentation/governance-only changes.
 - Phase-0.1 Parent/Sub-Issue plan for workflow hardening and agent readiness.
@@ -35,6 +37,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- Dashboard branding, refresh wording, app-shell status area and empty-state copy now consistently present AssetTrace as an analysis and transparency layer for Parqet data.
+- AssetTable interactions now emphasize local filtering, sorting and column selection without provider calls.
 - README structure rebuilt around English source-of-truth documentation and Phase-0 workflow links.
 - Development workflow updated from Phase-0 baseline to active post-Phase-0 operating rules.
 - Prompt YAML files expanded as the operational source for Codex and agent behavior.

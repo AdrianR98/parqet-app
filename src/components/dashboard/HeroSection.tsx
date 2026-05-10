@@ -1,4 +1,4 @@
-﻿import PortfolioFilter from "./PortfolioFilter";
+import PortfolioFilter from "./PortfolioFilter";
 import styles from "./HeroSection.module.css";
 import type { Portfolio } from "../../lib/types";
 import { formatCurrency } from "../../lib/format";
@@ -73,13 +73,13 @@ export default function HeroSection({
         <section className={`ui-surface ${styles.hero}`}>
             <div className={styles.topRow}>
                 <div className={styles.left}>
-                    <div className={styles.eyebrow}>Übersicht</div>
-                    <h1 className={styles.title}>Dashboard</h1>
+                    <div className={styles.eyebrow}>AssetTrace · Dashboard</div>
+                    <h1 className={styles.title}>Parqet-Daten verstehen</h1>
 
                     <div className={styles.metaLine}>
                         <span>{selectedPortfolioCount} Portfolios ausgewählt</span>
                         <span>·</span>
-                        <span>{assetCount} Assets</span>
+                        <span>{assetCount} geladene Assets</span>
                         {lastUpdatedAt ? (
                             <>
                                 <span>·</span>
@@ -99,9 +99,14 @@ export default function HeroSection({
 
                     {showStaleWarning ? (
                         <div className={styles.warningLine}>
-                            Hinweis: Die angezeigten Daten sind möglicherweise veraltet.
+                            Hinweis: Der Stand kann veraltet sein. Aktualisiere explizit, wenn du neue Parqet-Daten übernehmen möchtest.
                         </div>
                     ) : null}
+
+                    <p className={styles.description}>
+                        AssetTrace ergänzt Parqet um eine klare Analyse- und Transparenzschicht.
+                        Daten werden nur über die explizite Lade- oder Aktualisierungsaktion erneuert.
+                    </p>
                 </div>
 
                 <div className={styles.actions}>
@@ -121,7 +126,7 @@ export default function HeroSection({
                         className="ui-btn ui-btn-secondary"
                         onClick={onToggleWarningsPanel}
                     >
-                        Datenwarnungen
+                        Datenhinweise
                         {totalWarningCount > 0 ? (
                             <span className={styles.actionBadge}>{totalWarningCount}</span>
                         ) : null}
@@ -134,17 +139,19 @@ export default function HeroSection({
                         disabled={loadingAssets || refreshingAssets}
                     >
                         {loadingAssets
-                            ? "Lädt..."
+                            ? "Erstladung läuft..."
                             : refreshingAssets && hasCachedData
-                                ? "Aktualisiert..."
-                                : "Assets laden"}
+                                ? "Aktualisierung läuft..."
+                                : hasCachedData
+                                    ? "Manuell aktualisieren"
+                                    : "Assets laden"}
                     </button>
                 </div>
             </div>
 
             <div className={styles.kpiGrid}>
                 <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Positionswert</span>
+                    <span className={styles.kpiLabel}>Positionswert aus geladenem Stand</span>
                     <strong className={styles.kpiValue}>
                         {formatCurrency(totalPositionValue ?? 0)}
                     </strong>
