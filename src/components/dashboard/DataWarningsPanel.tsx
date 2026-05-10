@@ -6,6 +6,8 @@ import type {
     AssetConsistencyCheck,
     ReconciliationWarning,
 } from "../../lib/types";
+import { formatCurrency, formatShares } from "../../lib/format";
+import { mapSeverityLabel } from "../../lib/reporting";
 
 type DataWarningsPanelProps = {
     warnings: AssetConsistencyCheck[];
@@ -126,11 +128,11 @@ export default function DataWarningsPanel({
                                     <div className={styles.flagGrid}>
                                         <span>
                                             Rekonstr. Bestand:{" "}
-                                            <strong>{warning.reconstructedNetShares}</strong>
+                                            <strong>{formatShares(warning.reconstructedNetShares)}</strong>
                                         </span>
                                         <span>
                                             Cost Basis:{" "}
-                                            <strong>{warning.remainingCostBasis}</strong>
+                                            <strong>{formatCurrency(warning.remainingCostBasis)}</strong>
                                         </span>
                                     </div>
 
@@ -180,7 +182,7 @@ export default function DataWarningsPanel({
                                                             : styles.severityInfo
                                                     }`}
                                             >
-                                                {warning.severity === "error" ? "Kritisch" : warning.severity === "warning" ? "Prüfen" : "Info"}
+                                                {mapSeverityLabel(warning)}
                                             </span>
                                         </div>
                                     </div>

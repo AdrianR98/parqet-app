@@ -55,7 +55,21 @@ Assetdetails use only the locally loaded Dashboard read model and the current gl
 
 The Assetdetail page includes a local visual Timeline/marker area. It displays marker data only when it is already present in the local read model, falls back to a marker-only/empty state when no safe event timeline is available and never loads chart data automatically. Range controls and chart-mode toggles are local UI controls; use the Dashboard refresh action for any explicit data update.
 
-## 6. Change appearance mode
+
+## 6. Use local Reports and exports
+
+Open `Reports` after loading Dashboard data explicitly. Reports v1 uses only the locally loaded Dashboard read model and the current global portfolio scope. Opening Reports, changing the scope display, copying a summary or exporting CSV does not trigger Parqet provider calls and does not perform an automatic refresh.
+
+If no local Dashboard data is available, Reports shows an empty state and asks you to load or refresh data in the Dashboard first.
+
+Reports v1 export boundaries:
+
+- Markdown copy contains a concise local summary of visible report metrics.
+- CSV export contains only visible, loaded and safe report/asset overview fields.
+- Raw provider payloads, tokens, cookies, private debug data and hidden technical IDs are not exported.
+- PDF export is intentionally not part of v1.
+
+## 7. Change appearance mode
 
 Open `Einstellungen` and use `Darstellung`:
 
@@ -65,7 +79,7 @@ Open `Einstellungen` and use `Darstellung`:
 
 The value is stored locally in the browser. Invalid stored values fall back to `System`.
 
-## 7. Clear local data and settings
+## 8. Clear local data and settings
 
 Open `Einstellungen` and use `Datenschutz/Debug`:
 
@@ -74,7 +88,7 @@ Open `Einstellungen` and use `Datenschutz/Debug`:
 
 These actions do not delete Parqet data and do not perform destructive server-side work.
 
-## 8. API-budget note
+## 9. API-budget note
 
 Treat Parqet/API budget as limited. Avoid unnecessary refreshes. Prefer reviewing the current local data stand first, then refresh explicitly only when you want to update the local snapshot from Parqet.
 

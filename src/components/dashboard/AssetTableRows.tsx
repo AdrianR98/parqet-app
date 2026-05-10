@@ -8,7 +8,7 @@ import Link from "next/link";
 import styles from "./AssetTable.module.css";
 import type { AssetSummary } from "../../lib/types";
 import { createAssetDetailHref } from "../../lib/asset-detail";
-import { formatCurrency } from "../../lib/format";
+import { formatCurrency, formatDate, formatShares } from "../../lib/format";
 import {
     getSafePortfolioBreakdown,
     type VisibleColumnKey,
@@ -35,22 +35,6 @@ type AssetTableRowsProps = {
  * - Thumbnail-Fallbacks
  * - Status-Badges
  */
-
-function formatDate(value: string | null | undefined): string {
-    if (!value) return "—";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-
-    return new Intl.DateTimeFormat("de-DE", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-    }).format(date);
-}
 
 function getDisplayName(asset: AssetSummary): string {
     return (
@@ -137,22 +121,22 @@ function renderCell(asset: AssetSummary, columnKey: VisibleColumnKey) {
         }
 
         case "positionValue":
-            return formatCurrency(asset.positionValue ?? 0);
+            return formatCurrency(asset.positionValue);
 
         case "netShares":
-            return asset.netShares ?? 0;
+            return formatShares(asset.netShares);
 
         case "avgBuyPrice":
-            return formatCurrency(asset.avgBuyPrice ?? 0);
+            return formatCurrency(asset.avgBuyPrice);
 
         case "latestTradePrice":
-            return formatCurrency(asset.latestTradePrice ?? 0);
+            return formatCurrency(asset.latestTradePrice);
 
         case "unrealizedPnL":
-            return formatCurrency(asset.unrealizedPnL ?? 0);
+            return formatCurrency(asset.unrealizedPnL);
 
         case "totalDividendNet":
-            return formatCurrency(asset.totalDividendNet ?? 0);
+            return formatCurrency(asset.totalDividendNet);
 
         case "latestActivityAt":
             return formatDate(asset.latestActivityAt);
@@ -247,10 +231,10 @@ export default function AssetTableRows({
                                                     className={styles.breakdownRow}
                                                 >
                                                     <span>{entry.portfolioName}</span>
-                                                    <span>{entry.netShares}</span>
-                                                    <span>{formatCurrency(entry.avgBuyPrice ?? 0)}</span>
-                                                    <span>{formatCurrency(entry.positionValue ?? 0)}</span>
-                                                    <span>{formatCurrency(entry.totalDividendNet ?? 0)}</span>
+                                                    <span>{formatShares(entry.netShares)}</span>
+                                                    <span>{formatCurrency(entry.avgBuyPrice)}</span>
+                                                    <span>{formatCurrency(entry.positionValue)}</span>
+                                                    <span>{formatCurrency(entry.totalDividendNet)}</span>
                                                 </div>
                                             ))}
                                         </div>

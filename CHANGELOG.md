@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Local Reports v1 surface with loaded-data report tiles, portfolio breakdown, data-quality summary and local Markdown/CSV export actions without new provider calls.
 - Chart-based Assetdetail Timeline v1 with local marker visualization, range controls, disabled unsafe chart modes and marker-only empty fallback without new provider calls.
 - Asset detail foundation route with local Dashboard-cache lookup, readable slug plus stable `id` query key, read-only sections and a timeline placeholder without new provider calls.
 - AssetTrace Settings page with local appearance mode, portfolio scope, privacy/reset controls and safe development diagnostics.
@@ -41,6 +42,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- German financial, quantity, date and warning severity formatting is now centralized and reused by report/dashboard surfaces.
 - Dashboard portfolio selection now persists through the local global portfolio scope without triggering hidden provider refreshes.
 - App shell theme control now reflects the persisted System/Hell/Dunkel appearance mode.
 - Dashboard branding, refresh wording, app-shell status area and empty-state copy now consistently present AssetTrace as an analysis and transparency layer for Parqet data.
