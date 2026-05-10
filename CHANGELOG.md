@@ -8,6 +8,10 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added a local-first Activities product surface with read-only cards, safe detail panel, local filters, sort controls, pagination and freshness/source status.
+- Added a global read-only Timeline product surface with month/year grouping, local timeline filters, portfolio-scope mismatch notice and no automatic provider or audit-route loading.
+- Added shared local Activity read-model helpers for safe display projection, German activity labels, local filtering/sorting and timeline grouping.
+
 - Added bounded in-memory Activity snapshot reuse with safe freshness metadata for AssetTrace v1 API-budget flows.
 - Added snapshot-backed Activities rendering from the local Dashboard read model so opening Activities does not trigger a hidden provider fetch.
 - Documented the v1 production cache boundary: no durable server/database persistence before a separate ADR.
@@ -45,6 +49,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Shared Parqet API diagnostics helpers and safe API-budget metadata for asset/audit flows.
 
 ### Changed
+
+- Documented that Activities and Timeline use local/snapshot-backed Activity Items and require explicit Dashboard refresh for new provider data.
 
 - German financial, quantity, date and warning severity formatting is now centralized and reused by report/dashboard surfaces.
 - Dashboard portfolio selection now persists through the local global portfolio scope without triggering hidden provider refreshes.

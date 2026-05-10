@@ -4,18 +4,16 @@
   gap: 16px;
 }
 
-.heroCard,
-.filtersCard,
-.emptyState,
-.detailPanel {
+.hero,
+.filters,
+.emptyState {
   padding: 20px;
 }
 
 .heroTop,
 .filtersHeader,
-.detailHeader,
-.activityTop,
-.groupHeader {
+.timelineGroupHeader,
+.eventTop {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -31,7 +29,7 @@
   text-transform: uppercase;
 }
 
-.pageTitle {
+.title {
   margin: 0;
   color: var(--text-main);
   font-size: clamp(30px, 5vw, 44px);
@@ -41,10 +39,16 @@
 .description,
 .filtersHeader p,
 .emptyState p,
-.detailPanel p {
-  margin: 10px 0 0;
+.eventMeta,
+.eventPortfolio {
   color: var(--text-soft);
   line-height: 1.5;
+}
+
+.description,
+.filtersHeader p,
+.emptyState p {
+  margin: 10px 0 0;
 }
 
 .statusGrid {
@@ -54,8 +58,7 @@
   margin-top: 18px;
 }
 
-.statusGrid > div {
-  min-height: 78px;
+.statusGrid div {
   padding: 14px;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
@@ -63,16 +66,14 @@
 }
 
 .statusGrid span,
-.metricsGrid span,
-.checkGroup > span,
-.filtersGrid label > span {
+.filtersGrid label > span,
+.checkGroup > span {
   display: block;
   color: var(--text-soft);
   font-size: 12px;
 }
 
-.statusGrid strong,
-.metricsGrid strong {
+.statusGrid strong {
   display: block;
   margin-top: 6px;
   color: var(--text-main);
@@ -80,8 +81,7 @@
 }
 
 .filtersHeader h2,
-.groupHeader h2,
-.detailHeader h2,
+.timelineGroupHeader h2,
 .emptyState h2 {
   margin: 0;
   color: var(--text-main);
@@ -98,7 +98,6 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 42px;
   padding: 10px 12px;
   border: 1px solid var(--panel-border);
   border-radius: 12px;
@@ -119,49 +118,70 @@
   font-size: 13px;
 }
 
-.contentGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 16px;
-  align-items: start;
-}
-
-.activityList,
-.groupSection {
+.timeline {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
 }
 
-.groupHeader span {
+.timelineGroup {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.timelineGroupHeader {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  background: var(--panel-bg);
+}
+
+.timelineGroupHeader span {
   color: var(--text-soft);
   font-size: 12px;
 }
 
-.cardGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.eventRail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  padding-left: 22px;
 }
 
-.activityCard {
-  width: 100%;
+.eventRail::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 6px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent-cyan), transparent);
+}
+
+.eventCard {
+  position: relative;
   padding: 16px;
   border: 1px solid var(--panel-border);
   border-radius: 16px;
   background: var(--panel-bg);
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
 }
 
-.activityCard:hover,
-.activityCard:focus-visible {
-  border-color: var(--accent-cyan);
-  background: var(--panel-bg-2);
-  outline: none;
-  transform: translateY(-1px);
+.eventCard::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  left: -21px;
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--panel-bg);
+  border-radius: 999px;
+  background: var(--accent-cyan);
 }
 
 .typeBadge,
@@ -190,127 +210,72 @@
   color: var(--accent-orange);
 }
 
-.dateText,
-.assetMeta,
-.portfolioLine {
+.eventDate {
   color: var(--text-soft);
   font-size: 12px;
 }
 
-.assetName {
-  margin-top: 12px;
+.eventTitle {
+  margin-top: 10px;
   color: var(--text-main);
   font-size: 16px;
   font-weight: 700;
 }
 
-.assetMeta,
-.portfolioLine {
-  margin-top: 5px;
+.eventMeta,
+.eventPortfolio {
+  margin-top: 4px;
+  font-size: 12px;
 }
 
-.metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.eventMetrics {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
-.metricsGrid > div {
-  min-width: 0;
-}
-
-.metricsGrid strong {
-  overflow-wrap: anywhere;
+.eventMetrics span {
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-size: 12px;
 }
 
 .badgeRow {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 14px;
-  min-height: 24px;
+  margin-top: 12px;
 }
 
-.detailPanel {
-  position: sticky;
-  top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.detailGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0;
-}
-
-.detailGrid div {
-  padding: 10px;
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.detailGrid dt {
-  color: var(--text-soft);
-  font-size: 12px;
-}
-
-.detailGrid dd {
-  margin: 4px 0 0;
-  color: var(--text-main);
-  overflow-wrap: anywhere;
-}
-
-.detailBlock h3 {
-  margin: 0 0 8px;
-  font-size: 14px;
-}
-
-.detailBlock ul {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text-soft);
-}
-
-@media (max-width: 1100px) {
-  .contentGrid,
-  .cardGrid,
-  .statusGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .detailPanel {
-    position: static;
-  }
-}
-
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .heroTop,
-  .filtersHeader,
-  .detailHeader {
+  .filtersHeader {
     flex-direction: column;
+  }
+
+  .statusGrid,
+  .filtersGrid,
+  .timelineGroup {
+    grid-template-columns: 1fr;
   }
 
   .filtersGrid {
     display: none;
-    grid-template-columns: 1fr;
   }
 
   .filtersGridOpen {
     display: grid;
   }
 
-  .metricsGrid,
-  .detailGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .timelineGroupHeader {
+    position: static;
   }
 }
 
-@media (min-width: 761px) {
+@media (min-width: 901px) {
   .filtersGrid {
     display: grid;
   }
