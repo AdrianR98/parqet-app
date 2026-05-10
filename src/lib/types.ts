@@ -472,6 +472,8 @@ export type ActivitiesAuditApiResponse = {
   reconciliationWarnings: ReconciliationWarning[];
   summary: ActivitiesAuditSummary;
   pagination?: ActivitiesAuditPagination;
+  freshness?: SnapshotFreshness;
+  apiBudget?: import("./parqet-api-diagnostics").ParqetApiBudgetInfo;
   authRequired?: boolean;
   reconnectUrl?: string;
   message?: string;

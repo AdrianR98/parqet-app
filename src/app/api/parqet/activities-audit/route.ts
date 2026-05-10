@@ -17,6 +17,16 @@ import type {
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
+const SNAPSHOT_ONLY_API_BUDGET = {
+    providerCallsMayOccur: false,
+    activityFetchMayOccur: false,
+    activityFetchScope: "none" as const,
+    responseFlagsReduceProviderCalls: true,
+    notes: [
+        "No provider call is made because this activities audit request did not include refresh=1.",
+        "Use refresh=1 only for an intentional explicit provider-backed activities audit.",
+    ],
+};
 
 function getMonthKey(value: string): string {
     return value.slice(0, 7);
@@ -156,8 +166,10 @@ export async function GET(req: Request) {
                         hasNextPage: false,
                         hasPreviousPage: false,
                     },
+                    freshness: activityContext.freshness,
+                    apiBudget: SNAPSHOT_ONLY_API_BUDGET,
                     message:
-                        "No Activity snapshot exists for this portfolio scope. Re-run with refresh=1 only when an explicit provider refresh is intended.",
+                        "No Activity snapshot exists for this portfolio scope. Without refresh=1 this route is snapshot-only and makes no provider calls; use refresh=1 only for an explicit provider-backed activities audit.",
                 };
             }
             const portfolios = activityContext.authorizedPortfolios;

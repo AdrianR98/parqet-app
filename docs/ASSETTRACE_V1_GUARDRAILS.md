@@ -110,6 +110,8 @@ Rules:
 - Snapshot-backed data should include freshness metadata: source, last successful sync/load time and known warnings.
 - A stale snapshot should be labelled stale rather than silently refreshed through a hidden full fetch.
 - Explicit refresh/sync actions may update bounded v1 snapshots, but omitted refresh options must remain snapshot/local-first and must not trigger provider fetches.
+- Audit routes without `refresh=1` must be snapshot-only/no-provider-call reads and return a clear no-snapshot response when no matching snapshot exists. Audit routes with `refresh=1` may run provider-backed only when the route is explicitly designed and gated for provider-backed audit use.
+- The guarded Global Asset audit route may keep its deliberate two-step provider-backed `refresh=1` flow for requests without `portfolioId`: resolve authorized portfolios first, then load the selected Activity scope.
 
 ## Local-only UI interaction rules
 

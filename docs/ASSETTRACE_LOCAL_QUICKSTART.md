@@ -101,5 +101,7 @@ AssetTrace v1 now separates explicit data loading from normal navigation:
 - Activities, Reports and Assetdetail views reuse local snapshot/read-model data and must not start hidden provider full-fetches while opening, filtering or sorting.
 - If no local activity snapshot exists, the Activities page shows an empty state that asks you to load or refresh data explicitly in the Dashboard.
 - Settings diagnostics may show whether a local snapshot/cache exists, its freshness status, scope count/fingerprint and redacted refresh error category. They must not show tokens, cookies or raw provider payloads.
+- Audit routes without `refresh=1` are snapshot-only/no-provider-call reads. Audit routes with `refresh=1` may run provider-backed only when that route is intentionally designed and gated for that behavior.
+- The guarded `global-assets/audit` route intentionally keeps its existing two-step provider-backed flow for `refresh=1` with no `portfolioId`: first resolve authorized portfolios, then load the selected portfolio Activity scope.
 
 The server-side v1 snapshot is bounded, process-local, in-memory and non-durable. It is an API-budget optimization for explicit v1 route reuse only, not production storage. Filtered/normalized Activity data is retained only within those bounded snapshot/read-model paths; tokens, cookies and raw provider payloads must never appear in UI, diagnostics or exports.
