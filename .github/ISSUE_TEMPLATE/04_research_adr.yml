@@ -1,0 +1,77 @@
+name: Research / ADR
+description: Analyze a decision before implementation.
+title: "decision: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is for research and decision output only. Do not implement product or runtime changes in this issue.
+  - type: dropdown
+    id: decision_type
+    attributes:
+      label: Decision type
+      options:
+        - Architecture
+        - Data model
+        - API/provider contract
+        - Caching / persistence
+        - UI / UX pattern
+        - Workflow / governance
+        - Security / privacy
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Decision question
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options
+      placeholder: |
+        - Option A:
+        - Option B:
+        - Option C:
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Decision criteria
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Preliminary recommendation
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      placeholder: |
+        - No implementation in this issue.
+        - No runtime/API/UI behavior changes.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: ADR / Documentation output
+      placeholder: |
+        - ADR path:
+        - Docs to update:
+        - Follow-up implementation issue needed:
+    validations:
+      required: true

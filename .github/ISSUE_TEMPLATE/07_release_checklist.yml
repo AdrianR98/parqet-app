@@ -1,0 +1,81 @@
+name: Release Checklist
+description: Track v1 release readiness and sign-off.
+title: "release: "
+labels: []
+body:
+  - type: textarea
+    id: v1_scope
+    attributes:
+      label: V1 scope
+      placeholder: |
+        - Included:
+        - Explicitly excluded:
+    validations:
+      required: true
+  - type: checkboxes
+    id: product_surface_checks
+    attributes:
+      label: Product surface checks
+      options:
+        - label: App shell / navigation checked.
+        - label: Dashboard checked.
+        - label: Assets checked.
+        - label: Activities checked.
+        - label: Timeline checked.
+        - label: Reports / exports checked.
+        - label: Settings / diagnostics checked.
+    validations:
+      required: true
+  - type: checkboxes
+    id: state_checks
+    attributes:
+      label: State checks
+      options:
+        - label: Empty states checked.
+        - label: Loading states checked.
+        - label: Error states checked.
+        - label: Stale/freshness states checked.
+        - label: Privacy-safe diagnostics checked.
+        - label: Explicit refresh behavior checked.
+    validations:
+      required: true
+  - type: checkboxes
+    id: visual_checks
+    attributes:
+      label: Visual checks
+      options:
+        - label: Desktop checked.
+        - label: Mobile/responsive checked.
+        - label: Text overflow checked.
+        - label: Visual consistency checked.
+        - label: Accessibility basics checked.
+    validations:
+      required: true
+  - type: checkboxes
+    id: technical_checks
+    attributes:
+      label: Technical checks
+      options:
+        - label: Lint/build status reviewed.
+        - label: API-budget impact reviewed.
+        - label: Privacy/data impact reviewed.
+        - label: Docs/changelog/ADR impact reviewed.
+        - label: Known follow-up issues created or linked.
+    validations:
+      required: true
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Release blockers
+      placeholder: |
+        - Blocker:
+        - Owner/status:
+        - Decision needed:
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Release decision / sign-off notes
+    validations:
+      required: true

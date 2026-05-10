@@ -1,81 +1,24 @@
 # Phase Plan
 
-Status: active in Phase 1
+Status: active
 
-## Phase 0 - Collaboration And Repo Operating System
+This document is the app-neutral phase plan for repository work. Visible product branding may change over time; governance, guardrails, templates and phase decisions must not depend on the current app name.
 
-Status: completed.
+## Core Rule
 
-Goal: establish the operating baseline for future repository work.
+New ideas are not implemented immediately. Every new idea must first be classified into the phase and issue type that best matches its risk, timing and acceptance criteria.
 
-Deliverables:
-
-- Agent entrypoint.
-- Prompt structure.
-- English source-of-truth documentation.
-- German placeholders for README and development workflow.
-- ADR template and collaboration ADR.
-- Issue forms and PR template.
-- CI foundation with lint and build.
-- Manual-only placeholder workflows for future agents.
-- Security and privacy guardrails.
-- Changelog.
-- Vercel ignored-build helper for documentation/governance-only changes.
-
-Non-goals:
-
-- No product features.
-- No dashboard redesign.
-- No OAuth/token/API changes.
-- No activity or asset calculation changes.
-- No Vitest or Playwright setup.
-- No Branch Protection activation.
-- No auto-merge activation.
-
-## Phase 0.1 - Workflow Hardening And Agent Readiness
-
-Status: completed.
-
-Goal: harden the Phase-0 collaboration system before product and architecture work begins.
-
-Parent issue: #39
-
-Sub-Issues:
-
-- #40 Codex modes and task execution rules.
-- #41 Agent maturity model and permissions.
-- #42 Issue lifecycle and planning rules.
-- #43 PR review levels and merge rules.
-- #44 Documentation impact and changelog rules.
-- #45 Translation-Agent workflow v1.
-- #46 Phase-1 planning gate and product-development entry rules.
-- #47 CI, Vercel and verification rules after #36.
-- #48 GitHub Project Board v1.
-
-Implementation groups:
-
-1. Rules / Docs / YAML.
-2. GitHub Project / Labels.
-3. Agent Workflows.
-
-Non-goals:
-
-- No product feature implementation.
-- No Parqet API/OAuth/token behavior changes.
-- No dashboard, activity, asset or calculation logic changes.
-- No unrestricted autonomous agents.
-- No direct `main` writes by agents.
-- No private data in repository files, issues, PRs or logs.
+Closed issues may be updated during cleanup when title, body, links or status no longer match the actual project state. The update must explain the correction and must not rewrite history to hide prior decisions.
 
 ## Project-Wide API Budget Principle
 
 External API budget minimization is a permanent product and architecture principle.
 
-Every phase must avoid unnecessary Parqet/provider calls, repeated full scans, accidental retries and implicit heavy reloads.
+Every phase must avoid unnecessary provider calls, repeated full scans, accidental retries and implicit heavy reloads.
 
 Required across all phases:
 
-- Prefer cached snapshots and explicit refresh/sync actions.
+- Prefer cached snapshots and explicit refresh or sync actions.
 - Prefer provider-side filters, pagination, narrow portfolio/date/asset scopes and bounded concurrency.
 - Distinguish small response payloads from actually reduced provider calls.
 - Classify errors before retrying expensive requests.
@@ -83,107 +26,176 @@ Required across all phases:
 - Avoid full Activity reloads during normal navigation, filtering, rendering or editing.
 - Document request impact in API/data-pipeline PRs.
 
-## Phase 1 - Global Asset Timeline Foundation
+## Phase 0 - Project Rules / Architecture / Guardrails
 
-Status: active.
+Status: completed, maintained through governance updates.
 
-Parent issue: #57
+Goal: establish and maintain the operating baseline for future repository work.
 
-Goal: define and prepare the product and architecture foundation for an asset-centric, portfolio-wide Global Asset Timeline.
+Deliverables:
 
-The app is a Parqet Integration Dashboard. Parqet remains the data source through Parqet Connect / OAuth. This app adds a consolidated analysis layer across authorized portfolios.
+- Agent entrypoint and prompt structure.
+- English source-of-truth documentation.
+- ADR template and architecture decision records.
+- Issue forms and PR template.
+- CI foundation with lint and build.
+- Security, privacy and API-budget guardrails.
+- Changelog and documentation index.
 
-Core product goal:
+Non-goals:
 
-- consolidate the same security across multiple portfolios,
-- use a Global Asset model centered on security identity,
-- preserve portfolio origin,
-- preserve activity history, dividends, fees and taxes,
-- represent transfer-related events explicitly,
-- produce warnings/confidence instead of hiding ambiguous data,
-- minimize Parqet/API usage through bounded requests, cache-aware flows and explicit refresh semantics,
-- keep the existing product implementation stable until the implementation gate is met.
+- No product feature implementation.
+- No OAuth/token/API behavior changes.
+- No activity or asset calculation changes.
+- No unrestricted autonomous agents.
+- No private data in repository files, issues, PRs or logs.
 
-Completed work:
+## Phase 1 - App Shell / Navigation / UI Foundation
 
-- #58 P1-1: API field audit completed and recorded in `docs/PARQET_API_AUDIT.md`.
+Status: active baseline work.
 
-Current work:
+Goal: keep the existing app shell, navigation and local-first UI surfaces coherent while product direction and data foundations mature.
 
-- #62 P1-2: ADR Global Asset Timeline.
+Expected work:
 
-Planned next work:
+- App shell and navigation consistency.
+- Local read-only surfaces for loaded data.
+- UI state wording for source, freshness and confidence.
+- Visual consistency and accessibility review.
+- Explicit refresh affordances instead of hidden provider loads.
 
-- P1-3: Type model for `NormalizedActivity`, `GlobalAsset`, portfolio breakdowns, timeline entries, warnings and confidence.
-- P1-4: Normalization pipeline.
-- P1-5: Global Asset builder / aggregation.
-- P1-6: Transfer representation and later transfer pairing.
-- P1-7: Reconciliation warnings and confidence.
-- P1-8: Audit JSON report / debug UI.
+Non-goals:
 
-Entry / implementation gate:
+- No broad redesign unless an issue explicitly asks for it.
+- No second activity or asset pipeline before a dedicated decision allows it.
+- No hidden provider calls from navigation, filtering, sorting, pagination or details.
 
-- API audit completed.
-- API budget impact understood for the affected data flow.
-- Global Asset Timeline ADR accepted.
-- Type model defined.
-- Normalization boundary defined.
-- Warning/confidence model defined.
-- Audit/report mode exists.
-- Existing asset calculation remains unchanged until explicit decision.
-- No real Parqet reference files enter repository files, issues, PRs or logs.
+## Phase 2 - Data Foundation / API Budget
 
-Guardrails:
+Status: planned / partially prepared by existing architecture work.
 
-- Existing app remains the stable baseline during Phase 1.
-- No product UI switch to Global Asset data before the implementation gate.
-- No automatic transfer pairing before a dedicated issue.
-- OAuth/Auth remains unchanged until a dedicated Full Review issue exists.
-- Real Parqet reference files stay local/ignored and must not enter issues, PRs or logs.
-- No new broad provider reload path without explicit API-budget justification.
+Goal: strengthen the provider/data boundary, normalized models, cache strategy, diagnostics and API-budget observability.
 
-Known follow-ups:
+Expected work:
 
-- Transfer pairing / matching model for `transfer_in` and `transfer_out`.
-- OpenAPI cross-check against the official Parqet Connect specification.
-- Cost-basis and realized-gain decision after type model and audit/report mode.
-- Lightweight auth/portfolio health check without Activity fetch.
-- Server-side Activity or normalized snapshot cache with TTL and explicit refresh.
-- Provider-call count diagnostics for local audit/debug routes.
+- Provider DTO and internal model separation.
+- Canonical normalization and aggregation boundaries.
+- Snapshot/cache strategy with explicit refresh semantics.
+- Provider-call count and scope diagnostics.
+- Retry, rate-limit and stale-state handling.
+- Focused tests for core data logic when test setup is available.
 
-## Phase 2 - Implementation Foundations
+Non-goals:
 
-Placeholder.
+- No product UI switch to new data flows before entry criteria are met.
+- No automatic full-provider reload path without issue-level API-budget justification.
+- No private raw payloads in UI, logs, exports, fixtures or issues.
 
-Likely themes:
+## Phase 3 - Core Product Surfaces
 
-- Shared pipeline implementation work.
-- Focused tests for core data logic.
-- Safer metadata and reconciliation verification.
-- Cache and sync model foundations.
-- Request-budget observability for provider calls.
+Status: future.
 
-## Phase 3 - Performance And UX Reliability
+Goal: build or refine the primary user-facing surfaces once the app shell and data foundation are ready.
 
-Placeholder.
+Expected work:
 
-Likely themes:
+- Dashboard, assets, activities, timeline, reports and settings surfaces.
+- User-facing workflows backed by canonical read models.
+- Local filtering, sorting, grouping and export boundaries.
+- Honest wording for provider reference values, calculated values, estimates and incomplete data.
 
-- Bounded concurrency.
-- Pagination/filtering improvements.
-- Cache and stale-state decisions.
-- Explicit sync/refresh flows.
-- Loading and error-state reliability.
-- Avoiding full scans for normal UI interactions.
+Non-goals:
 
-## Phase 4 - Quality Gates And Automation
+- No feature-local calculation pipeline when a shared model should own the result.
+- No provider DTO passthrough into UI.
+- No raw private data in exports or diagnostics.
 
-Placeholder.
+## Phase 4 - V1 Hardening / Release-Candidate Preparation
 
-Likely themes:
+Status: future.
 
-- Test expansion.
-- CI hardening.
-- Branch Protection activation.
-- Later documentation-only CI optimization.
-- Possible constrained auto-merge for documentation or prompt-only changes.
+Goal: turn implemented v1 surfaces into release-candidate quality.
+
+Expected work:
+
+- Visual and interaction review across supported surfaces.
+- Empty, loading, stale, error and privacy states.
+- API-budget regression review.
+- Documentation and ADR consistency.
+- Manual verification paths and release-blocker triage.
+
+Non-goals:
+
+- No new product expansion that delays v1 hardening.
+- No unplanned architecture rewrite.
+
+## Phase 5 - V1 QA / Release Cut
+
+Status: future.
+
+Goal: verify v1 scope, resolve release blockers and prepare the release cut.
+
+Expected work:
+
+- Release checklist issue.
+- Product surface checks.
+- State and visual checks.
+- Technical checks.
+- Security, privacy and data-impact review.
+- Sign-off notes and known limitations.
+
+Non-goals:
+
+- No post-v1 feature expansion.
+- No merge of known release blockers without explicit documented exception.
+
+## Phase 6 - Post-V1 Feature Expansion
+
+Status: future.
+
+Goal: consider new product capabilities after v1 release readiness is established.
+
+Expected work:
+
+- New feature triage.
+- Research and ADR issues for major decisions.
+- Incremental product expansion with explicit acceptance criteria.
+- API-budget and privacy review before implementation.
+
+Non-goals:
+
+- No retroactive expansion of v1 scope.
+- No implementation before phase classification.
+
+## Idea Triage Rules
+
+Use these categories for new issues and follow-ups:
+
+- `Release Blocker`: prevents a release candidate or release cut. Must include blocker evidence, affected surface and release decision impact.
+- `V1 Hardening`: improves correctness, clarity, visual quality, privacy posture or reliability inside planned v1 scope.
+- `V1 Documentation`: updates source-of-truth docs, quickstart, guardrails, ADRs, README or release notes required for v1.
+- `Post-V1 Feature`: valuable feature idea that is outside v1 scope and should not be implemented during v1 hardening.
+- `Research / ADR`: decision issue with options, criteria and ADR/documentation output. No implementation in the same issue.
+- `Bug Follow-up`: defect or regression that needs reproduction, expected behavior, acceptance criteria and verification.
+
+## Review Gates
+
+Before implementation:
+
+- Confirm phase classification.
+- Confirm scope and non-goals.
+- Confirm API Budget Impact and Privacy / Data Impact.
+- Confirm whether ADR or documentation output is required.
+
+Before merge:
+
+- Review the diff against issue acceptance criteria.
+- Review API-budget impact, privacy/data impact and non-goals.
+- Check for hidden provider calls in API/data-facing changes.
+- Confirm documentation, changelog and phase-plan impact.
+
+After larger PRs:
+
+- Re-check roadmap, docs, issues and changelog.
+- Update closed issues if cleanup reveals stale title/body/status.
+- Create follow-up issues for deferred work instead of expanding the merged scope retroactively.

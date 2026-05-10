@@ -16,14 +16,19 @@ Important guardrail: do not create a second activity or asset pipeline before Ph
 - [prompts/master-prompt.yaml](prompts/master-prompt.yaml) - compact operative master rules.
 - [prompts/master-prompt.md](prompts/master-prompt.md) - human-readable prompt explanation.
 - [docs/DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md) - workflow, branch, review and verification rules.
+- [docs/PHASE_PLAN.md](docs/PHASE_PLAN.md) - app-neutral phase plan and issue triage rules.
+- [docs/V1_GUARDRAILS.md](docs/V1_GUARDRAILS.md) - app-neutral v1 data, API-budget and analytics-safety guardrails.
+- [docs/LOCAL_QUICKSTART.md](docs/LOCAL_QUICKSTART.md) - local usage, Settings, scope, refresh and reset guide.
 - [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) - current repository status and next steps.
 - [docs/PROJECT_PRODUCT_BRIEF.md](docs/PROJECT_PRODUCT_BRIEF.md) - product idea and Phase-1 questions.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Phase-0 architecture note.
-- [docs/ASSETTRACE_V1_GUARDRAILS.md](docs/ASSETTRACE_V1_GUARDRAILS.md) - AssetTrace v1 data, API-budget and analytics-safety guardrails.
-- [docs/ASSETTRACE_LOCAL_QUICKSTART.md](docs/ASSETTRACE_LOCAL_QUICKSTART.md) - local AssetTrace usage, Settings, scope, refresh and reset guide.
-- [docs/PHASE_PLAN.md](docs/PHASE_PLAN.md) - phase plan.
 - [docs/ROADMAP.md](docs/ROADMAP.md) - longer-term roadmap and governance.
 - [docs/adr/](docs/adr) - architecture and collaboration decision records.
+
+Deprecated compatibility links:
+
+- [docs/ASSETTRACE_V1_GUARDRAILS.md](docs/ASSETTRACE_V1_GUARDRAILS.md) - moved to `docs/V1_GUARDRAILS.md`.
+- [docs/ASSETTRACE_LOCAL_QUICKSTART.md](docs/ASSETTRACE_LOCAL_QUICKSTART.md) - moved to `docs/LOCAL_QUICKSTART.md`.
 
 German placeholders:
 

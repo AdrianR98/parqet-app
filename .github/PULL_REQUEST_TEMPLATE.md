@@ -1,74 +1,118 @@
-## Goal
-
-What should this PR accomplish?
-
-## Linked issues
+## Linked Issue(s)
 
 - Refs #
 - Fixes #
 
-## Mode
+## Phase
 
-Relevant for Codex PRs.
-
-- [ ] Mini
-- [ ] Spar
-- [ ] Normal
-- [ ] Voll
-- [ ] Folgeauftrag
-- [ ] Review-Fix
-- [ ] Not a Codex PR
+- [ ] Phase 0 - Project rules / architecture / guardrails
+- [ ] Phase 1 - App shell / navigation / UI foundation
+- [ ] Phase 2 - Data foundation / API budget
+- [ ] Phase 3 - Core product surfaces
+- [ ] Phase 4 - V1 hardening / release-candidate preparation
+- [ ] Phase 5 - V1 QA / release cut
+- [ ] Phase 6 - Post-V1 feature expansion
+- [ ] Not phase-bound / maintenance
 
 ## Summary
 
 - TBD
 
-## Changed files
+## Scope
+
+- Allowed changes:
+- Changed files:
+- Codex involvement / mode:
+
+## Non-goals
 
 - TBD
 
-## Verification
+## UI / UX Impact
 
-- [ ] `npm run lint`
-- [ ] `npm run build`
-- [ ] Not run, with reason:
+- [ ] No UI change
+- [ ] Navigation changed
+- [ ] Screen/section changed
+- [ ] Form/control changed
+- [ ] Empty/loading/error/stale state changed
+- [ ] Visual/responsive behavior changed
+- [ ] Accessibility impact reviewed
 
-## Documentation impact
+## Visual Checklist
 
-- [ ] Documentation updated
-- [ ] No documentation change needed
-- [ ] German translation checked where a matching `.de.md` file exists
-- [ ] German translation intentionally deferred
+- [ ] Desktop layout reviewed
+- [ ] Mobile/responsive layout reviewed
+- [ ] Text overflow checked
+- [ ] Empty/loading/error/stale states reviewed
+- [ ] Screenshots or visual notes included when useful and privacy-safe
+- [ ] Not applicable, with reason:
 
-## Risk
+## API Budget Impact
 
-Short risk statement. Keep this present even for documentation-only PRs.
+Required. Do not leave blank. `none` is allowed only when consciously entered.
 
-## Rollback
+- Provider/API requests triggered:
+- Cache/snapshot reuse:
+- Retry/rate-limit behavior:
+- Hidden reload risk:
 
-How can this PR be reverted or backed out?
+## Privacy / Data Impact
 
-## Codex involvement
+Required. Do not leave blank. `none` is allowed only when consciously entered.
 
-- [ ] Codex was involved
-- [ ] Codex was not involved
+- Private data touched:
+- Logs/diagnostics/exports:
+- Screenshots/examples:
+- Redaction notes:
 
-If Codex was involved, state the mode and any relevant constraints.
+## Architecture / Data Model Impact
 
-## What was intentionally not changed
+- [ ] No architecture or data-model impact
+- [ ] ADR added/updated
+- [ ] Existing ADR still applies
+- [ ] Provider DTO / internal model / UI read-model boundary reviewed
+- Notes:
 
-Relevant for larger PRs.
+## Documentation Impact
 
-- TBD
+- [ ] README/docs updated
+- [ ] Phase plan updated
+- [ ] V1 guardrails updated
+- [ ] ADR added/updated
+- [ ] Changelog updated
+- [ ] German translation impact checked where a matching `.de.md` file exists
+- [ ] No documentation change needed, with reason:
 
-## Checklist
+## Testing
 
-- [ ] Scope matches the linked issue(s)
-- [ ] No unrelated refactor or cleanup
-- [ ] No private Parqet exports, real portfolio/depot data, screenshots with private data, tokens, cookies, OAuth codes or `.env` files
-- [ ] `.env.example` contains placeholders only
-- [ ] If auth/API/token behavior changed, Full Review is documented
-- [ ] If architecture changed, ADR added or updated
-- [ ] If AssetTrace data, analytics, report, UI or diagnostics behavior changed, `docs/ASSETTRACE_V1_GUARDRAILS.md` review checks were applied
-- [ ] If Parqet/API behavior changed, API budget impact, cache/snapshot reuse, retry behavior and rate-limit handling are documented
-- [ ] If a matching German placeholder exists, translation impact is documented
+Use `Run`, `Not run` or `Not applicable`.
+
+- `git diff --check`:
+- YAML/Markdown validation:
+- `npm run lint`:
+- `npx tsc --noEmit`:
+- `npm run build`:
+- Manual verification:
+
+## Reviewer Checklist
+
+- [ ] Diff reviewed against linked issue acceptance criteria
+- [ ] Scope matches the issue and PR body
+- [ ] Non-goals were respected
+- [ ] API Budget Impact is present and reviewed
+- [ ] Privacy / Data Impact is present and reviewed
+- [ ] For API/data-facing changes, hidden provider calls, broad reloads, unbounded retries and raw private data exposure were checked
+- [ ] UI/visual impact reviewed when applicable
+- [ ] Architecture/data-model impact reviewed when applicable
+- [ ] Docs/changelog/ADR impact reviewed
+- [ ] No private exports, real portfolio/depot data, screenshots with private data, tokens, cookies, OAuth codes or `.env` files
+- [ ] Issues are closed only after implementation is verified against acceptance criteria
+
+## Post-merge Cleanup
+
+- [ ] Roadmap/phase plan checked
+- [ ] Docs checked
+- [ ] Related issues checked
+- [ ] Changelog checked
+- [ ] Follow-up issues created or linked for deferred work
+- [ ] Not applicable, with reason:

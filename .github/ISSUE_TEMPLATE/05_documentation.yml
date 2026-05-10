@@ -1,0 +1,58 @@
+name: Documentation
+description: Request README, docs, prompt, template or ADR documentation work.
+title: "docs: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Documentation issues must not change runtime, API or UI behavior.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Documentation area
+      options:
+        - README / documentation index
+        - Development workflow
+        - Phase plan / roadmap
+        - V1 guardrails
+        - Local quickstart
+        - ADR
+        - Issue / PR templates
+        - Changelog
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: textarea
+    id: stale_missing
+    attributes:
+      label: What is stale/missing/inconsistent
+    validations:
+      required: true
+  - type: textarea
+    id: desired_state
+    attributes:
+      label: Desired documentation state
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      placeholder: |
+        - No app implementation changes.
+        - No runtime/API/UI behavior changes.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
