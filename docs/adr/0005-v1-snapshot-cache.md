@@ -1,18 +1,18 @@
-# ADR 0005: AssetTrace v1 Snapshot Cache and Production Storage Boundary
+# ADR 0005: V1 Snapshot Cache and Production Storage Boundary
 
-Status: accepted
-Date: 2026-05-10
+Status: accepted  
+Date: 2026-05-10  
 Owner: AdrianR98
 
 ## Context
 
-AssetTrace v1 needs to reduce unnecessary Parqet/provider calls across normal navigation, filtering, sorting, reports, asset detail and activities views. The app already treats API budget as a product constraint and uses explicit dashboard load/refresh actions as the intended expensive data path.
+v1 needs to reduce unnecessary provider calls across normal navigation, filtering, sorting, reports, asset detail and activities views. The app already treats API budget as a product constraint and uses explicit dashboard load/refresh actions as the intended expensive data path.
 
 Issue #163 asks for a production cache decision, but it does not authorize durable server-side storage for private portfolio or activity data.
 
 ## Decision
 
-AssetTrace v1 uses a bounded, process-local, in-memory activity snapshot foundation for server-side route reuse and the existing bounded browser-local dashboard read model for UI reuse.
+v1 uses a bounded, process-local, in-memory activity snapshot foundation for server-side route reuse and the existing bounded browser-local dashboard read model for UI reuse.
 
 The v1 snapshot stores only derived route inputs needed by the current app surfaces:
 
@@ -25,7 +25,7 @@ The v1 snapshot stores only derived route inputs needed by the current app surfa
 
 The v1 snapshot must not store OAuth tokens, cookies, authorization headers or raw provider responses, and those values must not be exposed in UI, diagnostics or exports. It must be refreshed only by explicit load/refresh actions. Normal navigation, local filtering, local sorting, reports, asset detail and opening the Activities page must use existing snapshot/cache data or show an empty/no-snapshot state.
 
-## Production storage boundary
+## Production Storage Boundary
 
 No durable production database or server persistence is introduced in v1. The server snapshot is process-local, in-memory and non-durable; the browser cache is a local read model for UI continuity, not production persistence.
 
@@ -36,7 +36,7 @@ Durable storage remains a later decision and requires a separate ADR before impl
 3. browser-only storage with quota-aware pruning,
 4. no durable storage, relying only on explicit refresh and in-memory reuse.
 
-## Risks for a later durable cache
+## Risks For A Later Durable Cache
 
 A future durable cache decision must address:
 
@@ -62,7 +62,7 @@ Trade-offs:
 - The browser-local read model is useful for UI continuity but is not a production persistence strategy.
 - Large activity scopes may be skipped by snapshot bounds and still require explicit refresh.
 
-## Related issues
+## Related Issues
 
 - Refs #158
 - Refs #159

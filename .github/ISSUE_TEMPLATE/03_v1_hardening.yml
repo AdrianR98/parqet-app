@@ -1,0 +1,74 @@
+name: V1 Hardening
+description: Improve v1 quality, safety, consistency or release readiness without expanding scope.
+title: "chore(v1): "
+labels: []
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Hardening area
+      options:
+        - Visual / UX consistency
+        - Empty/loading/error/stale states
+        - Accessibility
+        - API budget / refresh behavior
+        - Privacy / diagnostics / exports
+        - Data model / source / freshness / confidence wording
+        - Documentation / release readiness
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: current_problem
+    attributes:
+      label: Current problem
+    validations:
+      required: true
+  - type: textarea
+    id: desired_state
+    attributes:
+      label: Desired V1-ready state
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      placeholder: |
+        - No post-v1 feature expansion.
+        - No unrelated redesign.
+        - No provider/API behavior change unless explicitly in scope.
+    validations:
+      required: true
+  - type: checkboxes
+    id: visual_checklist
+    attributes:
+      label: Visual / UX review checklist
+      options:
+        - label: Desktop layout reviewed.
+        - label: Mobile/responsive layout reviewed.
+        - label: Empty state reviewed.
+        - label: Loading state reviewed.
+        - label: Error/stale state reviewed.
+        - label: Text fits inside controls and panels.
+        - label: No hidden provider call from local UI interaction.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+    validations:
+      required: true

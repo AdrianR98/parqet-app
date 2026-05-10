@@ -10,6 +10,8 @@ defaults:
 
 shared_rules:
   - Read AGENTS.md before editing.
+  - Every non-trivial Codex task must include all required fields from prompts/codex-task-template.yaml.
+  - A prompt missing any required field is not ready to issue and must be corrected before Codex receives it.
   - Use the requested branch only.
   - Do not choose a branch name when none is provided.
   - Commit only when explicitly allowed.
@@ -33,8 +35,6 @@ mini:
     - explicitly named files
   file_limit: explicitly named files only
   repository_wide_search: false
-  allowed_changes_required: false_when_exactly_one_clear_documentation_file_is_named
-  non_goals_required: false_when_task_is_unambiguous
   pr_allowed: only_when_explicitly_requested
   report: 3-5 lines
   avoid:

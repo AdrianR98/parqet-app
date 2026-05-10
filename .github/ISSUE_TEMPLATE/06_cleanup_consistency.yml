@@ -1,0 +1,73 @@
+name: Cleanup / Consistency
+description: Correct stale docs, templates, issue text or governance inconsistencies.
+title: "chore: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cleanup may correct closed issues when title, body or status no longer matches the actual project state.
+  - type: dropdown
+    id: cleanup_type
+    attributes:
+      label: Cleanup type
+      options:
+        - Documentation consistency
+        - Template consistency
+        - Issue cleanup
+        - Link / filename migration
+        - Changelog / roadmap consistency
+        - Governance wording
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources to check
+      placeholder: |
+        - AGENTS.md
+        - README.md
+        - docs/...
+        - .github/...
+        - Issues:
+    validations:
+      required: true
+  - type: textarea
+    id: inconsistency
+    attributes:
+      label: Known inconsistency
+    validations:
+      required: true
+  - type: textarea
+    id: desired_state
+    attributes:
+      label: Desired consistent state
+    validations:
+      required: true
+  - type: textarea
+    id: allowed_updates
+    attributes:
+      label: Allowed updates
+      placeholder: |
+        - Docs/templates:
+        - Issue title/body/status corrections:
+        - Deprecated redirects:
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      placeholder: |
+        - No app code changes.
+        - No runtime/API/UI behavior changes.
+        - No label or milestone changes unless explicitly allowed.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true

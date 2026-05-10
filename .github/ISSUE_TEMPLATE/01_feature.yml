@@ -1,0 +1,159 @@
+name: Feature
+description: Propose a product capability or user-facing workflow.
+title: "feat: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include private data. New ideas must be phase-classified before implementation.
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      description: Where does this idea belong?
+      options:
+        - Phase 1 - App shell / navigation / UI foundation
+        - Phase 2 - Data foundation / API budget
+        - Phase 3 - Core product surfaces
+        - Phase 4 - V1 hardening / release-candidate preparation
+        - Phase 5 - V1 QA / release cut
+        - Phase 6 - Post-V1 feature expansion
+        - Research / ADR needed first
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One concise paragraph describing the requested capability.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What user or product outcome should this create?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / Allowed work
+      placeholder: |
+        - Allowed:
+        - Paths/surfaces:
+        - Explicitly permitted behavior changes:
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      placeholder: |
+        - No unrelated redesign.
+        - No auth/API/data-pipeline changes unless explicitly in scope.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Primary surface
+      options:
+        - App shell / navigation
+        - Dashboard
+        - Assets
+        - Activities
+        - Timeline
+        - Reports / exports
+        - Settings / diagnostics
+        - Data pipeline / API
+        - Documentation / governance
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: ui_ux_impact
+    attributes:
+      label: UI / UX impact
+      options:
+        - label: No UI change.
+        - label: New or changed navigation.
+        - label: New or changed screen/section.
+        - label: New or changed form/control.
+        - label: New or changed empty/loading/error/stale state.
+        - label: New or changed visual hierarchy, layout or responsive behavior.
+        - label: Accessibility review needed.
+    validations:
+      required: true
+  - type: textarea
+    id: visual_requirements
+    attributes:
+      label: UI / Visual requirements
+      placeholder: |
+        - Desktop:
+        - Mobile:
+        - Empty/loading/error states:
+        - Visual consistency checks:
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] User-facing behavior is defined.
+        - [ ] Edge cases are documented.
+        - [ ] Verification plan is completed.
+    validations:
+      required: true
+  - type: textarea
+    id: api_budget
+    attributes:
+      label: API Budget Impact
+      description: Required. Enter "none" only when consciously not applicable.
+      placeholder: |
+        - Provider/API requests triggered:
+        - Cache/snapshot reuse:
+        - Retry/rate-limit behavior:
+        - Hidden reload risk:
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy / Data Impact
+      description: Required. Enter "none" only when consciously not applicable.
+      placeholder: |
+        - Private data touched:
+        - Logs/diagnostics/exports:
+        - Screenshots or examples:
+        - Redaction needed:
+    validations:
+      required: true
+  - type: textarea
+    id: docs_adr
+    attributes:
+      label: Documentation / ADR Impact
+      placeholder: |
+        - Docs to update:
+        - ADR needed? yes/no:
+        - Changelog needed? yes/no:
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      placeholder: |
+        - Run:
+        - Manual review:
+        - Not applicable:
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Links / Related issues
+    validations:
+      required: false

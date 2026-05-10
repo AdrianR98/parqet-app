@@ -8,6 +8,9 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added app-neutral `docs/PHASE_PLAN.md`, `docs/V1_GUARDRAILS.md` and `docs/LOCAL_QUICKSTART.md` as the current governance document structure.
+- Added GitHub Issue Forms for feature, bug, v1 hardening, research/ADR, documentation, cleanup/consistency and release checklist issues.
+
 - Added a local-first Activities product surface with read-only cards, safe detail panel, local filters, sort controls, pagination and freshness/source status.
 - Added a global read-only Timeline product surface with month/year grouping, local timeline filters, portfolio-scope mismatch notice and no automatic provider or audit-route loading.
 - Added shared local Activity read-model helpers for safe display projection, German activity labels, local filtering/sorting and timeline grouping.
@@ -49,6 +52,12 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Shared Parqet API diagnostics helpers and safe API-budget metadata for asset/audit flows.
 
 ### Changed
+
+- Neutralized governance, workflow, v1 guardrail and template wording so durable repository rules do not depend on the current visible product name.
+- Strengthened the PR template with required Phase, Scope, Non-goals, API Budget Impact, Privacy / Data Impact, UI / UX Impact, Testing, Reviewer Checklist and Post-merge Cleanup sections.
+- Strengthened Codex task governance so non-trivial prompts must include scope, non-goals, acceptance criteria, verification, API Budget Impact and Privacy/Data Impact before issue.
+- Renamed the phase-plan, v1-guardrail, local quickstart and ADR 0005 references to the app-neutral document structure.
+- Removed deprecated app-name-specific compatibility docs after all repository references moved to neutral targets.
 
 - Documented that Activities and Timeline use local/snapshot-backed Activity Items and require explicit Dashboard refresh for new provider data.
 - AssetTrace v1 navigation, activity detail fields, timeline summary, app-bar status and user-facing severity/freshness wording are now more consistent across local snapshot-backed surfaces.

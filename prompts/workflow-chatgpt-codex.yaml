@@ -10,7 +10,7 @@ workflow:
     output: human-readable issue draft with acceptance criteria, non-goals, verification and risks
   - step: codex_prompt_generation
     owner: ChatGPT
-    output: separate Codex task prompt generated from the issue, not stored as an issue comment
+    output: separate Codex task prompt generated from the issue, using all required fields from prompts/codex-task-template.yaml, not stored as an issue comment
   - step: repository_execution
     owner: Codex
     output: branch, bounded changes, verification report and PR when requested

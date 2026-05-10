@@ -77,7 +77,16 @@ Use at least `Normal` for `scripts/**`, `package.json`, `.github/workflows/**`, 
 
 ## Codex Task Rules
 
-Every non-trivial Codex task should include:
+Before GitHub actions such as issue updates, PR creation, review comments, branch publication or merge execution, agents must check:
+
+- `AGENTS.md`
+- `.github/ISSUE_TEMPLATE/*`
+- `.github/PULL_REQUEST_TEMPLATE.md`
+- `docs/DEVELOPMENT_WORKFLOW.md`
+- `docs/PHASE_PLAN.md`
+- `docs/V1_GUARDRAILS.md`
+
+Every non-trivial Codex task must include:
 
 ```text
 Repo:
@@ -85,9 +94,15 @@ Mode:
 Branch:
 Create PR:
 Linked issues:
+Allowed changes:
+Non-goals:
+Acceptance criteria:
+Verification:
+API Budget Impact:
+Privacy/Data Impact:
 ```
 
-`Allowed changes` and `Non-goals` are required for code, `Normal`, `Voll`, governance, CI, agent and workflow tasks. They may be omitted only for clear `Mini` documentation tasks with exactly named files.
+If any required field is missing, the prompt is not ready to be issued and must be corrected before it is given to Codex.
 
 Codex may commit only when the task explicitly allows commits. Codex may open a PR only when `Create PR: yes`. Codex must not choose a branch name if none was provided. Codex must never merge.
 
@@ -220,6 +235,8 @@ Use `Fixes #...` only when the PR fully closes the issue. Use `Refs #...` for pa
 
 ChatGPT creates Codex prompts separately from issues. Codex prompts are not stored as issue comments.
 
+Do not close issues without verifying implementation against acceptance criteria. Closed issues may be corrected during cleanup when title, body or status no longer matches the actual project state.
+
 ## GitHub Project Board
 
 The GitHub Project Board is the working view for active Parqet App work. It does not replace issue bodies, Parent/Sub-Issue checklists or PR review history.
@@ -262,6 +279,18 @@ Squash Merge is the default. Merge Commit is used only when commit history shoul
 
 Adrian decides merges. ChatGPT may execute a merge only after explicit instruction. Codex never merges.
 
+No PR may be merged without a diff review against:
+
+- linked issue acceptance criteria,
+- API-budget impact,
+- privacy/data impact,
+- non-goals,
+- relevant v1 guardrails.
+
+For API/data-facing changes, reviewers must look for hidden provider calls, broad reloads, unbounded retries and raw private data exposure.
+
+After larger PRs, check whether roadmap, phase plan, docs, issues and changelog need updates.
+
 ## Review Levels
 
 | Review level | Use | Checks |
@@ -283,7 +312,7 @@ Missing docs, changelog or ADR is a Blocker only if the change is documentation-
 
 For Parqet/API-touching changes, unbounded retries, accidental full reloads, missing rate-limit handling or unclear request impact are review findings.
 
-AssetTrace v1 data, analytics, report, UI and diagnostics PRs must also satisfy `docs/ASSETTRACE_V1_GUARDRAILS.md`: no duplicate calculation pipelines, no avoidable provider DTO passthrough into UI, no private raw data in UI/logs/exports, no automatic provider calls from local UI actions, documented API budget impact, and honest source/freshness/confidence disclosure.
+v1 data, analytics, report, UI and diagnostics PRs must also satisfy `docs/V1_GUARDRAILS.md`: no duplicate calculation pipelines, no avoidable provider DTO passthrough into UI, no private raw data in UI/logs/exports, no automatic provider calls from local UI actions, documented API budget impact, and honest source/freshness/confidence disclosure.
 
 ## Documentation Impact
 
@@ -308,10 +337,12 @@ Check documentation as relevant:
 - `README.md` for setup, usage, entrypoint or central links.
 - `docs/PROJECT_STATUS.md` for phase changes, status, next steps or risks.
 - `docs/PHASE_PLAN.md` for Parent-Issues and phase/sub-issue planning.
+- `docs/V1_GUARDRAILS.md` for v1 data, API-budget, privacy, diagnostics and export rules.
+- `docs/LOCAL_QUICKSTART.md` for local usage and explicit refresh guidance.
 - `docs/ROADMAP.md` for larger direction or priority changes.
 - `docs/PROJECT_PRODUCT_BRIEF.md` for product goal/scope changes.
 - `docs/ARCHITECTURE.md` for current architecture/target-state changes.
-- ADRs for durable architecture, workflow or data decisions.
+- ADRs for durable architecture, workflow or data decisions, including `docs/adr/0005-v1-snapshot-cache.md` for the v1 snapshot cache and production storage boundary.
 - Matching `.de.md` files for translation follow-up checks.
 
 Changelog categories:

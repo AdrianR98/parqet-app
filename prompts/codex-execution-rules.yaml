@@ -3,6 +3,7 @@ purpose: Execution and reporting rules for Codex tasks.
 
 execution:
   - Inspect requested files before editing.
+  - Treat prompts missing any required field from prompts/codex-task-template.yaml as not ready to issue.
   - Respect the branch requested by the task.
   - Do not choose a branch name if none was provided.
   - Commit only when the task explicitly allows commits.
