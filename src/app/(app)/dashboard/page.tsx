@@ -151,7 +151,7 @@ export default function DashboardPage() {
                     <div className="app-section-stack">
                         <CollapsibleAssetTableSection
                             title="Wertpapiere"
-                            subtitle="Offene Positionen aus dem geladenen Stand für die ausgewählte Portfolio-Auswahl. Suche, Sortierung und Spaltenauswahl bleiben lokal."
+                            subtitle="Offene Positionen aus dem zuletzt geladenen Stand. Suche, Sortierung und Spaltenauswahl bleiben lokal."
                             assets={sortedActiveAssets}
                             loading={loadingAssets && !hasCachedData}
                             emptyTitle="Noch keine Wertpapiere geladen"
