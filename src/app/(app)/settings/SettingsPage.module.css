@@ -108,6 +108,41 @@
     gap: 10px;
 }
 
+.connectionStatus {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.connectionLabel {
+    color: var(--text-main);
+    font-weight: 700;
+}
+
+.connectionDescription {
+    color: var(--text-soft);
+    line-height: 1.45;
+}
+
+.connection_usable {
+    border-color: rgba(34, 197, 94, 0.38);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.connection_auth_required {
+    border-color: rgba(248, 113, 113, 0.42);
+    background: rgba(248, 113, 113, 0.1);
+}
+
+.connection_local_data {
+    border-color: rgba(250, 204, 21, 0.4);
+    background: rgba(250, 204, 21, 0.1);
+}
+
 .diagnosticItem {
     display: flex;
     justify-content: space-between;
