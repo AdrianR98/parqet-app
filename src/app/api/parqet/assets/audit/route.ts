@@ -7,6 +7,11 @@ import {
 } from "../../../../../lib/parqet";
 import { toNumber } from "../../../../../lib/parqet-assets/activity-utils";
 import { buildActivityContext } from "../../../../../lib/parqet-assets/build-activity-context";
+import {
+    classifyParqetApiError,
+    messageForDiagnostic,
+    redactProviderErrorMessage,
+} from "../../../../../lib/parqet-api-diagnostics";
 import type {
     ActivitiesAuditApiResponse,
     ActivitiesAuditItem,
@@ -532,6 +537,9 @@ export async function GET(req: Request) {
          * Falls künftig wieder etwas "nur allgemein" fehlschlägt,
          * hier zuerst auf details achten.
          */
+        const diagnostic = classifyParqetApiError(error);
+        const message = messageForDiagnostic(diagnostic);
+
         return NextResponse.json(
             {
                 ok: false,
@@ -540,8 +548,8 @@ export async function GET(req: Request) {
                 items: [],
                 reconciliationWarnings: [],
                 summary: emptySummary(),
-                message: "Asset audit route failed.",
-                details: error instanceof Error ? error.message : String(error),
+                message,
+                details: redactProviderErrorMessage(message),
             } satisfies ActivitiesAuditApiResponse,
             { status: 500 }
         );

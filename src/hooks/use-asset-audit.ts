@@ -75,8 +75,8 @@ export function useAssetAudit(): UseAssetAuditResult {
                 }
 
                 throw new Error(
-                    [json.message, json.details].filter(Boolean).join(" — ") ||
-                    "Audit-Daten konnten nicht geladen werden."
+                    json.message ||
+                    "Audit-Daten konnten nicht geladen werden. Bitte versuche es später manuell erneut."
                 );
             }
 
@@ -87,7 +87,7 @@ export function useAssetAudit(): UseAssetAuditResult {
             setError(
                 error instanceof Error
                     ? error.message
-                    : "Audit-Daten konnten nicht geladen werden."
+                    : "Audit-Daten konnten nicht geladen werden. Bitte versuche es später manuell erneut."
             );
             setData(null);
         } finally {

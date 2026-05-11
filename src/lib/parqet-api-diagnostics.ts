@@ -79,17 +79,19 @@ export function classifyParqetApiError(error: unknown): ParqetApiDiagnostic {
 export function messageForDiagnostic(diagnostic: ParqetApiDiagnostic): string {
   switch (diagnostic.category) {
     case "missing_access_token":
-      return "Parqet access token is missing.";
+      return "Die Parqet-Verbindung ist nicht aktiv. Bitte verbinde Parqet erneut.";
     case "auth_refresh_failed":
-      return "Parqet connection expired and refresh failed.";
+      return "Die Parqet-Verbindung ist abgelaufen. Bitte verbinde Parqet erneut.";
     case "rate_limit":
-      return "Parqet rate limit reached. Retry later before running another expensive request.";
+      return diagnostic.retryAfterSeconds
+        ? `Parqet begrenzt gerade weitere Anfragen. Bitte warte etwa ${diagnostic.retryAfterSeconds} Sekunden, bevor du manuell erneut aktualisierst.`
+        : "Parqet begrenzt gerade weitere Anfragen. Bitte warte und versuche es später manuell erneut.";
     case "auth_error":
-      return "Parqet authorization failed.";
+      return "Die Parqet-Verbindung konnte nicht bestätigt werden. Bitte verbinde Parqet erneut.";
     case "provider_error":
-      return "Parqet provider request failed.";
+      return "Parqet konnte die angefragten Daten gerade nicht liefern. Bitte versuche es später manuell erneut.";
     case "pipeline_error":
-      return "Parqet data pipeline failed.";
+      return "Die geladenen Parqet-Daten konnten nicht vollständig vorbereitet werden. Bitte versuche es später erneut oder prüfe die lokalen Diagnosehinweise.";
   }
 }
 

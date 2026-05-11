@@ -24,7 +24,7 @@ type AssetAuditPanelProps = {
     onOverridesSavedAction?: () => Promise<void> | void;
 };
 
-const DEBUG_ASSET_AUDIT_PANEL = true;
+const DEBUG_ASSET_AUDIT_PANEL = false;
 
 function debugLog(message: string, payload?: unknown) {
     if (!DEBUG_ASSET_AUDIT_PANEL) return;

@@ -32,6 +32,10 @@ import type {
   PortfoliosApiResponse,
   ReconciliationWarning,
 } from "../lib/types";
+import {
+  messageForDiagnostic,
+  type ParqetApiDiagnostic,
+} from "../lib/parqet-api-diagnostics";
 import { usePortfolioFilter } from "./use-portfolio-filter";
 
 type UseDashboardDataResult = {
@@ -92,6 +96,49 @@ function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
   return sortedLeft.every((id, index) => id === sortedRight[index]);
 }
 
+function getResponseDiagnostic(
+  data: AssetsApiResponse | PortfoliosApiResponse,
+): ParqetApiDiagnostic | null {
+  const diagnostic = (data as { diagnostic?: ParqetApiDiagnostic }).diagnostic;
+  return diagnostic?.category ? diagnostic : null;
+}
+
+function getUserFacingErrorMessage(
+  data: AssetsApiResponse | PortfoliosApiResponse,
+  fallback: string,
+): string {
+  const diagnostic = getResponseDiagnostic(data);
+
+  if (diagnostic) {
+    return messageForDiagnostic(diagnostic);
+  }
+
+  return data.message || fallback;
+}
+
+function getUserFacingCaughtErrorMessage(error: unknown, fallback: string): string {
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const lowerMessage = rawMessage.toLowerCase();
+
+  if (rawMessage.includes("Bitte ") || rawMessage.includes("bitte ")) {
+    return rawMessage;
+  }
+
+  if (lowerMessage.includes("rate limit") || lowerMessage.includes("429")) {
+    return messageForDiagnostic({ category: "rate_limit" });
+  }
+
+  if (
+    lowerMessage.includes("provider") ||
+    lowerMessage.includes("parqet") ||
+    lowerMessage.includes("fetch failed")
+  ) {
+    return `${fallback} Parqet konnte die Daten gerade nicht liefern. Bitte versuche es später manuell erneut.`;
+  }
+
+  return `${fallback} Bitte versuche es später manuell erneut.`;
+}
+
 export function useDashboardData(): UseDashboardDataResult {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [showWarningsPanel, setShowWarningsPanel] = useState(false);
@@ -146,7 +193,8 @@ export function useDashboardData(): UseDashboardDataResult {
     setAuthRequired(true);
     setReconnectUrl(url || "/api/auth/start");
     setErrorMessage(
-      message || "Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.",
+      message ||
+        "Die Parqet-Verbindung ist nicht mehr aktiv. Bitte verbinde Parqet erneut, bevor du Daten lädst.",
     );
   }
 
@@ -176,7 +224,10 @@ export function useDashboardData(): UseDashboardDataResult {
           }
 
           throw new Error(
-            data.message || "Portfolios konnten nicht geladen werden.",
+            getUserFacingErrorMessage(
+              data,
+              "Portfolios konnten nicht geladen werden. Bitte versuche es später manuell erneut.",
+            ),
           );
         }
 
@@ -199,9 +250,10 @@ export function useDashboardData(): UseDashboardDataResult {
         }
       } catch (error) {
         setErrorMessage(
-          `Portfolios konnten nicht geladen werden: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          getUserFacingCaughtErrorMessage(
+            error,
+            "Portfolios konnten nicht geladen werden.",
+          ),
         );
       } finally {
         setLoadingPortfolios(false);
@@ -266,7 +318,12 @@ export function useDashboardData(): UseDashboardDataResult {
           return;
         }
 
-        throw new Error(data.message || "Assets konnten nicht geladen werden.");
+        throw new Error(
+          getUserFacingErrorMessage(
+            data,
+            "Assets konnten nicht geladen werden. Bitte versuche es später manuell erneut.",
+          ),
+        );
       }
 
       clearAuthState();
@@ -323,9 +380,10 @@ export function useDashboardData(): UseDashboardDataResult {
       saveDashboardCache(cachePayload);
     } catch (error) {
       setErrorMessage(
-        `Assets konnten nicht geladen werden: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        getUserFacingCaughtErrorMessage(
+          error,
+          "Assets konnten nicht geladen werden.",
+        ),
       );
     } finally {
       assetLoadInFlightRef.current = false;

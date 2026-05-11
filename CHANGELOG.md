@@ -53,6 +53,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- User-facing Parqet auth, rate-limit and provider error wording is now clearer in German, discourages repeated refresh attempts during rate limits and keeps raw/debug details out of normal Dashboard and Asset Audit UI states.
 - Neutralized governance, workflow, v1 guardrail and template wording so durable repository rules do not depend on the current visible product name.
 - Strengthened the PR template with required Phase, Scope, Non-goals, API Budget Impact, Privacy / Data Impact, UI / UX Impact, Testing, Reviewer Checklist and Post-merge Cleanup sections.
 - Strengthened Codex task governance so non-trivial prompts must include scope, non-goals, acceptance criteria, verification, API Budget Impact and Privacy/Data Impact before issue.
