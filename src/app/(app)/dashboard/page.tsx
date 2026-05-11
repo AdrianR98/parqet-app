@@ -27,6 +27,7 @@ export default function DashboardPage() {
         selectedPortfolioIds,
         draftPortfolioIds,
         selectedPortfolioCount,
+        loadedPortfolioCount,
         isPortfolioDropdownOpen,
         showWarningsPanel,
         portfolioDropdownRef,
@@ -71,10 +72,12 @@ export default function DashboardPage() {
                         selectedPortfolioIds={selectedPortfolioIds}
                         draftPortfolioIds={draftPortfolioIds}
                         selectedPortfolioCount={selectedPortfolioCount}
+                        loadedPortfolioCount={loadedPortfolioCount}
                         assetCount={assetCount}
                         loadingAssets={loadingAssets}
                         refreshingAssets={refreshingAssets}
                         hasCachedData={hasCachedData}
+                        hasPendingPortfolioSelection={hasPendingPortfolioSelection}
                         isPortfolioDropdownOpen={isPortfolioDropdownOpen}
                         onToggleOpen={() =>
                             setIsPortfolioDropdownOpen((current) => !current)
@@ -110,7 +113,7 @@ export default function DashboardPage() {
 
                     {hasPendingPortfolioSelection ? (
                         <div className="ui-banner ui-banner-info">
-                            Die Portfolio-Auswahl wurde geändert. Die Ansicht zeigt weiterhin den letzten geladenen Stand. Klicke auf „Manuell aktualisieren“, um die neue Auswahl zu übernehmen.
+                            Die Portfolio-Auswahl wurde geändert. Die Ansicht zeigt weiterhin den letzten geladenen Stand. Klicke auf „Manuell aktualisieren“, um Daten für die neue Auswahl zu laden.
                         </div>
                     ) : null}
 
@@ -148,7 +151,7 @@ export default function DashboardPage() {
                     <div className="app-section-stack">
                         <CollapsibleAssetTableSection
                             title="Wertpapiere"
-                            subtitle="Offene Positionen über alle ausgewählten Portfolios. Suche, Sortierung und Spaltenauswahl bleiben lokal."
+                            subtitle="Offene Positionen aus dem geladenen Stand für die ausgewählte Portfolio-Auswahl. Suche, Sortierung und Spaltenauswahl bleiben lokal."
                             assets={sortedActiveAssets}
                             loading={loadingAssets && !hasCachedData}
                             emptyTitle="Noch keine Wertpapiere geladen"

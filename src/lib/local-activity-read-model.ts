@@ -453,11 +453,23 @@ export function getScopeIndicatorLabel(
 ): string {
   if (model.scope.mode === "all") {
     return model.scopedPortfolioIds.length > 0
-      ? `Scope: alle (${model.scopedPortfolioIds.length})`
-      : "Scope: alle";
+      ? `Auswahl: alle (${model.scopedPortfolioIds.length})`
+      : "Auswahl: alle";
   }
 
   return model.scopedPortfolioIds.length === 1
-    ? "Scope: 1 Portfolio"
-    : `Scope: ${model.scopedPortfolioIds.length} Portfolios`;
+    ? "Auswahl: 1 Portfolio"
+    : `Auswahl: ${model.scopedPortfolioIds.length} Portfolios`;
+}
+
+export function getLoadedScopeIndicatorLabel(
+  model: Pick<LocalActivityReadModel, "loadedPortfolioIds" | "generatedAt">,
+): string {
+  if (!model.generatedAt || model.loadedPortfolioIds.length === 0) {
+    return "Geladen: kein Stand";
+  }
+
+  return model.loadedPortfolioIds.length === 1
+    ? "Geladen: 1 Portfolio"
+    : `Geladen: ${model.loadedPortfolioIds.length} Portfolios`;
 }

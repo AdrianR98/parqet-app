@@ -61,6 +61,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 - Documented that Activities and Timeline use local/snapshot-backed Activity Items and require explicit Dashboard refresh for new provider data.
 - AssetTrace v1 navigation, activity detail fields, timeline summary, app-bar status and user-facing severity/freshness wording are now more consistent across local snapshot-backed surfaces.
+- Clarified Portfolio scope wording across Dashboard, selector, app bar and Settings so selected scope and loaded data scope are easier to distinguish without automatic refreshes.
 
 - German financial, quantity, date and warning severity formatting is now centralized and reused by report/dashboard surfaces.
 - Dashboard portfolio selection now persists through the local global portfolio scope without triggering hidden provider refreshes.

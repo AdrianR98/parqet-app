@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
     getFreshnessStatusLabel,
+    getLoadedScopeIndicatorLabel,
     getScopeIndicatorLabel,
     loadLocalActivityReadModel,
 } from "../../lib/local-activity-read-model";
@@ -47,6 +48,7 @@ export default function HeaderBar({
             <div className={styles.center} aria-label="Aktueller App-Status">
                 <span className={styles.scopePill}>Bereich: {VIEW_LABELS[activeView]}</span>
                 <span className={styles.statusPill}>{getScopeIndicatorLabel(localStatus)}</span>
+                <span className={styles.statusPill}>{getLoadedScopeIndicatorLabel(localStatus)}</span>
                 <span className={styles.statusPill}>{getFreshnessStatusLabel(localStatus)}</span>
                 <Link
                     href="/dashboard"

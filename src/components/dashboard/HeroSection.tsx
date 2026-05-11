@@ -8,10 +8,12 @@ type HeroSectionProps = {
     selectedPortfolioIds: string[];
     draftPortfolioIds: string[];
     selectedPortfolioCount: number;
+    loadedPortfolioCount: number;
     assetCount: number;
     loadingAssets: boolean;
     refreshingAssets: boolean;
     hasCachedData: boolean;
+    hasPendingPortfolioSelection: boolean;
     isPortfolioDropdownOpen: boolean;
     onToggleOpen: () => void;
     onToggleDraftPortfolio: (portfolioId: string) => void;
@@ -47,10 +49,12 @@ export default function HeroSection({
     selectedPortfolioIds,
     draftPortfolioIds,
     selectedPortfolioCount,
+    loadedPortfolioCount,
     assetCount,
     loadingAssets,
     refreshingAssets,
     hasCachedData,
+    hasPendingPortfolioSelection,
     isPortfolioDropdownOpen,
     onToggleOpen,
     onToggleDraftPortfolio,
@@ -79,6 +83,12 @@ export default function HeroSection({
                     <div className={styles.metaLine}>
                         <span>{selectedPortfolioCount} Portfolios ausgewählt</span>
                         <span>·</span>
+                        <span>
+                            {loadedPortfolioCount > 0
+                                ? `${loadedPortfolioCount} im geladenen Stand`
+                                : "Noch kein geladener Portfolio-Stand"}
+                        </span>
+                        <span>·</span>
                         <span>{assetCount} geladene Assets</span>
                         {lastUpdatedAt ? (
                             <>
@@ -100,6 +110,12 @@ export default function HeroSection({
                     {showStaleWarning ? (
                         <div className={styles.warningLine}>
                             Hinweis: Der Stand kann veraltet sein. Aktualisiere explizit, wenn du neue Parqet-Daten übernehmen möchtest.
+                        </div>
+                    ) : null}
+
+                    {hasPendingPortfolioSelection ? (
+                        <div className={styles.warningLine}>
+                            Auswahl und geladener Stand unterscheiden sich. Aktualisiere manuell, wenn die neue Auswahl geladen werden soll.
                         </div>
                     ) : null}
 

@@ -39,6 +39,7 @@ type UseDashboardDataResult = {
   selectedPortfolioIds: string[];
   draftPortfolioIds: string[];
   selectedPortfolioCount: number;
+  loadedPortfolioCount: number;
   isPortfolioDropdownOpen: boolean;
   showWarningsPanel: boolean;
   portfolioDropdownRef: React.RefObject<HTMLDivElement | null>;
@@ -361,6 +362,10 @@ export function useDashboardData(): UseDashboardDataResult {
     ).length;
   }, [portfolios, selectedPortfolioIds]);
 
+  const loadedPortfolioCount = useMemo(() => {
+    return lastLoadedPortfolioIds.length;
+  }, [lastLoadedPortfolioIds]);
+
   const hasPendingPortfolioSelection = useMemo(() => {
     return (
       hasCachedData &&
@@ -415,6 +420,7 @@ export function useDashboardData(): UseDashboardDataResult {
     selectedPortfolioIds,
     draftPortfolioIds,
     selectedPortfolioCount,
+    loadedPortfolioCount,
     isPortfolioDropdownOpen,
     showWarningsPanel,
     portfolioDropdownRef,
