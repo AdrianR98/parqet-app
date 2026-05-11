@@ -219,6 +219,7 @@ Avoid wording that implies certainty when confidence is not high:
 
 ## Review Checklist For Future PRs
 
+- Run or reference `docs/V1_API_BUDGET_QA_CHECKLIST.md` for v1 release-readiness triage and provider-call-safe UI flow review.
 - No duplicate calculation pipeline: calculations reuse canonical normalization/aggregation layers or explain an ADR-backed exception.
 - No Provider DTOs directly in UI where avoidable: UI receives read models/projections, not raw provider responses.
 - No private raw data in UI, logs, diagnostics, exports, examples, fixtures or screenshots.

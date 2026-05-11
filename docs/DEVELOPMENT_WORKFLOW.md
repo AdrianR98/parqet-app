@@ -289,6 +289,8 @@ No PR may be merged without a diff review against:
 
 For API/data-facing changes, reviewers must look for hidden provider calls, broad reloads, unbounded retries and raw private data exposure.
 
+Before v1 release-readiness decisions, reviewers should use `docs/V1_API_BUDGET_QA_CHECKLIST.md` to manually verify provider-call-safe local UI flows without requiring real provider calls.
+
 After larger PRs, check whether roadmap, phase plan, docs, issues and changelog need updates.
 
 ## Review Levels
@@ -312,7 +314,7 @@ Missing docs, changelog or ADR is a Blocker only if the change is documentation-
 
 For Parqet/API-touching changes, unbounded retries, accidental full reloads, missing rate-limit handling or unclear request impact are review findings.
 
-v1 data, analytics, report, UI and diagnostics PRs must also satisfy `docs/V1_GUARDRAILS.md`: no duplicate calculation pipelines, no avoidable provider DTO passthrough into UI, no private raw data in UI/logs/exports, no automatic provider calls from local UI actions, documented API budget impact, and honest source/freshness/confidence disclosure.
+v1 data, analytics, report, UI and diagnostics PRs must also satisfy `docs/V1_GUARDRAILS.md`: no duplicate calculation pipelines, no avoidable provider DTO passthrough into UI, no private raw data in UI/logs/exports, no automatic provider calls from local UI actions, documented API budget impact, and honest source/freshness/confidence disclosure. For local UI flow regression checks, use `docs/V1_API_BUDGET_QA_CHECKLIST.md`.
 
 ## Documentation Impact
 
@@ -338,6 +340,7 @@ Check documentation as relevant:
 - `docs/PROJECT_STATUS.md` for phase changes, status, next steps or risks.
 - `docs/PHASE_PLAN.md` for Parent-Issues and phase/sub-issue planning.
 - `docs/V1_GUARDRAILS.md` for v1 data, API-budget, privacy, diagnostics and export rules.
+- `docs/V1_API_BUDGET_QA_CHECKLIST.md` for manual provider-call-safe UI flow verification before v1 release readiness.
 - `docs/LOCAL_QUICKSTART.md` for local usage and explicit refresh guidance.
 - `docs/ROADMAP.md` for larger direction or priority changes.
 - `docs/PROJECT_PRODUCT_BRIEF.md` for product goal/scope changes.

@@ -97,6 +97,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Docs
 
+- Added a v1 API-budget manual QA checklist for provider-call-safe local UI flows, release-readiness review and privacy-safe verification.
 - Added Phase-0 documentation set, ADR template and collaboration ADR.
 - Documented the Vercel ignored-build strategy in the development workflow.
 - Documented review levels, documentation impact rules, verification vocabulary and privacy guardrails.
