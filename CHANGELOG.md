@@ -50,6 +50,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Project-wide API budget minimization principle for Parqet and external provider calls.
 - Lightweight `/api/parqet/health` route for auth/portfolio checks without Activity fetches.
 - Shared Parqet API diagnostics helpers and safe API-budget metadata for asset/audit flows.
+- Lightweight local Parqet connection status indicator in the app shell and Settings without new provider calls.
 
 ### Changed
 

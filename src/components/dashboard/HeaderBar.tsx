@@ -6,6 +6,8 @@ import {
     getScopeIndicatorLabel,
     loadLocalActivityReadModel,
 } from "../../lib/local-activity-read-model";
+import { loadDashboardCache } from "../../lib/dashboard-cache";
+import { getConnectionStatusView } from "../../lib/connection-status";
 import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
@@ -30,6 +32,9 @@ export default function HeaderBar({
     onToggleThemeAction,
 }: HeaderBarProps) {
     const [localStatus] = useState(() => loadLocalActivityReadModel());
+    const [connectionStatus] = useState(() =>
+        getConnectionStatusView(loadDashboardCache()),
+    );
 
     return (
         <header className={styles.header}>
@@ -46,6 +51,11 @@ export default function HeaderBar({
 
             <div className={styles.center} aria-label="Aktueller App-Status">
                 <span className={styles.scopePill}>Bereich: {VIEW_LABELS[activeView]}</span>
+                <span
+                    className={`${styles.statusPill} ${styles[`connection_${connectionStatus.kind}`]}`}
+                >
+                    {connectionStatus.label}
+                </span>
                 <span className={styles.statusPill}>{getScopeIndicatorLabel(localStatus)}</span>
                 <span className={styles.statusPill}>{getFreshnessStatusLabel(localStatus)}</span>
                 <Link

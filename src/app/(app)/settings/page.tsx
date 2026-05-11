@@ -14,6 +14,7 @@ import {
   clearDashboardCache,
   loadDashboardCache,
 } from "../../../lib/dashboard-cache";
+import { getConnectionStatusView } from "../../../lib/connection-status";
 import type { Portfolio } from "../../../lib/types";
 import { useTheme } from "../../../hooks/use-theme";
 import styles from "./SettingsPage.module.css";
@@ -82,6 +83,9 @@ export default function SettingsPage() {
   const [cacheFreshness, setCacheFreshness] = useState(
     initialCache?.freshness ?? null,
   );
+  const [connectionStatus, setConnectionStatus] = useState(() =>
+    getConnectionStatusView(initialCache),
+  );
   const [resetMessage, setResetMessage] = useState("");
 
   const scopeResolution = useMemo(
@@ -115,6 +119,7 @@ export default function SettingsPage() {
     setCacheAssetCount(0);
     setCacheActivityCount(0);
     setCacheFreshness(null);
+    setConnectionStatus(getConnectionStatusView(null));
     setResetMessage(
       "Der lokale Dashboard-Cache wurde gelöscht. Parqet-Daten bleiben unverändert.",
     );
@@ -130,6 +135,7 @@ export default function SettingsPage() {
     setCacheAssetCount(0);
     setCacheActivityCount(0);
     setCacheFreshness(null);
+    setConnectionStatus(getConnectionStatusView(null));
     setResetMessage(
       "Lokale UI-Einstellungen und Cache wurden zurückgesetzt. In Parqet wurde nichts gelöscht.",
     );
@@ -278,15 +284,28 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="ui-banner ui-banner-info">
-            Wenn die Verbindung abgelaufen ist, zeigt das Dashboard einen
-            Reconnect-Hinweis. Tokens, Cookies und OAuth-Codes werden hier nicht
-            angezeigt.
+            Status wird nur aus dem lokalen Stand abgeleitet. Es werden keine
+            Daten automatisch geladen.
           </div>
-          <div className={styles.actions}>
-            <a className="ui-btn ui-btn-secondary" href="/api/auth/start">
-              Parqet erneut verbinden
-            </a>
+          <div
+            className={`${styles.connectionStatus} ${styles[`connection_${connectionStatus.kind}`]}`}
+            aria-label="Parqet-Verbindungsstatus"
+          >
+            <span className={styles.connectionLabel}>{connectionStatus.label}</span>
+            <span className={styles.connectionDescription}>
+              {connectionStatus.description}
+            </span>
           </div>
+          {connectionStatus.actionHref && connectionStatus.actionLabel ? (
+            <div className={styles.actions}>
+              <a
+                className="ui-btn ui-btn-secondary"
+                href={connectionStatus.actionHref}
+              >
+                {connectionStatus.actionLabel}
+              </a>
+            </div>
+          ) : null}
         </section>
 
         <section
