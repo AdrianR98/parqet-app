@@ -34,7 +34,7 @@ const CATEGORY_META: Record<TimelineCategory, { label: string; icon: string }> =
     sell: { label: "Verkauf", icon: "−" },
     dividend: { label: "Dividende", icon: "€" },
     transfer: { label: "Transfer/Buchung", icon: "↔" },
-    warning: { label: "Prüfung nötig", icon: "!" },
+    warning: { label: "Datenhinweis", icon: "!" },
     summary: { label: "Lokaler Ereignisstand", icon: "•" },
 };
 

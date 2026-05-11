@@ -6,7 +6,7 @@ import type {
 } from "./types";
 
 export type AssetDetailWarning = {
-    label: "Hinweis" | "Prüfung nötig" | "Kritisch";
+    label: "Hinweis" | "Prüfen" | "Eingeschränkt";
     message: string;
     source: string;
     occurredAt?: string | null;
@@ -219,7 +219,7 @@ export function getAssetWarnings(params: {
             .filter((item) => normalizeAssetKey(item.isin) === key)
             .flatMap((item) =>
                 item.warnings.map((message) => ({
-                    label: "Prüfung nötig" as const,
+                    label: "Prüfen" as const,
                     message,
                     source: "Konsistenzprüfung",
                 }))
@@ -229,12 +229,12 @@ export function getAssetWarnings(params: {
         .map((warning) => ({
             label:
                 warning.severity === "error"
-                    ? "Kritisch" as const
+                    ? "Eingeschränkt" as const
                     : warning.severity === "warning"
-                      ? "Prüfung nötig" as const
+                      ? "Prüfen" as const
                       : "Hinweis" as const,
             message: warning.message,
-            source: warning.source === "override" ? "Override-Prüfung" : "Reconciliation",
+            source: warning.source === "override" ? "Override-Prüfung" : "Abgleich",
             occurredAt: warning.lastChangedAt ?? null,
         }));
 

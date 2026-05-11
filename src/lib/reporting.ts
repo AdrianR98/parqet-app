@@ -35,7 +35,7 @@ export type ReportQualitySummary = {
     reconciliationReview: number;
     reconciliationCritical: number;
     totalWarnings: number;
-    label: "Hinweis" | "Prüfung nötig" | "Kritisch";
+    label: "Keine Hinweise" | "Hinweis" | "Prüfen" | "Eingeschränkt";
 };
 
 export type LocalReportModel = {
@@ -97,12 +97,12 @@ function summarizeQuality(cache: DashboardCache): ReportQualitySummary {
         totalWarnings,
         label:
             reconciliationCritical > 0
-                ? "Kritisch"
+                ? "Eingeschränkt"
                 : consistencyMessages > 0 || reconciliationReview > 0
-                  ? "Prüfung nötig"
+                  ? "Prüfen"
                   : totalWarnings > 0
                     ? "Hinweis"
-                    : "Hinweis",
+                    : "Keine Hinweise",
     };
 }
 
@@ -233,8 +233,8 @@ export function loadLocalReportModel(): LocalReportModel | null {
 
 export function mapSeverityLabel(
     warning: Pick<ReconciliationWarning, "severity">
-): "Hinweis" | "Prüfung nötig" | "Kritisch" {
-    if (warning.severity === "error") return "Kritisch";
-    if (warning.severity === "warning") return "Prüfung nötig";
+): "Hinweis" | "Prüfen" | "Eingeschränkt" {
+    if (warning.severity === "error") return "Eingeschränkt";
+    if (warning.severity === "warning") return "Prüfen";
     return "Hinweis";
 }

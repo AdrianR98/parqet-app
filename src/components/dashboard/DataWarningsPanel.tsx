@@ -56,6 +56,10 @@ export default function DataWarningsPanel({
     }
 
     const totalCount = warnings.length + reconciliationWarnings.length;
+    const consistencyMessageCount = warnings.reduce(
+        (sum, warning) => sum + warning.warnings.length,
+        0
+    );
 
     return (
         <aside className={styles.overlay} onClick={onCloseAction}>
@@ -69,13 +73,13 @@ export default function DataWarningsPanel({
                 <div className={styles.header}>
                     <div>
                         <div className={styles.eyebrow}>Prüfhinweise</div>
-                        <h2 className={styles.title}>Datenwarnungen</h2>
+                        <h2 className={styles.title}>Datenhinweise</h2>
                         <div className={styles.metaRow}>
-                            <span>{totalCount} Hinweise gesamt</span>
+                            <span>{totalCount} betroffene Einträge</span>
                             <span>·</span>
-                            <span>{warnings.length} Konsistenzwarnungen</span>
+                            <span>{consistencyMessageCount} Konsistenzhinweise</span>
                             <span>·</span>
-                            <span>{reconciliationWarnings.length} Reconciliation-Warnungen</span>
+                            <span>{reconciliationWarnings.length} Abgleichhinweise</span>
                         </div>
                     </div>
 
@@ -93,7 +97,7 @@ export default function DataWarningsPanel({
                 ===================================================== */}
                 {totalCount === 0 ? (
                     <div className="ui-banner ui-banner-info">
-                        Aktuell liegen keine Datenwarnungen vor.
+                        Keine Datenhinweise im geladenen Stand. Werte bleiben abhängig von Quelle, Datenstand und lokal verfügbarem Read-Model.
                     </div>
                 ) : null}
 
@@ -103,7 +107,7 @@ export default function DataWarningsPanel({
                 {warnings.length > 0 ? (
                     <section className={styles.section}>
                         <div className={styles.sectionHeader}>
-                            <h3 className={styles.sectionTitle}>Konsistenzwarnungen</h3>
+                            <h3 className={styles.sectionTitle}>Konsistenzhinweise</h3>
                             <div className={styles.sectionMeta}>
                                 {warnings.length} Asset
                                 {warnings.length === 1 ? "" : "s"} betroffen
@@ -127,11 +131,11 @@ export default function DataWarningsPanel({
 
                                     <div className={styles.flagGrid}>
                                         <span>
-                                            Rekonstr. Bestand:{" "}
+                                            Lokal rekonstruierter Bestand:{" "}
                                             <strong>{formatShares(warning.reconstructedNetShares)}</strong>
                                         </span>
                                         <span>
-                                            Cost Basis:{" "}
+                                            Lokal berechneter Einstand:{" "}
                                             <strong>{formatCurrency(warning.remainingCostBasis)}</strong>
                                         </span>
                                     </div>
@@ -158,9 +162,9 @@ export default function DataWarningsPanel({
                 {reconciliationWarnings.length > 0 ? (
                     <section className={styles.section}>
                         <div className={styles.sectionHeader}>
-                            <h3 className={styles.sectionTitle}>Reconciliation-Warnungen</h3>
+                            <h3 className={styles.sectionTitle}>Abgleichhinweise</h3>
                             <div className={styles.sectionMeta}>
-                                {reconciliationWarnings.length} Reconciliation-Hinweis
+                                {reconciliationWarnings.length} Hinweis
                                 {reconciliationWarnings.length === 1 ? "" : "e"}
                             </div>
                         </div>

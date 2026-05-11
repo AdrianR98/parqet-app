@@ -72,6 +72,8 @@ export default function HeroSection({
 }: HeroSectionProps) {
     const totalWarningCount =
         (consistencyWarningCount ?? 0) + (reconciliationWarningCount ?? 0);
+    const warningButtonLabel =
+        totalWarningCount > 0 ? "Datenhinweise prüfen" : "Keine Datenhinweise";
 
     return (
         <section className={`ui-surface ${styles.hero}`}>
@@ -119,6 +121,12 @@ export default function HeroSection({
                         </div>
                     ) : null}
 
+                    {totalWarningCount > 0 ? (
+                        <div className={styles.warningLine}>
+                            {totalWarningCount} Datenhinweis{totalWarningCount === 1 ? "" : "e"} im geladenen Stand können einzelne Werte einschränken. Details findest du im Hinweise-Panel.
+                        </div>
+                    ) : null}
+
                     <p className={styles.description}>
                         AssetTrace ergänzt Parqet um eine klare Analyse- und Transparenzschicht.
                         Daten werden nur über die explizite Lade- oder Aktualisierungsaktion erneuert.
@@ -142,7 +150,7 @@ export default function HeroSection({
                         className="ui-btn ui-btn-secondary"
                         onClick={onToggleWarningsPanel}
                     >
-                        Datenhinweise
+                        {warningButtonLabel}
                         {totalWarningCount > 0 ? (
                             <span className={styles.actionBadge}>{totalWarningCount}</span>
                         ) : null}

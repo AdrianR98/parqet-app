@@ -62,7 +62,7 @@ function buildMarkdownSummary(report: LocalReportModel): string {
         `- PnL: ${formatCurrency(report.totals.totalUnrealizedPnL)}`,
         `- Dividenden: ${formatCurrency(report.totals.totalDividendNet)}`,
         `- Assets: ${report.totals.activeAssets} aktiv / ${report.totals.closedAssets} geschlossen`,
-        `- Datenqualität: ${report.quality.label}, ${report.quality.totalWarnings} Hinweis(e)`,
+        `- Datenqualität: ${report.quality.label}, ${report.quality.totalWarnings} Datenhinweis(e)`,
         "",
         "## Einschränkungen",
         "- Kein PDF in v1.",
@@ -216,7 +216,11 @@ export default function ReportsPage() {
                 <div className={`ui-surface ${styles.tile}`}>
                     <span className={styles.label}>Warnungen</span>
                     <div className={styles.value}>{report.quality.totalWarnings}</div>
-                    <div className={styles.note}>Datenqualität: {report.quality.label}.</div>
+                    <div className={styles.note}>
+                        {report.quality.totalWarnings > 0
+                            ? `Datenqualität: ${report.quality.label}. Details unten.`
+                            : "Keine Datenhinweise im geladenen Stand."}
+                    </div>
                 </div>
                 <div className={`ui-surface ${styles.tile}`}>
                     <span className={styles.label}>Aktive Assets</span>
@@ -234,16 +238,16 @@ export default function ReportsPage() {
                 <div className={`ui-surface ${styles.card}`}>
                     <div className={styles.sectionHeader}>
                         <h2 className={styles.sectionTitle}>Warnungen / Datenqualität</h2>
-                        <span className={styles.sectionMeta}>nutzerverständliche Severity-Labels</span>
+                        <span className={styles.sectionMeta}>lokale Hinweise aus dem geladenen Stand</span>
                     </div>
                     <p className={styles.note}>
-                        Normale UI zeigt keine Rohpayloads oder technischen Debugdaten. Bei Warnungen gilt der Report als vorläufig; einzelne Werte können nicht verfügbar oder datenqualitätsbedingt eingeschränkt sein.
+                        Normale UI zeigt keine Rohpayloads oder technischen Debugdaten. Bei Datenhinweisen bleibt der Report vorläufig; einzelne Werte können nicht verfügbar oder datenqualitätsbedingt eingeschränkt sein.
                     </p>
                     <div className={styles.qualityList}>
-                        <div className={styles.qualityItem}><span>Konsistenzwarnungen</span><strong>{report.quality.consistencyMessages}</strong></div>
+                        <div className={styles.qualityItem}><span>Konsistenzhinweise</span><strong>{report.quality.consistencyMessages}</strong></div>
                         <div className={styles.qualityItem}><span>Hinweis</span><strong>{report.quality.reconciliationInfo}</strong></div>
-                        <div className={styles.qualityItem}><span>Prüfung nötig</span><strong>{report.quality.reconciliationReview}</strong></div>
-                        <div className={styles.qualityItem}><span>Kritisch</span><strong>{report.quality.reconciliationCritical}</strong></div>
+                        <div className={styles.qualityItem}><span>Prüfen</span><strong>{report.quality.reconciliationReview}</strong></div>
+                        <div className={styles.qualityItem}><span>Eingeschränkt</span><strong>{report.quality.reconciliationCritical}</strong></div>
                     </div>
                 </div>
 
