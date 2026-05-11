@@ -4,6 +4,18 @@ import {
     refreshParqetAccessToken,
 } from "../../../../lib/parqet";
 
+function messageForPortfolioStatus(status: number) {
+    if (status === 429) {
+        return "Parqet begrenzt gerade weitere Anfragen. Bitte warte und versuche es später manuell erneut.";
+    }
+
+    if (status >= 500) {
+        return "Parqet konnte die Portfolios gerade nicht liefern. Bitte versuche es später manuell erneut.";
+    }
+
+    return "Portfolios konnten nicht geladen werden. Bitte versuche es später manuell erneut.";
+}
+
 function buildReconnectResponse(message: string) {
     const response = NextResponse.json(
         {
@@ -76,9 +88,8 @@ export async function GET(req: Request) {
                 return NextResponse.json(
                     {
                         ok: false,
-                        message: "Failed to load portfolios from Parqet after refresh.",
+                        message: messageForPortfolioStatus(portfoliosRes.status),
                         status: portfoliosRes.status,
-                        response: rawText,
                     },
                     { status: 500 }
                 );
@@ -119,9 +130,8 @@ export async function GET(req: Request) {
             return NextResponse.json(
                 {
                     ok: false,
-                    message: "Failed to load portfolios from Parqet.",
+                    message: messageForPortfolioStatus(portfoliosRes.status),
                     status: portfoliosRes.status,
-                    response: rawText,
                 },
                 { status: 500 }
             );
@@ -134,12 +144,11 @@ export async function GET(req: Request) {
             refreshed: false,
             portfolios,
         });
-    } catch (error: unknown) {
+    } catch {
         return NextResponse.json(
             {
                 ok: false,
-                message: "Unexpected server error while loading portfolios.",
-                details: error instanceof Error ? error.message : String(error),
+                message: "Portfolios konnten nicht geladen werden. Bitte versuche es später manuell erneut.",
             },
             { status: 500 }
         );
