@@ -41,8 +41,9 @@ export function getConnectionStatusView(
   if (cache?.lastUpdatedAt && (cache.assetCount ?? 0) > 0) {
     return {
       kind: "usable",
-      label: "Verbindung nutzbar",
-      description: "Lokale Daten sind vorhanden. Aktualisierung bleibt manuell.",
+      label: "Lokale Daten vorhanden",
+      description:
+        "Der lokale Stand ist verfügbar. Eine manuelle Aktualisierung kann eine erneute Parqet-Verbindung erfordern.",
       actionLabel: null,
       actionHref: null,
     };

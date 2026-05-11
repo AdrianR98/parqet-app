@@ -296,14 +296,16 @@ export default function SettingsPage() {
               {connectionStatus.description}
             </span>
           </div>
-          <div className={styles.actions}>
-            <a
-              className="ui-btn ui-btn-secondary"
-              href={connectionStatus.actionHref ?? "/api/auth/start"}
-            >
-              {connectionStatus.actionLabel ?? "Parqet erneut verbinden"}
-            </a>
-          </div>
+          {connectionStatus.actionHref && connectionStatus.actionLabel ? (
+            <div className={styles.actions}>
+              <a
+                className="ui-btn ui-btn-secondary"
+                href={connectionStatus.actionHref}
+              >
+                {connectionStatus.actionLabel}
+              </a>
+            </div>
+          ) : null}
         </section>
 
         <section
