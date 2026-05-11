@@ -38,6 +38,9 @@ export default function PortfolioFilter({
     const selectedCount = selectedPortfolioIds.length;
     const draftCount = draftPortfolioIds.length;
     const totalCount = portfolios.length;
+    const hasDraftChanges =
+        selectedCount !== draftCount ||
+        selectedPortfolioIds.some((id) => !draftPortfolioIds.includes(id));
 
     const triggerLabel =
         selectedCount === 0
@@ -58,12 +61,20 @@ export default function PortfolioFilter({
                 aria-expanded={isOpen}
             >
                 <span>Portfolios: {triggerLabel}</span>
-                <span className={styles.triggerMeta}>{draftCount}/{totalCount}</span>
+                <span className={styles.triggerMeta}>
+                    Auswahl {selectedCount}/{totalCount}
+                </span>
                 <span>▾</span>
             </button>
 
             {isOpen ? (
                 <div className={styles.menu}>
+                    <div className={styles.helperText}>
+                        Ausgewählt: {selectedCount}/{totalCount}. Im Menü markiert:{" "}
+                        {draftCount}/{totalCount}
+                        {hasDraftChanges ? " · erst nach Anwenden aktiv" : ""}.
+                    </div>
+
                     <div className={styles.list}>
                         {portfolios.map((portfolio) => {
                             const checked = draftPortfolioIds.includes(portfolio.id);
@@ -95,7 +106,7 @@ export default function PortfolioFilter({
                             className="ui-btn ui-btn-primary"
                             onClick={onApply}
                         >
-                            Anwenden
+                            Auswahl anwenden
                         </button>
                     </div>
                 </div>

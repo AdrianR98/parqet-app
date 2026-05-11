@@ -27,6 +27,13 @@
     overflow-y: auto;
 }
 
+.helperText {
+    margin: 0 0 8px;
+    color: var(--text-soft);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
 .item {
     display: flex;
     align-items: center;

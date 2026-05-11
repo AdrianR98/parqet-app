@@ -62,6 +62,12 @@ function scopeToSelectedIds(
   return resolvePortfolioScope(scope, portfolios).selectedPortfolioIds;
 }
 
+function formatPortfolioCount(count: number): string {
+  if (count === 0) return "Keine Portfolios";
+  if (count === 1) return "1 Portfolio";
+  return `${count} Portfolios`;
+}
+
 export default function SettingsPage() {
   const { appearanceMode, resolvedTheme, setAppearanceMode } = useTheme();
   const initialCache = useMemo(() => loadDashboardCache(), []);
@@ -201,8 +207,9 @@ export default function SettingsPage() {
               Portfolio/Daten
             </h2>
             <p className={styles.text}>
-              Der globale Scope gilt für Dashboard, Aktivitäten, Timeline,
-              Reports und Assetdetails, sobald diese Seiten den Scope verwenden.
+              Autorisierte Portfolios sind die lokal bekannte Liste. Der Scope
+              ist deine Auswahl daraus; geladene Daten bleiben der letzte
+              Dashboard-Stand.
             </p>
           </div>
 
@@ -251,11 +258,22 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className={styles.meta}>
+                Autorisiert: {formatPortfolioCount(knownPortfolios.length)}.
+              </p>
+              <p className={styles.meta}>
                 Aktueller Scope:{" "}
                 {portfolioScope.mode === "all"
-                  ? "Alle Portfolios"
-                  : `${selectedIds.length} manuell ausgewählt`}
+                  ? `Alle (${selectedIds.length})`
+                  : `${selectedIds.length} ausgewählt`}
+                . Geladener Stand:{" "}
+                {cacheUpdatedAt
+                  ? formatPortfolioCount(cacheFreshness?.scope.portfolioCount ?? 0)
+                  : "kein lokaler Stand"}
                 .
+              </p>
+              <p className={styles.meta}>
+                Scope-Änderungen speichern nur die Auswahl. Neue Parqet-Daten
+                lädst du danach explizit im Dashboard.
               </p>
             </>
           )}
@@ -372,10 +390,10 @@ export default function SettingsPage() {
                 </span>
               </div>
               <div className={styles.diagnosticItem}>
-                <span>Scope</span>
+                <span>Geladener Scope</span>
                 <span className={styles.diagnosticValue}>
                   {cacheFreshness
-                    ? `${cacheFreshness.scope.portfolioCount} Portfolios · ${cacheFreshness.scope.fingerprint}`
+                    ? formatPortfolioCount(cacheFreshness.scope.portfolioCount)
                     : "Kein Snapshot"}
                 </span>
               </div>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
     getFreshnessStatusLabel,
+    getLoadedScopeIndicatorLabel,
     getScopeIndicatorLabel,
     loadLocalActivityReadModel,
 } from "../../lib/local-activity-read-model";
@@ -57,6 +58,7 @@ export default function HeaderBar({
                     {connectionStatus.label}
                 </span>
                 <span className={styles.statusPill}>{getScopeIndicatorLabel(localStatus)}</span>
+                <span className={styles.statusPill}>{getLoadedScopeIndicatorLabel(localStatus)}</span>
                 <span className={styles.statusPill}>{getFreshnessStatusLabel(localStatus)}</span>
                 <Link
                     href="/dashboard"
