@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:e2e": "playwright test",
     "lint": "eslint",
     "audit:summary": "powershell -ExecutionPolicy Bypass -File scripts/local-audit-summary.ps1",
     "audit:asset": "powershell -ExecutionPolicy Bypass -File scripts/local-audit-asset.ps1",
@@ -18,6 +19,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

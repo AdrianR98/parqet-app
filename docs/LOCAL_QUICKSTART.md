@@ -106,6 +106,25 @@ Treat provider/API budget as limited. Avoid unnecessary refreshes. Prefer review
 
 Developer diagnostics in Settings are local and safe-gated. They may show freshness/cache metadata and API-budget notes, but must not show tokens, cookies, raw provider payloads, private activity rows or unredacted private identifiers.
 
+## 11. Run Local E2E Smoke Tests
+
+The V1 Playwright smoke tests are local/manual for now and are not part of the GitHub CI workflow. They start the local Next.js dev server through Playwright, use an empty/synthetic browser state and do not require real Parqet auth, cookies, tokens, portfolios or provider data.
+
+Install dependencies and the Playwright browser once:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+Run the smoke suite:
+
+```bash
+npm run test:e2e
+```
+
+The smoke suite covers Dashboard, Settings, Activities, Timeline, Reports and one synthetic Asset Detail URL. It fails on React hydration mismatch messages, the React script-tag render warning, uncaught page errors and unexpected local-only navigation calls to `/api/parqet/assets` or `/api/parqet/activities`.
+
 ## Snapshot And Explicit Refresh Behavior
 
 v1 separates explicit data loading from normal navigation:
