@@ -32,7 +32,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Conservative Vercel ignored-build helper for documentation/governance-only changes.
 - Phase-0.1 Parent/Sub-Issue plan for workflow hardening and agent readiness.
 - Detailed Codex mode, task execution, issue lifecycle, PR review, documentation impact, Phase-1 gate, CI and Vercel verification rules.
-- GitHub Project Board v1 setup guide with fields, label allowlist, automation limits and manual fallback.
+- GitHub Project Board v1 setup guide with fields, label allowlist and manual fallback.
 - Guarded manual Translation-Agent v1 workflow for German documentation review markers and Draft PR creation.
 - Manual Issue-Agent v1 workflow with dry-run/apply modes for allowlisted issue metadata.
 - Phase-1 Global Asset Timeline Foundation parent and privacy-safe Parqet API field audit route.
@@ -56,6 +56,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- Improved V1 asset metadata display fallbacks so local/enriched metadata names are preferred over identifier-only asset labels, including Activities and Timeline local read models.
 - V1 warning, data-quality and confidence wording is now more consistent across Dashboard, Asset Detail, Timeline and Reports without adding provider calls or new warning logic.
 - User-facing Parqet auth, rate-limit and provider error wording is now clearer in German, discourages repeated refresh attempts during rate limits and keeps raw/debug details out of normal Dashboard and Asset Audit UI states.
 - Neutralized governance, workflow, v1 guardrail and template wording so durable repository rules do not depend on the current visible product name.
