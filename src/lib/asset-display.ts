@@ -34,6 +34,14 @@ function pickFirstDisplayString(...candidates: unknown[]): string | null {
     return null;
 }
 
+function normalizeIdentifier(value: unknown): string | null {
+    if (!isNonEmptyDisplayString(value)) {
+        return null;
+    }
+
+    return value.trim().toUpperCase();
+}
+
 /**
  * Sammelt optionale Metadaten-Container in einer festen Reihenfolge.
  */
@@ -55,6 +63,63 @@ function getMetadataCandidates(
     }
 
     return candidates;
+}
+
+function getKnownIdentifiers(asset: AssetSummary): Set<string> {
+    const identifiers = new Set<string>();
+
+    for (const candidate of [
+        asset.isin,
+        asset.wkn,
+        asset.symbol,
+        asset.ticker,
+        asset.tickerSymbol,
+    ]) {
+        const normalized = normalizeIdentifier(candidate);
+
+        if (normalized) {
+            identifiers.add(normalized);
+        }
+    }
+
+    for (const metadata of getMetadataCandidates(asset)) {
+        for (const candidate of [
+            metadata.wkn,
+            metadata.symbol,
+            metadata.ticker,
+            metadata.tickerSymbol,
+        ]) {
+            const normalized = normalizeIdentifier(candidate);
+
+            if (normalized) {
+                identifiers.add(normalized);
+            }
+        }
+    }
+
+    return identifiers;
+}
+
+function pickFirstNonIdentifierName(asset: AssetSummary, ...candidates: unknown[]): string | null {
+    const identifiers = getKnownIdentifiers(asset);
+
+    for (const candidate of candidates) {
+        const value = pickFirstDisplayString(candidate);
+
+        if (!value) {
+            continue;
+        }
+
+        const normalized = normalizeIdentifier(value);
+
+        if (normalized && identifiers.has(normalized)) {
+            continue;
+        }
+
+        return value;
+    }
+
+    return null;
 }
 
 /**
@@ -108,26 +173,17 @@ export function getAssetWkn(asset: AssetSummary): string | null {
 }
 
 /**
- * Name-Fallback-Kette:
- * 1. Direktes Name-Feld am Asset
- * 2. Name aus Metadaten-Containern
+ * Name-Fallback-Kette fuer V1-Anzeige:
+ * 1. Lokale / angereicherte Metadaten-Namen
+ * 2. Direktes Name-Feld am Asset, sofern es nicht nur ISIN/WKN/Ticker ist
  * 3. Symbol / Ticker
- * 4. ISIN
+ * 4. WKN
+ * 5. ISIN
  */
 export function getAssetDisplayName(asset: AssetSummary): string {
-    const directName = pickFirstDisplayString(
-        asset.displayName,
-        asset.name,
-        asset.assetName,
-        asset.title
-    );
-
-    if (directName) {
-        return directName;
-    }
-
     for (const metadata of getMetadataCandidates(asset)) {
-        const metadataName = pickFirstDisplayString(
+        const metadataName = pickFirstNonIdentifierName(
+            asset,
             metadata.displayName,
             metadata.name,
             metadata.assetName,
@@ -139,10 +195,28 @@ export function getAssetDisplayName(asset: AssetSummary): string {
         }
     }
 
+    const directName = pickFirstNonIdentifierName(
+        asset,
+        asset.displayName,
+        asset.name,
+        asset.assetName,
+        asset.title
+    );
+
+    if (directName) {
+        return directName;
+    }
+
     const symbol = getAssetSymbol(asset);
 
     if (symbol) {
         return symbol;
+    }
+
+    const wkn = getAssetWkn(asset);
+
+    if (wkn) {
+        return wkn;
     }
 
     return asset.isin;
