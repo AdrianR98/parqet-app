@@ -129,10 +129,14 @@
 }
 
 .filtersGrid {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
+}
+
+.filtersGridOpen {
+  display: grid;
 }
 
 .checkGroup {
@@ -305,21 +309,7 @@
     grid-template-columns: 1fr;
   }
 
-  .filtersGrid {
-    display: none;
-  }
-
-  .filtersGridOpen {
-    display: grid;
-  }
-
   .timelineGroupHeader {
     position: static;
-  }
-}
-
-@media (min-width: 901px) {
-  .filtersGrid {
-    display: grid;
   }
 }

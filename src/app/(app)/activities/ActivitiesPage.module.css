@@ -88,10 +88,14 @@
 }
 
 .filtersGrid {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
+}
+
+.filtersGridOpen {
+  display: grid;
 }
 
 .checkGroup {
@@ -309,22 +313,11 @@
   }
 
   .filtersGrid {
-    display: none;
     grid-template-columns: 1fr;
-  }
-
-  .filtersGridOpen {
-    display: grid;
   }
 
   .metricsGrid,
   .detailGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 761px) {
-  .filtersGrid {
-    display: grid;
   }
 }
