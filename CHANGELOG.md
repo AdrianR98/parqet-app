@@ -32,7 +32,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Conservative Vercel ignored-build helper for documentation/governance-only changes.
 - Phase-0.1 Parent/Sub-Issue plan for workflow hardening and agent readiness.
 - Detailed Codex mode, task execution, issue lifecycle, PR review, documentation impact, Phase-1 gate, CI and Vercel verification rules.
-- GitHub Project Board v1 setup guide with fields, label allowlist and manual fallback.
+- GitHub Project Board v1 setup guide with fields, label allowlist, automation limits and manual fallback.
 - Guarded manual Translation-Agent v1 workflow for German documentation review markers and Draft PR creation.
 - Manual Issue-Agent v1 workflow with dry-run/apply modes for allowlisted issue metadata.
 - Phase-1 Global Asset Timeline Foundation parent and privacy-safe Parqet API field audit route.
