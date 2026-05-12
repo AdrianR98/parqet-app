@@ -63,6 +63,15 @@ function isUnexpectedProviderRoute(request: Request): boolean {
   );
 }
 
+async function visitSmokeRoute(page: Page, route: string): Promise<void> {
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("body")).toBeVisible();
+  await page.waitForLoadState("load");
+
+  // Bounded smoke-test hydration window for late React/Next boot warnings.
+  await page.waitForTimeout(250);
+}
+
 test.describe("V1 local smoke routes", () => {
   for (const route of LOCAL_SMOKE_ROUTES) {
     test(`renders ${route} without hydration or page errors`, async ({
@@ -70,8 +79,7 @@ test.describe("V1 local smoke routes", () => {
     }) => {
       const monitor = createFailureMonitor(page);
 
-      await page.goto(route);
-      await expect(page.locator("body")).toBeVisible();
+      await visitSmokeRoute(page, route);
 
       monitor.assertNoFailures();
     });
@@ -91,8 +99,7 @@ test("local-only navigation does not call expensive Parqet provider routes", asy
   });
 
   for (const route of API_BUDGET_ROUTES) {
-    await page.goto(route);
-    await expect(page.locator("body")).toBeVisible();
+    await visitSmokeRoute(page, route);
   }
 
   expect(unexpectedRequests).toEqual([]);
