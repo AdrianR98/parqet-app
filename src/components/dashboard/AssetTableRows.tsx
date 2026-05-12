@@ -2,7 +2,7 @@
 
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, memo, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import styles from "./AssetTable.module.css";
@@ -149,102 +149,125 @@ function renderCell(asset: AssetSummary, columnKey: VisibleColumnKey) {
     }
 }
 
-export default function AssetTableRows({
+type AssetTableRowProps = {
+    asset: AssetSummary;
+    visibleColumns: VisibleColumnKey[];
+    isExpanded: boolean;
+    onToggleExpandedAction: (isin: string) => void;
+};
+
+const AssetTableRow = memo(function AssetTableRow({
+    asset,
+    visibleColumns,
+    isExpanded,
+    onToggleExpandedAction,
+}: AssetTableRowProps) {
+    const breakdown = getSafePortfolioBreakdown(asset);
+    const detailHref = createAssetDetailHref(asset);
+
+    return (
+        <Fragment>
+            <tr>
+                {visibleColumns.map((columnKey) => {
+                    if (columnKey === "actions") {
+                        return (
+                            <td
+                                key={`${asset.isin}-${columnKey}`}
+                                className={styles.actionCell}
+                            >
+                                {detailHref ? (
+                                    <Link
+                                        href={detailHref}
+                                        className="ui-btn ui-btn-ghost"
+                                        title="Assetdetail lokal öffnen"
+                                    >
+                                        Detail
+                                    </Link>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="ui-btn ui-btn-ghost"
+                                        disabled
+                                        title="Assetdetail benötigt einen stabilen Asset-Key"
+                                    >
+                                        Detail
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-ghost"
+                                    onClick={() => onToggleExpandedAction(asset.isin)}
+                                >
+                                    {isExpanded ? "▾" : "▸"}
+                                </button>
+                            </td>
+                        );
+                    }
+
+                    return (
+                        <td key={`${asset.isin}-${columnKey}`}>
+                            {renderCell(asset, columnKey)}
+                        </td>
+                    );
+                })}
+            </tr>
+
+            {isExpanded ? (
+                <tr className={styles.expandedRow}>
+                    <td colSpan={visibleColumns.length}>
+                        <div className={styles.breakdownCard}>
+                            <div className={styles.breakdownHeader}>
+                                <span>Portfolio</span>
+                                <span>Bestand</span>
+                                <span>Ø Kaufpreis</span>
+                                <span>Positionswert</span>
+                                <span>Dividenden</span>
+                            </div>
+
+                            {breakdown.map((entry) => (
+                                <div
+                                    key={`${asset.isin}-${entry.portfolioId}`}
+                                    className={styles.breakdownRow}
+                                >
+                                    <span>{entry.portfolioName}</span>
+                                    <span>{formatShares(entry.netShares)}</span>
+                                    <span>{formatCurrency(entry.avgBuyPrice)}</span>
+                                    <span>{formatCurrency(entry.positionValue)}</span>
+                                    <span>{formatCurrency(entry.totalDividendNet)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </td>
+                </tr>
+            ) : null}
+        </Fragment>
+    );
+});
+
+function AssetTableRows({
     assets,
     visibleColumns,
     expandedIsins,
     onToggleExpandedAction,
 }: AssetTableRowsProps) {
+    const expandedSet = useMemo(() => new Set(expandedIsins), [expandedIsins]);
+
     return (
         <table className={styles.table}>
             <tbody>
-                {assets.map((asset) => {
-                    const isExpanded = expandedIsins.includes(asset.isin);
-                    const breakdown = getSafePortfolioBreakdown(asset);
-                    const detailHref = createAssetDetailHref(asset);
-
-                    return (
-                        <Fragment key={asset.isin}>
-                            <tr key={asset.isin}>
-                                {visibleColumns.map((columnKey) => {
-                                    if (columnKey === "actions") {
-                                        return (
-                                            <td
-                                                key={`${asset.isin}-${columnKey}`}
-                                                className={styles.actionCell}
-                                            >
-                                                {detailHref ? (
-                                                    <Link
-                                                        href={detailHref}
-                                                        className="ui-btn ui-btn-ghost"
-                                                        title="Assetdetail lokal öffnen"
-                                                    >
-                                                        Detail
-                                                    </Link>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        className="ui-btn ui-btn-ghost"
-                                                        disabled
-                                                        title="Assetdetail benötigt einen stabilen Asset-Key"
-                                                    >
-                                                        Detail
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    type="button"
-                                                    className="ui-btn ui-btn-ghost"
-                                                    onClick={() =>
-                                                        onToggleExpandedAction(asset.isin)
-                                                    }
-                                                >
-                                                    {isExpanded ? "▾" : "▸"}
-                                                </button>
-                                            </td>
-                                        );
-                                    }
-
-                                    return (
-                                        <td key={`${asset.isin}-${columnKey}`}>
-                                            {renderCell(asset, columnKey)}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-
-                            {isExpanded ? (
-                                <tr key={`${asset.isin}-expanded`} className={styles.expandedRow}>
-                                    <td colSpan={visibleColumns.length}>
-                                        <div className={styles.breakdownCard}>
-                                            <div className={styles.breakdownHeader}>
-                                                <span>Portfolio</span>
-                                                <span>Bestand</span>
-                                                <span>Ø Kaufpreis</span>
-                                                <span>Positionswert</span>
-                                                <span>Dividenden</span>
-                                            </div>
-
-                                            {breakdown.map((entry) => (
-                                                <div
-                                                    key={`${asset.isin}-${entry.portfolioId}`}
-                                                    className={styles.breakdownRow}
-                                                >
-                                                    <span>{entry.portfolioName}</span>
-                                                    <span>{formatShares(entry.netShares)}</span>
-                                                    <span>{formatCurrency(entry.avgBuyPrice)}</span>
-                                                    <span>{formatCurrency(entry.positionValue)}</span>
-                                                    <span>{formatCurrency(entry.totalDividendNet)}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : null}
-                        </Fragment>
-                    );
-                })}
+                {assets.map((asset) => (
+                    <AssetTableRow
+                        key={asset.isin}
+                        asset={asset}
+                        visibleColumns={visibleColumns}
+                        isExpanded={expandedSet.has(asset.isin)}
+                        onToggleExpandedAction={onToggleExpandedAction}
+                    />
+                ))}
             </tbody>
         </table>
     );
 }
+
+export default memo(AssetTableRows);

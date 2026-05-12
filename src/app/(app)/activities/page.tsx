@@ -240,15 +240,20 @@ export default function ActivitiesPage() {
     () => sortActivities(filterActivities(scopedItems, effectiveFilters), sort),
     [effectiveFilters, scopedItems, sort],
   );
-  const projected = useMemo(() => filteredItems.map(projectActivity), [filteredItems]);
-  const visibleActivities = projected.slice(0, visibleCount);
-  const groups = groupProjectedActivities(visibleActivities, "month");
-  const selectedActivity = projected.find((activity) => activity.id === selectedActivityId) ?? null;
+  const visibleActivities = useMemo(
+    () => filteredItems.slice(0, visibleCount).map(projectActivity),
+    [filteredItems, visibleCount],
+  );
+  const groups = useMemo(() => groupProjectedActivities(visibleActivities, "month"), [visibleActivities]);
+  const selectedActivity = useMemo(() => {
+    const activity = filteredItems.find((item) => item.id === selectedActivityId);
+    return activity ? projectActivity(activity) : null;
+  }, [filteredItems, selectedActivityId]);
   const portfolioOptions = readModel.portfolios.filter((portfolio) =>
     readModel.scopedPortfolioIds.includes(portfolio.id),
   );
   const hasLocalData = readModel.items.length > 0;
-  const hasMore = visibleCount < projected.length;
+  const hasMore = visibleCount < filteredItems.length;
 
   function updateFilter(next: Partial<ActivityFilters>) {
     if ("portfolioIds" in next) {
@@ -303,7 +308,7 @@ export default function ActivitiesPage() {
           </div>
           <div>
             <span>Aktivitäten</span>
-            <strong>{projected.length} von {scopedItems.length}</strong>
+            <strong>{filteredItems.length} von {scopedItems.length}</strong>
           </div>
         </div>
       </section>
@@ -425,7 +430,7 @@ export default function ActivitiesPage() {
             im Dashboard; danach werden die lokalen Snapshot-/Read-Model-Daten hier angezeigt.
           </p>
         </section>
-      ) : projected.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <section className={`ui-surface ${styles.emptyState}`}>
           <p className={styles.eyebrow}>Keine Treffer</p>
           <h2>Filter liefern keine lokalen Aktivitäten</h2>
@@ -450,7 +455,7 @@ export default function ActivitiesPage() {
 
             {hasMore ? (
               <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>
-                Mehr lokal anzeigen ({Math.min(PAGE_SIZE, projected.length - visibleCount)} weitere)
+                Mehr lokal anzeigen ({Math.min(PAGE_SIZE, filteredItems.length - visibleCount)} weitere)
               </button>
             ) : null}
           </section>

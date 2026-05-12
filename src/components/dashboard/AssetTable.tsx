@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./AssetTable.module.css";
 import SyncedHorizontalScroll from "./SyncedHorizontalScroll";
 import AssetTableHeader from "./AssetTableHeader";
@@ -23,6 +23,8 @@ type AssetTableProps = {
     emptyTitle?: string;
     emptyDescription?: string;
 };
+
+const ASSET_REVEAL_STEP = 80;
 
 function getSearchText(asset: AssetSummary): string {
     return [
@@ -55,6 +57,7 @@ export default function AssetTable({
     const [showColumnMenu, setShowColumnMenu] = useState(false);
     const [showTopScrollbar, setShowTopScrollbar] = useState(false);
     const [query, setQuery] = useState("");
+    const [visibleAssetCount, setVisibleAssetCount] = useState(ASSET_REVEAL_STEP);
 
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const columnMenuRef = useRef<HTMLDivElement | null>(null);
@@ -90,6 +93,10 @@ export default function AssetTable({
     const sortedAssets = useMemo(() => {
         return sortAssets(filteredAssets, sortKey, sortDirection);
     }, [filteredAssets, sortKey, sortDirection]);
+
+    const visibleAssets = useMemo(() => {
+        return sortedAssets.slice(0, visibleAssetCount);
+    }, [sortedAssets, visibleAssetCount]);
 
     useEffect(() => {
         const node = tableScrollRef.current;
@@ -132,7 +139,7 @@ export default function AssetTable({
         };
     }, [showColumnMenu]);
 
-    function toggleColumnAction(key: VisibleColumnKey) {
+    const toggleColumnAction = useCallback((key: VisibleColumnKey) => {
         if (FIXED_COLUMNS.includes(key)) {
             return;
         }
@@ -142,9 +149,11 @@ export default function AssetTable({
                 ? current.filter((entry) => entry !== key)
                 : [...current, key]
         );
-    }
+    }, []);
 
-    function sortAction(nextSortKey: AssetSortKey) {
+    const sortAction = useCallback((nextSortKey: AssetSortKey) => {
+        setVisibleAssetCount(ASSET_REVEAL_STEP);
+
         if (sortKey === nextSortKey) {
             setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
             return;
@@ -152,18 +161,19 @@ export default function AssetTable({
 
         setSortKey(nextSortKey);
         setSortDirection("desc");
-    }
+    }, [sortKey]);
 
-    function toggleExpandedAction(isin: string) {
+    const toggleExpandedAction = useCallback((isin: string) => {
         setExpandedIsins((current) =>
             current.includes(isin)
                 ? current.filter((entry) => entry !== isin)
                 : [...current, isin]
         );
-    }
+    }, []);
 
     const hasRows = sortedAssets.length > 0;
     const isSearchEmpty = !hasRows && query.trim().length > 0;
+    const hasMoreAssets = visibleAssets.length < sortedAssets.length;
 
     return (
         <div className={styles.container} aria-busy={loading}>
@@ -173,7 +183,9 @@ export default function AssetTable({
                     <div className={styles.toolbarMeta}>
                         {loading
                             ? "Initiale Daten werden geladen"
-                            : `${sortedAssets.length} von ${assets.length} Assets sichtbar`}
+                            : hasMoreAssets
+                                ? `${visibleAssets.length} von ${sortedAssets.length} Treffern angezeigt · ${assets.length} Assets geladen`
+                                : `${sortedAssets.length} von ${assets.length} Assets sichtbar`}
                     </div>
                 </div>
 
@@ -182,7 +194,10 @@ export default function AssetTable({
                         className={`ui-input ${styles.searchInput}`}
                         type="search"
                         value={query}
-                        onChange={(event) => setQuery(event.target.value)}
+                        onChange={(event) => {
+                            setVisibleAssetCount(ASSET_REVEAL_STEP);
+                            setQuery(event.target.value);
+                        }}
                         placeholder="Lokal suchen: Name, ISIN, WKN"
                         aria-label="Assets lokal suchen"
                         disabled={loading}
@@ -191,7 +206,10 @@ export default function AssetTable({
                         <button
                             type="button"
                             className="ui-btn ui-btn-ghost"
-                            onClick={() => setQuery("")}
+                            onClick={() => {
+                                setVisibleAssetCount(ASSET_REVEAL_STEP);
+                                setQuery("");
+                            }}
                             disabled={loading}
                         >
                             Suche zurücksetzen
@@ -239,13 +257,31 @@ export default function AssetTable({
                             />
 
                             <AssetTableRows
-                                assets={sortedAssets}
+                                assets={visibleAssets}
                                 visibleColumns={normalizedVisibleColumns}
                                 expandedIsins={expandedIsins}
                                 onToggleExpandedAction={toggleExpandedAction}
                             />
                         </div>
                     </div>
+
+                    {hasMoreAssets ? (
+                        <div className={styles.revealFooter}>
+                            <div>
+                                {sortedAssets.length} lokale Treffer im geladenen Stand. Tabellenwerte und Summen
+                                beziehen sich weiterhin auf den vollständigen geladenen Datenbestand.
+                            </div>
+                            <button
+                                type="button"
+                                className="ui-btn ui-btn-secondary"
+                                onClick={() =>
+                                    setVisibleAssetCount((count) => count + ASSET_REVEAL_STEP)
+                                }
+                            >
+                                Mehr lokale Assets anzeigen ({Math.min(ASSET_REVEAL_STEP, sortedAssets.length - visibleAssets.length)} weitere)
+                            </button>
+                        </div>
+                    ) : null}
                 </>
             )}
         </div>

@@ -140,6 +140,21 @@
     overflow-x: auto;
 }
 
+.revealFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: var(--panel-bg);
+    color: var(--text-soft);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
 .table {
     width: 100%;
     min-width: 840px;
@@ -212,6 +227,11 @@
 
     .actions {
         justify-content: flex-start;
+    }
+
+    .revealFooter {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .tileGrid {

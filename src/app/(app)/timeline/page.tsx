@@ -27,6 +27,8 @@ type TimelineSummaryItem = {
   value: number;
 };
 
+const TIMELINE_REVEAL_STEP = 80;
+
 function toggleType(current: AuditActivityType[], type: AuditActivityType) {
   return current.includes(type)
     ? current.filter((entry) => entry !== type)
@@ -57,6 +59,7 @@ export default function TimelinePage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<ActivityFilters>(() => getDefaultActivityFilters());
   const [useHydratedPortfolioScope, setUseHydratedPortfolioScope] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(TIMELINE_REVEAL_STEP);
 
   const scopedItems = useMemo(() => {
     if (readModel.scope.mode === "all") return readModel.items;
@@ -71,44 +74,52 @@ export default function TimelinePage() {
     [filters, readModel.scopedPortfolioIds, useHydratedPortfolioScope],
   );
 
-  const projected = useMemo(() => {
-    return sortActivities(filterActivities(scopedItems, effectiveFilters), { key: "date", direction: "desc" }).map(projectActivity);
+  const filteredItems = useMemo(() => {
+    return sortActivities(filterActivities(scopedItems, effectiveFilters), { key: "date", direction: "desc" });
   }, [effectiveFilters, scopedItems]);
+  const visibleEvents = useMemo(
+    () => filteredItems.slice(0, visibleCount).map(projectActivity),
+    [filteredItems, visibleCount],
+  );
   const timelineSummary = useMemo<TimelineSummaryItem[]>(() => {
-    const transferCount = projected.filter((item) => item.type === "transfer_in" || item.type === "transfer_out").length;
+    const transferCount = filteredItems.filter((item) => item.type === "transfer_in" || item.type === "transfer_out").length;
 
     return [
-      { label: "Events", value: projected.length },
-      { label: "Käufe", value: projected.filter((item) => item.type === "buy").length },
-      { label: "Verkäufe", value: projected.filter((item) => item.type === "sell").length },
-      { label: "Dividenden", value: projected.filter((item) => item.type === "dividend").length },
+      { label: "Events", value: filteredItems.length },
+      { label: "Käufe", value: filteredItems.filter((item) => item.type === "buy").length },
+      { label: "Verkäufe", value: filteredItems.filter((item) => item.type === "sell").length },
+      { label: "Dividenden", value: filteredItems.filter((item) => item.type === "dividend").length },
       { label: "Transfers/Buchungen", value: transferCount },
-      { label: "Datenhinweise", value: projected.filter((item) => item.hasWarnings).length },
-      { label: "Assets", value: uniqueCount(projected.map((item) => item.assetMeta === "Keine Kennung lokal vorhanden" ? item.assetLabel : item.assetMeta)) },
-      { label: "Portfolios", value: uniqueCount(projected.map((item) => item.portfolioLabel)) },
+      { label: "Datenhinweise", value: filteredItems.filter((item) => (item.warningMessages ?? []).length > 0).length },
+      { label: "Assets", value: uniqueCount(filteredItems.map((item) => item.isin || item.symbol || item.wkn || item.name || "Unbekanntes Asset")) },
+      { label: "Portfolios", value: uniqueCount(filteredItems.map((item) => item.portfolioName || "Kein Portfolio-Kontext")) },
     ];
-  }, [projected]);
-  const groupingMode = projected.length > 140 ? "year" : "month";
-  const groups = groupProjectedActivities(projected, groupingMode);
+  }, [filteredItems]);
+  const groupingMode = filteredItems.length > 140 ? "year" : "month";
+  const groups = useMemo(() => groupProjectedActivities(visibleEvents, groupingMode), [groupingMode, visibleEvents]);
   const portfolioOptions = readModel.portfolios.filter((portfolio) => readModel.scopedPortfolioIds.includes(portfolio.id));
   const hasLocalData = readModel.items.length > 0;
+  const hasMore = visibleEvents.length < filteredItems.length;
 
   function updateFilter(next: Partial<ActivityFilters>) {
     if ("portfolioIds" in next) {
       setUseHydratedPortfolioScope(false);
     }
 
+    setVisibleCount(TIMELINE_REVEAL_STEP);
     setFilters((current) => ({ ...current, ...next }));
   }
 
   function clearFilters() {
     setUseHydratedPortfolioScope(true);
+    setVisibleCount(TIMELINE_REVEAL_STEP);
     setFilters(getDefaultActivityFilters());
   }
 
   function reloadFromLocalCache() {
     notifyBrowserLocalStateChanged();
     setUseHydratedPortfolioScope(true);
+    setVisibleCount(TIMELINE_REVEAL_STEP);
     setFilters(getDefaultActivityFilters());
   }
 
@@ -140,7 +151,7 @@ export default function TimelinePage() {
           </div>
           <div>
             <span>Timeline</span>
-            <strong>{projected.length} Ereignisse · Gruppierung nach {groupingMode === "year" ? "Jahr" : "Monat"}</strong>
+            <strong>{filteredItems.length} Ereignisse · {visibleEvents.length} lokal angezeigt</strong>
           </div>
         </div>
       </section>
@@ -216,7 +227,7 @@ export default function TimelinePage() {
             visualisiert diese Seite die lokalen Aktivitäten als Zeitachse.
           </p>
         </section>
-      ) : projected.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <section className={`ui-surface ${styles.emptyState}`}>
           <p className={styles.eyebrow}>Keine Ereignisse im Filter</p>
           <h2>Keine lokalen Timeline-Treffer</h2>
@@ -240,6 +251,12 @@ export default function TimelinePage() {
           </section>
 
           <section className={styles.timeline} aria-label="Globale Asset-Timeline">
+            {hasMore ? (
+              <div className={styles.revealNotice}>
+                {visibleEvents.length} von {filteredItems.length} lokalen Ereignissen angezeigt. Summary und Filter beziehen
+                sich auf alle Treffer im geladenen Datenbestand; Gruppierung nach {groupingMode === "year" ? "Jahr" : "Monat"}.
+              </div>
+            ) : null}
             {groups.map((group) => (
               <div key={group.key} className={styles.timelineGroup}>
                 <div className={styles.timelineGroupHeader}>
@@ -270,6 +287,11 @@ export default function TimelinePage() {
                 </div>
               </div>
             ))}
+            {hasMore ? (
+              <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setVisibleCount((count) => count + TIMELINE_REVEAL_STEP)}>
+                Mehr lokale Ereignisse anzeigen ({Math.min(TIMELINE_REVEAL_STEP, filteredItems.length - visibleEvents.length)} weitere)
+              </button>
+            ) : null}
           </section>
         </>
       )}

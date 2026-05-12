@@ -16,6 +16,8 @@ import {
 } from "../../../lib/format";
 import { useHydrationSafeLocalSnapshot } from "../../../hooks/use-hydration-safe-local-snapshot";
 
+const REPORT_ASSET_REVEAL_STEP = 80;
+
 function escapeCsvValue(value: string | number | null | undefined): string {
     const normalized = value == null ? "" : String(value);
     return `"${normalized.replaceAll('"', '""')}"`;
@@ -90,10 +92,14 @@ export default function ReportsPage() {
         () => null,
     );
     const [copyStatus, setCopyStatus] = useState("");
+    const [visibleAssetCount, setVisibleAssetCount] = useState(REPORT_ASSET_REVEAL_STEP);
 
     const markdownSummary = useMemo(() => {
         return report ? buildMarkdownSummary(report) : "";
     }, [report]);
+    const visibleAssets = useMemo(() => {
+        return report ? report.assets.slice(0, visibleAssetCount) : [];
+    }, [report, visibleAssetCount]);
 
     async function copyMarkdownSummary() {
         if (!markdownSummary) return;
@@ -133,6 +139,7 @@ export default function ReportsPage() {
     }
 
     const canExport = report.assets.length > 0;
+    const hasMoreAssets = visibleAssets.length < report.assets.length;
 
     return (
         <main className={`app-content ${styles.page}`}>
@@ -269,7 +276,10 @@ export default function ReportsPage() {
                 <div className={styles.sectionHeader}>
                     <div>
                         <h2 className={styles.sectionTitle}>Asset-Übersicht</h2>
-                        <div className={styles.sectionMeta}>CSV enthält nur diese sichtbaren, geladenen Report-Felder.</div>
+                        <div className={styles.sectionMeta}>
+                            {visibleAssets.length} von {report.assets.length} lokalen Asset-Zeilen angezeigt.
+                            CSV enthält dieselben sicheren Report-Felder für den geladenen Datenbestand.
+                        </div>
                     </div>
                 </div>
                 {report.assets.length === 0 ? (
@@ -292,7 +302,7 @@ export default function ReportsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {report.assets.map((row) => (
+                                {visibleAssets.map((row) => (
                                     <tr key={`${row.isin}-${row.status}`}>
                                         <td>
                                             <div className={styles.assetName}>{row.name}</div>
@@ -309,6 +319,23 @@ export default function ReportsPage() {
                                 ))}
                             </tbody>
                         </table>
+                        {hasMoreAssets ? (
+                            <div className={styles.revealFooter}>
+                                <span>
+                                    Report-Kennzahlen und Export bleiben auf den vollständigen lokal geladenen
+                                    Report bezogen.
+                                </span>
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-secondary"
+                                    onClick={() =>
+                                        setVisibleAssetCount((count) => count + REPORT_ASSET_REVEAL_STEP)
+                                    }
+                                >
+                                    Mehr lokale Asset-Zeilen anzeigen ({Math.min(REPORT_ASSET_REVEAL_STEP, report.assets.length - visibleAssets.length)} weitere)
+                                </button>
+                            </div>
+                        ) : null}
                     </div>
                 )}
             </section>
