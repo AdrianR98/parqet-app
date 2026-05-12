@@ -1,5 +1,5 @@
 import type { AppNavItemKey } from "../layout/AppSidebar";
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
     getFreshnessStatusLabel,
@@ -26,16 +26,77 @@ const VIEW_LABELS: Record<AppNavItemKey, string> = {
     settings: "Einstellungen",
 };
 
+const INITIAL_CONNECTION_STATUS = getConnectionStatusView(null);
+
+const INITIAL_SCOPE_LABEL = "Auswahl: unbekannt";
+const INITIAL_LOADED_SCOPE_LABEL = "Geladen: kein Stand";
+const INITIAL_FRESHNESS_LABEL = "Nicht geladen / Datenstand unbekannt";
+
+const STATUS_SEPARATOR = "\u001f";
+
+function serializeHeaderStatus(
+    connectionStatus = INITIAL_CONNECTION_STATUS,
+    scopeLabel = INITIAL_SCOPE_LABEL,
+    loadedScopeLabel = INITIAL_LOADED_SCOPE_LABEL,
+    freshnessLabel = INITIAL_FRESHNESS_LABEL,
+): string {
+    return [
+        connectionStatus.kind,
+        connectionStatus.label,
+        scopeLabel,
+        loadedScopeLabel,
+        freshnessLabel,
+    ].join(STATUS_SEPARATOR);
+}
+
+function getHeaderStatusSnapshot(): string {
+    const localStatus = loadLocalActivityReadModel();
+    const connectionStatus = getConnectionStatusView(loadDashboardCache());
+
+    return serializeHeaderStatus(
+        connectionStatus,
+        getScopeIndicatorLabel(localStatus),
+        getLoadedScopeIndicatorLabel(localStatus),
+        getFreshnessStatusLabel(localStatus),
+    );
+}
+
+function getHeaderStatusServerSnapshot(): string {
+    return serializeHeaderStatus();
+}
+
+function subscribeToHeaderStatus(onStoreChange: () => void) {
+    if (typeof window === "undefined") {
+        return () => {};
+    }
+
+    window.addEventListener("storage", onStoreChange);
+    window.addEventListener("assettrace:appearance-change", onStoreChange);
+
+    return () => {
+        window.removeEventListener("storage", onStoreChange);
+        window.removeEventListener("assettrace:appearance-change", onStoreChange);
+    };
+}
+
 export default function HeaderBar({
     theme,
     appearanceMode,
     activeView,
     onToggleThemeAction,
 }: HeaderBarProps) {
-    const [localStatus] = useState(() => loadLocalActivityReadModel());
-    const [connectionStatus] = useState(() =>
-        getConnectionStatusView(loadDashboardCache()),
+    const headerStatus = useSyncExternalStore(
+        subscribeToHeaderStatus,
+        getHeaderStatusSnapshot,
+        getHeaderStatusServerSnapshot,
     );
+    const [
+        connectionKind,
+        connectionLabel,
+        scopeLabel,
+        loadedScopeLabel,
+        freshnessLabel,
+    ] = headerStatus.split(STATUS_SEPARATOR);
 
     return (
         <header className={styles.header}>
@@ -53,13 +114,13 @@ export default function HeaderBar({
             <div className={styles.center} aria-label="Aktueller App-Status">
                 <span className={styles.scopePill}>Bereich: {VIEW_LABELS[activeView]}</span>
                 <span
-                    className={`${styles.statusPill} ${styles[`connection_${connectionStatus.kind}`]}`}
+                    className={`${styles.statusPill} ${styles[`connection_${connectionKind}`]}`}
                 >
-                    {connectionStatus.label}
+                    {connectionLabel}
                 </span>
-                <span className={styles.statusPill}>{getScopeIndicatorLabel(localStatus)}</span>
-                <span className={styles.statusPill}>{getLoadedScopeIndicatorLabel(localStatus)}</span>
-                <span className={styles.statusPill}>{getFreshnessStatusLabel(localStatus)}</span>
+                <span className={styles.statusPill}>{scopeLabel}</span>
+                <span className={styles.statusPill}>{loadedScopeLabel}</span>
+                <span className={styles.statusPill}>{freshnessLabel}</span>
                 <Link
                     href="/dashboard"
                     className={styles.refreshPill}
