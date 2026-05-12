@@ -6,6 +6,7 @@ import styles from "./ActivitiesPage.module.css";
 import {
   ALL_ACTIVITY_TYPES,
   filterActivities,
+  getEmptyLocalActivityReadModel,
   getActivityTypeLabel,
   getFreshnessLabel,
   getSourceLabel,
@@ -18,6 +19,10 @@ import {
   type ProjectedActivity,
 } from "../../../lib/local-activity-read-model";
 import type { AuditActivityType } from "../../../lib/types";
+import {
+  notifyBrowserLocalStateChanged,
+  useHydrationSafeLocalSnapshot,
+} from "../../../hooks/use-hydration-safe-local-snapshot";
 
 const PAGE_SIZE = 30;
 
@@ -190,17 +195,25 @@ function toggleType(current: AuditActivityType[], type: AuditActivityType) {
     : [...current, type];
 }
 
-export default function ActivitiesPage() {
-  const [readModel, setReadModel] = useState(() => loadLocalActivityReadModel());
-  const [filters, setFilters] = useState<ActivityFilters>(() => ({
-    portfolioIds: readModel.scopedPortfolioIds,
+function getDefaultActivityFilters(): ActivityFilters {
+  return {
+    portfolioIds: [],
     query: "",
     types: ALL_ACTIVITY_TYPES,
     dateFrom: "",
     dateTo: "",
     warningsOnly: false,
     overridesOnly: false,
-  }));
+  };
+}
+
+export default function ActivitiesPage() {
+  const { value: readModel } = useHydrationSafeLocalSnapshot(
+    loadLocalActivityReadModel,
+    getEmptyLocalActivityReadModel,
+  );
+  const [filters, setFilters] = useState<ActivityFilters>(() => getDefaultActivityFilters());
+  const [useHydratedPortfolioScope, setUseHydratedPortfolioScope] = useState(true);
   const [sort, setSort] = useState<ActivitySort>({ key: "date", direction: "desc" });
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
@@ -216,9 +229,16 @@ export default function ActivitiesPage() {
     return readModel.items.filter((item) => item.portfolioId && scopedIds.has(item.portfolioId));
   }, [readModel]);
 
+  const effectiveFilters = useMemo(
+    () => useHydratedPortfolioScope
+      ? { ...filters, portfolioIds: readModel.scopedPortfolioIds }
+      : filters,
+    [filters, readModel.scopedPortfolioIds, useHydratedPortfolioScope],
+  );
+
   const filteredItems = useMemo(
-    () => sortActivities(filterActivities(scopedItems, filters), sort),
-    [filters, scopedItems, sort],
+    () => sortActivities(filterActivities(scopedItems, effectiveFilters), sort),
+    [effectiveFilters, scopedItems, sort],
   );
   const projected = useMemo(() => filteredItems.map(projectActivity), [filteredItems]);
   const visibleActivities = projected.slice(0, visibleCount);
@@ -231,37 +251,28 @@ export default function ActivitiesPage() {
   const hasMore = visibleCount < projected.length;
 
   function updateFilter(next: Partial<ActivityFilters>) {
+    if ("portfolioIds" in next) {
+      setUseHydratedPortfolioScope(false);
+    }
+
     setVisibleCount(PAGE_SIZE);
     setSelectedActivityId(null);
     setFilters((current) => ({ ...current, ...next }));
   }
 
   function reloadFromLocalCache() {
-    const next = loadLocalActivityReadModel();
-    setReadModel(next);
-    setFilters({
-      portfolioIds: next.scopedPortfolioIds,
-      query: "",
-      types: ALL_ACTIVITY_TYPES,
-      dateFrom: "",
-      dateTo: "",
-      warningsOnly: false,
-      overridesOnly: false,
-    });
+    notifyBrowserLocalStateChanged();
+    setUseHydratedPortfolioScope(true);
+    setFilters(getDefaultActivityFilters());
     setVisibleCount(PAGE_SIZE);
     setSelectedActivityId(null);
   }
 
   function clearFilters() {
-    updateFilter({
-      portfolioIds: readModel.scopedPortfolioIds,
-      query: "",
-      types: ALL_ACTIVITY_TYPES,
-      dateFrom: "",
-      dateTo: "",
-      warningsOnly: false,
-      overridesOnly: false,
-    });
+    setUseHydratedPortfolioScope(true);
+    setVisibleCount(PAGE_SIZE);
+    setSelectedActivityId(null);
+    setFilters(getDefaultActivityFilters());
   }
 
   return (
@@ -320,7 +331,7 @@ export default function ActivitiesPage() {
             <span>Suche</span>
             <input
               className="ui-input"
-              value={filters.query}
+              value={effectiveFilters.query}
               onChange={(event) => updateFilter({ query: event.target.value })}
               placeholder="Asset, ISIN, Symbol, Portfolio"
             />
@@ -353,12 +364,12 @@ export default function ActivitiesPage() {
 
           <label>
             <span>Von</span>
-            <input className="ui-input" type="date" value={filters.dateFrom} onChange={(event) => updateFilter({ dateFrom: event.target.value })} />
+            <input className="ui-input" type="date" value={effectiveFilters.dateFrom} onChange={(event) => updateFilter({ dateFrom: event.target.value })} />
           </label>
 
           <label>
             <span>Bis</span>
-            <input className="ui-input" type="date" value={filters.dateTo} onChange={(event) => updateFilter({ dateTo: event.target.value })} />
+            <input className="ui-input" type="date" value={effectiveFilters.dateTo} onChange={(event) => updateFilter({ dateTo: event.target.value })} />
           </label>
 
           <div className={styles.checkGroup}>
@@ -367,8 +378,8 @@ export default function ActivitiesPage() {
               <label key={portfolio.id} className={styles.checkRow}>
                 <input
                   type="checkbox"
-                  checked={filters.portfolioIds.includes(portfolio.id)}
-                  onChange={() => updateFilter({ portfolioIds: filters.portfolioIds.includes(portfolio.id) ? filters.portfolioIds.filter((id) => id !== portfolio.id) : [...filters.portfolioIds, portfolio.id] })}
+                  checked={effectiveFilters.portfolioIds.includes(portfolio.id)}
+                  onChange={() => updateFilter({ portfolioIds: effectiveFilters.portfolioIds.includes(portfolio.id) ? effectiveFilters.portfolioIds.filter((id) => id !== portfolio.id) : [...effectiveFilters.portfolioIds, portfolio.id] })}
                 />
                 {portfolio.name}
               </label>
@@ -381,8 +392,8 @@ export default function ActivitiesPage() {
               <label key={type} className={styles.checkRow}>
                 <input
                   type="checkbox"
-                  checked={filters.types.includes(type)}
-                  onChange={() => updateFilter({ types: toggleType(filters.types, type) })}
+                  checked={effectiveFilters.types.includes(type)}
+                  onChange={() => updateFilter({ types: toggleType(effectiveFilters.types, type) })}
                 />
                 {getActivityTypeLabel(type)}
               </label>
@@ -390,12 +401,12 @@ export default function ActivitiesPage() {
           </div>
 
           <label className={styles.checkRow}>
-            <input type="checkbox" checked={filters.warningsOnly} onChange={(event) => updateFilter({ warningsOnly: event.target.checked })} />
+            <input type="checkbox" checked={effectiveFilters.warningsOnly} onChange={(event) => updateFilter({ warningsOnly: event.target.checked })} />
             Nur mit Warnungen
           </label>
 
           <label className={styles.checkRow}>
-            <input type="checkbox" checked={filters.overridesOnly} onChange={(event) => updateFilter({ overridesOnly: event.target.checked })} />
+            <input type="checkbox" checked={effectiveFilters.overridesOnly} onChange={(event) => updateFilter({ overridesOnly: event.target.checked })} />
             Nur mit Overrides
           </label>
 

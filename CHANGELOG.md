@@ -93,6 +93,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Fixed
 
+- Fixed remaining Activities, Timeline and Reports hydration risks by applying browser-local snapshot/read-model state only after hydration.
 - Fixed page-level hydration mismatches from browser-local Settings and Asset Detail state.
 - Fixed local app-shell hydration mismatches from browser-only theme, connection and local activity status state.
 - Hardened Snapshot/API-budget follow-up behavior so explicit refresh semantics, snapshot-first audit routes and local diagnostics reset state stay provider-call-safe.

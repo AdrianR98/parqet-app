@@ -77,6 +77,23 @@ export type ActivityGroup = {
   items: ProjectedActivity[];
 };
 
+export function getEmptyLocalActivityReadModel(): LocalActivityReadModel {
+  return {
+    items: [],
+    portfolios: [],
+    scopedPortfolioIds: [],
+    loadedPortfolioIds: [],
+    missingScopePortfolioIds: [],
+    scope: {
+      mode: "all",
+      selectedPortfolioIds: [],
+    },
+    generatedAt: null,
+    freshness: null,
+    source: "none",
+  };
+}
+
 export const ALL_ACTIVITY_TYPES: AuditActivityType[] = [
   "buy",
   "sell",

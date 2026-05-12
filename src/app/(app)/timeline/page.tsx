@@ -5,6 +5,7 @@ import styles from "./TimelinePage.module.css";
 import {
   ALL_ACTIVITY_TYPES,
   filterActivities,
+  getEmptyLocalActivityReadModel,
   getActivityWarningLabel,
   getActivityTypeLabel,
   getFreshnessLabel,
@@ -16,6 +17,10 @@ import {
   type ActivityFilters,
 } from "../../../lib/local-activity-read-model";
 import type { AuditActivityType } from "../../../lib/types";
+import {
+  notifyBrowserLocalStateChanged,
+  useHydrationSafeLocalSnapshot,
+} from "../../../hooks/use-hydration-safe-local-snapshot";
 
 type TimelineSummaryItem = {
   label: string;
@@ -32,18 +37,26 @@ function uniqueCount(values: Array<string | null | undefined>): number {
   return new Set(values.filter((value): value is string => Boolean(value))).size;
 }
 
-export default function TimelinePage() {
-  const [readModel, setReadModel] = useState(() => loadLocalActivityReadModel());
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<ActivityFilters>(() => ({
-    portfolioIds: readModel.scopedPortfolioIds,
+function getDefaultActivityFilters(): ActivityFilters {
+  return {
+    portfolioIds: [],
     query: "",
     types: ALL_ACTIVITY_TYPES,
     dateFrom: "",
     dateTo: "",
     warningsOnly: false,
     overridesOnly: false,
-  }));
+  };
+}
+
+export default function TimelinePage() {
+  const { value: readModel } = useHydrationSafeLocalSnapshot(
+    loadLocalActivityReadModel,
+    getEmptyLocalActivityReadModel,
+  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<ActivityFilters>(() => getDefaultActivityFilters());
+  const [useHydratedPortfolioScope, setUseHydratedPortfolioScope] = useState(true);
 
   const scopedItems = useMemo(() => {
     if (readModel.scope.mode === "all") return readModel.items;
@@ -51,9 +64,16 @@ export default function TimelinePage() {
     return readModel.items.filter((item) => item.portfolioId && scopedIds.has(item.portfolioId));
   }, [readModel]);
 
+  const effectiveFilters = useMemo(
+    () => useHydratedPortfolioScope
+      ? { ...filters, portfolioIds: readModel.scopedPortfolioIds }
+      : filters,
+    [filters, readModel.scopedPortfolioIds, useHydratedPortfolioScope],
+  );
+
   const projected = useMemo(() => {
-    return sortActivities(filterActivities(scopedItems, filters), { key: "date", direction: "desc" }).map(projectActivity);
-  }, [filters, scopedItems]);
+    return sortActivities(filterActivities(scopedItems, effectiveFilters), { key: "date", direction: "desc" }).map(projectActivity);
+  }, [effectiveFilters, scopedItems]);
   const timelineSummary = useMemo<TimelineSummaryItem[]>(() => {
     const transferCount = projected.filter((item) => item.type === "transfer_in" || item.type === "transfer_out").length;
 
@@ -74,33 +94,22 @@ export default function TimelinePage() {
   const hasLocalData = readModel.items.length > 0;
 
   function updateFilter(next: Partial<ActivityFilters>) {
+    if ("portfolioIds" in next) {
+      setUseHydratedPortfolioScope(false);
+    }
+
     setFilters((current) => ({ ...current, ...next }));
   }
 
   function clearFilters() {
-    setFilters({
-      portfolioIds: readModel.scopedPortfolioIds,
-      query: "",
-      types: ALL_ACTIVITY_TYPES,
-      dateFrom: "",
-      dateTo: "",
-      warningsOnly: false,
-      overridesOnly: false,
-    });
+    setUseHydratedPortfolioScope(true);
+    setFilters(getDefaultActivityFilters());
   }
 
   function reloadFromLocalCache() {
-    const next = loadLocalActivityReadModel();
-    setReadModel(next);
-    setFilters({
-      portfolioIds: next.scopedPortfolioIds,
-      query: "",
-      types: ALL_ACTIVITY_TYPES,
-      dateFrom: "",
-      dateTo: "",
-      warningsOnly: false,
-      overridesOnly: false,
-    });
+    notifyBrowserLocalStateChanged();
+    setUseHydratedPortfolioScope(true);
+    setFilters(getDefaultActivityFilters());
   }
 
   return (
@@ -157,18 +166,18 @@ export default function TimelinePage() {
         <div className={`${styles.filtersGrid} ${filtersOpen ? styles.filtersGridOpen : ""}`}>
           <label>
             <span>Suche</span>
-            <input className="ui-input" value={filters.query} onChange={(event) => updateFilter({ query: event.target.value })} placeholder="Asset, ISIN, Symbol, Portfolio" />
+            <input className="ui-input" value={effectiveFilters.query} onChange={(event) => updateFilter({ query: event.target.value })} placeholder="Asset, ISIN, Symbol, Portfolio" />
           </label>
           <label>
             <span>Von</span>
-            <input className="ui-input" type="date" value={filters.dateFrom} onChange={(event) => updateFilter({ dateFrom: event.target.value })} />
+            <input className="ui-input" type="date" value={effectiveFilters.dateFrom} onChange={(event) => updateFilter({ dateFrom: event.target.value })} />
           </label>
           <label>
             <span>Bis</span>
-            <input className="ui-input" type="date" value={filters.dateTo} onChange={(event) => updateFilter({ dateTo: event.target.value })} />
+            <input className="ui-input" type="date" value={effectiveFilters.dateTo} onChange={(event) => updateFilter({ dateTo: event.target.value })} />
           </label>
           <label className={styles.checkRow}>
-            <input type="checkbox" checked={filters.warningsOnly} onChange={(event) => updateFilter({ warningsOnly: event.target.checked })} />
+            <input type="checkbox" checked={effectiveFilters.warningsOnly} onChange={(event) => updateFilter({ warningsOnly: event.target.checked })} />
             Nur Datenhinweise
           </label>
 
@@ -176,7 +185,7 @@ export default function TimelinePage() {
             <span>Portfolio</span>
             {portfolioOptions.length ? portfolioOptions.map((portfolio) => (
               <label key={portfolio.id} className={styles.checkRow}>
-                <input type="checkbox" checked={filters.portfolioIds.includes(portfolio.id)} onChange={() => updateFilter({ portfolioIds: filters.portfolioIds.includes(portfolio.id) ? filters.portfolioIds.filter((id) => id !== portfolio.id) : [...filters.portfolioIds, portfolio.id] })} />
+                <input type="checkbox" checked={effectiveFilters.portfolioIds.includes(portfolio.id)} onChange={() => updateFilter({ portfolioIds: effectiveFilters.portfolioIds.includes(portfolio.id) ? effectiveFilters.portfolioIds.filter((id) => id !== portfolio.id) : [...effectiveFilters.portfolioIds, portfolio.id] })} />
                 {portfolio.name}
               </label>
             )) : <p>Keine lokalen Portfolios im Scope.</p>}
@@ -186,7 +195,7 @@ export default function TimelinePage() {
             <span>Aktivitätstyp</span>
             {ALL_ACTIVITY_TYPES.map((type) => (
               <label key={type} className={styles.checkRow}>
-                <input type="checkbox" checked={filters.types.includes(type)} onChange={() => updateFilter({ types: toggleType(filters.types, type) })} />
+                <input type="checkbox" checked={effectiveFilters.types.includes(type)} onChange={() => updateFilter({ types: toggleType(effectiveFilters.types, type) })} />
                 {getActivityTypeLabel(type)}
               </label>
             ))}
