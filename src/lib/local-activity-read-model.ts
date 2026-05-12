@@ -1,6 +1,8 @@
 import { loadDashboardCache } from "./dashboard-cache";
 import { createAssetDetailHrefFromParts } from "./asset-detail";
 import { formatCurrency, formatDateTime, formatMonth, formatShares } from "./format";
+import { getMergedAssetMetadataCache } from "./asset-metadata";
+import { normalizeIsin } from "./metadata-utils";
 import {
   loadKnownPortfolios,
   loadPortfolioScope,
@@ -189,9 +191,29 @@ function resolveLocalScope(
   };
 }
 
+function hydrateActivityMetadata(items: ActivitiesAuditItem[]): ActivitiesAuditItem[] {
+  const metadataCache = getMergedAssetMetadataCache();
+
+  return items.map((item) => {
+    const normalizedIsin = normalizeIsin(item.isin);
+    const metadata = normalizedIsin ? metadataCache[normalizedIsin] : undefined;
+
+    if (!metadata) {
+      return item;
+    }
+
+    return {
+      ...item,
+      name: metadata.name ?? metadata.displayName ?? metadata.assetName ?? metadata.title ?? item.name,
+      symbol: item.symbol ?? metadata.symbol ?? metadata.ticker ?? metadata.tickerSymbol ?? null,
+      wkn: item.wkn ?? metadata.wkn ?? null,
+    };
+  });
+}
+
 export function loadLocalActivityReadModel(): LocalActivityReadModel {
   const cache = loadDashboardCache();
-  const items = cache?.activityItems ?? [];
+  const items = hydrateActivityMetadata(cache?.activityItems ?? []);
   const loadedPortfolioIds = cache?.selectedPortfolioIds ?? [];
   const portfolios = buildPortfoliosFromItems(items, loadedPortfolioIds);
   const scope = loadPortfolioScope();
