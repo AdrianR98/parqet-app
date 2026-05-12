@@ -5,6 +5,7 @@ import styles from "./TimelinePage.module.css";
 import {
   ALL_ACTIVITY_TYPES,
   filterActivities,
+  getActivityWarningLabel,
   getActivityTypeLabel,
   getFreshnessLabel,
   getSourceLabel,
@@ -62,7 +63,7 @@ export default function TimelinePage() {
       { label: "Verkäufe", value: projected.filter((item) => item.type === "sell").length },
       { label: "Dividenden", value: projected.filter((item) => item.type === "dividend").length },
       { label: "Transfers/Buchungen", value: transferCount },
-      { label: "Prüfung nötig", value: projected.filter((item) => item.hasWarnings).length },
+      { label: "Datenhinweise", value: projected.filter((item) => item.hasWarnings).length },
       { label: "Assets", value: uniqueCount(projected.map((item) => item.assetMeta === "Keine Kennung lokal vorhanden" ? item.assetLabel : item.assetMeta)) },
       { label: "Portfolios", value: uniqueCount(projected.map((item) => item.portfolioLabel)) },
     ];
@@ -146,7 +147,7 @@ export default function TimelinePage() {
         <div className={styles.filtersHeader}>
           <div>
             <h2>Timeline-Filter</h2>
-            <p>Portfolio, Asset/Suche, Typ, Zeitraum und Warnungen werden lokal angewendet.</p>
+            <p>Portfolio, Asset/Suche, Typ, Zeitraum und Datenhinweise werden lokal angewendet.</p>
           </div>
           <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setFiltersOpen((open) => !open)}>
             {filtersOpen ? "Filter einklappen" : "Filter anzeigen"}
@@ -168,7 +169,7 @@ export default function TimelinePage() {
           </label>
           <label className={styles.checkRow}>
             <input type="checkbox" checked={filters.warningsOnly} onChange={(event) => updateFilter({ warningsOnly: event.target.checked })} />
-            Nur Warnungen/Datenprobleme
+            Nur Datenhinweise
           </label>
 
           <div className={styles.checkGroup}>
@@ -240,7 +241,7 @@ export default function TimelinePage() {
                   {group.items.map((event) => (
                     <article key={event.id} className={styles.eventCard}>
                       <div className={styles.eventTop}>
-                        <span className={styles.typeBadge}>{event.hasWarnings ? "Prüfung nötig" : event.typeLabel}</span>
+                        <span className={styles.typeBadge}>{event.hasWarnings ? "Datenhinweis" : event.typeLabel}</span>
                         <span className={styles.eventDate}>{event.dateLabel}</span>
                       </div>
                       <div className={styles.eventTitle}>{event.assetLabel}</div>
@@ -252,7 +253,7 @@ export default function TimelinePage() {
                         <span>Netto {event.amountNetLabel}</span>
                       </div>
                       <div className={styles.badgeRow}>
-                        {event.hasWarnings ? <span className={styles.warningBadge}>{event.warningMessages.length} Prüfung nötig</span> : null}
+                        {event.hasWarnings ? <span className={styles.warningBadge}>{getActivityWarningLabel(event.warningMessages.length)}</span> : null}
                         {event.overrideLabel ? <span className={styles.overrideBadge}>{event.overrideLabel}</span> : null}
                       </div>
                     </article>

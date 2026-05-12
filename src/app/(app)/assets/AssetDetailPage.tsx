@@ -315,7 +315,7 @@ export default function AssetDetailPage() {
                 <section className={styles.card}>
                     <div className={styles.sectionHeader}>
                         <h2>Warnungen / Datenqualität</h2>
-                        <p>Assetbezogene Hinweise ohne Rohpayloads oder private Debugdaten.</p>
+                        <p>Assetbezogene Datenhinweise aus dem geladenen Stand, ohne Rohpayloads oder private Debugdaten.</p>
                     </div>
                     {warnings.length > 0 ? (
                         <div className={styles.warningList}>
@@ -328,7 +328,7 @@ export default function AssetDetailPage() {
                             ))}
                         </div>
                     ) : (
-                        <div className={styles.inlineEmpty}>Keine assetbezogenen Warnungen lokal verfügbar.</div>
+                        <div className={styles.inlineEmpty}>Keine assetbezogenen Datenhinweise im geladenen Stand.</div>
                     )}
                 </section>
 

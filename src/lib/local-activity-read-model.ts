@@ -216,9 +216,9 @@ export function getActivityTypeLabel(type: AuditActivityType): string {
 }
 
 export function getActivityWarningLabel(count: number): string {
-  if (count <= 0) return "Keine Warnungen";
-  if (count === 1) return "1 Warnung";
-  return `${count} Warnungen`;
+  if (count <= 0) return "Keine Datenhinweise";
+  if (count === 1) return "1 Datenhinweis";
+  return `${count} Datenhinweise`;
 }
 
 export function formatActivityDate(value: string): string {
@@ -402,8 +402,8 @@ export function groupProjectedActivities(
 
 export function getSourceLabel(model: Pick<LocalActivityReadModel, "source" | "freshness">): string {
   if (model.source === "none") return "Nicht geladen";
-  if (model.freshness?.source === "snapshot") return "Snapshot / lokale geladene Daten";
-  return "Lokale geladene Daten";
+  if (model.freshness?.source === "snapshot") return "Geladener Snapshot";
+  return "Lokal geladener Stand";
 }
 
 export function getFreshnessLabel(model: Pick<LocalActivityReadModel, "generatedAt" | "freshness">): string {
@@ -420,7 +420,7 @@ export function getFreshnessLabel(model: Pick<LocalActivityReadModel, "generated
   }
 
   if (model.freshness?.status === "fresh") {
-    return `${base} · frisch`;
+    return `${base} · aus geladenem Snapshot`;
   }
 
   return base;

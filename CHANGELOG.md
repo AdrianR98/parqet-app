@@ -54,6 +54,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- V1 warning, data-quality and confidence wording is now more consistent across Dashboard, Asset Detail, Timeline and Reports without adding provider calls or new warning logic.
 - User-facing Parqet auth, rate-limit and provider error wording is now clearer in German, discourages repeated refresh attempts during rate limits and keeps raw/debug details out of normal Dashboard and Asset Audit UI states.
 - Neutralized governance, workflow, v1 guardrail and template wording so durable repository rules do not depend on the current visible product name.
 - Strengthened the PR template with required Phase, Scope, Non-goals, API Budget Impact, Privacy / Data Impact, UI / UX Impact, Testing, Reviewer Checklist and Post-merge Cleanup sections.
