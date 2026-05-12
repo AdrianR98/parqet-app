@@ -22,6 +22,13 @@ search:
   preferred:
     - git grep
     - git ls-files
+    - rg when available
+  efficiency:
+    - Use search before broad file reads unless the exact file and needed section are already known.
+    - Prefer focused excerpts around matches over full-file reads for large files.
+    - Batch independent file reads or searches when possible.
+    - Read full files only when the complete file shape is required for a safe edit or review.
+    - Avoid printing huge files, generated outputs or full logs after successful checks.
   if_blocked:
     - use an allowed alternative
     - report the limitation only when it affects confidence
@@ -31,6 +38,13 @@ search:
     - .env.*
     - private exports
     - real portfolio data
+
+implementation_loop:
+  - Make one coherent patch after enough targeted context is known.
+  - Prefer apply_patch or an equivalent focused patch method over repeated micro-edits.
+  - If the same blocker survives two implementation strategies, stop and report the blocker instead of trying a third unrelated approach.
+  - For failing tests, inspect only the relevant failure excerpt or Playwright error-context file.
+  - Do not weaken assertions only to make a failing test pass; document exposed product bugs or split a bugfix follow-up.
 
 mode_file_limits:
   Mini: explicitly named files only
@@ -51,6 +65,11 @@ verification:
     - npm run lint
     - npm run build
     - relevant tests once a clean test setup exists
+  test_loop:
+    - Run focused tests during development when available.
+    - Run the full relevant test suite once after focused tests pass.
+    - Do not run lint, build and E2E tests concurrently.
+    - Re-run failed checks only after a relevant fix.
   always_use_terms:
     - Run
     - Not run
@@ -69,6 +88,10 @@ ci_and_vercel:
   red_ci: do not merge unless Adrian explicitly approves and documents exception
 
 reporting:
+  progress_updates:
+    - Keep updates short and milestone-based.
+    - Do not narrate every command or routine file read.
+    - Report meaningful blockers, verification results and scope deviations.
   include_when_relevant:
     - branch
     - changed files
@@ -88,16 +111,27 @@ reporting:
     - private data in logs is a blocker
 
 pr_body_must_include:
-  - Goal
   - Linked issues
+  - Phase checklist
+  - Goal or Summary
   - Mode / Codex involvement
-  - Summary
-  - Changed files
+  - Scope / changed files
+  - Non-goals
   - Verification
   - Documentation impact
+  - API Budget Impact
+  - Privacy / Data Impact
   - Risk
   - Rollback
-  - What was intentionally not changed for larger/Normal/Voll PRs
+  - What was intentionally not changed for larger Normal/Voll PRs
+
+pr_body_preflight:
+  - Use .github/PULL_REQUEST_TEMPLATE.md headings unless the task explicitly allows a shorter body.
+  - Check exactly the appropriate Phase line where practical.
+  - Use Phase 4 for V1 hardening/test work unless the issue says otherwise.
+  - Re-check Refs versus Fixes before opening or updating the PR.
+  - Use Fixes only when the issue should close automatically on merge.
+  - Update the PR body after review fixes when scope, files, verification, risks, known gaps or Refs/Fixes correctness changed.
 
 review_fix:
   update_pr_body_when_changed:
@@ -107,6 +141,7 @@ review_fix:
     - risks
     - known gaps
     - Refs/Fixes correctness
+    - Phase checklist
 
 security_privacy:
   - No real tokens, cookies, OAuth codes, access tokens or refresh tokens in issues, PRs, commits or logs.
