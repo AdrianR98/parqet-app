@@ -22,6 +22,15 @@ shared_rules:
   - Stop for unclear product goal, user flow, data model, privacy or security questions.
   - Use Refs for parent issues and partial work.
   - Use Fixes only when a sub-issue is fully completed.
+  - Keep AGENTS.md as the compact entrypoint; use detailed prompt/docs files only when required by mode or scope.
+
+efficiency_rules:
+  - Prefer rg, git grep and git ls-files before reading full files.
+  - Prefer focused excerpts around matches over full-file reads for large files.
+  - Batch independent context reads where practical instead of reading files one-by-one.
+  - Do not re-read or re-edit the same file repeatedly without a new reason.
+  - Stop and report if two implementation strategies fail for the same blocker.
+  - Keep progress updates short and milestone-based; do not narrate every command.
 
 mini:
   use_for:
@@ -57,6 +66,7 @@ spar:
   search:
     - targeted git grep / git ls-files allowed when needed
     - broad repository analysis not allowed
+    - read full files only when the full file is small or required for the edit
   plan_required: only_when_uncertain
   requirements:
     - list changed files when reporting a PR
@@ -103,6 +113,19 @@ may_require_normal_or_higher:
   - new tests or test setup
   - medium governance updates
   - Vercel ignored-build logic changes
+
+known_project_patterns:
+  playwright_local_state:
+    - Use Playwright storageState for initial synthetic browser-local state.
+    - Use http://localhost:3000 for Playwright baseURL and webServer.url.
+    - Do not use addInitScript, setup routes or post-navigation localStorage writes for initial hydration-state fixtures unless explicitly justified.
+    - During development, run focused Playwright tests with -g before one final full npm run test:e2e.
+    - Do not run lint, build and E2E tests concurrently.
+  browser_local_hydration:
+    - Server render and first client render must use a neutral SSR-safe state.
+    - Browser-local state should be applied after hydration unless a dedicated SSR-safe hook/pattern is used.
+  api_budget_local_ui:
+    - Navigation, filtering, sorting, detail panels, report layout and local settings must not trigger hidden provider calls.
 
 verification_shortcuts:
   docs_or_prompt_only:

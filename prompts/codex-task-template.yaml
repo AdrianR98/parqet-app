@@ -54,13 +54,13 @@ read_first_by_mode:
   Spar:
     - AGENTS.md
     - prompts/codex-quick-rules.yaml
-    - relevant files
+    - relevant files only
   Normal:
     - AGENTS.md
     - prompts/codex-quick-rules.yaml
     - prompts/codex-task-template.yaml
     - prompts/codex-execution-rules.yaml
-    - relevant files
+    - relevant files selected with targeted search
   Voll:
     - AGENTS.md
     - prompts/master-prompt.yaml
@@ -72,11 +72,34 @@ read_first_by_mode:
     - docs/PROJECT_STATUS.md
     - relevant ADRs
 
+read_policy_notes:
+  - The read_first_by_mode list defines implementation context, not every review or merge gate.
+  - GitHub actions, reviews and merges may require additional rule checks from docs/DEVELOPMENT_WORKFLOW.md and AGENTS.md.
+  - For Mini/Spar/Normal, do not fully read large docs unless the task specifically changes or depends on them.
+  - Prefer rg/git grep and focused excerpts for implementation context.
+  - Keep static reusable constraints before task-specific details when writing prompts; put dynamic issue details later.
+
 issue_linking:
   parent_issue: Refs only
   complete_sub_issue: Fixes allowed
   partial_work: Refs only
   review_fix: re-check PR body after changes
+
+efficiency_block: |
+  Efficiency constraints:
+  - Use targeted rg/git grep/git ls-files before full-file reads.
+  - Prefer focused excerpts around matches over full-file reads for large files.
+  - Batch independent reads where practical.
+  - Stop and report if two implementation strategies fail for the same blocker.
+  - Keep progress updates short and milestone-based.
+  - Do not print huge logs or full generated outputs.
+
+known_patterns_block: |
+  Known project patterns:
+  - Playwright local-state tests should use storageState and http://localhost:3000.
+  - Do not use addInitScript, setup routes or post-navigation localStorage writes for initial hydration-state fixtures unless explicitly justified.
+  - Run focused Playwright tests with -g while developing; run full npm run test:e2e once at the end.
+  - Do not run lint, build and E2E tests concurrently.
 
 template: |
   Repo: AdrianR98/parqet-app
@@ -117,6 +140,15 @@ template: |
   - prompts/codex-quick-rules.yaml
   - <other files required by mode/scope>
 
+  Efficiency constraints:
+  - Use targeted rg/git grep/git ls-files before full-file reads.
+  - Prefer focused excerpts around matches over full-file reads for large files.
+  - Batch independent reads where practical.
+  - Stop and report if two implementation strategies fail for the same blocker.
+
+  Known project patterns:
+  - <include only patterns relevant to this task>
+
   Do not modify:
   - <specific path or critical area>
 
@@ -139,3 +171,4 @@ stop_conditions:
   - private data or secret suspicion
   - scope would exceed mode file limits except Voll
   - requested change conflicts with current workflow rules
+  - two failed implementation strategies for the same blocker without a new diagnosis
