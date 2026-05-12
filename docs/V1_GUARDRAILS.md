@@ -225,7 +225,7 @@ Avoid wording that implies certainty when confidence is not high:
 ## Feature Capability Matrix
 
 | Feature | Primary data source | Loaded/snapshot data sufficient? | Provider call allowed? | Freshness / confidence notes |
-| --- | --- | --- | --- |
+| --- | --- | --- | --- | --- |
 | Dashboard | Holdings/performance-near read model first; normalized activity aggregates only for metrics that need history. | Yes for navigation, allocation display, sorting and already-loaded summary cards. | Only through explicit refresh/sync or initial authorized load, scoped as narrowly as available. | Current-state values should show provider/snapshot freshness. Historical derived metrics need activity confidence. |
 | Asset Detail | Snapshot/read model plus Global Asset aggregate for selected asset. | Yes when selected asset details are already present. | Allowed only by explicit scoped load/refresh for missing selected asset data. | Source should distinguish provider current values from app timeline-derived values. |
 | Asset Detail Chart/Timeline | Normalized activities and timeline entries for the selected asset. | Yes for chart-mode, range and zoom changes over loaded points. | Allowed only for explicit load-more/refresh of missing timeline scope. | Timeline-derived metrics are preliminary when transfers, fees, taxes or full history are incomplete. |
