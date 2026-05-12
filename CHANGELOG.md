@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Extended the local/manual Playwright V1 smoke tests with privacy-safe synthetic browser-local state and interaction coverage for Activities, Timeline, Settings and Reports.
 - Added a local/manual Playwright V1 smoke-test foundation for hydration and API-budget regressions without real Parqet credentials or provider data.
 - Added app-neutral `docs/PHASE_PLAN.md`, `docs/V1_GUARDRAILS.md` and `docs/LOCAL_QUICKSTART.md` as the current governance document structure.
 - Added GitHub Issue Forms for feature, bug, v1 hardening, research/ADR, documentation, cleanup/consistency and release checklist issues.
