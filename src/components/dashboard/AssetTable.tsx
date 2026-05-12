@@ -2,12 +2,17 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import styles from "./AssetTable.module.css";
 import SyncedHorizontalScroll from "./SyncedHorizontalScroll";
 import AssetTableHeader from "./AssetTableHeader";
 import AssetTableRows from "./AssetTableRows";
 import type { AssetSummary } from "../../lib/types";
+import {
+    DEFAULT_REVEAL_BLOCK_SIZE,
+    loadRevealBlockSize,
+    subscribeToLocalSettings,
+} from "../../lib/app-settings";
 import {
     DEFAULT_VISIBLE_COLUMNS,
     FIXED_COLUMNS,
@@ -23,8 +28,6 @@ type AssetTableProps = {
     emptyTitle?: string;
     emptyDescription?: string;
 };
-
-const ASSET_REVEAL_STEP = 80;
 
 function getSearchText(asset: AssetSummary): string {
     return [
@@ -49,6 +52,11 @@ export default function AssetTable({
     emptyTitle = "Keine Assets im geladenen Stand",
     emptyDescription = "Passe die lokale Suche an oder lade Assets explizit neu, wenn du einen anderen Parqet-Stand erwartest.",
 }: AssetTableProps) {
+    const revealBlockSize = useSyncExternalStore(
+        subscribeToLocalSettings,
+        loadRevealBlockSize,
+        () => DEFAULT_REVEAL_BLOCK_SIZE
+    );
     const [visibleColumns, setVisibleColumns] =
         useState<VisibleColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
     const [sortKey, setSortKey] = useState<AssetSortKey>("positionValue");
@@ -57,7 +65,7 @@ export default function AssetTable({
     const [showColumnMenu, setShowColumnMenu] = useState(false);
     const [showTopScrollbar, setShowTopScrollbar] = useState(false);
     const [query, setQuery] = useState("");
-    const [visibleAssetCount, setVisibleAssetCount] = useState(ASSET_REVEAL_STEP);
+    const [visibleAssetCount, setVisibleAssetCount] = useState(DEFAULT_REVEAL_BLOCK_SIZE);
 
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const columnMenuRef = useRef<HTMLDivElement | null>(null);
@@ -97,6 +105,10 @@ export default function AssetTable({
     const visibleAssets = useMemo(() => {
         return sortedAssets.slice(0, visibleAssetCount);
     }, [sortedAssets, visibleAssetCount]);
+
+    useEffect(() => {
+        setVisibleAssetCount(revealBlockSize);
+    }, [revealBlockSize]);
 
     useEffect(() => {
         const node = tableScrollRef.current;
@@ -152,7 +164,7 @@ export default function AssetTable({
     }, []);
 
     const sortAction = useCallback((nextSortKey: AssetSortKey) => {
-        setVisibleAssetCount(ASSET_REVEAL_STEP);
+        setVisibleAssetCount(revealBlockSize);
 
         if (sortKey === nextSortKey) {
             setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
@@ -161,7 +173,7 @@ export default function AssetTable({
 
         setSortKey(nextSortKey);
         setSortDirection("desc");
-    }, [sortKey]);
+    }, [revealBlockSize, sortKey]);
 
     const toggleExpandedAction = useCallback((isin: string) => {
         setExpandedIsins((current) =>
@@ -195,7 +207,7 @@ export default function AssetTable({
                         type="search"
                         value={query}
                         onChange={(event) => {
-                            setVisibleAssetCount(ASSET_REVEAL_STEP);
+                            setVisibleAssetCount(revealBlockSize);
                             setQuery(event.target.value);
                         }}
                         placeholder="Lokal suchen: Name, ISIN, WKN"
@@ -207,7 +219,7 @@ export default function AssetTable({
                             type="button"
                             className="ui-btn ui-btn-ghost"
                             onClick={() => {
-                                setVisibleAssetCount(ASSET_REVEAL_STEP);
+                                setVisibleAssetCount(revealBlockSize);
                                 setQuery("");
                             }}
                             disabled={loading}
@@ -275,10 +287,10 @@ export default function AssetTable({
                                 type="button"
                                 className="ui-btn ui-btn-secondary"
                                 onClick={() =>
-                                    setVisibleAssetCount((count) => count + ASSET_REVEAL_STEP)
+                                    setVisibleAssetCount((count) => count + revealBlockSize)
                                 }
                             >
-                                Mehr lokale Assets anzeigen ({Math.min(ASSET_REVEAL_STEP, sortedAssets.length - visibleAssets.length)} weitere)
+                                Mehr lokale Assets anzeigen ({Math.min(revealBlockSize, sortedAssets.length - visibleAssets.length)} weitere)
                             </button>
                         </div>
                     ) : null}

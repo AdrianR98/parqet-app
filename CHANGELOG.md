@@ -9,6 +9,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 ### Added
 
 - Added scope-based Codex verification profiles so local checks are selected by task type while GitHub Actions remains the final PR gate.
+- Added a local Settings preference for Dashboard, Timeline and Reports reveal block size with 20, 50 and 100 row options.
 - Added a GitHub Actions PR check for the V1 Playwright smoke suite with standard Chromium dependency installation and no default Playwright media artifacts.
 - Added Codex token/context budget guardrails for broad tasks, including smaller-slice stop rules, targeted diff reporting and optional browser inspection boundaries.
 - Added local asset metadata maintenance workflow documentation for safe CSV generation, privacy review, fallback order and provider-call-free v1 metadata handling.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import styles from "./TimelinePage.module.css";
 import {
   ALL_ACTIVITY_TYPES,
@@ -21,13 +21,16 @@ import {
   notifyBrowserLocalStateChanged,
   useHydrationSafeLocalSnapshot,
 } from "../../../hooks/use-hydration-safe-local-snapshot";
+import {
+  DEFAULT_REVEAL_BLOCK_SIZE,
+  loadRevealBlockSize,
+  subscribeToLocalSettings,
+} from "../../../lib/app-settings";
 
 type TimelineSummaryItem = {
   label: string;
   value: number;
 };
-
-const TIMELINE_REVEAL_STEP = 80;
 
 function toggleType(current: AuditActivityType[], type: AuditActivityType) {
   return current.includes(type)
@@ -52,6 +55,11 @@ function getDefaultActivityFilters(): ActivityFilters {
 }
 
 export default function TimelinePage() {
+  const revealBlockSize = useSyncExternalStore(
+    subscribeToLocalSettings,
+    loadRevealBlockSize,
+    () => DEFAULT_REVEAL_BLOCK_SIZE,
+  );
   const { value: readModel } = useHydrationSafeLocalSnapshot(
     loadLocalActivityReadModel,
     getEmptyLocalActivityReadModel,
@@ -59,7 +67,7 @@ export default function TimelinePage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<ActivityFilters>(() => getDefaultActivityFilters());
   const [useHydratedPortfolioScope, setUseHydratedPortfolioScope] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(TIMELINE_REVEAL_STEP);
+  const [visibleCount, setVisibleCount] = useState(DEFAULT_REVEAL_BLOCK_SIZE);
 
   const scopedItems = useMemo(() => {
     if (readModel.scope.mode === "all") return readModel.items;
@@ -101,25 +109,29 @@ export default function TimelinePage() {
   const hasLocalData = readModel.items.length > 0;
   const hasMore = visibleEvents.length < filteredItems.length;
 
+  useEffect(() => {
+    setVisibleCount(revealBlockSize);
+  }, [revealBlockSize]);
+
   function updateFilter(next: Partial<ActivityFilters>) {
     if ("portfolioIds" in next) {
       setUseHydratedPortfolioScope(false);
     }
 
-    setVisibleCount(TIMELINE_REVEAL_STEP);
+    setVisibleCount(revealBlockSize);
     setFilters((current) => ({ ...current, ...next }));
   }
 
   function clearFilters() {
     setUseHydratedPortfolioScope(true);
-    setVisibleCount(TIMELINE_REVEAL_STEP);
+    setVisibleCount(revealBlockSize);
     setFilters(getDefaultActivityFilters());
   }
 
   function reloadFromLocalCache() {
     notifyBrowserLocalStateChanged();
     setUseHydratedPortfolioScope(true);
-    setVisibleCount(TIMELINE_REVEAL_STEP);
+    setVisibleCount(revealBlockSize);
     setFilters(getDefaultActivityFilters());
   }
 
@@ -288,8 +300,8 @@ export default function TimelinePage() {
               </div>
             ))}
             {hasMore ? (
-              <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setVisibleCount((count) => count + TIMELINE_REVEAL_STEP)}>
-                Mehr lokale Ereignisse anzeigen ({Math.min(TIMELINE_REVEAL_STEP, filteredItems.length - visibleEvents.length)} weitere)
+              <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setVisibleCount((count) => count + revealBlockSize)}>
+                Mehr lokale Ereignisse anzeigen ({Math.min(revealBlockSize, filteredItems.length - visibleEvents.length)} weitere)
               </button>
             ) : null}
           </section>
