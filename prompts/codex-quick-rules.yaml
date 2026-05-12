@@ -32,6 +32,15 @@ efficiency_rules:
   - Stop and report if two implementation strategies fail for the same blocker.
   - Keep progress updates short and milestone-based; do not narrate every command.
 
+context_budget_rules:
+  - Treat broad UI, architecture, data and test tasks as context-budgeted work.
+  - Do not print full files unless they are short or required for a safe edit.
+  - Do not print full diffs after implementation; prefer git diff --stat plus targeted changed-hunk excerpts only when needed.
+  - Prefer analysis-only first passes for broad or uncertain work before implementing.
+  - Manual browser inspection is optional unless tests do not cover the changed behavior, a visual interaction must be checked, or the task explicitly requires browser review.
+  - If more than 6 app files appear necessary for a non-Voll implementation task, stop and propose a smaller slice unless the prompt explicitly allows the broader scope.
+  - Keep PR bodies complete but concise; do not repeat the full issue text.
+
 mini:
   use_for:
     - typos

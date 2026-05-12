@@ -12,6 +12,9 @@ execution:
   - Use explicit staging when the worktree is mixed.
   - Stay within Allowed changes and Do not modify.
   - Stop and ask before exceeding mode file limits unless mode is Voll.
+  - Treat broad UI, architecture, data and test tasks as context-budgeted work.
+  - For non-Voll implementation tasks, stop and propose a smaller slice if more than 6 app files appear necessary unless the task explicitly allows the broader scope.
+  - Prefer an analysis-only first pass for broad or uncertain work before implementing.
   - Do not modify app implementation files for governance-only tasks.
   - Do not add tests, libraries or tooling unless requested by the issue.
   - Do not create or modify GitHub labels in code.
@@ -28,6 +31,7 @@ search:
     - Prefer focused excerpts around matches over full-file reads for large files.
     - Batch independent file reads or searches when possible.
     - Read full files only when the complete file shape is required for a safe edit or review.
+    - Do not print full files unless they are short or required for a safe edit.
     - Avoid printing huge files, generated outputs or full logs after successful checks.
   if_blocked:
     - use an allowed alternative
@@ -70,6 +74,8 @@ verification:
     - Run the full relevant test suite once after focused tests pass.
     - Do not run lint, build and E2E tests concurrently.
     - Re-run failed checks only after a relevant fix.
+    - Manual browser inspection is optional unless automated tests do not cover the changed behavior, a visual interaction must be checked, or the task explicitly requires browser review.
+    - If manual browser inspection is run, keep it bounded to the affected pages and avoid reading browser/tool skill docs unless needed.
   always_use_terms:
     - Run
     - Not run
@@ -104,8 +110,14 @@ reporting:
     - intentionally unchanged areas for larger Normal/Voll PRs
   avoid:
     - huge logs
+    - full-file dumps
+    - full-diff dumps after successful implementation
     - private chain-of-thought
     - private API response data
+  diff_reporting:
+    - Prefer git diff --stat for final reporting.
+    - Use targeted changed-hunk excerpts only when needed for diagnosis or review confidence.
+    - Do not paste complete diffs for multi-file changes unless explicitly requested.
   failure_logs:
     - include only relevant excerpts
     - private data in logs is a blocker
@@ -127,6 +139,7 @@ pr_body_must_include:
 
 pr_body_preflight:
   - Use .github/PULL_REQUEST_TEMPLATE.md headings unless the task explicitly allows a shorter body.
+  - Keep PR sections complete but concise; do not repeat the full issue text.
   - Check exactly the appropriate Phase line where practical.
   - Use Phase 4 for V1 hardening/test work unless the issue says otherwise.
   - Re-check Refs versus Fixes before opening or updating the PR.

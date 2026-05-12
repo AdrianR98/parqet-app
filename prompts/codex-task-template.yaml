@@ -94,6 +94,15 @@ efficiency_block: |
   - Keep progress updates short and milestone-based.
   - Do not print huge logs or full generated outputs.
 
+context_budget_block: |
+  Token / context budget:
+  - Treat broad UI, architecture, data and test tasks as context-budgeted work.
+  - Do not print full files or full diffs unless necessary for a safe edit or diagnosis.
+  - Prefer git diff --stat plus targeted changed-hunk excerpts after implementation.
+  - Manual browser inspection is optional unless automated tests do not cover the changed behavior, a visual interaction must be checked, or the task explicitly requires browser review.
+  - If more than 6 app files seem necessary for a non-Voll task, stop and propose a smaller implementation slice unless the prompt explicitly allows the broader scope.
+  - Prefer an analysis-only first pass for broad or uncertain work before implementing.
+
 known_patterns_block: |
   Known project patterns:
   - Playwright local-state tests should use storageState and http://localhost:3000.
@@ -146,6 +155,13 @@ template: |
   - Batch independent reads where practical.
   - Stop and report if two implementation strategies fail for the same blocker.
 
+  Token / context budget:
+  - Treat this as a context-budgeted task.
+  - Do not print full files or full diffs unless necessary for a safe edit or diagnosis.
+  - Prefer git diff --stat plus targeted changed-hunk excerpts after implementation.
+  - Manual browser inspection is optional unless automated tests do not cover the changed behavior, a visual interaction must be checked, or this task explicitly requires browser review.
+  - If more than 6 app files seem necessary, stop and propose a smaller implementation slice unless this task explicitly allows the broader scope.
+
   Known project patterns:
   - <include only patterns relevant to this task>
 
@@ -172,3 +188,4 @@ stop_conditions:
   - scope would exceed mode file limits except Voll
   - requested change conflicts with current workflow rules
   - two failed implementation strategies for the same blocker without a new diagnosis
+  - more than 6 app files are needed for a non-Voll implementation task without explicit broader-scope permission
