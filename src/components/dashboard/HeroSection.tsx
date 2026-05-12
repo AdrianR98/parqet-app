@@ -165,9 +165,9 @@ export default function HeroSection({
                         {loadingAssets
                             ? "Erstladung läuft..."
                             : refreshingAssets && hasCachedData
-                                ? "Aktualisierung läuft..."
+                                ? "Parqet-Daten werden aktualisiert..."
                                 : hasCachedData
-                                    ? "Manuell aktualisieren"
+                                    ? "Parqet-Daten aktualisieren"
                                     : "Assets laden"}
                     </button>
                 </div>
