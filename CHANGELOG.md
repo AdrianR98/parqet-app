@@ -93,6 +93,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Fixed
 
+- Fixed local app-shell hydration mismatches from browser-only theme, connection and local activity status state.
 - Hardened Snapshot/API-budget follow-up behavior so explicit refresh semantics, snapshot-first audit routes and local diagnostics reset state stay provider-call-safe.
 - Activity asset-name links now navigate to local Asset Detail without also opening the Activity Detail panel.
 - Consolidated obsolete duplicated masterprompt guidance into the new `prompts/` structure.

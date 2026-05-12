@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
 import {
     loadAppearanceMode,
-    resolveAppearanceMode,
     saveAppearanceMode,
     type AppearanceMode,
     type ResolvedTheme,
@@ -151,46 +150,65 @@ function getThemeStyle(theme: ResolvedTheme): ThemeStyle {
     };
 }
 
+function subscribeToAppearanceMode(onStoreChange: () => void) {
+    if (typeof window === "undefined") {
+        return () => {};
+    }
+
+    window.addEventListener("storage", onStoreChange);
+    window.addEventListener("assettrace:appearance-change", onStoreChange);
+
+    return () => {
+        window.removeEventListener("storage", onStoreChange);
+        window.removeEventListener("assettrace:appearance-change", onStoreChange);
+    };
+}
+
+function getAppearanceModeSnapshot(): AppearanceMode {
+    return loadAppearanceMode();
+}
+
+function getAppearanceModeServerSnapshot(): AppearanceMode {
+    return "system";
+}
+
+function subscribeToSystemTheme(onStoreChange: () => void) {
+    if (typeof window === "undefined") {
+        return () => {};
+    }
+
+    const query = window.matchMedia?.("(prefers-color-scheme: light)");
+
+    query?.addEventListener("change", onStoreChange);
+
+    return () => query?.removeEventListener("change", onStoreChange);
+}
+
+function getSystemThemeSnapshot(): ResolvedTheme {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches) {
+        return "light";
+    }
+
+    return "dark";
+}
+
+function getSystemThemeServerSnapshot(): ResolvedTheme {
+    return "dark";
+}
+
 export function useTheme() {
-    const [appearanceMode, setAppearanceModeState] = useState<AppearanceMode>(() => loadAppearanceMode());
-    const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() => resolveAppearanceMode("system"));
+    const appearanceMode = useSyncExternalStore(
+        subscribeToAppearanceMode,
+        getAppearanceModeSnapshot,
+        getAppearanceModeServerSnapshot,
+    );
+    const systemTheme = useSyncExternalStore(
+        subscribeToSystemTheme,
+        getSystemThemeSnapshot,
+        getSystemThemeServerSnapshot,
+    );
 
     const resolvedTheme = appearanceMode === "system" ? systemTheme : appearanceMode;
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        const query = window.matchMedia?.("(prefers-color-scheme: light)");
-
-        function updateSystemTheme() {
-            setSystemTheme(query?.matches ? "light" : "dark");
-        }
-
-        updateSystemTheme();
-        query?.addEventListener("change", updateSystemTheme);
-
-        return () => query?.removeEventListener("change", updateSystemTheme);
-    }, []);
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        function syncFromStorage() {
-            setAppearanceModeState(loadAppearanceMode());
-        }
-
-        window.addEventListener("storage", syncFromStorage);
-        window.addEventListener("assettrace:appearance-change", syncFromStorage);
-
-        return () => {
-            window.removeEventListener("storage", syncFromStorage);
-            window.removeEventListener("assettrace:appearance-change", syncFromStorage);
-        };
-    }, []);
 
     useEffect(() => {
         if (typeof document === "undefined") {
@@ -203,7 +221,6 @@ export function useTheme() {
 
     function setAppearanceMode(mode: AppearanceMode) {
         saveAppearanceMode(mode);
-        setAppearanceModeState(mode);
 
         if (typeof window !== "undefined") {
             window.dispatchEvent(new Event("assettrace:appearance-change"));
