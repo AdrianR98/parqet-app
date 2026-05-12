@@ -59,19 +59,85 @@ mode_file_limits:
   Review-Fix: review feedback or introduced failure only
 
 verification:
-  current_ci:
-    - npm run lint
-    - npm run build
-  docs_or_prompt_only:
-    - git diff --check
-    - markdown/yaml validation when available and relevant
-  code_changes:
-    - npm run lint
-    - npm run build
-    - relevant tests once a clean test setup exists
+  final_gate:
+    - GitHub Actions is the final PR gate for lint/build and V1 Playwright smoke unless Adrian explicitly approves and documents an exception.
+    - Codex should run only scope-relevant local checks before opening a PR.
+    - Codex should not poll CI for long; one short status check after opening a PR is enough unless the task explicitly requires waiting.
+    - ChatGPT/Reviewer verifies final GitHub Actions status before merge.
+  profiles:
+    docs_or_prompt_only:
+      local_run:
+        - git diff --check
+        - markdown/yaml validation when available and relevant
+      local_do_not_run_by_default:
+        - npm run lint
+        - npx tsc --noEmit
+        - npm run build
+        - npm run test:e2e
+      final_gate:
+        - GitHub Actions
+    workflow_only:
+      local_run:
+        - git diff --check
+        - workflow syntax/lint check when available and relevant
+      local_do_not_run_by_default:
+        - npm run test:e2e unless the workflow change directly changes E2E behavior and local feedback is needed
+        - npm run build unless package/runtime behavior changed
+      final_gate:
+        - GitHub Actions workflow execution
+    ts_ui:
+      local_run:
+        - git diff --check
+        - npm run lint
+        - npx tsc --noEmit
+      local_optional:
+        - npm run build only when app runtime, Next route/config, dependency or build-relevant behavior changed
+      local_do_not_run_by_default:
+        - npm run test:e2e
+      final_gate:
+        - GitHub Actions lint/build/e2e
+    runtime_route_or_config:
+      local_run:
+        - git diff --check
+        - npm run lint
+        - npx tsc --noEmit
+        - npm run build
+      local_optional:
+        - focused tests when available and directly relevant
+      local_do_not_run_by_default:
+        - npm run test:e2e unless route/navigation/browser behavior is directly affected
+      final_gate:
+        - GitHub Actions lint/build/e2e
+    e2e_sensitive:
+      use_for:
+        - Playwright config or E2E tests
+        - hydration behavior
+        - browser-local state
+        - navigation behavior covered by smoke tests
+        - provider-route guards
+        - UI interactions explicitly covered by smoke tests
+      local_run:
+        - git diff --check
+        - npm run lint when code changed
+        - npx tsc --noEmit when TypeScript changed
+        - focused Playwright tests with -g when practical
+        - npm run test:e2e when E2E config/tests or smoke-covered behavior changed materially
+      final_gate:
+        - GitHub Actions lint/build/e2e
+  legacy_defaults:
+    current_ci:
+      - npm run lint
+      - npm run build
+    docs_or_prompt_only:
+      - git diff --check
+      - markdown/yaml validation when available and relevant
+    code_changes:
+      - npm run lint
+      - npm run build only when build-relevant
+      - relevant focused tests only when scope-relevant
   test_loop:
-    - Run focused tests during development when available.
-    - Run the full relevant test suite once after focused tests pass.
+    - Run focused tests during development when available and relevant to the verification profile.
+    - Run the full relevant local test suite only when the profile requires it.
     - Do not run lint, build and E2E tests concurrently.
     - Re-run failed checks only after a relevant fix.
     - Manual browser inspection is optional unless automated tests do not cover the changed behavior, a visual interaction must be checked, or the task explicitly requires browser review.
@@ -102,6 +168,7 @@ reporting:
     - branch
     - changed files
     - removed files
+    - verification profile
     - verification results
     - lint/build gaps
     - deviations from task
@@ -129,6 +196,7 @@ pr_body_must_include:
   - Mode / Codex involvement
   - Scope / changed files
   - Non-goals
+  - Verification profile
   - Verification
   - Documentation impact
   - API Budget Impact
@@ -144,12 +212,13 @@ pr_body_preflight:
   - Use Phase 4 for V1 hardening/test work unless the issue says otherwise.
   - Re-check Refs versus Fixes before opening or updating the PR.
   - Use Fixes only when the issue should close automatically on merge.
-  - Update the PR body after review fixes when scope, files, verification, risks, known gaps or Refs/Fixes correctness changed.
+  - Update the PR body after review fixes when scope, files, verification profile, verification, risks, known gaps or Refs/Fixes correctness changed.
 
 review_fix:
   update_pr_body_when_changed:
     - scope
     - changed files
+    - verification profile
     - verification
     - risks
     - known gaps
