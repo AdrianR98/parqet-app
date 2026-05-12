@@ -31,7 +31,7 @@ If the authorized session expires, the Dashboard shows a reconnect notice. Recon
 Dashboard data is loaded through the visible Dashboard action only:
 
 - `Assets laden` for the first local load.
-- `Manuell aktualisieren` when a local cache already exists.
+- `Parqet-Daten aktualisieren` when a local cache already exists.
 
 Navigation, Settings changes, portfolio-scope changes and appearance changes must not trigger hidden provider calls or a background full fetch.
 
@@ -68,7 +68,21 @@ Activity detail is read-only in v1. It shows safe local fields such as date, typ
 
 The Timeline page starts with a compact local summary for the current scope and filters, such as event, buy, sell, dividend, transfer, warning, asset and portfolio counts. The summary is calculated from already loaded local Activity Items and does not start a provider call.
 
-## 7. Use Local Reports And Exports
+## 7. Maintain Local Asset Metadata
+
+Local asset metadata improves display names, subtitles, symbols, WKN fallbacks and logo identity when loaded provider/read-model data only contains identifier-like labels.
+
+Use the dedicated workflow document for safe maintenance:
+
+```text
+docs/LOCAL_METADATA_WORKFLOW.md
+```
+
+The short rule is: keep source CSV exports local, commit only reviewed generated metadata/report files when safe, and never commit private portfolio exports, raw provider payloads, tokens, cookies, OAuth codes, account data or screenshots with private account information.
+
+Metadata maintenance is local-only and provider-call-free in v1. Do not add automatic metadata lookups or external metadata APIs without a separate Research/ADR or Post-V1 feature issue.
+
+## 8. Use Local Reports And Exports
 
 Open `Reports` after loading Dashboard data explicitly. Reports v1 uses only the locally loaded Dashboard read model and the current global portfolio scope. Opening Reports, changing the scope display, copying a summary or exporting CSV does not trigger provider calls and does not perform an automatic refresh.
 
@@ -81,7 +95,7 @@ Reports v1 export boundaries:
 - Raw provider payloads, tokens, cookies, private debug data and hidden technical IDs are not exported.
 - PDF export is intentionally not part of v1.
 
-## 8. Change Appearance Mode
+## 9. Change Appearance Mode
 
 Open `Einstellungen` and use `Darstellung`:
 
@@ -91,7 +105,7 @@ Open `Einstellungen` and use `Darstellung`:
 
 The value is stored locally in the browser. Invalid stored values fall back to `System`.
 
-## 9. Clear Local Data And Settings
+## 10. Clear Local Data And Settings
 
 Open `Einstellungen` and use `Datenschutz/Debug`:
 
@@ -100,13 +114,13 @@ Open `Einstellungen` and use `Datenschutz/Debug`:
 
 These actions do not delete provider data and do not perform destructive server-side work.
 
-## 10. API-Budget Note
+## 11. API-Budget Note
 
 Treat provider/API budget as limited. Avoid unnecessary refreshes. Prefer reviewing the current local data state first, then refresh explicitly only when you want to update the local snapshot from the provider.
 
 Developer diagnostics in Settings are local and safe-gated. They may show freshness/cache metadata and API-budget notes, but must not show tokens, cookies, raw provider payloads, private activity rows or unredacted private identifiers.
 
-## 11. Run Local E2E Smoke Tests
+## 12. Run Local E2E Smoke Tests
 
 The V1 Playwright smoke tests are local/manual for now and are not part of the GitHub CI workflow. They start the local Next.js dev server through Playwright, use an empty/synthetic browser state and do not require real Parqet auth, cookies, tokens, portfolios or provider data.
 
