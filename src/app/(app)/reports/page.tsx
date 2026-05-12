@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import styles from "./ReportsPage.module.css";
 import {
@@ -14,6 +14,7 @@ import {
     formatDateTime,
     formatShares,
 } from "../../../lib/format";
+import { useHydrationSafeLocalSnapshot } from "../../../hooks/use-hydration-safe-local-snapshot";
 
 function escapeCsvValue(value: string | number | null | undefined): string {
     const normalized = value == null ? "" : String(value);
@@ -84,18 +85,11 @@ function downloadCsv(filename: string, csv: string): void {
 }
 
 export default function ReportsPage() {
-    const [report, setReport] = useState<LocalReportModel | null>(null);
-    const [hasLoadedLocalReport, setHasLoadedLocalReport] = useState(false);
+    const { value: report } = useHydrationSafeLocalSnapshot<LocalReportModel | null>(
+        loadLocalReportModel,
+        () => null,
+    );
     const [copyStatus, setCopyStatus] = useState("");
-
-    useEffect(() => {
-        const handle = window.setTimeout(() => {
-            setReport(loadLocalReportModel());
-            setHasLoadedLocalReport(true);
-        }, 0);
-
-        return () => window.clearTimeout(handle);
-    }, []);
 
     const markdownSummary = useMemo(() => {
         return report ? buildMarkdownSummary(report) : "";
@@ -118,7 +112,7 @@ export default function ReportsPage() {
         downloadCsv("assettrace-report-assets.csv", buildAssetCsv(report.assets));
     }
 
-    if (!hasLoadedLocalReport || !report) {
+    if (!report) {
         return (
             <main className="app-content">
                 <section className={`ui-surface ${styles.emptyState}`}>

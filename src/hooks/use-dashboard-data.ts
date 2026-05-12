@@ -86,6 +86,11 @@ type UseDashboardDataResult = {
   startReconnect: () => void;
 };
 
+const INITIAL_PORTFOLIO_SCOPE: PortfolioScope = {
+  mode: "all",
+  selectedPortfolioIds: [],
+};
+
 function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
     return false;
@@ -172,8 +177,8 @@ export function useDashboardData(): UseDashboardDataResult {
   const [lastLoadedPortfolioIds, setLastLoadedPortfolioIds] = useState<
     string[]
   >([]);
-  const [portfolioScope, setPortfolioScope] = useState<PortfolioScope>(() =>
-    loadPortfolioScope(),
+  const [portfolioScope, setPortfolioScope] = useState<PortfolioScope>(
+    INITIAL_PORTFOLIO_SCOPE,
   );
   const [missingPortfolioScopeIds, setMissingPortfolioScopeIds] = useState<
     string[]
