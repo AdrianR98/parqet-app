@@ -113,6 +113,25 @@ Rules:
 - Audit routes without `refresh=1` must be snapshot-only/no-provider-call reads and return a clear no-snapshot response when no matching snapshot exists.
 - Audit routes with `refresh=1` may run provider-backed only when the route is explicitly designed and gated for provider-backed audit use.
 
+### Local Metadata Data
+
+Use local metadata only for display identity, for example:
+
+- asset display names,
+- symbol / ticker fallbacks,
+- WKN fallbacks,
+- subtitles,
+- logo identity fallback.
+
+Rules:
+
+- Local metadata must be maintained through `docs/LOCAL_METADATA_WORKFLOW.md`.
+- Local metadata must not fetch provider, Parqet Asset Search, identifier-mapping or external metadata APIs automatically in v1.
+- Local metadata must not change calculations, positions, quantities, cost basis, dividends, fees, taxes, performance or warnings.
+- Source CSV exports used to generate local metadata should stay local unless they are confirmed free of private portfolio, account, broker, quantity, price, trade and transaction context.
+- Generated metadata may be committed only after privacy review and conflict review.
+- Missing names should fall back to symbol, WKN or ISIN rather than triggering a hidden metadata lookup.
+
 ## Local-First UI Interaction Rules
 
 The following interactions must remain strictly local after required data is loaded:
@@ -148,6 +167,7 @@ Hard rules:
 8. Diagnostics may count requests, scopes and failures, but must not expose raw private payloads.
 9. Detail views and reports must declare whether they are read-only projections of loaded data or whether they require an explicit provider refresh.
 10. Any proposed automatic background refresh needs an issue-level justification and review against these rules before implementation.
+11. Any proposed metadata service, asset-search or identifier-mapping integration must be handled as a separate Research/ADR or Post-V1 feature before implementation.
 
 ## Source, Freshness And Confidence
 
@@ -199,6 +219,7 @@ Avoid wording that implies certainty when confidence is not high:
 - Exports must include only visible, loaded and safe report/read-model fields.
 - Private debug data and hidden technical identifiers must not be exported.
 - Local reference files and real portfolio data must stay in ignored local paths.
+- Local metadata source CSV files must not be committed unless they are reviewed and confirmed to contain no private portfolio, account, broker, quantity, price, trade or transaction context.
 - If private data appears in a diff, the PR is blocked.
 
 ## Feature Capability Matrix
@@ -216,6 +237,7 @@ Avoid wording that implies certainty when confidence is not high:
 | Dividend analysis | Normalized dividend activities and asset/portfolio context. | Yes after relevant dividend/activity scope is loaded. | Allowed only for explicit scoped load/refresh. | Mark preliminary if withholding tax, currency or full history is incomplete. |
 | Trading statistics | Normalized buy/sell activities, ordering, portfolio context and possibly transfer status. | Yes after complete relevant activity scope is loaded. | Allowed only for explicit scoped activity refresh. | Transfer ambiguity, missing portfolio context or partial history lowers confidence or blocks metrics. |
 | Rebalancing | Holdings/current allocation snapshot, target settings and optional pending activity context. | Yes for recommendations from current snapshot plus local targets. | Allowed only for explicit refresh of holdings/current allocation. | Must show snapshot time and avoid implying live market precision if data is stale. |
+| Local metadata display | Local/generated metadata plus already-loaded read models. | Yes for display names, symbols, WKNs, subtitles and logo identity fallback. | No provider or external metadata calls in v1. | Metadata improves identity display only and must not alter calculations or confidence by itself. |
 
 ## Review Checklist For Future PRs
 
@@ -228,6 +250,7 @@ Avoid wording that implies certainty when confidence is not high:
 - Source, freshness, confidence and warnings are attached to calculated, provider-derived, estimated, preliminary or data-quality-limited values.
 - Wording does not overstate certainty and does not mix provider reference values with app calculations without disclosure.
 - Feature code does not read or persist `.env`, tokens, cookies, OAuth codes, private exports or real portfolio/activity data.
+- Local metadata PRs must confirm source CSV privacy, generated-file review, conflict review and no provider-call behavior change.
 - Diagnostics are redacted and count/scope-oriented.
 - Changelog and architecture/data docs are updated when behavior, architecture or durable guardrails change.
 
