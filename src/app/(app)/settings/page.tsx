@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   clearLocalAssetTraceState,
   loadKnownPortfolios,
@@ -15,6 +15,7 @@ import {
   loadDashboardCache,
 } from "../../../lib/dashboard-cache";
 import { getConnectionStatusView } from "../../../lib/connection-status";
+import type { DashboardCache } from "../../../lib/dashboard-cache";
 import type { Portfolio } from "../../../lib/types";
 import { useTheme } from "../../../hooks/use-theme";
 import styles from "./SettingsPage.module.css";
@@ -40,6 +41,33 @@ const APPEARANCE_OPTIONS: {
     description: "Dunkle AssetTrace-Oberfläche.",
   },
 ];
+
+const LOCAL_SETTINGS_CHANGE_EVENT = "assettrace:settings-local-state-change";
+
+type SettingsSnapshot = {
+  knownPortfolios: Portfolio[];
+  portfolioScope: PortfolioScope;
+  cacheUpdatedAt: string | null;
+  cacheAssetCount: number;
+  cacheActivityCount: number;
+  cacheFreshness: DashboardCache["freshness"] | null;
+  connectionStatus: ReturnType<typeof getConnectionStatusView>;
+};
+
+const EMPTY_PORTFOLIO_SCOPE: PortfolioScope = {
+  mode: "all",
+  selectedPortfolioIds: [],
+};
+
+const EMPTY_SETTINGS_SNAPSHOT: SettingsSnapshot = {
+  knownPortfolios: [],
+  portfolioScope: EMPTY_PORTFOLIO_SCOPE,
+  cacheUpdatedAt: null,
+  cacheAssetCount: 0,
+  cacheActivityCount: 0,
+  cacheFreshness: null,
+  connectionStatus: getConnectionStatusView(null),
+};
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) {
@@ -68,29 +96,66 @@ function formatPortfolioCount(count: number): string {
   return `${count} Portfolios`;
 }
 
+function readSettingsSnapshot(): SettingsSnapshot {
+  const cache = loadDashboardCache();
+
+  return {
+    knownPortfolios: loadKnownPortfolios(),
+    portfolioScope: loadPortfolioScope(),
+    cacheUpdatedAt: cache?.lastUpdatedAt ?? null,
+    cacheAssetCount: cache?.assetCount ?? 0,
+    cacheActivityCount: cache?.activityItems?.length ?? 0,
+    cacheFreshness: cache?.freshness ?? null,
+    connectionStatus: getConnectionStatusView(cache),
+  };
+}
+
+function getSettingsSnapshot(): string {
+  return JSON.stringify(readSettingsSnapshot());
+}
+
+function getServerSettingsSnapshot(): string {
+  return JSON.stringify(EMPTY_SETTINGS_SNAPSHOT);
+}
+
+function subscribeToSettingsSnapshot(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(LOCAL_SETTINGS_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(LOCAL_SETTINGS_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function notifySettingsSnapshotChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(LOCAL_SETTINGS_CHANGE_EVENT));
+  }
+}
+
 export default function SettingsPage() {
   const { appearanceMode, resolvedTheme, setAppearanceMode } = useTheme();
-  const initialCache = useMemo(() => loadDashboardCache(), []);
-  const [knownPortfolios, setKnownPortfolios] = useState<Portfolio[]>(() =>
-    loadKnownPortfolios(),
+  const settingsSnapshot = useSyncExternalStore(
+    subscribeToSettingsSnapshot,
+    getSettingsSnapshot,
+    getServerSettingsSnapshot,
   );
-  const [portfolioScope, setPortfolioScope] = useState<PortfolioScope>(() =>
-    loadPortfolioScope(),
-  );
-  const [cacheUpdatedAt, setCacheUpdatedAt] = useState<string | null>(
-    initialCache?.lastUpdatedAt ?? null,
-  );
-  const [cacheAssetCount, setCacheAssetCount] = useState(
-    initialCache?.assetCount ?? 0,
-  );
-  const [cacheActivityCount, setCacheActivityCount] = useState(
-    initialCache?.activityItems?.length ?? 0,
-  );
-  const [cacheFreshness, setCacheFreshness] = useState(
-    initialCache?.freshness ?? null,
-  );
-  const [connectionStatus, setConnectionStatus] = useState(() =>
-    getConnectionStatusView(initialCache),
+  const {
+    knownPortfolios,
+    portfolioScope,
+    cacheUpdatedAt,
+    cacheAssetCount,
+    cacheActivityCount,
+    cacheFreshness,
+    connectionStatus,
+  } = useMemo(
+    () => JSON.parse(settingsSnapshot) as SettingsSnapshot,
+    [settingsSnapshot],
   );
   const [resetMessage, setResetMessage] = useState("");
 
@@ -105,7 +170,7 @@ export default function SettingsPage() {
 
   function setScope(nextScope: PortfolioScope) {
     savePortfolioScope(nextScope);
-    setPortfolioScope(nextScope);
+    notifySettingsSnapshotChanged();
     setResetMessage(
       "Portfolio-Scope lokal gespeichert. Es wurden keine Parqet-Daten geladen.",
     );
@@ -121,11 +186,7 @@ export default function SettingsPage() {
 
   function clearDashboardOnly() {
     clearDashboardCache();
-    setCacheUpdatedAt(null);
-    setCacheAssetCount(0);
-    setCacheActivityCount(0);
-    setCacheFreshness(null);
-    setConnectionStatus(getConnectionStatusView(null));
+    notifySettingsSnapshotChanged();
     setResetMessage(
       "Der lokale Dashboard-Cache wurde gelöscht. Parqet-Daten bleiben unverändert.",
     );
@@ -134,14 +195,8 @@ export default function SettingsPage() {
   function resetLocalSettings() {
     clearDashboardCache();
     clearLocalAssetTraceState();
-    setKnownPortfolios([]);
-    setPortfolioScope({ mode: "all", selectedPortfolioIds: [] });
     setAppearanceMode("system");
-    setCacheUpdatedAt(null);
-    setCacheAssetCount(0);
-    setCacheActivityCount(0);
-    setCacheFreshness(null);
-    setConnectionStatus(getConnectionStatusView(null));
+    notifySettingsSnapshotChanged();
     setResetMessage(
       "Lokale UI-Einstellungen und Cache wurden zurückgesetzt. In Parqet wurde nichts gelöscht.",
     );

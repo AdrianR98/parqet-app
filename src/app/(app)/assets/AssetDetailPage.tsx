@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadPortfolioScope, resolvePortfolioScope } from "../../../lib/app-settings";
 import { loadDashboardCache } from "../../../lib/dashboard-cache";
@@ -28,6 +28,19 @@ type MetricCard = {
     value: string;
     note?: string;
 };
+
+type AssetDetailViewModel =
+    | { state: "missing-key" }
+    | { state: "no-cache" }
+    | { state: "not-found"; lastUpdatedAt: string | null }
+    | {
+        state: "ready";
+        asset: AssetSummary;
+        canonicalHref: string | null;
+        metrics: ReturnType<typeof scopeAssetMetrics>;
+        warnings: ReturnType<typeof getAssetWarnings>;
+        lastUpdatedAt: string | null;
+    };
 
 function formatDate(value: string | null | undefined): string {
     if (!value) return "—";
@@ -121,13 +134,40 @@ function buildScopedPortfolioIds(asset: AssetSummary, loadedPortfolioIds: string
     return resolved.selectedPortfolioIds.filter((id) => asset.portfolioIds.includes(id));
 }
 
+function subscribeToLocalAssetState(onStoreChange: () => void) {
+    if (typeof window === "undefined") {
+        return () => {};
+    }
+
+    window.addEventListener("storage", onStoreChange);
+
+    return () => window.removeEventListener("storage", onStoreChange);
+}
+
+function getLocalAssetStateSnapshot(): boolean {
+    return true;
+}
+
+function getLocalAssetStateServerSnapshot(): boolean {
+    return false;
+}
+
 export default function AssetDetailPage() {
     const searchParams = useSearchParams();
     const assetKey = searchParams.get("id")?.trim() ?? "";
+    const canReadLocalState = useSyncExternalStore(
+        subscribeToLocalAssetState,
+        getLocalAssetStateSnapshot,
+        getLocalAssetStateServerSnapshot,
+    );
 
-    const viewModel = useMemo(() => {
+    const viewModel = useMemo<AssetDetailViewModel>(() => {
         if (!assetKey) {
             return { state: "missing-key" as const };
+        }
+
+        if (!canReadLocalState) {
+            return { state: "no-cache" as const };
         }
 
         const cache = loadDashboardCache();
@@ -162,7 +202,7 @@ export default function AssetDetailPage() {
             warnings,
             lastUpdatedAt: cache.lastUpdatedAt ?? cache.generatedAt ?? null,
         };
-    }, [assetKey]);
+    }, [assetKey, canReadLocalState]);
 
     if (viewModel.state === "missing-key") {
         return (
