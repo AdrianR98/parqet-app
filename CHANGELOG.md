@@ -58,6 +58,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- Improved large local dataset responsiveness for Dashboard AssetTable, Activities, Timeline and Reports with clearer progressive reveal while keeping totals and provider-call behavior unchanged.
 - Improved V1 asset metadata display fallbacks so local/enriched metadata names are preferred over identifier-only asset labels, including Activities and Timeline local read models.
 - V1 warning, data-quality and confidence wording is now more consistent across Dashboard, Asset Detail, Timeline and Reports without adding provider calls or new warning logic.
 - User-facing Parqet auth, rate-limit and provider error wording is now clearer in German, discourages repeated refresh attempts during rate limits and keeps raw/debug details out of normal Dashboard and Asset Audit UI states.
