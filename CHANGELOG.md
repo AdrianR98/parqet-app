@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added a GitHub Actions PR check for the V1 Playwright smoke suite with standard Chromium dependency installation and no default Playwright media artifacts.
 - Added Codex token/context budget guardrails for broad tasks, including smaller-slice stop rules, targeted diff reporting and optional browser inspection boundaries.
 - Added local asset metadata maintenance workflow documentation for safe CSV generation, privacy review, fallback order and provider-call-free v1 metadata handling.
 - Extended the local/manual Playwright V1 smoke tests with privacy-safe synthetic browser-local state and interaction coverage for Activities, Timeline, Settings and Reports.

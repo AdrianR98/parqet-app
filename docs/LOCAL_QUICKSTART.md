@@ -120,9 +120,9 @@ Treat provider/API budget as limited. Avoid unnecessary refreshes. Prefer review
 
 Developer diagnostics in Settings are local and safe-gated. They may show freshness/cache metadata and API-budget notes, but must not show tokens, cookies, raw provider payloads, private activity rows or unredacted private identifiers.
 
-## 12. Run Local E2E Smoke Tests
+## 12. Run V1 E2E Smoke Tests
 
-The V1 Playwright smoke tests are local/manual for now and are not part of the GitHub CI workflow. They start the local Next.js dev server through Playwright, use an empty/synthetic browser state and do not require real Parqet auth, cookies, tokens, portfolios or provider data.
+The V1 Playwright smoke tests run locally and as a GitHub Actions PR check. They start the local Next.js dev server through Playwright, use an empty/synthetic browser state and do not require real Parqet auth, cookies, tokens, portfolios or provider data.
 
 Install dependencies and the Playwright browser once:
 
@@ -131,13 +131,15 @@ npm install
 npx playwright install chromium
 ```
 
+GitHub Actions installs Chromium and its Linux dependencies with `npx playwright install --with-deps chromium` before running the same npm script.
+
 Run the smoke suite:
 
 ```bash
 npm run test:e2e
 ```
 
-The smoke suite covers Dashboard, Settings, Activities, Timeline, Reports and one synthetic Asset Detail URL. It fails on React hydration mismatch messages, the React script-tag render warning, uncaught page errors and unexpected local-only navigation calls to `/api/parqet/assets` or `/api/parqet/activities`.
+The smoke suite covers Dashboard, Settings, Activities, Timeline, Reports and one synthetic Asset Detail URL. It fails on React hydration mismatch messages, the React script-tag render warning, uncaught page errors and unexpected local-only navigation calls to `/api/parqet/assets` or `/api/parqet/activities`. Screenshots, traces and videos are disabled in the Playwright config by default.
 
 ## Snapshot And Explicit Refresh Behavior
 
