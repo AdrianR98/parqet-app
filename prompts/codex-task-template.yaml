@@ -47,6 +47,83 @@ branch_prefixes:
   - test/
   - refactor/
 
+verification_profiles:
+  docs_or_prompt_only:
+    use_for:
+      - markdown-only changes
+      - prompt/governance-only changes
+      - documentation text with no app runtime impact
+    local_run:
+      - git diff --check
+      - markdown/yaml validation when available and relevant
+    local_do_not_run_by_default:
+      - npm run lint
+      - npx tsc --noEmit
+      - npm run build
+      - npm run test:e2e
+    final_gate:
+      - GitHub Actions
+  workflow_only:
+    use_for:
+      - .github/workflows changes
+      - CI configuration changes without app runtime changes
+    local_run:
+      - git diff --check
+      - workflow syntax/lint check when available and relevant
+    local_do_not_run_by_default:
+      - npm run test:e2e unless the workflow change directly changes E2E behavior and local feedback is needed
+      - npm run build unless package/runtime behavior changed
+    final_gate:
+      - GitHub Actions workflow execution
+  ts_ui:
+    use_for:
+      - React component changes
+      - TypeScript UI changes
+      - CSS plus TSX interaction changes
+    local_run:
+      - git diff --check
+      - npm run lint
+      - npx tsc --noEmit
+    local_optional:
+      - npm run build only when app runtime, Next route/config, dependency or build-relevant behavior changed
+    local_do_not_run_by_default:
+      - npm run test:e2e
+    final_gate:
+      - GitHub Actions lint/build/e2e
+  runtime_route_or_config:
+    use_for:
+      - Next route changes
+      - app runtime behavior changes
+      - package/dependency changes
+      - build/config changes
+    local_run:
+      - git diff --check
+      - npm run lint
+      - npx tsc --noEmit
+      - npm run build
+    local_optional:
+      - focused tests when available and directly relevant
+    local_do_not_run_by_default:
+      - npm run test:e2e unless route/navigation/browser behavior is directly affected
+    final_gate:
+      - GitHub Actions lint/build/e2e
+  e2e_sensitive:
+    use_for:
+      - Playwright config or E2E tests
+      - hydration behavior
+      - browser-local state
+      - navigation behavior covered by smoke tests
+      - provider-route guards
+      - UI interactions explicitly covered by smoke tests
+    local_run:
+      - git diff --check
+      - npm run lint when code changed
+      - npx tsc --noEmit when TypeScript changed
+      - focused Playwright tests with -g when practical
+      - npm run test:e2e when E2E config/tests or smoke-covered behavior changed materially
+    final_gate:
+      - GitHub Actions lint/build/e2e
+
 read_first_by_mode:
   Mini:
     - AGENTS.md
@@ -103,11 +180,21 @@ context_budget_block: |
   - If more than 6 app files seem necessary for a non-Voll task, stop and propose a smaller implementation slice unless the prompt explicitly allows the broader scope.
   - Prefer an analysis-only first pass for broad or uncertain work before implementing.
 
+verification_profile_block: |
+  Verification profile:
+  - Select one profile: docs_or_prompt_only, workflow_only, ts_ui, runtime_route_or_config, or e2e_sensitive.
+  - Run only the local checks required by the selected profile unless the task explicitly requires more.
+  - Do not run npm run test:e2e locally by default; rely on GitHub Actions V1 Playwright smoke as the final PR E2E gate.
+  - Do not run npm run build locally unless app runtime, Next route/config, dependency, package or build-relevant behavior changed.
+  - Do not poll CI for long after opening a PR; one short status check is enough unless the task explicitly requires waiting.
+  - Report GitHub Actions as the final gate to be checked by ChatGPT/Reviewer before merge.
+
 known_patterns_block: |
   Known project patterns:
   - Playwright local-state tests should use storageState and http://localhost:3000.
   - Do not use addInitScript, setup routes or post-navigation localStorage writes for initial hydration-state fixtures unless explicitly justified.
-  - Run focused Playwright tests with -g while developing; run full npm run test:e2e once at the end.
+  - Run focused Playwright tests with -g only when E2E-sensitive behavior changed.
+  - Rely on GitHub Actions V1 Playwright smoke as the final PR E2E gate.
   - Do not run lint, build and E2E tests concurrently.
 
 template: |
@@ -161,6 +248,12 @@ template: |
   - Prefer git diff --stat plus targeted changed-hunk excerpts after implementation.
   - Manual browser inspection is optional unless automated tests do not cover the changed behavior, a visual interaction must be checked, or this task explicitly requires browser review.
   - If more than 6 app files seem necessary, stop and propose a smaller implementation slice unless this task explicitly allows the broader scope.
+
+  Verification profile:
+  - Select one profile: docs_or_prompt_only, workflow_only, ts_ui, runtime_route_or_config, or e2e_sensitive.
+  - Run only local checks required by the selected profile unless this task explicitly requires more.
+  - Do not run npm run test:e2e locally by default; GitHub Actions V1 Playwright smoke is the final PR E2E gate.
+  - Do not poll CI for long after opening a PR; one short status check is enough.
 
   Known project patterns:
   - <include only patterns relevant to this task>

@@ -41,6 +41,17 @@ context_budget_rules:
   - If more than 6 app files appear necessary for a non-Voll implementation task, stop and propose a smaller slice unless the prompt explicitly allows the broader scope.
   - Keep PR bodies complete but concise; do not repeat the full issue text.
 
+verification_profile_rules:
+  - Use scope-based verification instead of running all local checks by default.
+  - GitHub Actions is the final PR gate for lint/build and V1 Playwright smoke.
+  - Codex should not poll CI for long; one short status check is enough unless the task explicitly requires waiting.
+  - Docs/prompt-only tasks should normally run only git diff --check plus markdown/yaml validation when relevant.
+  - Workflow-only tasks should normally run git diff --check plus workflow syntax/lint when available, then rely on GitHub Actions.
+  - TypeScript/UI tasks should normally run git diff --check, npm run lint and npx tsc --noEmit.
+  - Local npm run build should run only when app runtime, Next route/config, dependency or build-relevant behavior changed.
+  - Local npm run test:e2e should run only for E2E-sensitive changes such as Playwright config/tests, hydration, browser-local state, navigation/provider-route guards or smoke-covered browser interactions.
+  - Manual browser checks must stay bounded to affected pages and only run when automated tests do not cover the changed behavior or visual review is explicitly needed.
+
 mini:
   use_for:
     - typos
@@ -100,7 +111,7 @@ review_fix:
   requirements:
     - address only actionable feedback
     - run checks affected by the fix
-    - update PR body if scope, changed files, verification, risks or known gaps changed
+    - update PR body if scope, changed files, verification profile, verification, risks or known gaps changed
     - re-check Refs/Fixes correctness
     - report comments fixed and comments deferred
     - do not use review feedback as permission for unrelated cleanup
@@ -128,7 +139,8 @@ known_project_patterns:
     - Use Playwright storageState for initial synthetic browser-local state.
     - Use http://localhost:3000 for Playwright baseURL and webServer.url.
     - Do not use addInitScript, setup routes or post-navigation localStorage writes for initial hydration-state fixtures unless explicitly justified.
-    - During development, run focused Playwright tests with -g before one final full npm run test:e2e.
+    - During development, run focused Playwright tests with -g only when E2E-sensitive behavior changed.
+    - Rely on GitHub Actions V1 Playwright smoke as the final PR E2E gate.
     - Do not run lint, build and E2E tests concurrently.
   browser_local_hydration:
     - Server render and first client render must use a neutral SSR-safe state.
@@ -140,7 +152,17 @@ verification_shortcuts:
   docs_or_prompt_only:
     - git diff --check
     - markdown or yaml check when available and relevant
-  code_changes:
+  workflow_only:
+    - git diff --check
+    - workflow syntax/lint check when available and relevant
+    - GitHub Actions final gate
+  ts_ui:
+    - git diff --check
     - npm run lint
-    - npm run build
-    - relevant tests once a test setup exists
+    - npx tsc --noEmit
+    - GitHub Actions final gate for build/e2e
+  e2e_sensitive:
+    - git diff --check
+    - focused Playwright test when practical
+    - npm run test:e2e only when the changed behavior directly needs local E2E feedback
+    - GitHub Actions final gate
