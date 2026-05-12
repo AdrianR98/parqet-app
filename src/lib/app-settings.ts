@@ -4,9 +4,15 @@ export const APPEARANCE_STORAGE_KEY = "assettrace-appearance-mode-v1";
 export const LEGACY_THEME_STORAGE_KEY = "parqet-theme-v1";
 export const PORTFOLIO_SCOPE_STORAGE_KEY = "assettrace-portfolio-scope-v1";
 export const KNOWN_PORTFOLIOS_STORAGE_KEY = "assettrace-known-portfolios-v1";
+export const REVEAL_BLOCK_SIZE_STORAGE_KEY = "assettrace-reveal-block-size-v1";
+export const LOCAL_SETTINGS_CHANGE_EVENT = "assettrace:settings-local-state-change";
+
+export const REVEAL_BLOCK_SIZE_OPTIONS = [20, 50, 100] as const;
+export const DEFAULT_REVEAL_BLOCK_SIZE = 50;
 
 export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
+export type RevealBlockSize = (typeof REVEAL_BLOCK_SIZE_OPTIONS)[number];
 
 export type PortfolioScope = {
     mode: "all" | "manual";
@@ -31,6 +37,26 @@ function isBrowser(): boolean {
 
 function uniqueIds(ids: string[]): string[] {
     return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
+}
+
+export function notifyLocalSettingsChanged(): void {
+    if (isBrowser()) {
+        window.dispatchEvent(new Event(LOCAL_SETTINGS_CHANGE_EVENT));
+    }
+}
+
+export function subscribeToLocalSettings(onStoreChange: () => void) {
+    if (!isBrowser()) {
+        return () => {};
+    }
+
+    window.addEventListener("storage", onStoreChange);
+    window.addEventListener(LOCAL_SETTINGS_CHANGE_EVENT, onStoreChange);
+
+    return () => {
+        window.removeEventListener("storage", onStoreChange);
+        window.removeEventListener(LOCAL_SETTINGS_CHANGE_EVENT, onStoreChange);
+    };
 }
 
 export function parseAppearanceMode(value: unknown): AppearanceMode {
@@ -72,6 +98,40 @@ export function saveAppearanceMode(mode: AppearanceMode): void {
 
     try {
         window.localStorage.setItem(APPEARANCE_STORAGE_KEY, mode);
+    } catch {
+        // localStorage-Probleme bewusst ignorieren.
+    }
+}
+
+export function parseRevealBlockSize(value: unknown): RevealBlockSize {
+    const numericValue = typeof value === "string" ? Number(value) : value;
+
+    if (REVEAL_BLOCK_SIZE_OPTIONS.includes(numericValue as RevealBlockSize)) {
+        return numericValue as RevealBlockSize;
+    }
+
+    return DEFAULT_REVEAL_BLOCK_SIZE;
+}
+
+export function loadRevealBlockSize(): RevealBlockSize {
+    if (!isBrowser()) {
+        return DEFAULT_REVEAL_BLOCK_SIZE;
+    }
+
+    try {
+        return parseRevealBlockSize(window.localStorage.getItem(REVEAL_BLOCK_SIZE_STORAGE_KEY));
+    } catch {
+        return DEFAULT_REVEAL_BLOCK_SIZE;
+    }
+}
+
+export function saveRevealBlockSize(size: RevealBlockSize): void {
+    if (!isBrowser()) {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(REVEAL_BLOCK_SIZE_STORAGE_KEY, String(parseRevealBlockSize(size)));
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }
@@ -214,6 +274,7 @@ export function clearLocalAssetTraceState(): void {
         window.localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
         window.localStorage.removeItem(PORTFOLIO_SCOPE_STORAGE_KEY);
         window.localStorage.removeItem(KNOWN_PORTFOLIOS_STORAGE_KEY);
+        window.localStorage.removeItem(REVEAL_BLOCK_SIZE_STORAGE_KEY);
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }

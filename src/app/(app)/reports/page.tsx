@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import styles from "./ReportsPage.module.css";
 import {
@@ -15,8 +15,11 @@ import {
     formatShares,
 } from "../../../lib/format";
 import { useHydrationSafeLocalSnapshot } from "../../../hooks/use-hydration-safe-local-snapshot";
-
-const REPORT_ASSET_REVEAL_STEP = 80;
+import {
+    DEFAULT_REVEAL_BLOCK_SIZE,
+    loadRevealBlockSize,
+    subscribeToLocalSettings,
+} from "../../../lib/app-settings";
 
 function escapeCsvValue(value: string | number | null | undefined): string {
     const normalized = value == null ? "" : String(value);
@@ -87,12 +90,17 @@ function downloadCsv(filename: string, csv: string): void {
 }
 
 export default function ReportsPage() {
+    const revealBlockSize = useSyncExternalStore(
+        subscribeToLocalSettings,
+        loadRevealBlockSize,
+        () => DEFAULT_REVEAL_BLOCK_SIZE,
+    );
     const { value: report } = useHydrationSafeLocalSnapshot<LocalReportModel | null>(
         loadLocalReportModel,
         () => null,
     );
     const [copyStatus, setCopyStatus] = useState("");
-    const [visibleAssetCount, setVisibleAssetCount] = useState(REPORT_ASSET_REVEAL_STEP);
+    const [visibleAssetCount, setVisibleAssetCount] = useState(DEFAULT_REVEAL_BLOCK_SIZE);
 
     const markdownSummary = useMemo(() => {
         return report ? buildMarkdownSummary(report) : "";
@@ -100,6 +108,10 @@ export default function ReportsPage() {
     const visibleAssets = useMemo(() => {
         return report ? report.assets.slice(0, visibleAssetCount) : [];
     }, [report, visibleAssetCount]);
+
+    useEffect(() => {
+        setVisibleAssetCount(revealBlockSize);
+    }, [revealBlockSize]);
 
     async function copyMarkdownSummary() {
         if (!markdownSummary) return;
@@ -329,10 +341,10 @@ export default function ReportsPage() {
                                     type="button"
                                     className="ui-btn ui-btn-secondary"
                                     onClick={() =>
-                                        setVisibleAssetCount((count) => count + REPORT_ASSET_REVEAL_STEP)
+                                        setVisibleAssetCount((count) => count + revealBlockSize)
                                     }
                                 >
-                                    Mehr lokale Asset-Zeilen anzeigen ({Math.min(REPORT_ASSET_REVEAL_STEP, report.assets.length - visibleAssets.length)} weitere)
+                                    Mehr lokale Asset-Zeilen anzeigen ({Math.min(revealBlockSize, report.assets.length - visibleAssets.length)} weitere)
                                 </button>
                             </div>
                         ) : null}

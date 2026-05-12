@@ -5,10 +5,16 @@ import {
   clearLocalAssetTraceState,
   loadKnownPortfolios,
   loadPortfolioScope,
+  loadRevealBlockSize,
+  notifyLocalSettingsChanged,
+  REVEAL_BLOCK_SIZE_OPTIONS,
   resolvePortfolioScope,
   savePortfolioScope,
+  saveRevealBlockSize,
+  subscribeToLocalSettings,
   type AppearanceMode,
   type PortfolioScope,
+  type RevealBlockSize,
 } from "../../../lib/app-settings";
 import {
   clearDashboardCache,
@@ -42,11 +48,10 @@ const APPEARANCE_OPTIONS: {
   },
 ];
 
-const LOCAL_SETTINGS_CHANGE_EVENT = "assettrace:settings-local-state-change";
-
 type SettingsSnapshot = {
   knownPortfolios: Portfolio[];
   portfolioScope: PortfolioScope;
+  revealBlockSize: RevealBlockSize;
   cacheUpdatedAt: string | null;
   cacheAssetCount: number;
   cacheActivityCount: number;
@@ -62,6 +67,7 @@ const EMPTY_PORTFOLIO_SCOPE: PortfolioScope = {
 const EMPTY_SETTINGS_SNAPSHOT: SettingsSnapshot = {
   knownPortfolios: [],
   portfolioScope: EMPTY_PORTFOLIO_SCOPE,
+  revealBlockSize: 50,
   cacheUpdatedAt: null,
   cacheAssetCount: 0,
   cacheActivityCount: 0,
@@ -102,6 +108,7 @@ function readSettingsSnapshot(): SettingsSnapshot {
   return {
     knownPortfolios: loadKnownPortfolios(),
     portfolioScope: loadPortfolioScope(),
+    revealBlockSize: loadRevealBlockSize(),
     cacheUpdatedAt: cache?.lastUpdatedAt ?? null,
     cacheAssetCount: cache?.assetCount ?? 0,
     cacheActivityCount: cache?.activityItems?.length ?? 0,
@@ -118,36 +125,17 @@ function getServerSettingsSnapshot(): string {
   return JSON.stringify(EMPTY_SETTINGS_SNAPSHOT);
 }
 
-function subscribeToSettingsSnapshot(onStoreChange: () => void) {
-  if (typeof window === "undefined") {
-    return () => {};
-  }
-
-  window.addEventListener("storage", onStoreChange);
-  window.addEventListener(LOCAL_SETTINGS_CHANGE_EVENT, onStoreChange);
-
-  return () => {
-    window.removeEventListener("storage", onStoreChange);
-    window.removeEventListener(LOCAL_SETTINGS_CHANGE_EVENT, onStoreChange);
-  };
-}
-
-function notifySettingsSnapshotChanged() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(LOCAL_SETTINGS_CHANGE_EVENT));
-  }
-}
-
 export default function SettingsPage() {
   const { appearanceMode, resolvedTheme, setAppearanceMode } = useTheme();
   const settingsSnapshot = useSyncExternalStore(
-    subscribeToSettingsSnapshot,
+    subscribeToLocalSettings,
     getSettingsSnapshot,
     getServerSettingsSnapshot,
   );
   const {
     knownPortfolios,
     portfolioScope,
+    revealBlockSize,
     cacheUpdatedAt,
     cacheAssetCount,
     cacheActivityCount,
@@ -170,9 +158,17 @@ export default function SettingsPage() {
 
   function setScope(nextScope: PortfolioScope) {
     savePortfolioScope(nextScope);
-    notifySettingsSnapshotChanged();
+    notifyLocalSettingsChanged();
     setResetMessage(
       "Portfolio-Scope lokal gespeichert. Es wurden keine Parqet-Daten geladen.",
+    );
+  }
+
+  function setRevealSize(size: RevealBlockSize) {
+    saveRevealBlockSize(size);
+    notifyLocalSettingsChanged();
+    setResetMessage(
+      "Reveal-Größe lokal gespeichert. Es wurden keine Parqet-Daten geladen.",
     );
   }
 
@@ -186,7 +182,7 @@ export default function SettingsPage() {
 
   function clearDashboardOnly() {
     clearDashboardCache();
-    notifySettingsSnapshotChanged();
+    notifyLocalSettingsChanged();
     setResetMessage(
       "Der lokale Dashboard-Cache wurde gelöscht. Parqet-Daten bleiben unverändert.",
     );
@@ -196,7 +192,7 @@ export default function SettingsPage() {
     clearDashboardCache();
     clearLocalAssetTraceState();
     setAppearanceMode("system");
-    notifySettingsSnapshotChanged();
+    notifyLocalSettingsChanged();
     setResetMessage(
       "Lokale UI-Einstellungen und Cache wurden zurückgesetzt. In Parqet wurde nichts gelöscht.",
     );
@@ -250,6 +246,43 @@ export default function SettingsPage() {
           <p className={styles.meta}>
             Aktiv: {resolvedTheme === "dark" ? "Dunkel" : "Hell"}. Ungültige
             gespeicherte Werte fallen auf System zurück.
+          </p>
+        </section>
+
+        <section
+          className={`ui-surface ${styles.card}`}
+          aria-labelledby="reveal-heading"
+        >
+          <div className={styles.cardHeader}>
+            <h2 id="reveal-heading" className={styles.cardTitle}>
+              Listenanzeige
+            </h2>
+            <p className={styles.text}>
+              Wähle, wie viele lokale Zeilen Dashboard, Timeline und Reports
+              pro Schritt anzeigen. Die vollständigen lokalen Daten bleiben die
+              Basis für Summen und Exporte.
+            </p>
+          </div>
+
+          <div
+            className={styles.segmented}
+            role="group"
+            aria-label="Reveal-Größe"
+          >
+            {REVEAL_BLOCK_SIZE_OPTIONS.map((size) => (
+              <button
+                key={size}
+                type="button"
+                className={`${styles.segmentButton} ${revealBlockSize === size ? styles.segmentButtonActive : ""}`}
+                onClick={() => setRevealSize(size)}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+          <p className={styles.meta}>
+            Aktiv: {revealBlockSize} Zeilen pro Schritt. Ungültige gespeicherte
+            Werte fallen auf 50 zurück.
           </p>
         </section>
 
