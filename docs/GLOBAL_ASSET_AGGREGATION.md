@@ -447,7 +447,9 @@ Temporary display values:
 
 Later user-facing names should come from a dedicated metadata/enrichment step.
 
-## Warning and confidence rules
+## DP-08 warning, confidence and blocked-metrics rules
+
+DP-08 locks the canonical warning, confidence and blocked-metrics policy for later aggregation/read-model output. This is planning/documentation only and does not authorize implementation, UI copy implementation, route migration, provider/API calls, override/write behavior or product UI changes.
 
 Aggregation can create warnings for:
 
@@ -462,15 +464,24 @@ Near-zero floating-point artifacts do not create negative quantity warnings.
 
 Negative quantity warnings may include machine-readable cause metadata.
 
-Confidence is derived simply:
+Confidence is derived from warning severity, source completeness, freshness, value classification and blocked metric presence. Confidence should be metric-specific when possible instead of blocking an entire asset globally:
 
-- `high`: no warnings
-- `medium`: warnings present
-- `low`: blocker warning present
+- `high`: no relevant warnings, source/freshness complete enough and no blocked metrics.
+- `medium`: non-blocking warnings, estimated/preliminary values or restricted freshness.
+- `low`: blocker exists, important source/freshness is missing or affected metrics are blocked.
+- `unknown`: source situation is insufficient for confidence classification.
 
-If a warning has blocked metrics, confidence is at most `medium`.
+Blocked metrics are explicit. A warning may block `cost_basis`, `performance` or `dividend_yield` while still allowing safe values such as quantity, per-currency subtotals, audit counts or warning summaries. A `blocker` does not hide the whole asset by default.
 
-This is not the final warning/confidence system.
+DP-08 blocked-metrics mapping:
+
+| Warning category group | Warning codes | May block | Still allowed / should not block by itself |
+| --- | --- | --- | --- |
+| Identity / metadata | `missing_asset_identity`, `invalid_asset_identity`, `unsupported_asset_key` | `asset_identity`, `asset_grouping`, `portfolio_breakdown`, `cost_basis`, `realized_pnl`, `unrealized_pnl`, `performance`, `return_metrics` | diagnostic counts, unassigned activity count, warning summaries |
+| Activity normalization | `unknown_activity_type`, `missing_activity_id`, `invalid_date`, `numeric_parse_failed`, `raw_activity_not_object` | depending on affected field: `timeline_order`, `quantity`, `cost_basis`, `realized_pnl`, `unrealized_pnl`, `performance`, `return_metrics` | unaffected normalized facts, diagnostic counts and warning summaries |
+| Transfers from DP-05 | `transfer_unpaired`, `transfer_ambiguous`, `transfer_partial`, `transfer_duplicate_candidate`, `transfer_quantity_mismatch`, `transfer_asset_mismatch`, `transfer_missing_portfolio_context`, `transfer_date_uncertain`, `transfer_cost_basis_unknown`, `transfer_cross_currency_unsupported` | `portfolio_breakdown`, `cost_basis`, `realized_pnl`, `unrealized_pnl`, `performance`, `return_metrics` | transfer candidate counts, warning summaries and safe audit diagnostics |
+| Calculation / price from DP-06 | `cost_basis_blocked`, `realized_pnl_blocked`, `unrealized_pnl_blocked`, `price_source_missing`, `price_source_stale`, `provider_reference_only`, `fee_tax_ambiguous` | `cost_basis`, `realized_pnl`, `unrealized_pnl`, `market_value`, `performance`, `return_metrics` | labelled provider-reference values and safe comparison diagnostics |
+| Dividend / fee / tax / currency from DP-07 | `missing_currency`, `mixed_currency`, `fx_policy_missing`, `dividend_amount_basis_unknown`, `dividend_gross_net_ambiguous`, `money_field_without_currency`, `fee_tax_basis_unknown`, `tax_treatment_not_app_owned`, `closed_position_income_present`, `currency_conversion_blocked` | `total_dividend_net`, `total_dividend_gross`, `total_fees`, `total_taxes`, `income_total`, `dividend_yield`, `performance`, `return_metrics` | `per_currency_totals`, `audit_counts`, `activity_list`, `warning_summary`, closed-position income flag/context |
 
 ## Synthetic example
 

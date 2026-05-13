@@ -277,17 +277,37 @@ Transfer ambiguity reasons include:
 - provider-specific case without a documented safe rule,
 - cost-basis information cannot be safely carried forward.
 
-## Warnings and confidence
+## DP-08 warnings, confidence and blocked metrics
 
-Warnings use:
+DP-08 locks the canonical warning, confidence and blocked-metrics model for later read-model and audit output. This section is documentation-only and does not authorize implementation, UI copy implementation, route migration, provider calls, override/write behavior or product UI changes.
 
-- code,
-- severity,
-- UI-capable message,
-- optional debug message,
-- source,
-- entity references,
-- blocked metrics.
+Canonical warning categories use stable machine-readable codes. Each category should support:
+
+| Field | Semantics |
+| --- | --- |
+| `code` | Stable machine-readable warning code, for example `mixed_currency`. |
+| `severity` | `info`, `warning` or `blocker`. |
+| `audience` | `user`, `diagnostic` or `both`. |
+| `source` | `normalization`, `aggregation`, `audit`, `read_model`, `provider_reference` or `local_policy`. |
+| `affectedEntity` | `asset`, `activity`, `portfolio`, `metric`, `report` or `global`. |
+| `blockedMetrics` | Metrics that must not be shown as complete. |
+| `confidenceImpact` | `none`, `reduce_to_medium`, `reduce_to_low` or `metric_blocked`. |
+| `messageKey` | Future UI-safe translation key, not final UI copy. |
+| `debugHint` | Redacted technical hint for audit/development only, without raw payloads. |
+
+User-facing warnings and diagnostic warnings are separate projections of the same canonical warning category:
+
+- User-facing warnings must be understandable and explain impact without exposing raw or private data.
+- User-facing warnings must not include raw provider fields, raw payloads, activity rows, activity IDs, portfolio IDs, stack traces, tokens, cookies or private exports.
+- Diagnostic warnings may include technical categories, counts, source/freshness metadata, safe asset keys where already allowed, date buckets and redacted portfolio labels.
+- Diagnostic warnings must still avoid raw payloads and private source rows.
+
+Severity policy:
+
+- `info`: no metric is blocked; context only, for example stale snapshot notice or closed-position income context.
+- `warning`: values may remain visible but confidence is reduced, or the value is estimated/preliminary.
+- `blocker`: one or more metrics listed in `blockedMetrics` must not be shown as complete.
+- `blocker` does not hide the whole asset by default; it blocks specific metrics.
 
 Transfer-related warning codes:
 
@@ -320,8 +340,18 @@ Confidence is represented as:
 - `high`
 - `medium`
 - `low`
+- `unknown`
 
-Confidence is derived from warnings in later logic. There is no user/manual override in P1-4.
+Confidence is derived from warning severity, source completeness, freshness, value classification and blocked metric presence. Confidence may exist at report, asset and metric level. Metric-level confidence is preferred over all-or-nothing asset confidence.
+
+Confidence derivation policy:
+
+- `high`: no relevant warnings, source/freshness complete enough and no blocked metrics.
+- `medium`: non-blocking warnings, estimated/preliminary values or restricted freshness.
+- `low`: blocker exists, important source/freshness is missing or affected metrics are blocked.
+- `unknown`: source situation is insufficient for confidence classification.
+
+There is no user/manual override in P1-4 or DP-08.
 
 ## Raw data rule
 
