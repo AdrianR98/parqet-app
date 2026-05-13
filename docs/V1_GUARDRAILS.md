@@ -57,6 +57,8 @@ Rules for new calculations:
 5. If a feature needs a calculation that conflicts with an existing model, create or update an ADR before implementation.
 6. Existing provider reference fields may be preserved for comparison, but they must be labelled as provider reference values when shown or used diagnostically.
 
+DP-06 cost-basis, PnL and price-source policy is documented in `docs/GLOBAL_ASSET_AGGREGATION.md`. It locks `weighted_average_remaining_cost_basis` as the first app-owned cost-basis method, keeps app-owned PnL/performance blocked or preliminary until validation evidence exists, treats latest trade price as an estimated/stale fallback only and authorizes no FIFO, tax reporting, external price APIs or FX conversion for V1.
+
 ## Purpose-Specific Data Source Rules
 
 v1 must prefer the narrowest data source that can answer the feature question.
