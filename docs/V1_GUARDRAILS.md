@@ -59,6 +59,8 @@ Rules for new calculations:
 
 DP-06 cost-basis, PnL and price-source policy is documented in `docs/GLOBAL_ASSET_AGGREGATION.md`. It locks `weighted_average_remaining_cost_basis` as the first app-owned cost-basis method, keeps app-owned PnL/performance blocked or preliminary until validation evidence exists, treats latest trade price as an estimated/stale fallback only and authorizes no FIFO, tax reporting, external price APIs or FX conversion for V1.
 
+DP-08 warning, confidence and blocked-metrics policy is documented in `docs/GLOBAL_ASSET_TYPE_MODEL.md`, `docs/GLOBAL_ASSET_AGGREGATION.md` and `docs/GLOBAL_ASSET_AUDIT_REPORT.md`. It locks stable warning codes with severity, audience, source, affected entity, confidence impact and explicit `blockedMetrics`; separates user-facing and diagnostic warning projections; prefers metric-level confidence over whole-asset blocking; and authorizes no implementation, UI copy implementation, route migration, provider calls or override/write behavior.
+
 ## Purpose-Specific Data Source Rules
 
 v1 must prefer the narrowest data source that can answer the feature question.
@@ -182,10 +184,14 @@ Every calculated or provider-derived metric that may be incomplete, stale or amb
 
 Required concepts:
 
-- `source`: where the value came from, such as `provider`, `app_calculated`, `snapshot`, `user_override` or `mixed`.
-- `freshness`: when the source data was loaded, synced or calculated; include stale/unknown state when exact time is unavailable.
-- `confidence`: `high`, `medium` or `low`, derived from data completeness, warnings and calculation assumptions.
-- `warnings`: user-safe warnings and optional redacted debug hints.
+- `source` / `sourceType`: where the value came from, such as `provider`, `app_calculated`, `local_snapshot`, `manual`, `derived` or `none`.
+- `sourceScope`: whether the data basis is portfolio, selected-portfolio, global, asset or report scoped.
+- `freshness` / `freshnessAt`: when the source data was loaded, synced or calculated; this is the timestamp of the data basis, not UI render time.
+- `snapshotId`: optional stable reference to the loaded data basis.
+- `calculationPolicy`: documented policy identifier for app-owned calculations, for example `weighted_average_remaining_cost_basis`.
+- `valueClassification`: `provider_reference`, `app_calculated`, `estimated`, `preliminary`, `blocked` or `none`.
+- `confidence`: `high`, `medium`, `low` or `unknown`, derived from data completeness, warning severity, freshness, value classification and blocked metric presence.
+- `warnings`: user-safe warnings and optional redacted diagnostic hints.
 - `blockedMetrics`: explicit list of metrics that must not be shown as complete.
 
 Minimum confidence guidance:
@@ -194,9 +200,11 @@ Minimum confidence guidance:
 | --- | --- | --- |
 | High | Required fields are present, source data is fresh enough for the feature and no material warnings affect the metric. | May be shown as a normal value with source/freshness available in detail or diagnostics. |
 | Medium | Minor gaps, stale-but-usable data, provider reference comparison mismatch that does not block the metric, or conservative assumptions are present. | Show a caveat or info indicator when user decisions may depend on the value. |
-| Low | Missing identity, missing portfolio context, ambiguous transfers, partial activity history, missing currency/fx context or unresolved data-quality warnings materially affect the metric. | Use caution wording, avoid ranking/optimization decisions, and expose why confidence is low. |
+| Low | A blocker exists, important source/freshness is missing, affected metrics are blocked, or missing identity, portfolio context, transfer, history, currency/FX or data-quality inputs materially affect the metric. | Use caution wording, avoid ranking/optimization decisions, and expose why confidence is low. |
+| Unknown | The source situation is insufficient for confidence classification. | Do not present the value as complete; expose the missing source/confidence basis in diagnostics or report output. |
 
 Metrics must be blocked instead of shown when missing data would make the value misleading.
+Blocking should be metric-specific where possible. A blocked `cost_basis`, `performance` or `dividend_yield` does not by itself hide safe values such as quantity, per-currency subtotals, audit counts or warning summaries.
 
 ## Wording Rules
 
@@ -223,6 +231,8 @@ Avoid wording that implies certainty when confidence is not high:
 
 - Never show tokens, cookies, OAuth codes, authorization headers or raw provider payloads in UI, logs, diagnostics, exports, examples or screenshots.
 - Diagnostics must be redacted and count/scope-oriented.
+- User-facing warnings must explain impact without raw provider fields, raw payloads, activity rows, activity IDs, portfolio IDs, stack traces, tokens, cookies or private exports.
+- Diagnostic warnings may include technical categories, counts, source/freshness metadata, safe asset keys where already allowed, date buckets and redacted portfolio labels, but must not include raw payloads or private source rows.
 - Exports must include only visible, loaded and safe report/read-model fields.
 - Private debug data and hidden technical identifiers must not be exported.
 - Local reference files and real portfolio data must stay in ignored local paths.

@@ -319,6 +319,55 @@ DP-07 warning categories for future audit/read-model output:
 - `closed_position_income_present`
 - `currency_conversion_blocked`
 
+## DP-08 warning, confidence and source audit expectations
+
+DP-08 warning, confidence and blocked-metrics handling is documentation-only here and does not implement warning models, UI copy, read-model output, route migration, provider calls, override/write behavior or product UI.
+
+Later audit/read-model output should be able to expose:
+
+- `sourceType`
+- `sourceScope`
+- `freshnessAt`
+- `snapshotId`
+- `calculationPolicy`
+- `valueClassification`
+- `confidence`
+- `warnings`
+- `blockedMetrics`
+
+Source/freshness semantics:
+
+| Field | Semantics |
+| --- | --- |
+| `sourceType` | `provider`, `app_calculated`, `local_snapshot`, `manual`, `derived` or `none`. |
+| `sourceScope` | `portfolio`, `selected_portfolios`, `global`, `asset` or `report`. |
+| `freshnessAt` | Timestamp of the data basis, not UI render time. |
+| `snapshotId` | Optional stable reference to the loaded data basis. |
+| `calculationPolicy` | Policy identifier such as `weighted_average_remaining_cost_basis`. |
+| `valueClassification` | `provider_reference`, `app_calculated`, `estimated`, `preliminary`, `blocked` or `none`. |
+
+Warning and diagnostic output must not include:
+
+- raw provider payloads
+- real activity rows
+- real portfolio IDs
+- tokens/cookies/OAuth codes
+- screenshots
+- private exports
+- full request/response bodies
+
+Warning and diagnostic output may include:
+
+- counts
+- warning codes
+- severity
+- source category
+- safe asset key if already allowed
+- redacted portfolio label
+- date bucket
+- value classification
+- blocked metric names
+
 ## Privacy rules
 
 - Raw payloads are never returned.
