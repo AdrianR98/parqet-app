@@ -105,15 +105,21 @@ export type LegacyActivityComparisonInputItem = {
   warningMessages?: unknown[] | null;
   hasOverrides?: boolean;
   overrideCount?: number | null;
+  blockedMetrics?: unknown[] | null;
+  isBlocked?: boolean;
+};
+
+export type LegacyActivitiesTimelineComparisonSummary = {
+  itemCount: number;
+  warningItemCount: number;
+  overrideItemCount: number;
+  unknownTypeItemCount: number;
+  blockedIndicatorItemCount: number;
+  byType: Record<string, number>;
 };
 
 export type ProductReadModelComparisonEvidence = {
-  current: {
-    itemCount: number;
-    warningItemCount: number;
-    overrideItemCount: number;
-    byType: Record<string, number>;
-  };
+  current: LegacyActivitiesTimelineComparisonSummary;
   projected: {
     itemCount: number;
     warningItemCount: number;
@@ -199,6 +205,19 @@ function normalizePortfolioIds(ids?: string[]): string[] {
   }
 
   return Array.from(new Set(ids.map((id) => id.trim()).filter((id) => id.length > 0)));
+}
+
+function toLegacyTypeBucket(type: string | null | undefined): string {
+  const normalized = type?.trim().toLowerCase() ?? "";
+  return normalized.length > 0 ? normalized : "unknown";
+}
+
+function hasBlockedIndicator(item: LegacyActivityComparisonInputItem): boolean {
+  if (item.isBlocked) {
+    return true;
+  }
+
+  return Array.isArray(item.blockedMetrics) && item.blockedMetrics.length > 0;
 }
 
 export function projectActivitiesTimelineProductReadModel(
@@ -303,26 +322,38 @@ export function projectActivitiesTimelineProductReadModel(
   };
 }
 
+export function buildLegacyActivitiesTimelineComparisonSummary(
+  items: LegacyActivityComparisonInputItem[],
+): LegacyActivitiesTimelineComparisonSummary {
+  const byType = countBy(items, (item) => toLegacyTypeBucket(item.type));
+  const warningItemCount = items.filter(
+    (item) => Array.isArray(item.warningMessages) && item.warningMessages.length > 0,
+  ).length;
+  const overrideItemCount = items.filter(
+    (item) => item.hasOverrides || (item.overrideCount ?? 0) > 0,
+  ).length;
+  const unknownTypeItemCount = items.filter((item) => toLegacyTypeBucket(item.type) === "unknown").length;
+  const blockedIndicatorItemCount = items.filter((item) => hasBlockedIndicator(item)).length;
+
+  return {
+    itemCount: items.length,
+    warningItemCount,
+    overrideItemCount,
+    unknownTypeItemCount,
+    blockedIndicatorItemCount,
+    byType,
+  };
+}
+
 export function buildActivitiesTimelineComparisonEvidence(input: {
   currentItems: LegacyActivityComparisonInputItem[];
   projected: ProductReadModelActivitiesTimeline;
 }): ProductReadModelComparisonEvidence {
-  const currentByType = countBy(input.currentItems, (item) => item.type?.trim() || "unknown");
-  const currentWarningItemCount = input.currentItems.filter(
-    (item) => Array.isArray(item.warningMessages) && item.warningMessages.length > 0,
-  ).length;
-  const currentOverrideItemCount = input.currentItems.filter(
-    (item) => item.hasOverrides || (item.overrideCount ?? 0) > 0,
-  ).length;
+  const currentSummary = buildLegacyActivitiesTimelineComparisonSummary(input.currentItems);
   const projectedByType = countBy(input.projected.items, (item) => item.activityType);
 
   return {
-    current: {
-      itemCount: input.currentItems.length,
-      warningItemCount: currentWarningItemCount,
-      overrideItemCount: currentOverrideItemCount,
-      byType: currentByType,
-    },
+    current: currentSummary,
     projected: {
       itemCount: input.projected.summary.itemCount,
       warningItemCount: input.projected.summary.warningItemCount,
@@ -332,8 +363,8 @@ export function buildActivitiesTimelineComparisonEvidence(input: {
       valueClassificationCounts: input.projected.summary.valueClassificationCounts,
     },
     delta: {
-      itemCount: input.projected.summary.itemCount - input.currentItems.length,
-      warningItemCount: input.projected.summary.warningItemCount - currentWarningItemCount,
+      itemCount: input.projected.summary.itemCount - currentSummary.itemCount,
+      warningItemCount: input.projected.summary.warningItemCount - currentSummary.warningItemCount,
       blockedMetricItemCount: input.projected.summary.blockedMetricItemCount,
     },
   };

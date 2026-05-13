@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildActivitiesTimelineComparisonEvidence,
+  buildLegacyActivitiesTimelineComparisonSummary,
   projectActivitiesTimelineProductReadModel,
 } from "../../src/lib/parqet/global-assets/product-read-model";
 import { createSyntheticActivity, runGlobalAssetPipeline } from "./global-assets-test-helpers";
@@ -110,18 +111,46 @@ describe("global asset product read-model projection (activities/timeline)", () 
     const evidence = buildActivitiesTimelineComparisonEvidence({
       currentItems: [
         { type: "buy", warningMessages: [] },
-        { type: "dividend", warningMessages: ["synthetic warning"], hasOverrides: true },
+        {
+          type: "dividend",
+          warningMessages: ["synthetic warning"],
+          hasOverrides: true,
+          blockedMetrics: ["dividends"],
+        },
+        {
+          type: null,
+          warningMessages: [],
+          isBlocked: true,
+        },
       ],
       projected,
     });
 
-    expect(evidence.current.itemCount).toBe(2);
+    expect(evidence.current.itemCount).toBe(3);
     expect(evidence.current.warningItemCount).toBe(1);
     expect(evidence.current.overrideItemCount).toBe(1);
+    expect(evidence.current.unknownTypeItemCount).toBe(1);
+    expect(evidence.current.blockedIndicatorItemCount).toBe(2);
     expect(evidence.projected.itemCount).toBe(projected.summary.itemCount);
     expect(evidence.current.byType.buy).toBe(1);
     expect(evidence.projected.byType.buy).toBe(1);
     expect(evidence.current).not.toHaveProperty("items");
     expect(evidence.projected).not.toHaveProperty("items");
+  });
+
+  it("normalizes legacy activity indicators into a count-safe summary", () => {
+    const summary = buildLegacyActivitiesTimelineComparisonSummary([
+      { type: " buy ", warningMessages: [] },
+      { type: "unknown", warningMessages: ["synthetic warning"], overrideCount: 1 },
+      { type: "", warningMessages: [], blockedMetrics: ["performance"] },
+    ]);
+
+    expect(summary.itemCount).toBe(3);
+    expect(summary.warningItemCount).toBe(1);
+    expect(summary.overrideItemCount).toBe(1);
+    expect(summary.unknownTypeItemCount).toBe(2);
+    expect(summary.blockedIndicatorItemCount).toBe(1);
+    expect(summary.byType.buy).toBe(1);
+    expect(summary.byType.unknown).toBe(2);
   });
 });
