@@ -25,6 +25,12 @@ The v1 snapshot stores only derived route inputs needed by the current app surfa
 
 The v1 snapshot must not store OAuth tokens, cookies, authorization headers or raw provider responses, and those values must not be exposed in UI, diagnostics or exports. It must be refreshed only by explicit load/refresh actions. Normal navigation, local filtering, local sorting, reports, asset detail and opening the Activities page must use existing snapshot/cache data or show an empty/no-snapshot state.
 
+DP-10 clarifies the route semantics for this accepted storage boundary. Provider-backed routes are limited to explicit refresh/load paths with known request scope, bounded pagination/retry/concurrency and updated snapshot/freshness metadata. Snapshot-first surfaces read existing snapshots before offering explicit refresh. Snapshot-only, browser-local and no-data-call surfaces must not call the provider or refresh tokens.
+
+Snapshots should carry enough metadata to compare the loaded data basis against the selected UI/report scope, including identifiers and timestamps such as `snapshotId`, `createdAt`, `sourceType`, `sourceScope`, `selectedPortfolioIds`, `activityRange`, `includedAssetKeys`, `providerRequestCount`, `freshnessAt` and `staleAfter` or `expiresAt` when defined. Scope mismatch, missing snapshots, stale snapshots or unknown freshness must be visible and must not trigger hidden provider reloads.
+
+Provider failures and rate limits should surface as stale, rate-limit or error states with explicit retry options. Automatic full-reload retry loops are not part of v1, token refresh is only appropriate for likely auth failures and non-auth provider failures must not immediately rerun the expensive activity pipeline.
+
 ## Production Storage Boundary
 
 No durable production database or server persistence is introduced in v1. The server snapshot is process-local, in-memory and non-durable; the browser cache is a local read model for UI continuity, not production persistence.

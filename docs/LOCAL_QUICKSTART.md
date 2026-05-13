@@ -154,3 +154,5 @@ v1 separates explicit data loading from normal navigation:
 - Audit routes without `refresh=1` are snapshot-only/no-provider-call reads. Audit routes with `refresh=1` may run provider-backed only when that route is intentionally designed and gated for that behavior.
 
 The server-side v1 snapshot is bounded, process-local, in-memory and non-durable. It is an API-budget optimization for explicit v1 route reuse only, not production storage. Filtered/normalized Activity data is retained only within those bounded snapshot/read-model paths; tokens, cookies and raw provider payloads must never appear in UI, diagnostics or exports.
+
+For the locked DP-10 route categories, scope/freshness states and retry/rate-limit rules, see `docs/V1_GUARDRAILS.md`. The local short version is unchanged: page opens, filters, sorts, detail panels, reports, settings and diagnostics must not fetch provider data unless the user chooses an explicit load/refresh path.
