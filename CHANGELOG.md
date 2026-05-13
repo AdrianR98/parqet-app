@@ -113,6 +113,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Docs
 
+- Added a Parqet pipeline inventory and replacement-gate checklist for #248/#249 route/read-model migration planning.
 - Added a v1 API-budget manual QA checklist for provider-call-safe local UI flows, release-readiness review and privacy-safe verification.
 - Added Phase-0 documentation set, ADR template and collaboration ADR.
 - Documented the Vercel ignored-build strategy in the development workflow.
