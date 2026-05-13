@@ -167,6 +167,95 @@ Transfer warning categories:
 - `transfer_cost_basis_unknown`
 - `transfer_cross_currency_unsupported`
 
+## DP-07 dividend, fee, tax and currency policy
+
+DP-07 locks a same-currency-only money aggregation policy for dividends, fees and taxes. This section is documentation-only and does not authorize implementation, FX conversion, provider calls, external FX APIs, product UI, PnL/performance calculation or tax-reporting policy.
+
+Dividend, fee and tax fields remain separate source facts. Gross and net dividends may be calculated or aggregated only when source field meaning and currency are clear. Fees and taxes must not be folded into PnL, performance or tax reporting without a later policy.
+
+Dividend fields/categories should be preserved where source data supports them:
+
+- `dividend_gross`
+- `dividend_tax`
+- `dividend_fee`
+- `dividend_net`
+
+Gross/net dividend rules:
+
+- Gross or net must not be inferred when source meaning is unclear.
+- If only a clearly net amount exists, preserve it as `dividend_net`.
+- If only a clearly gross amount exists, preserve it as `dividend_gross`.
+- If amount basis is unclear, preserve it as a labelled `provider_reference` or unknown amount basis and warn.
+- If gross, taxes and fees are all clear and same-currency, net may be derived as gross minus tax minus fee.
+- If net and taxes/fees are both provided, do not double-subtract.
+- Dividend yield and income-return metrics remain blocked or preliminary when holding period, cost basis, currency or denominator is unsafe.
+
+Fees and taxes remain separate categories. Useful categories may include:
+
+- `buy_fee`
+- `sell_fee`
+- `dividend_fee`
+- `other_fee`
+- `withholding_tax`
+- `capital_gains_tax`
+- `dividend_tax`
+- `other_tax`
+
+Taxes are not tax advice. Taxes remain provider/source facts unless a later tax-specific policy defines app-owned treatment. Ambiguous fee/tax fields warn and block affected metrics such as `cost_basis`, `realized_pnl`, net dividend totals or performance.
+
+Closed-position dividend behavior:
+
+- Dividends remain attached to asset history even when current quantity is zero.
+- Closed-position assets may contribute historical dividend totals when same-currency safe.
+- Current position value and quantity may be zero while historical dividends remain visible.
+- Closed assets must not be dropped in a way that loses income history.
+- Return and dividend-yield metrics for closed positions remain blocked or preliminary if denominator, holding period, cost basis or currency is unsafe.
+
+Currency and FX rules:
+
+- Only aggregate money values with the same currency.
+- Mixed currencies must not be silently summed.
+- Missing currency must not default to EUR or portfolio currency.
+- Portfolio currency may be context, but it is not automatic conversion.
+- Mixed-currency output should use per-currency buckets when possible.
+- Single converted totals are blocked without an explicit FX policy.
+- No FX conversion, external FX API or provider-side FX dependency is authorized by DP-07.
+
+Future FX policy must define FX source, date basis such as trade date, settlement date, payment date or latest date, freshness, cache/snapshot reuse, retry/rate-limit behavior, rounding precision, audit traceability, whether provider FX fields may be trusted and fallback/block behavior.
+
+Blocked when currency is mixed, missing or no FX policy exists:
+
+- `total_dividend_net`
+- `total_dividend_gross`
+- `total_fees`
+- `total_taxes`
+- `income_total`
+- `performance`
+- return metrics
+- `dividend_yield`
+
+Blocked when dividend amount basis is ambiguous:
+
+- `dividend_net`
+- `dividend_gross`
+- `dividend_yield`
+- income return metrics
+
+Diagnostic/audit output remains allowed for per-currency subtotals, audit counts, activity lists, warning summaries and asset-level historical income when single-currency safe. Provider-reference dividend amounts are allowed only when labelled as provider references.
+
+DP-07 warning categories:
+
+- `missing_currency`
+- `mixed_currency`
+- `fx_policy_missing`
+- `dividend_amount_basis_unknown`
+- `dividend_gross_net_ambiguous`
+- `money_field_without_currency`
+- `fee_tax_basis_unknown`
+- `tax_treatment_not_app_owned`
+- `closed_position_income_present`
+- `currency_conversion_blocked`
+
 ## Portfolio breakdowns
 
 Portfolio breakdowns are grouped by `portfolioId`.
@@ -277,6 +366,8 @@ P1-8 intentionally leaves these values null:
 - `unrealizedPnL`
 
 Dividend, fee and tax totals are calculated only when currencies are consistent. Mixed currencies block the affected totals and create warnings. No FX conversion is performed.
+
+DP-07 further restricts money aggregation to same-currency-safe values with clear field meaning. Future read models should prefer per-currency buckets for mixed-currency diagnostics and block converted/single-currency totals until an explicit FX policy exists.
 
 The provider data-source strategy keeps current market value, app-owned cost basis, realized PnL, unrealized PnL and FX as blocked/unknown until a later decision defines their source, freshness, confidence and calculation ownership. Provider-supplied values may be preserved only as labelled provider references.
 

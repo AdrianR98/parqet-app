@@ -191,6 +191,26 @@ Price-source classification should preserve:
 - `latest_trade_price`: estimated/stale fallback only, never current market price.
 - `manual_snapshot` / `local_snapshot`: reserved unless later explicitly allowed.
 - `none`: no usable price; market value and unrealized PnL are blocked.
+## Dividend, fee, tax and currency model
+
+DP-07 locks the planning policy for dividend, fee, tax and currency handling. This document update is documentation-only and does not change `src/lib/parqet/global-assets/types.ts`.
+
+Future model/read-model fields should preserve separate dividend, fee and tax facts when source data supports them:
+
+- `dividend_gross`
+- `dividend_tax`
+- `dividend_fee`
+- `dividend_net`
+- fee categories such as `buy_fee`, `sell_fee`, `dividend_fee` and `other_fee`
+- tax categories such as `withholding_tax`, `capital_gains_tax`, `dividend_tax` and `other_tax`
+
+Gross and net dividends must not be inferred when source meaning is unclear. A clearly net-only source amount should remain `dividend_net`; a clearly gross-only source amount should remain `dividend_gross`. An unclear amount basis should remain a labelled provider reference or unknown basis with a warning. When gross, taxes and fees are all clear and same-currency, net may be derived as gross minus tax minus fee. When net and taxes/fees are both provided, the model must avoid double-subtraction.
+
+Fees and taxes are source facts, not hidden PnL, performance or app-owned tax-reporting treatment. Taxes are not tax advice and remain provider/source facts unless a later tax-specific policy defines app-owned treatment.
+
+Money aggregation is same-currency-only. Missing currency must not default to EUR or portfolio currency, and portfolio currency is context only. Mixed-currency output may expose per-currency buckets, but single converted totals, FX conversion and provider-side FX dependency are blocked until a later FX policy defines source, date basis, freshness, cache/snapshot reuse, retry/rate-limit behavior, rounding precision, audit traceability, provider-FX trust and fallback/block behavior.
+
+Closed-position dividends remain attached to asset history even when current quantity is zero. Closed-position assets may contribute historical dividend totals when single-currency safe, while current quantity and current position value may remain zero. Return, performance and dividend-yield metrics stay blocked or preliminary when denominator, holding period, cost basis, source basis or currency is unsafe.
 
 ## Timeline entries
 
@@ -281,6 +301,19 @@ Transfer-related warning codes:
 - `transfer_date_uncertain`
 - `transfer_cost_basis_unknown`
 - `transfer_cross_currency_unsupported`
+
+DP-07 warning codes for future read-model/audit output:
+
+- `missing_currency`
+- `mixed_currency`
+- `fx_policy_missing`
+- `dividend_amount_basis_unknown`
+- `dividend_gross_net_ambiguous`
+- `money_field_without_currency`
+- `fee_tax_basis_unknown`
+- `tax_treatment_not_app_owned`
+- `closed_position_income_present`
+- `currency_conversion_blocked`
 
 Confidence is represented as:
 

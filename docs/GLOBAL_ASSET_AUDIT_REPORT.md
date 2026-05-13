@@ -283,6 +283,41 @@ Audit output for DP-06 should be able to expose, without raw provider payloads o
 - provider-reference comparison values when available and safely redacted.
 
 Latest trade price must be labelled as estimated/stale fallback only. It must not be reported as current market price.
+## DP-07 dividend, fee, tax and currency audit expectations
+
+DP-07 dividend, fee, tax and currency handling is documentation-only here and does not implement read-model output, FX conversion, provider calls, product UI, performance/PnL calculation or tax-reporting policy.
+
+Later audit/read-model output should be able to expose:
+
+- `currency`
+- `moneyFieldType`
+- gross/net/source basis
+- fee/tax category
+- value classification
+- per-currency totals
+- `blockedMetrics`
+- warning codes
+- source/freshness/confidence
+- `closedPositionIncome` flag
+
+Converted or single-currency totals must be blocked when currency is mixed, missing or no FX policy exists. Affected blocked metrics include `total_dividend_net`, `total_dividend_gross`, `total_fees`, `total_taxes`, `income_total`, `performance`, return metrics and `dividend_yield`.
+
+Dividend gross/net metrics must be blocked when amount basis is ambiguous. A labelled provider-reference dividend amount may remain visible as a provider reference, but must not be promoted into gross/net dividend totals.
+
+Diagnostic output should not block per-currency subtotals, audit counts, activity lists, warning summaries or asset-level historical income when single-currency safe. Closed-position dividend income should remain visible with a `closedPositionIncome` flag or equivalent warning/context marker.
+
+DP-07 warning categories for future audit/read-model output:
+
+- `missing_currency`
+- `mixed_currency`
+- `fx_policy_missing`
+- `dividend_amount_basis_unknown`
+- `dividend_gross_net_ambiguous`
+- `money_field_without_currency`
+- `fee_tax_basis_unknown`
+- `tax_treatment_not_app_owned`
+- `closed_position_income_present`
+- `currency_conversion_blocked`
 
 ## Privacy rules
 
