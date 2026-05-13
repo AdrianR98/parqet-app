@@ -12,6 +12,7 @@ Related documents:
 
 - `docs/PARQET_API_AUDIT.md`
 - `docs/adr/0002-global-asset-timeline.md`
+- `docs/ASSET_IDENTITY_AND_METADATA.md`
 - `docs/GLOBAL_ASSET_NORMALIZATION.md`
 - `src/lib/parqet/global-assets/types.ts`
 - `src/lib/parqet/global-assets/normalize.ts`
@@ -81,6 +82,8 @@ The key union also prepares later fallbacks:
 - `manual`
 
 Only `isin` is actively supported by the current audit and ADR.
+
+The durable DP-03 identity boundary is documented in `docs/ASSET_IDENTITY_AND_METADATA.md`. WKN, Parqet asset ID, holding ID, `externalId`, ticker/symbol, names, local metadata and manual keys are not active calculation keys unless a later issue explicitly changes that policy.
 
 If a valid ISIN is present, `assetKey` should be derivable from it. Activities without an `assetKey` may still be normalized, but warnings/blockers must handle them.
 

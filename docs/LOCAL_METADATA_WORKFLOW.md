@@ -19,6 +19,8 @@ The local metadata workflow is allowed to improve UI display fields such as:
 
 It must not change calculations such as positions, quantities, cost basis, dividends, fees, taxes, performance or warnings.
 
+The calculation identity and metadata boundary is defined in `docs/ASSET_IDENTITY_AND_METADATA.md`. Local metadata is display-only and must not repair missing or invalid calculation identity, alter aggregation, raise confidence, clear warnings or unblock metrics.
+
 ## Source Priority
 
 v1 display fallback order is:
