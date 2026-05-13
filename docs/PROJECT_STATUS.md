@@ -33,6 +33,8 @@ Parqet remains the data source through Parqet Connect / OAuth. This app adds an 
 
 The app may present itself as a Parqet Integration, but it must not appear to be an official Parqet product.
 
+The current provider data-source strategy is locked for DP-02 in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`: use current holdings/current-state sources for current position/allocation questions, activity history for timelines and event-derived inputs, snapshots/read models for repeated local reads after explicit load, local metadata for display identity only and provider-reference labels for Parqet-computed values.
+
 ## Latest Stable State
 
 The repository contains a Next.js App Router application with Parqet-oriented routes and UI areas, including dashboard and activities/audit concepts. The existing product implementation remains the stable baseline during Phase 1 until a later decision explicitly changes it.

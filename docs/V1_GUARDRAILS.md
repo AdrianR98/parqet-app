@@ -59,6 +59,8 @@ Rules for new calculations:
 
 v1 must prefer the narrowest data source that can answer the feature question.
 
+The detailed DP-02 mapping for current-state, activity-history, snapshot/read-model, local metadata, provider-reference and blocked/unknown cases lives in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`.
+
 ### Holdings / Performance-Near Data
 
 Use holdings, positions or performance-near provider data when the feature asks for current or provider-computed state, for example:

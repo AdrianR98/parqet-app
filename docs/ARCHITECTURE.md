@@ -28,6 +28,8 @@ Parqet API
 -> asset/dashboard/activity projections
 ```
 
+DP-02 provider source selection is documented in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`. Future route/read-model migration must use the narrowest safe source for each product question: current holdings/current-state for current positions and allocation, activity history for timelines and event-derived inputs, snapshots/read models for repeated local reads, local metadata for display identity only and provider-reference values for Parqet-computed financial/performance output.
+
 ## Phase-0 Guardrail
 
 Do not create a second activity or asset pipeline before Phase 1 decides otherwise.
@@ -39,6 +41,7 @@ Any task touching auth, API contracts, tokens, activity data, asset projections,
 - Canonical shared activity context boundary.
 - Route handler responsibilities versus shared library responsibilities.
 - API response compatibility expectations.
+- Product read-model contract that carries source, freshness, confidence, warnings and blocked metrics.
 - Override persistence strategy.
 - Cache ownership and invalidation model.
 - Test strategy for pipeline, metadata and reconciliation logic.
@@ -48,6 +51,8 @@ Any task touching auth, API contracts, tokens, activity data, asset projections,
 
 - `docs/PROJECT_PRODUCT_BRIEF.md` describes the product idea and open Phase-1 product questions.
 - `docs/PROJECT_STATUS.md` tracks current status, risks and next steps.
+- `docs/PIPELINE_INVENTORY.md` inventories current provider/data boundaries and replacement-gate evidence.
+- `docs/PROVIDER_DATA_SOURCE_STRATEGY.md` records the DP-02 provider data-source strategy for #248/#251.
 - `docs/adr/0001-collaboration-operating-system.md` records the collaboration operating system decision.
 
 Older implementation-focused docs may exist and should be reconciled in later architecture work. Phase 0 does not delete product architecture history except obsolete duplicated governance prompt files.

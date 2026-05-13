@@ -13,6 +13,7 @@ This layer does not replace current product routes or UI.
 Related documents:
 
 - `docs/adr/0002-global-asset-timeline.md`
+- `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`
 - `docs/GLOBAL_ASSET_TYPE_MODEL.md`
 - `docs/GLOBAL_ASSET_NORMALIZATION.md`
 - `docs/GLOBAL_ASSET_AUDIT_REPORT.md`
@@ -215,6 +216,8 @@ P1-8 intentionally leaves these values null:
 - `unrealizedPnL`
 
 Dividend, fee and tax totals are calculated only when currencies are consistent. Mixed currencies block the affected totals and create warnings. No FX conversion is performed.
+
+The provider data-source strategy keeps current market value, app-owned cost basis, realized PnL, unrealized PnL and FX as blocked/unknown until a later decision defines their source, freshness, confidence and calculation ownership. Provider-supplied values may be preserved only as labelled provider references.
 
 ## Display metadata
 
