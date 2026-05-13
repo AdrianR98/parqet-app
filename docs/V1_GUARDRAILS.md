@@ -258,6 +258,53 @@ Gate rules:
 - No route migration may introduce hidden provider calls.
 - No old path removal until comparison and rollback evidence exists.
 
+### DP-12 Synthetic Fixtures And Audit Validation
+
+DP-12 locks the synthetic-fixture and audit-validation strategy for #248/#260. Before Global Asset output may support Product Read Model or route migration, the pure pipeline must be validated with privacy-safe synthetic fixtures covering normalization, aggregation, transfers, currencies, dividends/fees/taxes, `blockedMetrics`, confidence and audit redaction.
+
+DP-12 is planning/documentation only. It authorizes no test setup, fixture files, fixture implementation, app/runtime code changes, provider calls, route migration, private data handling, CI changes or product UI changes. If existing tooling is sufficient later, a focused implementation issue may add pure-function tests with synthetic fixtures. If tooling is insufficient, create a separate focused test-setup issue before implementation. Do not expand test setup opportunistically inside route or product migration PRs.
+
+Pure pipeline functions needing later synthetic fixture coverage:
+
+- `normalizeActivities`
+- single-activity normalization
+- asset identity derivation
+- activity type classification
+- money parsing
+- quantity parsing
+- date parsing
+- `buildGlobalAssets` / aggregation
+- timeline ordering
+- portfolio breakdown calculation
+- quantity tolerance handling
+- negative quantity classification
+- transfer candidate classification
+- `blockedMetrics` derivation
+- confidence derivation
+- audit report shaping
+- audit redaction
+- Product Read Model projection once implemented
+
+Out of scope for DP-12 fixture strategy:
+
+- Next.js route tests
+- React component tests
+- OAuth flow tests
+- provider fetch layer tests
+- real Parqet API behavior tests
+- Vercel deployment tests
+
+Migration gate additions from DP-12:
+
+- Relevant synthetic fixtures exist before Product Read Model or route migration.
+- Normalization output, aggregation output and audit output match the expected fixture results.
+- Unsafe cases set `blockedMetrics`.
+- Confidence follows warning, source and freshness rules.
+- Audit redaction is validated.
+- Pure fixture tests trigger no provider calls and keep `providerRequestCount` at zero.
+- Old/new comparison can be redacted/count-only.
+- Hidden provider calls are not introduced.
+
 ### Local Metadata Data
 
 Use local metadata only for display identity, for example:
