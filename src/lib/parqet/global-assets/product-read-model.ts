@@ -186,6 +186,38 @@ export type ActivitiesTimelineShadowDiagnosticHarness = {
   evidence: ActivitiesTimelineShadowComparison;
 };
 
+export type ActivitiesTimelinePrmFeatureFlagSelectionReason =
+  | "feature_flag_disabled"
+  | "diagnostic_ready"
+  | "diagnostic_missing"
+  | "diagnostic_stale"
+  | "diagnostic_scope_mismatch"
+  | "diagnostic_unavailable"
+  | "diagnostic_not_ready";
+
+export type SelectActivitiesTimelinePrmFeatureFlagSourceInput = {
+  currentItems: ActivityItemsCompatibilityInputItem[];
+  projected?: ProductReadModelActivitiesTimeline | null;
+  featureFlagEnabled: boolean;
+  diagnosticHarness?: ActivitiesTimelineShadowDiagnosticHarness | null;
+  statusOverride?: ActivitiesTimelineShadowComparisonStatus;
+};
+
+export type ActivitiesTimelinePrmFeatureFlagSelection = {
+  selectedSource: "activityItems" | "productReadModel";
+  reason: ActivitiesTimelinePrmFeatureFlagSelectionReason;
+  selectedItemCount: number;
+  diagnostic: {
+    status: ActivitiesTimelineShadowDiagnosticStatus;
+    reviewReady: boolean;
+    currentItemCount: number;
+    projectedItemCount: number | null;
+    itemDelta: number | null;
+    warningDelta: number | null;
+    blockedDelta: number | null;
+  };
+};
+
 function uniqueBlockedMetrics(warnings: ProductReadModelWarning[]): BlockedMetric[] {
   return Array.from(
     new Set(warnings.flatMap((warning) => warning.blockedMetrics).filter((metric) => Boolean(metric))),
@@ -550,6 +582,28 @@ function mapShadowStatusToDiagnosticStatus(
   return "missing";
 }
 
+function mapDiagnosticStatusToFallbackReason(
+  status: ActivitiesTimelineShadowDiagnosticStatus,
+): ActivitiesTimelinePrmFeatureFlagSelectionReason {
+  if (status === "missing") {
+    return "diagnostic_missing";
+  }
+
+  if (status === "stale") {
+    return "diagnostic_stale";
+  }
+
+  if (status === "scope_mismatch") {
+    return "diagnostic_scope_mismatch";
+  }
+
+  if (status === "unavailable") {
+    return "diagnostic_unavailable";
+  }
+
+  return "diagnostic_not_ready";
+}
+
 export function buildActivitiesTimelineShadowDiagnosticHarness(input: {
   currentItems: LegacyActivityComparisonInputItem[] | ActivityItemsCompatibilityInputItem[];
   projected?: ProductReadModelActivitiesTimeline | null;
@@ -570,5 +624,45 @@ export function buildActivitiesTimelineShadowDiagnosticHarness(input: {
       byTypeDelta: evidence.delta.byType,
     },
     evidence,
+  };
+}
+
+export function selectActivitiesTimelinePrmFeatureFlagSource(
+  input: SelectActivitiesTimelinePrmFeatureFlagSourceInput,
+): ActivitiesTimelinePrmFeatureFlagSelection {
+  const diagnostic =
+    input.diagnosticHarness ??
+    buildActivitiesTimelineShadowDiagnosticHarness({
+      currentItems: input.currentItems,
+      projected: input.projected,
+      statusOverride: input.statusOverride,
+    });
+
+  const projectedReady = Boolean(input.projected && diagnostic.status === "ready" && diagnostic.reviewReady);
+  const canSelectProductReadModel = input.featureFlagEnabled && projectedReady;
+  const selectedSource = canSelectProductReadModel ? "productReadModel" : "activityItems";
+  const reason =
+    canSelectProductReadModel
+      ? "diagnostic_ready"
+      : input.featureFlagEnabled
+        ? mapDiagnosticStatusToFallbackReason(diagnostic.status)
+        : "feature_flag_disabled";
+
+  return {
+    selectedSource,
+    reason,
+    selectedItemCount:
+      selectedSource === "productReadModel"
+        ? (diagnostic.summary.projectedItemCount ?? 0)
+        : diagnostic.summary.currentItemCount,
+    diagnostic: {
+      status: diagnostic.status,
+      reviewReady: diagnostic.reviewReady,
+      currentItemCount: diagnostic.summary.currentItemCount,
+      projectedItemCount: diagnostic.summary.projectedItemCount,
+      itemDelta: diagnostic.summary.itemDelta,
+      warningDelta: diagnostic.summary.warningDelta,
+      blockedDelta: diagnostic.summary.blockedDelta,
+    },
   };
 }

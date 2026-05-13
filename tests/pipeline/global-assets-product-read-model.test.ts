@@ -8,6 +8,7 @@ import {
   buildLegacyActivitiesTimelineComparisonSummary,
   mapActivityItemsToLegacyComparisonInput,
   projectActivitiesTimelineProductReadModel,
+  selectActivitiesTimelinePrmFeatureFlagSource,
 } from "../../src/lib/parqet/global-assets/product-read-model";
 import { createSyntheticActivity, runGlobalAssetPipeline } from "./global-assets-test-helpers";
 
@@ -461,5 +462,148 @@ describe("global asset product read-model projection (activities/timeline)", () 
     expect(unavailableDiagnostic.status).toBe("unavailable");
     expect(unavailableDiagnostic.reviewReady).toBe(false);
     expect(unavailableDiagnostic.summary.itemDelta).toBeNull();
+  });
+
+  it("keeps activityItems as default source of truth when the PRM feature flag is disabled", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_1001",
+        type: "buy",
+        datetime: "2026-04-06T10:00:00.000Z",
+        isin: "DEMO00000010",
+        shares: 3,
+        currency: "EUR",
+      }),
+    ]);
+
+    const projected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+
+    const selection = selectActivitiesTimelinePrmFeatureFlagSource({
+      currentItems: [{ type: "buy", warningMessages: [] }],
+      projected,
+      featureFlagEnabled: false,
+    });
+
+    expect(selection.selectedSource).toBe("activityItems");
+    expect(selection.reason).toBe("feature_flag_disabled");
+    expect(selection.selectedItemCount).toBe(1);
+    expect(selection.diagnostic.status).toBe("ready");
+    expect(selection.diagnostic.reviewReady).toBe(true);
+  });
+
+  it("selects PRM only when explicitly enabled and diagnostic evidence is ready", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_1101",
+        type: "buy",
+        datetime: "2026-04-07T10:00:00.000Z",
+        isin: "DEMO00000011",
+        shares: 2,
+        currency: "EUR",
+      }),
+      createSyntheticActivity({
+        activityId: "activity_demo_1102",
+        type: "sell",
+        datetime: "2026-04-08T10:00:00.000Z",
+        isin: "DEMO00000011",
+        shares: 1,
+        currency: "EUR",
+      }),
+    ]);
+
+    const projected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+
+    const selection = selectActivitiesTimelinePrmFeatureFlagSource({
+      currentItems: [
+        { type: "buy", warningMessages: [] },
+        { type: "sell", warningMessages: [] },
+      ],
+      projected,
+      featureFlagEnabled: true,
+    });
+
+    expect(selection.selectedSource).toBe("productReadModel");
+    expect(selection.reason).toBe("diagnostic_ready");
+    expect(selection.selectedItemCount).toBe(projected.summary.itemCount);
+    expect(selection.diagnostic.status).toBe("ready");
+    expect(selection.diagnostic.reviewReady).toBe(true);
+  });
+
+  it("falls back to activityItems for missing, stale, scope mismatch and unavailable PRM evidence", () => {
+    const currentItems = [{ type: "buy", warningMessages: [] }];
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_1201",
+        type: "buy",
+        datetime: "2026-04-09T10:00:00.000Z",
+        isin: "DEMO00000012",
+        shares: 1,
+        currency: "EUR",
+      }),
+    ]);
+
+    const staleProjected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "stale",
+      scopeState: "scope_match",
+    });
+    const scopeMismatchProjected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_missing",
+    });
+
+    const selections = [
+      selectActivitiesTimelinePrmFeatureFlagSource({
+        currentItems,
+        projected: null,
+        featureFlagEnabled: true,
+      }),
+      selectActivitiesTimelinePrmFeatureFlagSource({
+        currentItems,
+        projected: staleProjected,
+        featureFlagEnabled: true,
+      }),
+      selectActivitiesTimelinePrmFeatureFlagSource({
+        currentItems,
+        projected: scopeMismatchProjected,
+        featureFlagEnabled: true,
+      }),
+      selectActivitiesTimelinePrmFeatureFlagSource({
+        currentItems,
+        projected: staleProjected,
+        featureFlagEnabled: true,
+        statusOverride: "unavailable",
+      }),
+    ];
+
+    expect(selections[0]?.selectedSource).toBe("activityItems");
+    expect(selections[0]?.reason).toBe("diagnostic_missing");
+    expect(selections[0]?.diagnostic.status).toBe("missing");
+
+    expect(selections[1]?.selectedSource).toBe("activityItems");
+    expect(selections[1]?.reason).toBe("diagnostic_stale");
+    expect(selections[1]?.diagnostic.status).toBe("stale");
+
+    expect(selections[2]?.selectedSource).toBe("activityItems");
+    expect(selections[2]?.reason).toBe("diagnostic_scope_mismatch");
+    expect(selections[2]?.diagnostic.status).toBe("scope_mismatch");
+
+    expect(selections[3]?.selectedSource).toBe("activityItems");
+    expect(selections[3]?.reason).toBe("diagnostic_unavailable");
+    expect(selections[3]?.diagnostic.status).toBe("unavailable");
+
+    for (const selection of selections) {
+      expect(selection?.selectedItemCount).toBe(1);
+      expect(selection?.diagnostic.reviewReady).toBe(false);
+    }
   });
 });
