@@ -60,7 +60,7 @@ Any broad automatic reload must be justified in the issue and PR body.
 
 ## Codex Modes
 
-Default mode: `Spar`.
+ChatGPT sets the Codex mode before issuing a task. Codex must not choose, infer, upgrade or downgrade the mode. If `Mode` is missing, Codex must stop and report the task as incomplete.
 
 | Mode | Use | File scope | Report |
 | --- | --- | --- | --- |
@@ -104,7 +104,7 @@ Privacy/Data Impact:
 
 If any required field is missing, the prompt is not ready to be issued and must be corrected before it is given to Codex.
 
-Codex may commit only when the task explicitly allows commits. Codex may open a PR only when `Create PR: yes`. Codex must not choose a branch name if none was provided. Codex must never merge.
+Codex may commit only when the task explicitly allows commits. Codex never creates PRs and must not run `gh pr create`. Codex must not choose a branch name if none was provided. Codex must never merge.
 
 Branch prefixes:
 
@@ -146,7 +146,7 @@ All agents stop on privacy or secret suspicion. No agent may enrich, copy, commi
 
 ### Current Agents
 
-- Codex: bounded implementation agent; may create PRs only when requested; never merges.
+- Codex: bounded implementation agent; never creates PRs and never merges.
 - Issue-Agent: limited metadata Automation-Agent after implementation; see P0.1 rules before use.
 - Translation-Agent: manually started workflow after P0.1-6; may create Draft translation PRs.
 - Docs-Agent: ChatGPT role for documentation impact checks; no app code.

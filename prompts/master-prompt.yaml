@@ -2,7 +2,6 @@ version: 2
 status: active_after_phase_0
 repository: AdrianR98/parqet-app
 source_language: en
-default_codex_mode: Spar
 
 purpose:
   - Establish conservative, reviewable collaboration for the Parqet App repository.
@@ -104,7 +103,8 @@ guardrails:
     - Every non-trivial Codex task must include repo, mode, branch, Create PR, linked issues, allowed changes, non-goals, acceptance criteria, verification, API Budget Impact and Privacy/Data Impact.
     - If any required Codex task field is missing, the prompt is not ready to issue and must be corrected before Codex receives it.
     - Codex may commit only if explicitly allowed.
-    - Codex may open a PR only if Create PR is yes.
+    - Codex never creates PRs; Create PR remains disabled for Codex execution.
+    - Codex must never run gh pr create.
     - Codex must not choose a branch name if none is provided.
     - Codex must stop for product goal, user-flow or data-model uncertainty.
     - Small reversible technical assumptions are allowed only when documented.

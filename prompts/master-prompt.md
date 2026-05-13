@@ -1,12 +1,14 @@
 # Master Prompt
 
-This document explains the compact operative rules in `prompts/master-prompt.yaml`.
+This document explains the compact shared project and agent rules in `prompts/master-prompt.yaml`.
 
 ## Purpose
 
 Codex-assisted work in this repository must be conservative, reviewable and issue-linked. The repository currently needs a stable collaboration and operating baseline before further product work continues.
 
 Phase 0 is not a product feature phase. It establishes documentation, prompts, templates, ADR structure, CI foundation and security guardrails.
+
+`prompts/master-prompt.yaml` is shared project/agent guidance for Adrian, ChatGPT, Codex and future agents. It is not a ChatGPT-only prompt. More specific Codex execution details live in `prompts/codex-execution-rules.yaml`, `prompts/codex-task-template.yaml` and `prompts/workflow-chatgpt-codex.yaml`.
 
 ## Source Of Truth
 

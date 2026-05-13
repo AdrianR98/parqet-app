@@ -7,7 +7,8 @@ execution:
   - Respect the branch requested by the task.
   - Do not choose a branch name if none was provided.
   - Commit only when the task explicitly allows commits.
-  - Open a PR only when Create PR is yes.
+  - Never create PRs; Create PR remains disabled for Codex execution.
+  - Never run gh pr create.
   - Keep unrelated dirty worktree changes out of the PR.
   - Use explicit staging when the worktree is mixed.
   - Stay within Allowed changes and Do not modify.
@@ -97,6 +98,7 @@ tool_plugin_policy:
       - Do not grant broader access than the task requires.
   reporting:
     - PR bodies should mention material plugin usage when it affected findings, verification or implementation.
+    - Codex reports material plugin usage in its final task report when no PR is created.
 
 implementation_loop:
   - Make one coherent patch after enough targeted context is known.
@@ -116,8 +118,8 @@ mode_file_limits:
 verification:
   final_gate:
     - GitHub Actions is the final PR gate for lint/build and V1 Playwright smoke unless Adrian explicitly approves and documents an exception.
-    - Codex should run only scope-relevant local checks before opening a PR.
-    - Codex should not poll CI for long; one short status check after opening a PR is enough unless the task explicitly requires waiting.
+    - Codex should run only scope-relevant local checks before reporting completion.
+    - Codex should not open PRs or poll CI for docs-only local tasks.
     - ChatGPT/Reviewer verifies final GitHub Actions status before merge.
   profiles:
     docs_or_prompt_only:
@@ -265,7 +267,7 @@ pr_body_preflight:
   - Keep PR sections complete but concise; do not repeat the full issue text.
   - Check exactly the appropriate Phase line where practical.
   - Use Phase 4 for V1 hardening/test work unless the issue says otherwise.
-  - Re-check Refs versus Fixes before opening or updating the PR.
+  - Re-check Refs versus Fixes before any allowed actor opens or updates the PR.
   - Use Fixes only when the issue should close automatically on merge.
   - Update the PR body after review fixes when scope, files, verification profile, verification, risks, known gaps or Refs/Fixes correctness changed.
 

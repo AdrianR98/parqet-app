@@ -2,20 +2,26 @@ version: 2
 purpose: Quick rules for Mini, Spar, Folgeauftrag and Review-Fix tasks.
 
 defaults:
-  mode: Spar
   read_before_editing: true
   preserve_product_behavior: true
   report_verification: true
   never_merge: true
 
+mode_selection:
+  selected_by: ChatGPT
+  codex_must_not_choose_mode: true
+  missing_mode: stop_and_report_incomplete_task
+
 shared_rules:
   - Read AGENTS.md before editing.
   - Every non-trivial Codex task must include all required fields from prompts/codex-task-template.yaml.
   - A prompt missing any required field is not ready to issue and must be corrected before Codex receives it.
+  - If Mode is missing, stop and report the task as incomplete instead of choosing a default mode.
   - Use the requested branch only.
   - Do not choose a branch name when none is provided.
   - Commit only when explicitly allowed.
-  - Open a PR only when Create PR is yes.
+  - Never create PRs; Create PR remains disabled for Codex execution.
+  - Never run gh pr create.
   - Keep changes within Allowed changes.
   - Do not edit paths listed under Do not modify.
   - Do not widen scope for cleanup.
@@ -64,7 +70,7 @@ mini:
     - explicitly named files
   file_limit: explicitly named files only
   repository_wide_search: false
-  pr_allowed: only_when_explicitly_requested
+  pr_allowed: false
   report: 3-5 lines
   avoid:
     - app behavior changes
