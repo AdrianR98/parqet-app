@@ -113,6 +113,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Docs
 
+- Added the DP-02 provider data-source strategy for current-state, activity-history, snapshot/read-model, local metadata, provider-reference and blocked metric ownership.
 - Aligned README, roadmap, project status, architecture and v1 guardrail links with the #248/#249 pipeline-readiness workflow and `docs/PIPELINE_INVENTORY.md`.
 - Added a Parqet pipeline inventory and replacement-gate checklist for #248/#249 route/read-model migration planning.
 - Added a v1 API-budget manual QA checklist for provider-call-safe local UI flows, release-readiness review and privacy-safe verification.
@@ -140,6 +141,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Governance
 
+- Added Codex prompt governance for task-relevant plugin/tool use, including Superpowers, Vercel, Figma and Browser/Playwright boundaries.
 - Established Codex task modes, PR expectations, issue templates, branch rules, security guardrails and manual-only placeholder agent workflows.
 - Defined agent categories, maturity levels and initial permissions for Role-Agents, Automation-Agents and GitHub-native automations.
 - Established Phase-0.1 implementation grouping: Rules / Docs / YAML, GitHub Project / Labels, and Agent Workflows.

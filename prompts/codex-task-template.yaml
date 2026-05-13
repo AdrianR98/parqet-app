@@ -39,6 +39,9 @@ required_field_rule: >
   required field is missing, the prompt is not ready to be issued and must be
   corrected before it is given to Codex.
 
+optional_fields:
+  - tool_plugin_guidance
+
 branch_prefixes:
   - docs/
   - chore/
@@ -254,6 +257,20 @@ template: |
   - Run only local checks required by the selected profile unless this task explicitly requires more.
   - Do not run npm run test:e2e locally by default; GitHub Actions V1 Playwright smoke is the final PR E2E gate.
   - Do not poll CI for long after opening a PR; one short status check is enough.
+
+  Tool / Plugin Guidance:
+  - GitHub/repository context is the source of truth.
+  - Superpowers may be used for planning, debugging, TDD discipline when tests are explicitly in scope, review discipline and branch-finish workflow.
+  - Superpowers must not override repo rules, linked issue scope, Non-goals, API Budget Impact, Privacy/Data Impact, verification profile or required Codex task fields.
+  - Vercel may be used for Vercel/Next.js/deployment/build/config/log questions or deployment verification.
+  - Vercel must not be used for routine docs-only or data-pipeline research tasks unless deployment/build behavior is relevant.
+  - Vercel project settings, environment variables and deployment protection must not be changed unless explicitly authorized.
+  - Figma may be used for UI/UX design, design-system, component, layout, FigJam diagram, flowchart, presentation/concept visualization or design-to-code tasks when explicitly relevant.
+  - Figma must not be used for routine data-pipeline, provider/API, backend, privacy or docs-only tasks unless the task explicitly asks for visual/design artifacts.
+  - Figma files must not be created or modified unless the task explicitly allows Figma write actions.
+  - Figma-derived UI/code must still be reviewed against repository components, theme tokens, accessibility, API Budget Impact and Privacy/Data Impact before implementation.
+  - Browser/Playwright tooling may be used only when UI behavior, hydration, navigation, visual behavior or smoke-test verification is in scope.
+  - Additional plugins must be task-relevant and mentioned in the PR body if they materially affected findings, verification or implementation.
 
   Known project patterns:
   - <include only patterns relevant to this task>

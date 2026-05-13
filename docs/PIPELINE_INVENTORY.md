@@ -129,7 +129,7 @@ The lowest-risk first evidence candidate after the gate prerequisites are met is
 - Define the product read-model/cache contract for Global Asset-derived activities, timeline entries and asset summaries.
 - Create synthetic fixture comparisons between old `parqet-assets` normalization/builders and Global Asset normalization/aggregation.
 - Define local real-data audit comparison format using redacted/count-only summaries only.
-- Decide provider data source strategy for holdings/current-state values before replacing Dashboard asset valuation.
+- Apply the locked provider data-source strategy in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md` before replacing Dashboard asset valuation or adding holdings/performance route usage.
 - Resolve cost basis, market value, unrealized PnL, transfer pairing, mixed currency/FX and metadata enrichment ownership before Dashboard/Reports migration.
 - Align old reconciliation/consistency warnings with Global Asset warnings, confidence and blocked-metric semantics.
 - Review override storage/debug logging before durable or product override expansion.

@@ -28,6 +28,8 @@ Parqet API
 -> asset/dashboard/activity projections
 ```
 
+DP-02 provider source selection is documented in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`. Future route/read-model migration must use the narrowest safe source for each product question: current holdings/current-state for current positions and allocation, activity history for timelines and event-derived inputs, snapshots/read models for repeated local reads, local metadata for display identity only and provider-reference values for Parqet-computed financial/performance output.
+
 ## Pipeline Guardrail
 
 Do not create a second activity or asset pipeline before Phase 1 decides otherwise.
@@ -51,7 +53,7 @@ No production route/read-model migration is ready by default. Follow-up decision
 
 ## Architecture Decisions Still Needed
 
-- Provider data-source strategy and Parqet API contract verification (#251).
+- Provider data-source strategy and Parqet API contract verification (#251; DP-02 strategy documented in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`).
 - Asset identity and metadata boundary (#252).
 - Activity normalization contract and warning codes (#253).
 - Transfer pairing and ambiguity model (#254).
@@ -67,6 +69,7 @@ No production route/read-model migration is ready by default. Follow-up decision
 - `docs/PROJECT_PRODUCT_BRIEF.md` describes the product idea and open Phase-1 product questions.
 - `docs/PROJECT_STATUS.md` tracks current status, risks and next steps.
 - `docs/PIPELINE_INVENTORY.md` tracks the current pipeline inventory and replacement-gate evidence from #249.
+- `docs/PROVIDER_DATA_SOURCE_STRATEGY.md` records the DP-02 provider data-source strategy for #248/#251.
 - `docs/adr/0001-collaboration-operating-system.md` records the collaboration operating system decision.
 - `docs/adr/0002-global-asset-timeline.md` records the Global Asset Timeline architecture decision.
 - `docs/adr/0005-v1-snapshot-cache.md` records the v1 snapshot cache and durable storage boundary.
