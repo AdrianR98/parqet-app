@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildActivityItemsCompatibilityComparisonSummary,
   buildActivitiesTimelineComparisonEvidence,
   buildLegacyActivitiesTimelineComparisonSummary,
+  mapActivityItemsToLegacyComparisonInput,
   projectActivitiesTimelineProductReadModel,
 } from "../../src/lib/parqet/global-assets/product-read-model";
 import { createSyntheticActivity, runGlobalAssetPipeline } from "./global-assets-test-helpers";
@@ -152,5 +154,41 @@ describe("global asset product read-model projection (activities/timeline)", () 
     expect(summary.blockedIndicatorItemCount).toBe(1);
     expect(summary.byType.buy).toBe(1);
     expect(summary.byType.unknown).toBe(2);
+  });
+
+  it("bridges activityItems-like input into count-safe legacy comparison evidence", () => {
+    const activityItemsLike = [
+      {
+        type: "buy",
+        warningMessages: ["synthetic warning"],
+        hasOverrides: false,
+      },
+      {
+        type: " transfer_in ",
+        warningMessages: [],
+        overrideFlags: { quantity: true },
+      },
+      {
+        type: null,
+        warningMessages: [],
+        blockedMetrics: ["performance"],
+        isBlocked: true,
+      },
+    ];
+
+    const mapped = mapActivityItemsToLegacyComparisonInput(activityItemsLike);
+    const summary = buildActivityItemsCompatibilityComparisonSummary(activityItemsLike);
+
+    expect(mapped).toHaveLength(3);
+    expect(mapped[1]?.overrideCount).toBe(1);
+    expect(mapped[2]?.isBlocked).toBe(true);
+    expect(summary.itemCount).toBe(3);
+    expect(summary.warningItemCount).toBe(1);
+    expect(summary.overrideItemCount).toBe(1);
+    expect(summary.unknownTypeItemCount).toBe(1);
+    expect(summary.blockedIndicatorItemCount).toBe(1);
+    expect(summary.byType.buy).toBe(1);
+    expect(summary.byType.transfer_in).toBe(1);
+    expect(summary.byType.unknown).toBe(1);
   });
 });

@@ -105,8 +105,19 @@ export type LegacyActivityComparisonInputItem = {
   warningMessages?: unknown[] | null;
   hasOverrides?: boolean;
   overrideCount?: number | null;
+  overrideFlags?: Record<string, unknown> | null;
   blockedMetrics?: unknown[] | null;
   isBlocked?: boolean;
+};
+
+export type ActivityItemsCompatibilityInputItem = {
+  type?: string | null;
+  warningMessages?: unknown[] | null;
+  hasOverrides?: boolean | null;
+  overrideCount?: number | null;
+  overrideFlags?: Record<string, unknown> | null;
+  blockedMetrics?: unknown[] | null;
+  isBlocked?: boolean | null;
 };
 
 export type LegacyActivitiesTimelineComparisonSummary = {
@@ -218,6 +229,36 @@ function hasBlockedIndicator(item: LegacyActivityComparisonInputItem): boolean {
   }
 
   return Array.isArray(item.blockedMetrics) && item.blockedMetrics.length > 0;
+}
+
+function getOverrideCountFromFlags(item: ActivityItemsCompatibilityInputItem): number {
+  if (!item.overrideFlags) {
+    return 0;
+  }
+
+  return Object.keys(item.overrideFlags).length;
+}
+
+export function mapActivityItemsToLegacyComparisonInput(
+  items: ActivityItemsCompatibilityInputItem[],
+): LegacyActivityComparisonInputItem[] {
+  return items.map((item) => ({
+    type: item.type,
+    warningMessages: Array.isArray(item.warningMessages) ? item.warningMessages : [],
+    hasOverrides: Boolean(item.hasOverrides),
+    overrideCount: item.overrideCount ?? getOverrideCountFromFlags(item),
+    overrideFlags: item.overrideFlags,
+    blockedMetrics: Array.isArray(item.blockedMetrics) ? item.blockedMetrics : [],
+    isBlocked: Boolean(item.isBlocked),
+  }));
+}
+
+export function buildActivityItemsCompatibilityComparisonSummary(
+  activityItems: ActivityItemsCompatibilityInputItem[],
+): LegacyActivitiesTimelineComparisonSummary {
+  return buildLegacyActivitiesTimelineComparisonSummary(
+    mapActivityItemsToLegacyComparisonInput(activityItems),
+  );
 }
 
 export function projectActivitiesTimelineProductReadModel(
@@ -346,10 +387,12 @@ export function buildLegacyActivitiesTimelineComparisonSummary(
 }
 
 export function buildActivitiesTimelineComparisonEvidence(input: {
-  currentItems: LegacyActivityComparisonInputItem[];
+  currentItems: LegacyActivityComparisonInputItem[] | ActivityItemsCompatibilityInputItem[];
   projected: ProductReadModelActivitiesTimeline;
 }): ProductReadModelComparisonEvidence {
-  const currentSummary = buildLegacyActivitiesTimelineComparisonSummary(input.currentItems);
+  const currentSummary = buildLegacyActivitiesTimelineComparisonSummary(
+    mapActivityItemsToLegacyComparisonInput(input.currentItems),
+  );
   const projectedByType = countBy(input.projected.items, (item) => item.activityType);
 
   return {
