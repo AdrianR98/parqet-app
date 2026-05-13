@@ -8,6 +8,13 @@ import {
   loadPortfolioScope,
   type PortfolioScope,
 } from "./app-settings";
+import {
+  selectActivitiesTimelinePrmFeatureFlagSource,
+  type ActivitiesTimelinePrmFeatureFlagSelection,
+  type ActivitiesTimelineShadowComparisonStatus,
+  type ActivitiesTimelineShadowDiagnosticHarness,
+  type ProductReadModelActivitiesTimeline,
+} from "./parqet/global-assets/product-read-model";
 import type {
   ActivitiesAuditItem,
   AuditActivityType,
@@ -27,6 +34,7 @@ export type LocalActivityReadModel = {
   generatedAt: string | null;
   freshness: SnapshotFreshness | null;
   source: LocalActivitySource;
+  activitiesTimelinePrmSelection: ActivitiesTimelinePrmFeatureFlagSelection;
 };
 
 export type ActivitySortKey = "date" | "asset" | "type" | "amount";
@@ -79,6 +87,166 @@ export type ActivityGroup = {
   items: ProjectedActivity[];
 };
 
+export type SelectLocalActivitiesTimelineSourceInput = {
+  currentItems: ActivitiesAuditItem[];
+  projected?: ProductReadModelActivitiesTimeline | null;
+  featureFlagEnabled: boolean;
+  diagnosticHarness?: ActivitiesTimelineShadowDiagnosticHarness | null;
+  statusOverride?: ActivitiesTimelineShadowComparisonStatus;
+};
+
+export type SelectLocalActivitiesTimelineSourceOutput = {
+  items: ActivitiesAuditItem[];
+  selection: ActivitiesTimelinePrmFeatureFlagSelection;
+};
+
+function resolveActivitiesTimelinePrmFeatureFlagEnabled(): boolean {
+  const rawValue = process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG;
+
+  if (!rawValue) {
+    return false;
+  }
+
+  const normalizedValue = rawValue.trim().toLowerCase();
+  return normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on";
+}
+
+function toAuditActivityType(type: string): AuditActivityType {
+  switch (type) {
+    case "buy":
+    case "sell":
+    case "dividend":
+    case "transfer_in":
+    case "transfer_out":
+      return type;
+    default:
+      return "unknown";
+  }
+}
+
+function toIsoMonthKey(datetime: string): string {
+  const parsed = new Date(datetime);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "unknown";
+  }
+
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function toIsoMonthLabel(datetime: string): string {
+  const parsed = new Date(datetime);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Ohne Datum";
+  }
+
+  return formatMonth(parsed, "Ohne Datum");
+}
+
+function toProjectedActivityDateTime(
+  datetime: string | null,
+  date: string | null,
+  fallbackGeneratedAt: string | null,
+): string {
+  if (datetime) {
+    return datetime;
+  }
+
+  if (date) {
+    return `${date}T00:00:00.000Z`;
+  }
+
+  if (fallbackGeneratedAt) {
+    return fallbackGeneratedAt;
+  }
+
+  return "1970-01-01T00:00:00.000Z";
+}
+
+function mapProductReadModelItemsToActivitiesAuditItems(
+  projected: ProductReadModelActivitiesTimeline,
+): ActivitiesAuditItem[] {
+  return projected.items.map((item, index) => {
+    const datetime = toProjectedActivityDateTime(
+      item.datetime,
+      item.date,
+      projected.metadata.generatedAt,
+    );
+    const monthKey = toIsoMonthKey(datetime);
+    const parsedDate = new Date(datetime);
+
+    return {
+      id: item.activityId || `prm-activity-${index + 1}`,
+      datetime,
+      year: Number.isNaN(parsedDate.getTime()) ? 0 : parsedDate.getFullYear(),
+      monthKey,
+      monthLabel: toIsoMonthLabel(datetime),
+      portfolioId: item.portfolioId ?? null,
+      portfolioName: item.portfolioId ?? "Kein Portfolio-Kontext",
+      isin: item.assetKey?.type === "isin" ? item.assetKey.value : "",
+      name: item.assetKey ? `${item.assetKey.type}:${item.assetKey.value}` : null,
+      symbol: null,
+      wkn: item.assetKey?.type === "wkn" ? item.assetKey.value : null,
+      type: toAuditActivityType(item.activityType),
+      rawType: item.activityType,
+      shares: 0,
+      price: 0,
+      amount: 0,
+      amountNet: 0,
+      warningMessages: item.warnings.map((warning) => warning.code),
+      hasOverrides: false,
+      overrideCount: 0,
+      overrideFlags: {},
+      overrideValues: null,
+    };
+  });
+}
+
+function mapActivitiesAuditItemsToSelectorInput(items: ActivitiesAuditItem[]) {
+  return items.map((item) => ({
+    type: item.type,
+    warningMessages: item.warningMessages ?? [],
+    hasOverrides: item.hasOverrides,
+    overrideCount: item.overrideCount ?? 0,
+    overrideFlags: item.overrideFlags ?? {},
+    blockedMetrics: [],
+    isBlocked: false,
+  }));
+}
+
+function getDefaultActivitiesTimelinePrmSelection(): ActivitiesTimelinePrmFeatureFlagSelection {
+  return selectActivitiesTimelinePrmFeatureFlagSource({
+    currentItems: [],
+    projected: null,
+    featureFlagEnabled: false,
+  });
+}
+
+export function selectLocalActivitiesTimelineSource(
+  input: SelectLocalActivitiesTimelineSourceInput,
+): SelectLocalActivitiesTimelineSourceOutput {
+  const selection = selectActivitiesTimelinePrmFeatureFlagSource({
+    currentItems: mapActivitiesAuditItemsToSelectorInput(input.currentItems),
+    projected: input.projected ?? null,
+    featureFlagEnabled: input.featureFlagEnabled,
+    diagnosticHarness: input.diagnosticHarness ?? null,
+    statusOverride: input.statusOverride,
+  });
+
+  if (selection.selectedSource === "productReadModel" && input.projected) {
+    return {
+      items: mapProductReadModelItemsToActivitiesAuditItems(input.projected),
+      selection,
+    };
+  }
+
+  return {
+    items: input.currentItems,
+    selection,
+  };
+}
+
 export function getEmptyLocalActivityReadModel(): LocalActivityReadModel {
   return {
     items: [],
@@ -93,6 +261,7 @@ export function getEmptyLocalActivityReadModel(): LocalActivityReadModel {
     generatedAt: null,
     freshness: null,
     source: "none",
+    activitiesTimelinePrmSelection: getDefaultActivitiesTimelinePrmSelection(),
   };
 }
 
@@ -213,7 +382,12 @@ function hydrateActivityMetadata(items: ActivitiesAuditItem[]): ActivitiesAuditI
 
 export function loadLocalActivityReadModel(): LocalActivityReadModel {
   const cache = loadDashboardCache();
-  const items = hydrateActivityMetadata(cache?.activityItems ?? []);
+  const featureFlagEnabled = resolveActivitiesTimelinePrmFeatureFlagEnabled();
+  const sourceSelection = selectLocalActivitiesTimelineSource({
+    currentItems: cache?.activityItems ?? [],
+    featureFlagEnabled,
+  });
+  const items = hydrateActivityMetadata(sourceSelection.items);
   const loadedPortfolioIds = cache?.selectedPortfolioIds ?? [];
   const portfolios = buildPortfoliosFromItems(items, loadedPortfolioIds);
   const scope = loadPortfolioScope();
@@ -234,6 +408,7 @@ export function loadLocalActivityReadModel(): LocalActivityReadModel {
     generatedAt: cache?.lastUpdatedAt ?? cache?.generatedAt ?? null,
     freshness: cache?.freshness ?? null,
     source,
+    activitiesTimelinePrmSelection: sourceSelection.selection,
   };
 }
 
