@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added DP-11 product read-model and migration-gate policy documentation for UI-safe read-model fields, first migration candidate criteria, old/new comparison evidence, rollback expectations and no-hidden-provider-call route migration gates.
 - Added DP-10 snapshot/cache and API-budget route semantics documentation for explicit provider refresh paths, snapshot-first/snapshot-only/browser-local/no-data-call surfaces, scope/freshness states, bounded retry/rate-limit expectations and durable-storage deferral.
 - Added DP-08 warning, confidence and blocked-metrics policy documentation for stable warning categories, user/diagnostic redaction boundaries, metric-specific confidence and read-model source/freshness expectations.
 - Added DP-06 cost-basis, PnL and price-source policy documentation for weighted-average remaining cost basis, provider-reference boundaries, fallback price semantics, blocked metrics and validation evidence before implementation.

@@ -32,6 +32,8 @@ DP-02 provider source selection is documented in `docs/PROVIDER_DATA_SOURCE_STRA
 
 DP-10 snapshot/cache and API-budget route semantics are documented in `docs/V1_GUARDRAILS.md` and clarify ADR 0005. Routes and surfaces must be classified as `provider_backed_explicit_refresh`, `snapshot_first`, `snapshot_only`, `browser_local` or `no_data_call`. Scope/freshness mismatch, missing snapshots and unknown freshness are visible states, not triggers for hidden provider reloads. Durable server storage remains deferred.
 
+DP-11 product read-model and migration-gate policy is documented in `docs/V1_GUARDRAILS.md`. Global Asset output may feed product routes only through a UI-safe Product Read Model with source, freshness, scope, confidence, warnings, blocked metrics and value classification. Internal normalized activities, raw provider payloads and private diagnostic rows must not become product-route output.
+
 ## Pipeline Guardrail
 
 Do not create a second activity or asset pipeline before Phase 1 decides otherwise.
@@ -53,6 +55,8 @@ That inventory is the current evidence baseline for:
 
 No production route/read-model migration is ready by default. Follow-up decision/planning issues #251 through #260 must lock the affected data-source, identity, normalization, transfer, valuation, warning, cache, read-model and validation decisions before implementation.
 
+DP-11 does not select a first product route. A later route-specific issue must use #249 evidence to choose a lowest-risk read-only, snapshot/local-first, rollback-capable surface with old/new comparison, no broad UI redesign and no hidden provider calls. Existing route/calculation paths remain in place until that route-specific issue proves comparison quality, API-budget safety, privacy safety and rollback readiness.
+
 ## Architecture Decisions Still Needed
 
 - Provider data-source strategy and Parqet API contract verification (#251; DP-02 strategy documented in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`).
@@ -63,7 +67,7 @@ No production route/read-model migration is ready by default. Follow-up decision
 - Dividend, fee, tax and currency policy (#256).
 - Warning, confidence and blocked-metrics model (#257).
 - Snapshot cache and API-budget route semantics (#258; DP-10 documented in `docs/V1_GUARDRAILS.md` and ADR 0005).
-- Product read-model contract and route migration order (#259).
+- Product read-model contract and route migration order (#259; DP-11 documented in `docs/V1_GUARDRAILS.md`).
 - Synthetic pipeline fixtures and audit validation strategy (#260).
 
 ## Documentation Relationship

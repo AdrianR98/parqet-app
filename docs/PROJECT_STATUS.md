@@ -35,6 +35,8 @@ The app may present itself as a Parqet Integration, but it must not appear to be
 
 The current provider data-source strategy is locked for DP-02 in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`: use current holdings/current-state sources for current position/allocation questions, activity history for timelines and event-derived inputs, snapshots/read models for repeated local reads after explicit load, local metadata for display identity only and provider-reference labels for Parqet-computed values.
 
+DP-11 product read-model and migration-gate policy is locked in `docs/V1_GUARDRAILS.md`: Product Read Models are UI/route-safe projections with source, freshness, scope, confidence, warnings, blocked metrics and value classification. They must not expose internal normalized activities, raw provider payloads or private diagnostic rows as product-route output.
+
 ## Latest Stable State
 
 The repository contains a Next.js App Router application with Parqet-oriented routes and UI areas, including dashboard and activities/audit concepts. The existing product implementation remains the stable baseline during Phase 1 until a later decision explicitly changes it.
@@ -101,7 +103,7 @@ Current follow-up decision/planning issues:
 - #256: Dividend, fee, tax and currency policy.
 - #257: Warning, confidence and blocked-metrics model.
 - #258: Snapshot cache and API-budget route semantics; DP-10 is locked in `docs/V1_GUARDRAILS.md` and clarified in ADR 0005.
-- #259: Product read-model contract and route migration order.
+- #259: Product read-model contract and route migration order; DP-11 is locked in `docs/V1_GUARDRAILS.md`.
 - #260: Synthetic pipeline fixtures and audit validation strategy.
 
 Known follow-ups outside the Phase-1 core:
@@ -125,6 +127,7 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 - [ ] Existing asset calculation has not been replaced.
 - [ ] #248 follow-up decisions are locked for the affected route/read-model.
 - [ ] Route/read-model replacement evidence from `docs/PIPELINE_INVENTORY.md` is satisfied.
+- [ ] First route migration candidate is selected from #249 evidence and satisfies the DP-11 read-only, snapshot/local-first, comparison and rollback gate.
 - [ ] Decision documented for when/how the new pipeline becomes productive.
 - [ ] Vercel deployability remains intact.
 
@@ -133,7 +136,8 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 1. Use #248 as the pipeline-readiness parent / decision backlog.
 2. Use `docs/PIPELINE_INVENTORY.md` from #249 as the replacement-gate evidence baseline.
 3. Resolve follow-up decision/planning issues #251 through #260 before product route/read-model migration.
-4. Keep current product routes and existing calculations stable until route-specific replacement evidence is reviewed.
+4. Choose the first product route candidate only in a later route-specific issue after #249 evidence identifies a lowest-risk read-only, snapshot/local-first surface.
+5. Keep current product routes and existing calculations stable until route-specific comparison, API-budget, privacy and rollback evidence is reviewed.
 
 ## Risks
 
@@ -148,7 +152,7 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 | GitHub Project API limitation | Board setup may not be fully automatable through the connector | Use documented manual fallback in `docs/GITHUB_PROJECT_BOARD.md` |
 | Translation workflow overreach | German docs could appear authoritative before review | Translation-Agent creates Draft PRs and TODO warnings for human review |
 | Audit route exposure | Private structures could be exposed if route is misconfigured | Block in production and require explicit local feature flag |
-| Premature Global Asset replacement | Wrong assumptions about API fields or route contracts could create bugs | Resolve #248 decision issues and satisfy the replacement gate before production route/read-model migration |
+| Premature Global Asset replacement | Wrong assumptions about API fields or route contracts could create bugs | Resolve #248 decision issues and satisfy the #249/DP-11 replacement gate before production route/read-model migration |
 | Missing portfolio context | Portfolio breakdown and transfer logic could be wrong | Attach portfolio context in the fetch layer before normalization |
 | Premature transfer pairing | Transfers could be incorrectly matched | Preserve transfer types first; implement pairing in a dedicated later issue |
 
@@ -159,5 +163,5 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 - CI starts with lint and build only.
 - Auto-merge is not enabled.
 - Branch Protection is not activated yet.
-- Product route/read-model migration starts only after the relevant #248 decisions and `docs/PIPELINE_INVENTORY.md` replacement-gate evidence are satisfied.
+- Product route/read-model migration starts only after the relevant #248 decisions, `docs/PIPELINE_INVENTORY.md` replacement-gate evidence and DP-11 Product Read Model gate are satisfied.
 - GitHub Project Board is an operational view, not the source of truth.
