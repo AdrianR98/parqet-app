@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added pure snapshot/scope/price-source readiness helper/test coverage from #282/#283 for `stale_snapshot`, `scope_missing`, `scope_unknown` and `price_source_missing` using synthetic, provider-call-free pipeline tests.
 - Added DP-12 synthetic fixture and audit-validation strategy documentation for privacy-safe pure pipeline fixture categories, expected audit assertions, redacted/count-only local real-data validation and test-tooling follow-up boundaries.
 - Added DP-11 product read-model and migration-gate policy documentation for UI-safe read-model fields, first migration candidate criteria, old/new comparison evidence, rollback expectations and no-hidden-provider-call route migration gates.
 - Added DP-10 snapshot/cache and API-budget route semantics documentation for explicit provider refresh paths, snapshot-first/snapshot-only/browser-local/no-data-call surfaces, scope/freshness states, bounded retry/rate-limit expectations and durable-storage deferral.

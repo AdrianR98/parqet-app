@@ -93,18 +93,28 @@ Completed pipeline-readiness inventory:
 
 - #249: Inventory current pipeline routes and define replacement-gate evidence checklist; output: `docs/PIPELINE_INVENTORY.md`.
 
-Current follow-up decision/planning issues:
+Locked/Completed pipeline-readiness decision and test follow-ups:
 
 - #251: Provider data-source strategy and Parqet API contract verification.
 - #252: Asset identity and metadata boundary.
-- #253: Activity normalization contract and warning codes.
-- #254: Transfer pairing and ambiguity model.
-- #255: Cost basis, PnL and price-source policy.
-- #256: Dividend, fee, tax and currency policy.
-- #257: Warning, confidence and blocked-metrics model.
+- #253: Activity normalization contract and warning codes (locked/completed).
+- #254: Transfer pairing and ambiguity model (locked/completed).
+- #255: Cost basis, PnL and price-source policy (locked/completed).
+- #256: Dividend, fee, tax and currency policy (locked/completed).
+- #257: Warning, confidence and blocked-metrics model (locked/completed).
 - #258: Snapshot cache and API-budget route semantics; DP-10 is locked in `docs/V1_GUARDRAILS.md` and clarified in ADR 0005.
 - #259: Product read-model contract and route migration order; DP-11 is locked in `docs/V1_GUARDRAILS.md`.
-- #260: Synthetic pipeline fixtures and audit validation strategy.
+- #260: Synthetic pipeline fixtures and audit validation strategy (locked/completed).
+- #274: Minimal pure TypeScript/Vitest pipeline test setup (completed).
+- #276: CI follow-up (`test:pipeline` gate and scoped V1 Playwright smoke) (completed).
+- #278: First synthetic Global Asset fixture slice (completed).
+- #280: Remaining synthetic Global Asset fixture matrix for currently exposed pure behavior (completed).
+- #282/#283: Pure readiness helper/test follow-up (completed); deferred readiness cases `stale_snapshot`, `scope_missing`, `scope_unknown` and `price_source_missing` are now covered by synthetic readiness helper tests.
+
+Status note for #248:
+
+- #248 remains open as the pipeline-readiness parent/backlog while next direction is selected.
+- DP-13/status cleanup remains a documentation/status topic; this cleanup does not close #248.
 
 Known follow-ups outside the Phase-1 core:
 
@@ -125,7 +135,7 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 - [x] Pipeline inventory and replacement-gate checklist completed in `docs/PIPELINE_INVENTORY.md`.
 - [ ] No real Parqet data committed.
 - [ ] Existing asset calculation has not been replaced.
-- [ ] #248 follow-up decisions are locked for the affected route/read-model.
+- [x] #248 follow-up decisions are locked for the affected route/read-model (DP-01/DP-02/DP-03/DP-04/DP-05/DP-06/DP-07/DP-08/DP-10/DP-11/DP-12 complete; DP-13 remains docs/status cleanup).
 - [ ] Route/read-model replacement evidence from `docs/PIPELINE_INVENTORY.md` is satisfied.
 - [ ] First route migration candidate is selected from #249 evidence and satisfies the DP-11 read-only, snapshot/local-first, comparison and rollback gate.
 - [ ] Decision documented for when/how the new pipeline becomes productive.
@@ -135,7 +145,7 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 
 1. Use #248 as the pipeline-readiness parent / decision backlog.
 2. Use `docs/PIPELINE_INVENTORY.md` from #249 as the replacement-gate evidence baseline.
-3. Resolve follow-up decision/planning issues #251 through #260 before product route/read-model migration.
+3. Keep #248 open for direction/backlog tracking, and treat DP-13 as docs/status cleanup until the next implementation direction is selected.
 4. Choose the first product route candidate only in a later route-specific issue after #249 evidence identifies a lowest-risk read-only, snapshot/local-first surface.
 5. Keep current product routes and existing calculations stable until route-specific comparison, API-budget, privacy and rollback evidence is reviewed.
 
