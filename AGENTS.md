@@ -1,32 +1,27 @@
 # Agent Entrypoint
 
-This file is the short dispatcher for Codex and future agents working in `AdrianR98/parqet-app`. Keep detailed explanations in `prompts/README.md`, `prompts/*.yaml` and `docs/*.md`.
+This file is the compact dispatcher for Codex and future agents working in `AdrianR98/parqet-app`. Keep detailed explanations in `prompts/README.md`, operational rules in `prompts/*.yaml`, and human-readable workflow details in `docs/*.md`.
 
-Read first:
+Read order:
 
-- `prompts/master-prompt.yaml`
-- `prompts/codex-quick-rules.yaml`
-- `prompts/workflow-chatgpt-codex.yaml`
-- `prompts/README.md`
-- `prompts/codex-task-template.yaml`
-- `prompts/codex-execution-rules.yaml`
-- `docs/DEVELOPMENT_WORKFLOW.md`
-- `docs/PHASE_PLAN.md`
-- `docs/V1_GUARDRAILS.md`
-- `docs/LOCAL_QUICKSTART.md`
-- `docs/PROJECT_STATUS.md`
+1. Read this file first.
+2. Read the `Mode` from the task prompt.
+3. If `Mode` is missing, stop and report that the task is incomplete.
+4. Do not choose, infer, upgrade or downgrade the mode.
+5. Read only the mode-specific files required by `prompts/codex-execution-rules.yaml` and the task scope.
+6. Do not read all workflow or docs files by default.
 
 Core rules:
 
 - English is the repository source-of-truth language.
 - Keep changes small, reviewable, branch-based and issue-linked.
-- Default Codex mode is `Spar`, but ChatGPT sets the task mode; Codex must not choose or change it.
-- Use `Voll` for risky first tasks touching auth, tokens, Parqet API contracts, data pipeline, persistence, caching, security, Branch Protection or large refactorings.
+- ChatGPT sets the Codex task mode before execution; Codex only follows the supplied mode.
+- Use `Voll` only when the ChatGPT-authored task explicitly sets it, especially for risky first tasks touching auth, provider contracts, data pipeline, persistence, caching, security, Branch Protection or large refactorings.
 - Do not redesign the app or implement product features unless the issue explicitly requests it.
 - Phase-1 analysis tasks are read/report-first and must not change app code unless explicitly allowed.
 - Do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
 - Treat external API budget minimization as a product and architecture rule, not just a debugging preference.
-- Any Parqet/API-touching change must describe request impact, cache/reuse strategy, retry behavior and rate-limit handling.
+- Any provider/API-touching change must describe request impact, cache/reuse strategy, retry behavior and rate-limit handling.
 - Avoid automatic full reloads for navigation, filtering, editing or rendering unless an issue explicitly justifies them.
 - Prefer explicit refresh actions, cached snapshots, narrow request scopes, provider-side filters, pagination and bounded concurrency.
 - Codex must not commit unless the task explicitly allows it.
@@ -34,6 +29,5 @@ Core rules:
 - ChatGPT/Reviewer may merge only after explicit instruction and after reviewing the diff against issue acceptance criteria, guardrails, API-budget impact, privacy/data impact and non-goals.
 - New work must be phase-classified before implementation.
 - Agents do not get unrestricted authority. Detailed agent permissions live in `prompts/workflow-chatgpt-codex.yaml` and `docs/DEVELOPMENT_WORKFLOW.md`.
-- Never commit real tokens, `.env` files, cookies, OAuth codes, private Parqet exports, real portfolio/depot data, private screenshots or debug logs with private API responses.
-- Private local reference files may exist only in ignored paths such as `.local/`.
-- If private data appears in a diff, the PR is blocked.
+- Sensitive or non-public data must stay out of diffs, logs, issues and PR text.
+- If such data appears in a diff, the PR is blocked.
