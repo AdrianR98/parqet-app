@@ -39,6 +39,8 @@ required_field_rule: >
   required field is missing, the prompt is not ready to be issued and must be
   corrected before it is given to Codex.
 
+create_pr_policy: Codex never creates pull requests. Keep create_pr present for governance tracking and set it to no for Codex tasks.
+
 optional_fields:
   - tool_plugin_guidance
 
@@ -189,7 +191,7 @@ verification_profile_block: |
   - Run only the local checks required by the selected profile unless the task explicitly requires more.
   - Do not run npm run test:e2e locally by default; rely on GitHub Actions V1 Playwright smoke as the final PR E2E gate.
   - Do not run npm run build locally unless app runtime, Next route/config, dependency, package or build-relevant behavior changed.
-  - Do not poll CI for long after opening a PR; one short status check is enough unless the task explicitly requires waiting.
+  - Do not create PRs or poll CI for docs-only local tasks.
   - Report GitHub Actions as the final gate to be checked by ChatGPT/Reviewer before merge.
 
 known_patterns_block: |
@@ -204,7 +206,7 @@ template: |
   Repo: AdrianR98/parqet-app
   Mode: Spar
   Branch: <type>/<short-description>
-  Create PR: yes/no
+  Create PR: no
 
   Task title:
   <short title>
@@ -256,7 +258,7 @@ template: |
   - Select one profile: docs_or_prompt_only, workflow_only, ts_ui, runtime_route_or_config, or e2e_sensitive.
   - Run only local checks required by the selected profile unless this task explicitly requires more.
   - Do not run npm run test:e2e locally by default; GitHub Actions V1 Playwright smoke is the final PR E2E gate.
-  - Do not poll CI for long after opening a PR; one short status check is enough.
+  - Do not create PRs or poll CI for docs-only local tasks.
 
   Tool / Plugin Guidance:
   - GitHub/repository context is the source of truth.
@@ -270,7 +272,7 @@ template: |
   - Figma files must not be created or modified unless the task explicitly allows Figma write actions.
   - Figma-derived UI/code must still be reviewed against repository components, theme tokens, accessibility, API Budget Impact and Privacy/Data Impact before implementation.
   - Browser/Playwright tooling may be used only when UI behavior, hydration, navigation, visual behavior or smoke-test verification is in scope.
-  - Additional plugins must be task-relevant and mentioned in the PR body if they materially affected findings, verification or implementation.
+  - Additional plugins must be task-relevant and mentioned in Codex's final report or by the PR author if they materially affected findings, verification or implementation.
 
   Known project patterns:
   - <include only patterns relevant to this task>

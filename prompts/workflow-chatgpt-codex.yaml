@@ -10,10 +10,10 @@ workflow:
     output: human-readable issue draft with acceptance criteria, non-goals, verification and risks
   - step: codex_prompt_generation
     owner: ChatGPT
-    output: separate Codex task prompt generated from the issue, using all required fields from prompts/codex-task-template.yaml, not stored as an issue comment
+    output: separate Codex task prompt with ChatGPT-selected mode, generated from the issue using all required fields from prompts/codex-task-template.yaml, not stored as an issue comment
   - step: repository_execution
     owner: Codex
-    output: branch, bounded changes, verification report and PR when requested
+    output: branch-local bounded changes and verification report; no PR creation
   - step: review
     owner: Adrian with ChatGPT Review-Agent support
     output: approval, change requests or follow-up issue
@@ -57,12 +57,13 @@ agent_global_rules:
 agents:
   Codex:
     type: Automation-Agent
-    current_level: own PR when explicitly requested
+    current_level: branch-local bounded changes; no PR creation
     allowed_outputs:
       - branch changes when task allows commits
-      - PR when Create PR is yes
       - verification report
     prohibited:
+      - create PRs
+      - run gh pr create
       - merge PRs
       - close issues
       - set labels or milestones

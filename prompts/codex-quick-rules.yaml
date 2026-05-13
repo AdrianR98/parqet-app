@@ -15,7 +15,8 @@ shared_rules:
   - Use the requested branch only.
   - Do not choose a branch name when none is provided.
   - Commit only when explicitly allowed.
-  - Open a PR only when Create PR is yes.
+  - Never create PRs; Create PR remains disabled for Codex execution.
+  - Never run gh pr create.
   - Keep changes within Allowed changes.
   - Do not edit paths listed under Do not modify.
   - Do not widen scope for cleanup.

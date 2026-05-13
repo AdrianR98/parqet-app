@@ -142,6 +142,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Governance
 
+- Added Mermaid-based workflow documentation for ChatGPT intake, Codex execution, mode selection and mode-specific read sets, and clarified that Codex never creates PRs.
 - Added Codex prompt governance for task-relevant plugin/tool use, including Superpowers, Vercel, Figma and Browser/Playwright boundaries.
 - Established Codex task modes, PR expectations, issue templates, branch rules, security guardrails and manual-only placeholder agent workflows.
 - Defined agent categories, maturity levels and initial permissions for Role-Agents, Automation-Agents and GitHub-native automations.

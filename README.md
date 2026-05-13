@@ -12,9 +12,24 @@ Important guardrail: do not create a second activity or asset pipeline before Ph
 
 Pipeline-readiness planning is tracked through [#248](https://github.com/AdrianR98/parqet-app/issues/248). The completed inventory and replacement-gate evidence from [#249](https://github.com/AdrianR98/parqet-app/issues/249) lives in [docs/PIPELINE_INVENTORY.md](docs/PIPELINE_INVENTORY.md). Follow-up decision/planning issues [#251](https://github.com/AdrianR98/parqet-app/issues/251) through [#260](https://github.com/AdrianR98/parqet-app/issues/260) must resolve the remaining data-source, identity, normalization, transfer, valuation, warning, cache, read-model and validation questions before product route migration.
 
+## Workflow Overview
+
+```mermaid
+flowchart TD
+    A["Adrian defines goal, scope, constraints"] --> B["ChatGPT shapes issue and acceptance criteria"]
+    B --> C["ChatGPT sets Codex mode and writes Codex task prompt"]
+    C --> D["Codex executes bounded repository changes"]
+    D --> E["Codex reports verification, risks and changed files"]
+    E --> F["Adrian reviews with optional ChatGPT Review-Agent support"]
+    F --> G["Adrian decides merge or follow-up"]
+```
+
+ChatGPT owns issue shaping and mode selection. Codex follows the supplied mode and task scope, never chooses the mode, never creates pull requests and never merges. Detailed flowcharts and read sets live in [prompts/README.md](prompts/README.md).
+
 ## Documentation
 
 - [AGENTS.md](AGENTS.md) - short entrypoint for Codex and future agents.
+- [prompts/README.md](prompts/README.md) - workflow flowcharts for ChatGPT, Codex and mode-specific read sets.
 - [prompts/master-prompt.yaml](prompts/master-prompt.yaml) - compact operative master rules.
 - [prompts/master-prompt.md](prompts/master-prompt.md) - human-readable prompt explanation.
 - [docs/DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md) - workflow, branch, review and verification rules.
