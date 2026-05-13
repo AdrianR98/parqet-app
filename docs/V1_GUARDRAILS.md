@@ -61,6 +61,8 @@ DP-06 cost-basis, PnL and price-source policy is documented in `docs/GLOBAL_ASSE
 
 DP-08 warning, confidence and blocked-metrics policy is documented in `docs/GLOBAL_ASSET_TYPE_MODEL.md`, `docs/GLOBAL_ASSET_AGGREGATION.md` and `docs/GLOBAL_ASSET_AUDIT_REPORT.md`. It locks stable warning codes with severity, audience, source, affected entity, confidence impact and explicit `blockedMetrics`; separates user-facing and diagnostic warning projections; prefers metric-level confidence over whole-asset blocking; and authorizes no implementation, UI copy implementation, route migration, provider calls or override/write behavior.
 
+DP-11 product read-model and migration-gate policy is locked in this document for #248/#259. It defines the Product Read Model as a UI/route-safe projection, not the internal normalization or aggregation model. It authorizes no implementation, route migration, product UI changes, provider/API calls, durable storage decision, schema migration, feature flag implementation or removal of existing calculation paths.
+
 ## Purpose-Specific Data Source Rules
 
 v1 must prefer the narrowest data source that can answer the feature question.
@@ -175,6 +177,86 @@ Retry and rate-limit behavior:
 - Provider errors should surface as stale, rate-limit or error state with an explicit retry option.
 
 Durable storage remains deferred. DP-10 allows process-local snapshots and browser-local read models as v1 semantics, but no durable server storage/database work is authorized. Durable storage requires a later ADR or issue, and DP-10 does not reopen OAuth/token storage or database architecture.
+
+### DP-11 Product Read Model And Migration Gate
+
+DP-11 locks the Product Read Model contract and migration-gate policy. Global Asset output may later feed product surfaces only through a UI-safe read model that carries source, freshness, scope, confidence, warnings, blocked metrics and value classification. Internal normalized activities, raw provider payloads and private diagnostic rows must not become product-route output.
+
+The Product Read Model is a projection for routes and UI surfaces. It is not the internal normalization model, the Global Asset aggregation model, a raw audit dump or a provider DTO wrapper.
+
+Product read models may contain:
+
+- metadata: `readModelId`, `snapshotId`, `generatedAt`, `sourceType`, `sourceScope`, `freshnessAt`, `scopeState`, `freshnessState`, selected portfolio scope represented safely, and API-budget metadata such as provider request count when available.
+- summary: `assetCount`, `activeAssetCount`, `closedAssetCount`, `warningCount`, `blockerCount`, `blockedMetricCount`, and stale or unknown snapshot state.
+- asset-level fields: `assetKey`, display fields with display metadata source, `quantity`, `positionStatus`, portfolio breakdown, safe totals, same-currency-safe income fields, `valueClassification`, `confidence`, `warnings`, `blockedMetrics`, and source/freshness metadata.
+- diagnostics: warning summaries, blocked metrics by category, and later redacted comparison hashes or counts.
+
+Product read models must not expose:
+
+- raw provider payloads,
+- unredacted activity rows,
+- tokens, cookies or OAuth values,
+- private exports,
+- full debug logs,
+- unredacted portfolio or activity IDs unless a later local/debug-only rule explicitly allows it.
+
+DP-11 does not select a first product route. The first migration candidate must be chosen only after #249 inventory and replacement-gate evidence identifies the lowest-risk route or surface.
+
+A first migration candidate must be:
+
+- read-only,
+- snapshot/local-first,
+- low business risk,
+- narrow in output surface,
+- easy to compare old/new,
+- rollback-capable,
+- compatible with the existing UI,
+- free of broad UI redesign,
+- free of hidden provider calls,
+- able to keep the existing calculation path during comparison.
+
+Likely later candidates include diagnostic/read-only report surfaces, an asset summary projection behind a later explicit gate, or a local audit-derived comparison report. The main Dashboard replacement, full AssetTable rewrite, Activities route replacement, PnL/performance-heavy surfaces, and any surface requiring live provider refresh on navigation are not first candidates.
+
+A later route-specific migration PR must provide redacted/count-safe old/new comparison evidence for:
+
+- old output count and new output count,
+- asset count and active/closed asset count comparison,
+- warning/blocker count,
+- `blockedMetrics` comparison,
+- quantity comparison where safe,
+- dividend/income same-currency comparison where safe,
+- source/freshness/confidence fields present,
+- privacy redaction confirmed,
+- provider request count unchanged or reduced,
+- no hidden provider calls from navigation, filtering or rendering.
+
+Comparison rules:
+
+- Compare only the same selected scope.
+- Compare only same-currency-safe values.
+- Keep `provider_reference` and `app_calculated` values separate.
+- Do not hide differences; document explainable differences and blockers.
+- Do not use private screenshots or raw provider payloads as evidence.
+
+Rollback and compatibility expectations:
+
+- The existing route/calculation path remains available.
+- No old code is deleted in the first migration PR.
+- Feature flags or compatibility projections may be required later, but DP-11 does not implement them.
+- Old/new comparison can be disabled if it causes risk.
+- A migrated route can fall back to the old read path.
+- No UI schema break is allowed unless explicitly planned in a later issue.
+- Migration must be reversible without provider-token or durable-storage changes.
+
+DP-11 depends on #249 inventory/replacement gate evidence, DP-04 normalization contract (#253), DP-05 transfer handling (#254), DP-06 cost-basis/PnL/price policy (#255), DP-07 dividend/fee/tax/currency policy (#256), DP-08 warning/confidence/blocked-metrics model (#257), and DP-10 snapshot/cache/API-budget route semantics (#258).
+
+Gate rules:
+
+- No migration until #249 identifies a lowest-risk route or surface.
+- No Product Read Model integration if source, freshness, scope, warnings, `blockedMetrics` or `valueClassification` fields are missing.
+- No PnL/performance-heavy route first while those values remain blocked or preliminary.
+- No route migration may introduce hidden provider calls.
+- No old path removal until comparison and rollback evidence exists.
 
 ### Local Metadata Data
 
