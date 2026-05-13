@@ -104,7 +104,68 @@ Display type mapping:
 | `transfer_out` | `possible_transfer` |
 | `unknown` | `unknown_event` |
 
-No transfer pairing is performed in P1-8.
+No transfer pairing is performed in P1-8. DP-05 only locks the later safe pairing contract.
+
+## DP-05 transfer handling
+
+DP-05 preserves explicit `transfer_in` and `transfer_out` activities as normalized activity events. Aggregation/read-model logic may treat them as paired only when matching is deterministic:
+
+- same asset identity,
+- same absolute quantity,
+- compatible portfolio context,
+- bounded date window,
+- unique 1:1 candidate relationship,
+- no conflicting warnings or blockers that make the match unsafe.
+
+`deposit` and `withdrawal` are not security transfer-pairing inputs by default. They may be displayed as external inflow/outflow or audit events, but they must not be used to pair security transfers unless a later decision documents a safe rule.
+
+Transfer status values are:
+
+- `not_transfer`
+- `transfer_candidate`
+- `paired`
+- `unmatched_in`
+- `unmatched_out`
+- `partial`
+- `ambiguous`
+- `unsupported`
+
+Ambiguous cases include:
+
+- multiple possible `transfer_in` candidates for one `transfer_out`,
+- multiple possible `transfer_out` candidates for one `transfer_in`,
+- different, missing or invalid asset identity,
+- missing or invalid quantity,
+- quantity mismatch or partial quantity match only,
+- missing portfolio context,
+- uncertain or invalid dates,
+- date window too large,
+- cross-currency case without an FX rule,
+- provider-specific case without a documented safe rule,
+- cost-basis information cannot be safely carried forward.
+
+Ambiguous transfers remain visible in audit/read models. They do not authorize automatic correction, user override behavior, provider calls, route migration, cost-basis calculation, PnL calculation, FX conversion or product UI changes.
+
+Metric behavior:
+
+| Behavior | Metrics / fields |
+| --- | --- |
+| Always visible | audit count, transfer candidate count, warning summaries, activity/audit diagnostics, asset presence when identity is clear |
+| Conditionally visible | quantity / position quantity when asset identity and quantity are clear; confidence may be reduced |
+| Blocked when ambiguity would mislead | `portfolio_breakdown`, `cost_basis`, `realized_pnl`, `unrealized_pnl`, `performance`, return metrics and dividend yield when transfer history makes the denominator or holding history unsafe |
+
+Transfer warning categories:
+
+- `transfer_unpaired`
+- `transfer_ambiguous`
+- `transfer_partial`
+- `transfer_duplicate_candidate`
+- `transfer_quantity_mismatch`
+- `transfer_asset_mismatch`
+- `transfer_missing_portfolio_context`
+- `transfer_date_uncertain`
+- `transfer_cost_basis_unknown`
+- `transfer_cross_currency_unsupported`
 
 ## Portfolio breakdowns
 

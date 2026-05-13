@@ -226,6 +226,38 @@ Returned arrays include truncation flags, for example:
 - `aggregation.timelinesTruncated`
 - top-level `warningsTruncated`
 
+## DP-05 transfer audit expectations
+
+DP-05 transfer handling is documentation-only here and does not implement transfer pairing in the audit route. Later aggregate audit/read-model output should be able to expose transfer facts without raw provider payloads or private portfolio data.
+
+Aggregate audit/read-model output should be able to expose:
+
+- `transferStatus`
+- candidate count
+- paired count
+- unmatched count
+- ambiguous count
+- partial count
+- warning codes
+- `blockedMetrics`
+- confidence
+- safe source/freshness metadata
+
+Single transfer candidate diagnostics may expose:
+
+- `normalizedActivityId`
+- `activityType`
+- safe asset identity
+- quantity
+- date bucket
+- portfolio context category
+- `transferStatus`
+- `matchCandidateCount`
+- `ambiguityReason`
+- `blockedMetrics`
+
+Diagnostic output must keep unmatched, partial and ambiguous transfer candidates visible. It must also keep affected metrics blocked when transfer ambiguity would make portfolio breakdown, cost basis, PnL, performance, return metrics or dividend yield misleading.
+
 ## Privacy rules
 
 - Raw payloads are never returned.
