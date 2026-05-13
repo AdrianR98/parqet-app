@@ -43,6 +43,61 @@ search:
     - private exports
     - real portfolio data
 
+tool_plugin_policy:
+  source_of_truth:
+    - Repository files, linked issues, PR template, ADRs and project docs remain the source of truth.
+    - Plugins are helper tools, not authoritative planning or scope sources.
+    - Plugin guidance may assist execution but must not override issue scope, Non-goals, API Budget Impact, Privacy/Data Impact, verification profile or repo rules.
+  superpowers:
+    allowed_for:
+      - brainstorming
+      - planning
+      - systematic debugging
+      - TDD discipline when tests are explicitly in scope
+      - pre-review / finish-branch discipline
+    limits:
+      - Do not force TDD or implementation when the issue is research/docs-only.
+      - Do not create broader plans than the linked issue allows.
+      - Do not override required Codex task fields.
+  vercel:
+    allowed_for:
+      - Vercel build/deploy/debug tasks
+      - Next.js/Vercel platform documentation questions
+      - deployment log investigation
+      - Vercel status or ignored-build verification
+    limits:
+      - Do not use for routine repo/docs-only work unless deployment behavior is relevant.
+      - Do not change Vercel project settings, environment variables or deployment protection unless explicitly authorized.
+  figma:
+    allowed_for:
+      - UI/UX design exploration
+      - design-system and component analysis
+      - layout and visual implementation reference
+      - FigJam diagrams, flowcharts and concept visualizations
+      - presentation/concept visualization
+      - design-to-code tasks when explicitly in scope
+    limits:
+      - Do not use for routine data-pipeline, provider/API, backend, privacy or docs-only tasks unless a visual/design artifact is explicitly requested.
+      - Do not create or modify Figma files unless the task explicitly authorizes Figma write actions.
+      - Do not treat Figma output as implementation authority over repository components, theme tokens, accessibility, API Budget Impact or Privacy/Data Impact.
+      - Do not include screenshots or designs containing private portfolio, account, depot, token, cookie, OAuth or provider payload data.
+  browser_or_playwright:
+    allowed_for:
+      - UI behavior verification
+      - hydration/navigation checks
+      - visual/responsive checks
+      - smoke-test debugging
+    limits:
+      - Do not use for data-pipeline research/docs-only issues.
+      - Do not capture screenshots with private data.
+  additional_plugins:
+    limits:
+      - Use only when task-relevant.
+      - Do not install new plugins, dependencies or tooling unless explicitly authorized.
+      - Do not grant broader access than the task requires.
+  reporting:
+    - PR bodies should mention material plugin usage when it affected findings, verification or implementation.
+
 implementation_loop:
   - Make one coherent patch after enough targeted context is known.
   - Prefer apply_patch or an equivalent focused patch method over repeated micro-edits.
