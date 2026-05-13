@@ -169,6 +169,29 @@ The model preserves these fields as reference data only:
 
 They are not self-owned app calculations. Future cost-basis and realized-gain decisions require separate implementation work or ADR updates.
 
+DP-06 keeps provider-derived realized gains, performance values, market values and position values as `provider_reference` unless the app independently recalculates and verifies the value. Provider reference fields may support audit comparison, but they must not be relabelled as app-owned cost basis, PnL or performance.
+
+## Value classification
+
+Calculation, audit and read-model layers should use these value classifications consistently:
+
+- `provider_reference`: value comes from the provider or provider-side calculation; the app displays it as reference only.
+- `app_calculated`: value was calculated by the app using a documented method.
+- `estimated`: value uses fallbacks such as `latest_trade_price` or incomplete freshness.
+- `preliminary`: value is structurally calculated but depends on not-yet-validated rules or evidence.
+- `blocked`: value must not be shown as complete because it would be misleading.
+- `none`: no value is available.
+
+DP-06 authorizes `weighted_average_remaining_cost_basis` as the first app-owned cost-basis method, but it does not authorize implementation in this type-model document. FIFO, tax-specific reporting, external price APIs and FX conversion remain out of scope for V1.
+
+Price-source classification should preserve:
+
+- `provider_price`: preferred when freshness/source metadata is available.
+- `provider_position_value`: may support market value but remains `provider_reference` when isolated price is unknown.
+- `latest_trade_price`: estimated/stale fallback only, never current market price.
+- `manual_snapshot` / `local_snapshot`: reserved unless later explicitly allowed.
+- `none`: no usable price; market value and unrealized PnL are blocked.
+
 ## Timeline entries
 
 `GlobalAssetTimelineEntry` wraps a normalized activity and adds display/audit concerns:

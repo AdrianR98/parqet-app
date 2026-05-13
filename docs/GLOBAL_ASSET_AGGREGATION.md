@@ -280,6 +280,68 @@ Dividend, fee and tax totals are calculated only when currencies are consistent.
 
 The provider data-source strategy keeps current market value, app-owned cost basis, realized PnL, unrealized PnL and FX as blocked/unknown until a later decision defines their source, freshness, confidence and calculation ownership. Provider-supplied values may be preserved only as labelled provider references.
 
+## DP-06 calculation policy
+
+DP-06 locks a conservative calculation policy for cost basis, PnL and price sources. This is planning/documentation only and does not authorize implementation, route migration, product UI changes, provider/API calls, external price APIs, FX conversion, cache/storage changes or a performance engine.
+
+The first app-owned cost-basis method is `weighted_average_remaining_cost_basis`. App-owned realized PnL, unrealized PnL, performance and return metrics remain blocked or preliminary until validation evidence proves that activity history, transfers, currency, fees/taxes and price sources are safe.
+
+Provider-derived realized gains, performance values, market values and position values remain `provider_reference` unless independently recalculated and verified by the app.
+
+Cost-basis policy:
+
+- A buy increases quantity and remaining cost basis when amount, quantity and currency are reliable.
+- A sell reduces quantity and remaining cost basis proportionally using the current weighted average.
+- Remaining cost basis belongs only to the remaining open position.
+- FIFO is not V1-first and remains optional/Post-V1.
+- No tax-specific cost-basis or tax-reporting policy is authorized.
+
+Realized PnL policy:
+
+- App-owned `realized_pnl` may only be shown when the sell can be matched against reliable app-owned cost basis.
+- Parqet/provider realized gains remain `provider_reference` until independently recalculated and validated by the app.
+- A sell without reliable previous buys, missing proceeds, invalid quantity, mixed currency, transfer ambiguity or fee/tax ambiguity blocks `realized_pnl`.
+
+Unrealized PnL policy:
+
+- `unrealized_pnl` depends on remaining cost basis and a usable market value or price source.
+- If `cost_basis` is blocked, `unrealized_pnl` is blocked.
+- If the price source is missing, unsafe or stale beyond allowed fallback semantics, `unrealized_pnl` is blocked or marked estimated/preliminary.
+- Latest trade price is not a current market price. It is an estimated/stale fallback only.
+
+Market value and price-source hierarchy:
+
+1. `provider_price`
+2. `provider_position_value`
+3. `latest_trade_price`
+4. `manual_snapshot` / `local_snapshot` only if later explicitly allowed
+5. `none`
+
+Price-source semantics:
+
+- `provider_price`: preferred when freshness and source metadata are available.
+- `provider_position_value`: may support market value but remains `provider_reference` when isolated price is unknown.
+- `latest_trade_price`: fallback only; mark estimated/stale/preliminary and never present as current market price.
+- `none`: blocks `market_value` and `unrealized_pnl`.
+- DP-06 authorizes no external price or FX APIs.
+
+Fee and tax policy:
+
+- Buy fees may increase cost basis only when the source field meaning is clear.
+- Sell fees may reduce proceeds or be tracked as realized-result impact only when the source field meaning is clear.
+- Taxes remain separate and must not be folded into cost basis unless a later tax-specific decision explicitly allows it.
+- Dividend taxes belong to dividend gross/net policy, not security cost basis.
+- Ambiguous fee/tax fields warn and block affected metrics such as `cost_basis`, `realized_pnl` or `performance`.
+
+Blocked metric rules:
+
+| Metric | Block when |
+| --- | --- |
+| `cost_basis` | missing buy/sell amount; invalid quantity; missing or mixed currency; unknown activity type affects quantity or amount; transfer ambiguity affects position history; fee/tax ambiguity affects cost basis; negative position from inconsistent history; sell exists without reliable earlier buy history |
+| `realized_pnl` | `cost_basis` is blocked; sell has no reliable cost basis; transfer ambiguity affects sold quantity basis; mixed currency exists without FX rule; sell proceeds are missing or invalid; fees/taxes are ambiguous |
+| `unrealized_pnl` | remaining cost basis is blocked; usable price or position value is missing; only stale `latest_trade_price` exists and estimate display is not allowed; mixed currency exists without FX rule |
+| `performance` / return metrics | realized or unrealized PnL is blocked; cashflow rules are missing; transfer ambiguity affects holding history; price source is stale or missing; mixed currency exists without FX rule |
+
 ## Display metadata
 
 P1-8 does not perform metadata enrichment.

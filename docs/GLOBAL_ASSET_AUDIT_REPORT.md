@@ -258,6 +258,32 @@ Single transfer candidate diagnostics may expose:
 
 Diagnostic output must keep unmatched, partial and ambiguous transfer candidates visible. It must also keep affected metrics blocked when transfer ambiguity would make portfolio breakdown, cost basis, PnL, performance, return metrics or dividend yield misleading.
 
+## DP-06 calculation-policy audit expectations
+
+DP-06 is documentation-only here and does not implement cost-basis, PnL, price-source or performance calculations in the audit route. Later audit/read-model output should prove when values are `provider_reference`, `app_calculated`, `estimated`, `preliminary`, `blocked` or `none`.
+
+Before app-owned cost basis, realized PnL, unrealized PnL, market value, performance or return metrics are implemented, validation evidence must include:
+
+- synthetic fixtures for buys, sells, partial sells, fees and taxes,
+- fixture for sell without buy / negative position,
+- fixture for mixed currency,
+- fixture for DP-05 transfer ambiguity,
+- comparison report against current Global Asset output,
+- explicit `provider_reference` versus `app_calculated` audit output,
+- proof that calculation helpers do not trigger provider calls,
+- `blockedMetrics` coverage for unsafe cases.
+
+Audit output for DP-06 should be able to expose, without raw provider payloads or private portfolio data:
+
+- calculation method, for example `weighted_average_remaining_cost_basis`,
+- value classification,
+- price-source category and freshness/staleness,
+- fee/tax inclusion decision or ambiguity warning,
+- blocked metric names and user-safe reasons,
+- provider-reference comparison values when available and safely redacted.
+
+Latest trade price must be labelled as estimated/stale fallback only. It must not be reported as current market price.
+
 ## Privacy rules
 
 - Raw payloads are never returned.
