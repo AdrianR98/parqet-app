@@ -57,7 +57,7 @@ Codex may create local branch changes when the task gives a branch and allowed c
 ```mermaid
 flowchart LR
     A["Mini"] --> B["Tiny docs, wording or mechanical changes"]
-    C["Spar"] --> D["Default focused task, up to 6 files"]
+    C["Spar"] --> D["Focused task, up to 6 files"]
     E["Normal"] --> F["Moderate task, broader context, up to 10 files"]
     G["Voll"] --> H["Risky first task or broad cross-cutting work"]
     I["Folgeauftrag"] --> J["Narrow follow-up in existing context"]
