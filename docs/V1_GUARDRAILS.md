@@ -130,6 +130,7 @@ Use local metadata only for display identity, for example:
 Rules:
 
 - Local metadata must be maintained through `docs/LOCAL_METADATA_WORKFLOW.md`.
+- The asset identity and metadata boundary is documented in `docs/ASSET_IDENTITY_AND_METADATA.md`.
 - Local metadata must not fetch provider, Parqet Asset Search, identifier-mapping or external metadata APIs automatically in v1.
 - Local metadata must not change calculations, positions, quantities, cost basis, dividends, fees, taxes, performance or warnings.
 - Source CSV exports used to generate local metadata should stay local unless they are confirmed free of private portfolio, account, broker, quantity, price, trade and transaction context.
