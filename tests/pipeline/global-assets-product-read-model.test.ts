@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildActivityItemsCompatibilityComparisonSummary,
   buildActivitiesTimelineComparisonEvidence,
+  buildActivitiesTimelineShadowDiagnosticHarness,
   buildActivitiesTimelineShadowComparison,
   buildLegacyActivitiesTimelineComparisonSummary,
   mapActivityItemsToLegacyComparisonInput,
@@ -316,5 +317,149 @@ describe("global asset product read-model projection (activities/timeline)", () 
       projected: scopeMismatchProjected,
     });
     expect(scopeMismatch.status).toBe("scope_mismatch");
+  });
+
+  it("builds diagnostic harness evidence for a matching ready case", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_701",
+        type: "buy",
+        datetime: "2026-04-01T10:00:00.000Z",
+        isin: "DEMO00000007",
+        shares: 2,
+        currency: "EUR",
+      }),
+      createSyntheticActivity({
+        activityId: "activity_demo_702",
+        type: "sell",
+        datetime: "2026-04-02T10:00:00.000Z",
+        isin: "DEMO00000007",
+        shares: 1,
+        currency: "EUR",
+      }),
+    ]);
+
+    const projected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+
+    const diagnostic = buildActivitiesTimelineShadowDiagnosticHarness({
+      currentItems: [
+        { type: "buy", warningMessages: [] },
+        { type: "sell", warningMessages: [] },
+      ],
+      projected,
+    });
+
+    expect(diagnostic.status).toBe("ready");
+    expect(diagnostic.reviewReady).toBe(true);
+    expect(diagnostic.summary.currentItemCount).toBe(2);
+    expect(diagnostic.summary.projectedItemCount).toBe(2);
+    expect(diagnostic.summary.itemDelta).toBe(0);
+    expect(diagnostic.summary.warningDelta).toBe(0);
+    expect(diagnostic.summary.blockedDelta).toBe(0);
+    expect(diagnostic.summary.byTypeDelta?.buy).toBe(0);
+    expect(diagnostic.summary.byTypeDelta?.sell).toBe(0);
+  });
+
+  it("builds diagnostic harness evidence for a mismatch case", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_801",
+        type: "dividend",
+        datetime: "2026-04-03T10:00:00.000Z",
+        isin: "DEMO00000008",
+        amountNet: 20,
+        currency: "EUR",
+      }),
+      createSyntheticActivity({
+        activityId: "activity_demo_802",
+        type: "dividend",
+        datetime: "2026-04-04T10:00:00.000Z",
+        isin: "DEMO00000008",
+        amountNet: 22,
+        currency: "USD",
+      }),
+    ]);
+
+    const projected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+
+    const diagnostic = buildActivitiesTimelineShadowDiagnosticHarness({
+      currentItems: [{ type: "buy", warningMessages: [] }],
+      projected,
+    });
+
+    expect(diagnostic.status).toBe("ready");
+    expect(diagnostic.reviewReady).toBe(true);
+    expect(diagnostic.summary.currentItemCount).toBe(1);
+    expect(diagnostic.summary.projectedItemCount).toBe(2);
+    expect(diagnostic.summary.itemDelta).toBe(1);
+    expect(diagnostic.summary.warningDelta).toBe(2);
+    expect(diagnostic.summary.blockedDelta).toBe(2);
+    expect(diagnostic.summary.byTypeDelta?.buy).toBe(-1);
+    expect(diagnostic.summary.byTypeDelta?.dividend).toBe(2);
+  });
+
+  it("maps missing, stale, scope mismatch and unavailable projected evidence to diagnostic statuses", () => {
+    const currentItems = [{ type: "buy", warningMessages: [] }];
+
+    const missingDiagnostic = buildActivitiesTimelineShadowDiagnosticHarness({
+      currentItems,
+      projected: null,
+    });
+    expect(missingDiagnostic.status).toBe("missing");
+    expect(missingDiagnostic.reviewReady).toBe(false);
+    expect(missingDiagnostic.summary.projectedItemCount).toBeNull();
+    expect(missingDiagnostic.summary.byTypeDelta).toBeNull();
+
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_901",
+        type: "buy",
+        datetime: "2026-04-05T10:00:00.000Z",
+        isin: "DEMO00000009",
+        shares: 1,
+        currency: "EUR",
+      }),
+    ]);
+
+    const staleProjected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "stale",
+      scopeState: "scope_match",
+    });
+    const staleDiagnostic = buildActivitiesTimelineShadowDiagnosticHarness({
+      currentItems,
+      projected: staleProjected,
+    });
+    expect(staleDiagnostic.status).toBe("stale");
+    expect(staleDiagnostic.reviewReady).toBe(false);
+
+    const scopeMismatchProjected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_missing",
+    });
+    const scopeMismatchDiagnostic = buildActivitiesTimelineShadowDiagnosticHarness({
+      currentItems,
+      projected: scopeMismatchProjected,
+    });
+    expect(scopeMismatchDiagnostic.status).toBe("scope_mismatch");
+    expect(scopeMismatchDiagnostic.reviewReady).toBe(false);
+
+    const unavailableDiagnostic = buildActivitiesTimelineShadowDiagnosticHarness({
+      currentItems,
+      projected: staleProjected,
+      statusOverride: "unavailable",
+    });
+    expect(unavailableDiagnostic.status).toBe("unavailable");
+    expect(unavailableDiagnostic.reviewReady).toBe(false);
+    expect(unavailableDiagnostic.summary.itemDelta).toBeNull();
   });
 });
