@@ -102,6 +102,7 @@ Locked/Completed pipeline-readiness decision and test follow-ups:
 - #255: Cost basis, PnL and price-source policy (locked/completed).
 - #256: Dividend, fee, tax and currency policy (locked/completed).
 - #257: Warning, confidence and blocked-metrics model (locked/completed).
+- #166: DP-09 override/user-decision model (locked/completed documentation decision in `docs/GLOBAL_ASSET_OVERRIDES.md`).
 - #258: Snapshot cache and API-budget route semantics; DP-10 is locked in `docs/V1_GUARDRAILS.md` and clarified in ADR 0005.
 - #259: Product read-model contract and route migration order; DP-11 is locked in `docs/V1_GUARDRAILS.md`.
 - #260: Synthetic pipeline fixtures and audit validation strategy (locked/completed).
@@ -114,6 +115,7 @@ Locked/Completed pipeline-readiness decision and test follow-ups:
 Status note for #248:
 
 - #248 remains open as the pipeline-readiness parent/backlog while next direction is selected.
+- DP-09 is now locked as a documentation decision through #166 and `docs/GLOBAL_ASSET_OVERRIDES.md`; this does not authorize override UI/write/storage implementation.
 - DP-13/status cleanup remains a documentation/status topic; this cleanup does not close #248.
 
 Known follow-ups outside the Phase-1 core:
@@ -135,7 +137,7 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 - [x] Pipeline inventory and replacement-gate checklist completed in `docs/PIPELINE_INVENTORY.md`.
 - [ ] No real Parqet data committed.
 - [ ] Existing asset calculation has not been replaced.
-- [x] #248 follow-up decisions are locked for the affected route/read-model (DP-01/DP-02/DP-03/DP-04/DP-05/DP-06/DP-07/DP-08/DP-10/DP-11/DP-12 complete; DP-13 remains docs/status cleanup).
+- [x] #248 follow-up decisions are locked for the affected route/read-model (DP-01/DP-02/DP-03/DP-04/DP-05/DP-06/DP-07/DP-08/DP-09/DP-10/DP-11/DP-12 complete; DP-13 remains docs/status cleanup).
 - [ ] Route/read-model replacement evidence from `docs/PIPELINE_INVENTORY.md` is satisfied.
 - [ ] First route migration candidate is selected from #249 evidence and satisfies the DP-11 read-only, snapshot/local-first, comparison and rollback gate.
 - [ ] Decision documented for when/how the new pipeline becomes productive.

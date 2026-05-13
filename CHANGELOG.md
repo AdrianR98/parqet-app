@@ -123,6 +123,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Docs
 
+- Locked DP-09 override/user-decision model documentation in `docs/GLOBAL_ASSET_OVERRIDES.md`, with guardrail/status cross-references and no runtime behavior changes.
 - Added the DP-02 provider data-source strategy for current-state, activity-history, snapshot/read-model, local metadata, provider-reference and blocked metric ownership.
 - Aligned README, roadmap, project status, architecture and v1 guardrail links with the #248/#249 pipeline-readiness workflow and `docs/PIPELINE_INVENTORY.md`.
 - Added a Parqet pipeline inventory and replacement-gate checklist for #248/#249 route/read-model migration planning.
