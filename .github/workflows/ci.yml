@@ -7,6 +7,32 @@ permissions:
   contents: read
 
 jobs:
+  detect-e2e-relevant-changes:
+    name: Detect E2E-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      e2e_relevant: ${{ steps.filter.outputs.e2e_relevant }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            e2e_relevant:
+              - 'src/app/**'
+              - 'src/components/**'
+              - 'src/lib/**'
+              - 'tests/e2e/**'
+              - 'playwright.config.*'
+              - '.github/workflows/**'
+              - 'package.json'
+              - 'package-lock.json'
+
   lint-build:
     name: Lint and build
     runs-on: ubuntu-latest
@@ -26,11 +52,16 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Pipeline tests
+        run: npm run test:pipeline
+
       - name: Build
         run: npm run build
 
   e2e-smoke:
     name: V1 Playwright smoke
+    needs: detect-e2e-relevant-changes
+    if: needs.detect-e2e-relevant-changes.outputs.e2e_relevant == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
