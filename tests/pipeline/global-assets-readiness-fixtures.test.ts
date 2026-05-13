@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  classifyPriceSourceReadiness,
+  classifyScopeReadiness,
+  classifySnapshotFreshness,
+} from "../../src/lib/parqet/global-assets/readiness";
 import { createSyntheticActivity, runGlobalAssetPipeline } from "./global-assets-test-helpers";
 
 describe("global asset snapshot/read-model readiness fixtures", () => {
@@ -28,24 +33,98 @@ describe("global asset snapshot/read-model readiness fixtures", () => {
     expect(aggregation.assets[0]?.totals.unrealizedPnL).toBeNull();
   });
 
-  it("documents deferred readiness fixtures that are not currently exposed by pure pipeline functions", () => {
-    const deferredReadinessFixtures: Record<string, string> = {
-      stale_snapshot:
-        "No pure function in normalize/aggregate derives freshness state from snapshot metadata yet.",
-      scope_missing:
-        "No pure function in normalize/aggregate computes scope coverage state for selected UI/report scope.",
-      scope_unknown:
-        "No pure function in normalize/aggregate computes unknown scope-state classification.",
-      price_source_missing:
-        "No source-type/value-classification model for price-source readiness exists in the current pure pipeline output.",
-    };
+  it("stale_snapshot: classifies stale, missing and unknown freshness from pure inputs", () => {
+    const now = "2026-01-10T12:00:00.000Z";
 
-    expect(Object.keys(deferredReadinessFixtures)).toEqual([
-      "stale_snapshot",
-      "scope_missing",
-      "scope_unknown",
-      "price_source_missing",
-    ]);
-    expect(Object.values(deferredReadinessFixtures).every((reason) => reason.length > 0)).toBe(true);
+    expect(
+      classifySnapshotFreshness({
+        snapshotAt: "2026-01-10T11:59:00.000Z",
+        now,
+        staleAfterMs: 120_000,
+      })
+    ).toBe("fresh");
+
+    expect(
+      classifySnapshotFreshness({
+        snapshotAt: "2026-01-10T11:00:00.000Z",
+        now,
+        staleAfterMs: 120_000,
+      })
+    ).toBe("stale");
+
+    expect(
+      classifySnapshotFreshness({
+        snapshotAt: null,
+        now,
+        staleAfterMs: 120_000,
+      })
+    ).toBe("missing");
+
+    expect(
+      classifySnapshotFreshness({
+        snapshotAt: "not-a-timestamp",
+        now,
+        staleAfterMs: 120_000,
+      })
+    ).toBe("unknown");
+  });
+
+  it("scope_missing: selected scope is known but snapshot scope is missing or not covering selection", () => {
+    expect(
+      classifyScopeReadiness({
+        selectedPortfolioIds: ["portfolio_demo_1"],
+        snapshotPortfolioIds: [],
+      })
+    ).toBe("missing");
+
+    expect(
+      classifyScopeReadiness({
+        selectedPortfolioIds: ["portfolio_demo_1", "portfolio_demo_2"],
+        snapshotPortfolioIds: ["portfolio_demo_1"],
+      })
+    ).toBe("missing");
+  });
+
+  it("scope_unknown: selected or snapshot scope cannot be determined", () => {
+    expect(
+      classifyScopeReadiness({
+        selectedPortfolioIds: null,
+        snapshotPortfolioIds: ["portfolio_demo_1"],
+      })
+    ).toBe("unknown");
+
+    expect(
+      classifyScopeReadiness({
+        selectedPortfolioIds: ["portfolio_demo_1"],
+        snapshotPortfolioIds: null,
+      })
+    ).toBe("unknown");
+  });
+
+  it("price_source_missing: classifies missing and available price-source readiness", () => {
+    expect(
+      classifyPriceSourceReadiness({
+        priceSource: undefined,
+        valueClassification: undefined,
+      })
+    ).toBe("missing");
+
+    expect(
+      classifyPriceSourceReadiness({
+        priceSource: "none",
+      })
+    ).toBe("missing");
+
+    expect(
+      classifyPriceSourceReadiness({
+        valueClassification: "provider_reference",
+      })
+    ).toBe("provider_reference");
+
+    expect(
+      classifyPriceSourceReadiness({
+        priceSource: "provider_price",
+      })
+    ).toBe("available");
   });
 });
