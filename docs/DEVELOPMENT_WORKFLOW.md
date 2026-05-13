@@ -60,7 +60,7 @@ Any broad automatic reload must be justified in the issue and PR body.
 
 ## Codex Modes
 
-Default mode: `Spar`.
+ChatGPT sets the Codex mode before issuing a task. Codex must not choose, infer, upgrade or downgrade the mode. If `Mode` is missing, Codex must stop and report the task as incomplete.
 
 | Mode | Use | File scope | Report |
 | --- | --- | --- | --- |
