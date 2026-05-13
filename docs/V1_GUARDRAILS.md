@@ -37,6 +37,8 @@ Provider DTO changes should be contained at the fetch/normalization boundary whe
 
 Future v1 work must reuse existing canonical boundaries unless a later ADR explicitly replaces them.
 
+For current pipeline-readiness status, route/read-model replacement evidence and migration gate checks, use `docs/PIPELINE_INVENTORY.md` from #249 together with the #248 decision backlog.
+
 Current canonical modules:
 
 - early shared provider activity context: `src/lib/parqet-assets/build-activity-context.ts`, documented by ADR 0003,
