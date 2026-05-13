@@ -30,6 +30,8 @@ Parqet API
 
 DP-02 provider source selection is documented in `docs/PROVIDER_DATA_SOURCE_STRATEGY.md`. Future route/read-model migration must use the narrowest safe source for each product question: current holdings/current-state for current positions and allocation, activity history for timelines and event-derived inputs, snapshots/read models for repeated local reads, local metadata for display identity only and provider-reference values for Parqet-computed financial/performance output.
 
+DP-10 snapshot/cache and API-budget route semantics are documented in `docs/V1_GUARDRAILS.md` and clarify ADR 0005. Routes and surfaces must be classified as `provider_backed_explicit_refresh`, `snapshot_first`, `snapshot_only`, `browser_local` or `no_data_call`. Scope/freshness mismatch, missing snapshots and unknown freshness are visible states, not triggers for hidden provider reloads. Durable server storage remains deferred.
+
 ## Pipeline Guardrail
 
 Do not create a second activity or asset pipeline before Phase 1 decides otherwise.
@@ -60,7 +62,7 @@ No production route/read-model migration is ready by default. Follow-up decision
 - Cost basis, PnL and price-source policy (#255).
 - Dividend, fee, tax and currency policy (#256).
 - Warning, confidence and blocked-metrics model (#257).
-- Snapshot cache and API-budget route semantics (#258).
+- Snapshot cache and API-budget route semantics (#258; DP-10 documented in `docs/V1_GUARDRAILS.md` and ADR 0005).
 - Product read-model contract and route migration order (#259).
 - Synthetic pipeline fixtures and audit validation strategy (#260).
 

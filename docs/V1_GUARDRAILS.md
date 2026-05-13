@@ -121,6 +121,61 @@ Rules:
 - Audit routes without `refresh=1` must be snapshot-only/no-provider-call reads and return a clear no-snapshot response when no matching snapshot exists.
 - Audit routes with `refresh=1` may run provider-backed only when the route is explicitly designed and gated for provider-backed audit use.
 
+### DP-10 Snapshot/Cache Route Semantics
+
+DP-10 locks v1 snapshot/cache and API-budget route semantics for #248 and #258. This is planning and documentation only; it authorizes no app/runtime code changes, route migration, new endpoints, retry implementation, browser storage implementation, durable storage, OAuth/token changes or provider calls.
+
+Provider/API calls are allowed only through explicit provider-backed refresh/load paths. Normal navigation, filtering, sorting, details, reports and diagnostics must use existing snapshots, browser-local read models or no-data-call behavior.
+
+Route and surface categories:
+
+| Category | Provider/API call policy | Expected behavior | Examples |
+| --- | --- | --- | --- |
+| `provider_backed_explicit_refresh` | May call provider/API only from an explicit user action or explicit refresh/load route. It must know request scope, bound pagination/retry/concurrency and update snapshot/freshness metadata. It must not be triggered by simply opening a page. | Creates or refreshes a bounded snapshot/read model and records request scope, request count, pagination behavior, retry behavior, rate-limit behavior and snapshot reuse. | Explicit `Aktualisieren`, explicit `Assets laden`, explicit `Portfolios neu laden`, future explicit refresh/load route. |
+| `snapshot_first` | Must read an existing snapshot/read model first and must not automatically call provider. | May show stale, missing or scope-mismatch state and may offer an explicit refresh/load action. | Dashboard, Assets page, Activities page, Reports preview. |
+| `snapshot_only` | Must never call provider or refresh tokens. | Uses only existing snapshot/read-model data. | Sorting, filtering, column chooser, detail panel, local report layout, local diagnostics view. |
+| `browser_local` | Must not call provider. | Uses browser state, local UI state or a browser-held read model; may compare selected UI scope with loaded snapshot scope. | Selected columns, sort order, visible filters, selected portfolios, draft report settings. |
+| `no_data_call` | Must use no app data and no provider data. | Renders static, empty or error states without data access. | Help/static content, settings shell, about/static docs, empty/error states. |
+
+Snapshot metadata should be sufficient to compare the loaded data basis with the selected UI/report scope. Structural metadata may include `snapshotId`, `createdAt`, `sourceType`, `sourceScope`, `selectedPortfolioIds`, `activityRange`, `includedAssetKeys`, `providerRequestCount`, `freshnessAt` and `staleAfter` or `expiresAt` when defined.
+
+Scope comparison states:
+
+| Scope state | Meaning | Rule |
+| --- | --- | --- |
+| `scope_match` | Snapshot fully covers the current UI/report scope. | Complete values may be shown subject to other warning/confidence rules. |
+| `scope_subset` | Snapshot contains more data than currently selected. | Local filtering is allowed without provider calls. |
+| `scope_missing` | Current UI/report scope needs data not covered by the snapshot. | Do not auto-refresh; affected metrics are blocked or preliminary and explicit refresh/load may be offered. |
+| `scope_unknown` | Metadata is insufficient to prove coverage. | Do not treat as complete. |
+
+Freshness states:
+
+| Freshness state | Meaning | Rule |
+| --- | --- | --- |
+| `fresh` | Within the allowed freshness boundary. | May be used as the current data basis subject to scope and confidence rules. |
+| `stale` | Older than the preferred boundary but still safe to show with caveat. | May remain visible as stale/preliminary when safe; do not silently reload. |
+| `expired` | Not safe as a complete data basis. | Blocks metrics that would be misleading without a known current data basis. |
+| `unknown` | Freshness metadata is missing. | Do not treat as complete; block misleading metrics. |
+
+Source, freshness and confidence must be visible in later read models/reports. Stale, expired, unknown or scope-mismatch states must not trigger hidden provider reloads.
+
+No-snapshot behavior:
+
+- Product views should show an empty/no-snapshot state with an explicit load/refresh action.
+- Opening a page must not trigger a hidden full provider load.
+- Reports/export previews must not silently fetch missing provider data.
+- Diagnostics may show counts/status if already available; otherwise they show a no-snapshot state.
+
+Retry and rate-limit behavior:
+
+- No automatic full-reload retry loops.
+- Auth/token refresh is appropriate only for likely auth failures.
+- Rate-limit and provider failures must not immediately rerun the expensive activity pipeline.
+- Retry count and concurrency must be bounded.
+- Provider errors should surface as stale, rate-limit or error state with an explicit retry option.
+
+Durable storage remains deferred. DP-10 allows process-local snapshots and browser-local read models as v1 semantics, but no durable server storage/database work is authorized. Durable storage requires a later ADR or issue, and DP-10 does not reopen OAuth/token storage or database architecture.
+
 ### Local Metadata Data
 
 Use local metadata only for display identity, for example:
@@ -177,6 +232,7 @@ Hard rules:
 9. Detail views and reports must declare whether they are read-only projections of loaded data or whether they require an explicit provider refresh.
 10. Any proposed automatic background refresh needs an issue-level justification and review against these rules before implementation.
 11. Any proposed metadata service, asset-search or identifier-mapping integration must be handled as a separate Research/ADR or Post-V1 feature before implementation.
+12. Scope/freshness mismatch, missing snapshots and unknown freshness must be visible and must not trigger hidden provider reloads.
 
 ## Source, Freshness And Confidence
 
@@ -270,6 +326,13 @@ Avoid wording that implies certainty when confidence is not high:
 - Local metadata PRs must confirm source CSV privacy, generated-file review, conflict review and no provider-call behavior change.
 - Diagnostics are redacted and count/scope-oriented.
 - Changelog and architecture/data docs are updated when behavior, architecture or durable guardrails change.
+
+Hidden reload risks to check in later PR review:
+
+- page mount, route navigation, filter change, sort change, column toggle, detail panel open, report preview/export, settings open, warning panel open and portfolio selection changes without explicit refresh,
+- hydration or `useEffect` loops, server component render paths and server routes called from render paths,
+- stale, missing-snapshot or scope-mismatch detection that silently reloads provider data,
+- risky patterns such as `useEffect(() => fetch(...), [])`, fetch-on-mount, automatic retry around the activity pipeline, token refresh on non-auth errors and silent reload after stale detection.
 
 ## Snapshot/Freshness Terms
 

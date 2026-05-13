@@ -100,7 +100,7 @@ Current follow-up decision/planning issues:
 - #255: Cost basis, PnL and price-source policy.
 - #256: Dividend, fee, tax and currency policy.
 - #257: Warning, confidence and blocked-metrics model.
-- #258: Snapshot cache and API-budget route semantics.
+- #258: Snapshot cache and API-budget route semantics; DP-10 is locked in `docs/V1_GUARDRAILS.md` and clarified in ADR 0005.
 - #259: Product read-model contract and route migration order.
 - #260: Synthetic pipeline fixtures and audit validation strategy.
 
