@@ -368,6 +368,74 @@ Warning and diagnostic output may include:
 - value classification
 - blocked metric names
 
+## DP-12 synthetic fixture validation
+
+DP-12 locks the synthetic-fixture and audit-validation strategy for later pure pipeline tests. This section defines validation expectations only; it does not add fixture files, install test tooling, change app code, call providers, migrate routes or authorize private data handling.
+
+Fixtures must be fully synthetic and privacy-safe. Use demo identifiers such as `DEMO0000001`, `DEMO0000002`, `portfolio_demo_1`, `portfolio_demo_2` and `activity_demo_1`. Do not use real ISINs, real portfolio names, real activity rows, real amounts from a user account or raw provider payloads. Synthetic amounts may use simple round numbers only, and synthetic dates may use fixed demo dates. Fixture descriptions should state the intent and expected warning or blocker behavior.
+
+Synthetic fixture categories:
+
+- `basic_buy_sell`
+- `buy_only_open_position`
+- `buy_sell_closed_position`
+- `partial_sell`
+- `sell_without_buy`
+- `negative_quantity`
+- `duplicate_sell_candidate`
+- `dividend_net_only`
+- `dividend_gross_tax_fee`
+- `dividend_ambiguous_gross_net`
+- `closed_position_with_dividend`
+- `same_currency_totals`
+- `mixed_currency_blocked`
+- `missing_currency_blocked`
+- `fees_taxes_clear`
+- `fees_taxes_ambiguous`
+- `transfer_pair_clean`
+- `transfer_unmatched_in`
+- `transfer_unmatched_out`
+- `transfer_ambiguous_multiple_candidates`
+- `transfer_partial`
+- `transfer_cross_currency_unsupported`
+- `unknown_activity_type`
+- `missing_asset_identity`
+- `invalid_date`
+- `numeric_parse_failed`
+- `stale_snapshot`
+- `scope_missing`
+- `scope_unknown`
+- `provider_reference_only`
+- `price_source_missing`
+
+For each relevant fixture, later tests or audit validation should be able to assert:
+
+- input activity count
+- normalized activity count
+- asset count
+- active asset count
+- closed asset count
+- unassigned activity count
+- warning count
+- blocker count
+- `blockedMetrics`
+- confidence
+- quantity result when safe
+- same-currency dividend totals when safe
+- per-currency totals where relevant
+- transfer status counts where relevant
+- redaction flags
+- no raw payload exposure
+- `providerRequestCount` remains zero for pure fixture tests
+
+Values not required for every fixture:
+
+- exact PnL values
+- exact performance values
+- current market values
+- real provider values
+- FX conversions
+
 ## Privacy rules
 
 - Raw payloads are never returned.

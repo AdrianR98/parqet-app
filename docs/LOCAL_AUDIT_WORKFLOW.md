@@ -40,6 +40,31 @@ http://localhost:3000/api/auth/start
 
 Do not commit real audit outputs.
 
+## DP-12 local real-data validation rule
+
+DP-12 keeps real-data audit validation local, manual and redacted/count-only. Real-data validation must not become fixture input, repository evidence or PR evidence containing private values.
+
+Do not commit local outputs, paste real outputs into issues, PRs or docs, or include screenshots with private data. Never include raw provider payloads, real portfolio IDs or names, real activity rows, private exports, tokens, cookies or OAuth codes.
+
+Allowed later PR evidence wording for a local real-data check:
+
+- local audit run completed
+- old/new asset counts compared
+- warning/blocker counts compared
+- `providerRequestCount` unchanged or reduced
+- redaction reviewed
+- no raw payload exposure observed
+
+Disallowed PR evidence:
+
+- real depot/portfolio names
+- real activity rows
+- real amounts
+- screenshots
+- CSV/JSON exports
+- raw payload snippets
+- tokens/cookies/OAuth codes
+
 ## Lightweight health check
 
 Use this route for auth/session checks before expensive audit calls:
