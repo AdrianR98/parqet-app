@@ -2,7 +2,6 @@ version: 2
 status: active_after_phase_0
 repository: AdrianR98/parqet-app
 source_language: en
-default_codex_mode: Spar
 
 purpose:
   - Establish conservative, reviewable collaboration for the Parqet App repository.
