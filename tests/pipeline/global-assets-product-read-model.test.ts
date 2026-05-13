@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildActivityItemsCompatibilityComparisonSummary,
   buildActivitiesTimelineComparisonEvidence,
+  buildActivitiesTimelineShadowComparison,
   buildLegacyActivitiesTimelineComparisonSummary,
   mapActivityItemsToLegacyComparisonInput,
   projectActivitiesTimelineProductReadModel,
@@ -190,5 +191,130 @@ describe("global asset product read-model projection (activities/timeline)", () 
     expect(summary.byType.buy).toBe(1);
     expect(summary.byType.transfer_in).toBe(1);
     expect(summary.byType.unknown).toBe(1);
+  });
+
+  it("builds a matching shadow comparison with zero deltas", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_401",
+        type: "buy",
+        datetime: "2026-01-01T10:00:00.000Z",
+        isin: "DEMO00000004",
+        shares: 2,
+        currency: "EUR",
+      }),
+      createSyntheticActivity({
+        activityId: "activity_demo_402",
+        type: "sell",
+        datetime: "2026-01-02T10:00:00.000Z",
+        isin: "DEMO00000004",
+        shares: 1,
+        currency: "EUR",
+      }),
+    ]);
+
+    const projected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const shadow = buildActivitiesTimelineShadowComparison({
+      currentItems: [
+        { type: "buy", warningMessages: [] },
+        { type: "sell", warningMessages: [] },
+      ],
+      projected,
+    });
+
+    expect(shadow.status).toBe("available");
+    expect(shadow.delta.itemCount).toBe(0);
+    expect(shadow.delta.warningItemCount).toBe(0);
+    expect(shadow.delta.blockedIndicatorOrMetricItemCount).toBe(0);
+    expect(shadow.delta.byType?.buy).toBe(0);
+    expect(shadow.delta.byType?.sell).toBe(0);
+  });
+
+  it("builds a mismatch shadow comparison with count/type/warning/blocked deltas", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_501",
+        type: "dividend",
+        datetime: "2026-02-01T10:00:00.000Z",
+        isin: "DEMO00000005",
+        amountNet: 10,
+        currency: "EUR",
+      }),
+      createSyntheticActivity({
+        activityId: "activity_demo_502",
+        type: "dividend",
+        datetime: "2026-02-02T10:00:00.000Z",
+        isin: "DEMO00000005",
+        amountNet: 12,
+        currency: "USD",
+      }),
+    ]);
+
+    const projected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const shadow = buildActivitiesTimelineShadowComparison({
+      currentItems: [{ type: "buy", warningMessages: [], blockedMetrics: [] }],
+      projected,
+    });
+
+    expect(shadow.status).toBe("available");
+    expect(shadow.delta.itemCount).toBe(1);
+    expect(shadow.delta.warningItemCount).toBe(2);
+    expect(shadow.delta.blockedIndicatorOrMetricItemCount).toBe(2);
+    expect(shadow.delta.byType?.buy).toBe(-1);
+    expect(shadow.delta.byType?.dividend).toBe(2);
+  });
+
+  it("returns safe shadow statuses for missing, stale and scope-mismatch projected evidence", () => {
+    const currentItems = [{ type: "buy", warningMessages: [] }];
+    const missing = buildActivitiesTimelineShadowComparison({
+      currentItems,
+      projected: null,
+    });
+
+    expect(missing.status).toBe("missing");
+    expect(missing.projected).toBeNull();
+    expect(missing.delta.itemCount).toBeNull();
+    expect(missing.delta.byType).toBeNull();
+
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "activity_demo_601",
+        type: "buy",
+        datetime: "2026-03-01T10:00:00.000Z",
+        isin: "DEMO00000006",
+        shares: 1,
+        currency: "EUR",
+      }),
+    ]);
+
+    const staleProjected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "stale",
+      scopeState: "scope_match",
+    });
+    const stale = buildActivitiesTimelineShadowComparison({
+      currentItems,
+      projected: staleProjected,
+    });
+    expect(stale.status).toBe("stale");
+
+    const scopeMismatchProjected = projectActivitiesTimelineProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_missing",
+    });
+    const scopeMismatch = buildActivitiesTimelineShadowComparison({
+      currentItems,
+      projected: scopeMismatchProjected,
+    });
+    expect(scopeMismatch.status).toBe("scope_mismatch");
   });
 });

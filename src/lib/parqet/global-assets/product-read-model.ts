@@ -146,6 +146,25 @@ export type ProductReadModelComparisonEvidence = {
   };
 };
 
+export type ActivitiesTimelineShadowComparisonStatus =
+  | "available"
+  | "stale"
+  | "scope_mismatch"
+  | "missing"
+  | "unavailable";
+
+export type ActivitiesTimelineShadowComparison = {
+  status: ActivitiesTimelineShadowComparisonStatus;
+  current: LegacyActivitiesTimelineComparisonSummary;
+  projected: ProductReadModelComparisonEvidence["projected"] | null;
+  delta: {
+    itemCount: number | null;
+    warningItemCount: number | null;
+    blockedIndicatorOrMetricItemCount: number | null;
+    byType: Record<string, number> | null;
+  };
+};
+
 function uniqueBlockedMetrics(warnings: ProductReadModelWarning[]): BlockedMetric[] {
   return Array.from(
     new Set(warnings.flatMap((warning) => warning.blockedMetrics).filter((metric) => Boolean(metric))),
@@ -409,6 +428,81 @@ export function buildActivitiesTimelineComparisonEvidence(input: {
       itemCount: input.projected.summary.itemCount - currentSummary.itemCount,
       warningItemCount: input.projected.summary.warningItemCount - currentSummary.warningItemCount,
       blockedMetricItemCount: input.projected.summary.blockedMetricItemCount,
+    },
+  };
+}
+
+function resolveShadowComparisonStatus(
+  projected: ProductReadModelActivitiesTimeline | null | undefined,
+): ActivitiesTimelineShadowComparisonStatus {
+  if (!projected) {
+    return "missing";
+  }
+
+  if (projected.metadata.scopeState === "scope_missing" || projected.metadata.scopeState === "scope_unknown") {
+    return "scope_mismatch";
+  }
+
+  if (projected.metadata.freshnessState === "stale" || projected.metadata.freshnessState === "expired") {
+    return "stale";
+  }
+
+  return "available";
+}
+
+function buildTypeDelta(
+  currentByType: Record<string, number>,
+  projectedByType: Record<string, number>,
+): Record<string, number> {
+  const keys = new Set([...Object.keys(currentByType), ...Object.keys(projectedByType)]);
+  const delta: Record<string, number> = {};
+
+  for (const key of keys) {
+    delta[key] = (projectedByType[key] ?? 0) - (currentByType[key] ?? 0);
+  }
+
+  return delta;
+}
+
+export function buildActivitiesTimelineShadowComparison(input: {
+  currentItems: LegacyActivityComparisonInputItem[] | ActivityItemsCompatibilityInputItem[];
+  projected?: ProductReadModelActivitiesTimeline | null;
+  statusOverride?: ActivitiesTimelineShadowComparisonStatus;
+}): ActivitiesTimelineShadowComparison {
+  const current = buildLegacyActivitiesTimelineComparisonSummary(
+    mapActivityItemsToLegacyComparisonInput(input.currentItems),
+  );
+  const status = input.statusOverride ?? resolveShadowComparisonStatus(input.projected);
+
+  if (status === "missing" || status === "unavailable" || !input.projected) {
+    return {
+      status,
+      current,
+      projected: null,
+      delta: {
+        itemCount: null,
+        warningItemCount: null,
+        blockedIndicatorOrMetricItemCount: null,
+        byType: null,
+      },
+    };
+  }
+
+  const evidence = buildActivitiesTimelineComparisonEvidence({
+    currentItems: input.currentItems,
+    projected: input.projected,
+  });
+
+  return {
+    status,
+    current,
+    projected: evidence.projected,
+    delta: {
+      itemCount: evidence.delta.itemCount,
+      warningItemCount: evidence.delta.warningItemCount,
+      blockedIndicatorOrMetricItemCount:
+        evidence.projected.blockedMetricItemCount - evidence.current.blockedIndicatorItemCount,
+      byType: buildTypeDelta(evidence.current.byType, evidence.projected.byType),
     },
   };
 }
