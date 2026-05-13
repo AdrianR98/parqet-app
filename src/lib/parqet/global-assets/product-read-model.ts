@@ -165,6 +165,27 @@ export type ActivitiesTimelineShadowComparison = {
   };
 };
 
+export type ActivitiesTimelineShadowDiagnosticStatus =
+  | "ready"
+  | "missing"
+  | "stale"
+  | "scope_mismatch"
+  | "unavailable";
+
+export type ActivitiesTimelineShadowDiagnosticHarness = {
+  status: ActivitiesTimelineShadowDiagnosticStatus;
+  reviewReady: boolean;
+  summary: {
+    currentItemCount: number;
+    projectedItemCount: number | null;
+    itemDelta: number | null;
+    warningDelta: number | null;
+    blockedDelta: number | null;
+    byTypeDelta: Record<string, number> | null;
+  };
+  evidence: ActivitiesTimelineShadowComparison;
+};
+
 function uniqueBlockedMetrics(warnings: ProductReadModelWarning[]): BlockedMetric[] {
   return Array.from(
     new Set(warnings.flatMap((warning) => warning.blockedMetrics).filter((metric) => Boolean(metric))),
@@ -504,5 +525,50 @@ export function buildActivitiesTimelineShadowComparison(input: {
         evidence.projected.blockedMetricItemCount - evidence.current.blockedIndicatorItemCount,
       byType: buildTypeDelta(evidence.current.byType, evidence.projected.byType),
     },
+  };
+}
+
+function mapShadowStatusToDiagnosticStatus(
+  status: ActivitiesTimelineShadowComparisonStatus,
+): ActivitiesTimelineShadowDiagnosticStatus {
+  if (status === "available") {
+    return "ready";
+  }
+
+  if (status === "scope_mismatch") {
+    return "scope_mismatch";
+  }
+
+  if (status === "stale") {
+    return "stale";
+  }
+
+  if (status === "unavailable") {
+    return "unavailable";
+  }
+
+  return "missing";
+}
+
+export function buildActivitiesTimelineShadowDiagnosticHarness(input: {
+  currentItems: LegacyActivityComparisonInputItem[] | ActivityItemsCompatibilityInputItem[];
+  projected?: ProductReadModelActivitiesTimeline | null;
+  statusOverride?: ActivitiesTimelineShadowComparisonStatus;
+}): ActivitiesTimelineShadowDiagnosticHarness {
+  const evidence = buildActivitiesTimelineShadowComparison(input);
+  const status = mapShadowStatusToDiagnosticStatus(evidence.status);
+
+  return {
+    status,
+    reviewReady: status === "ready",
+    summary: {
+      currentItemCount: evidence.current.itemCount,
+      projectedItemCount: evidence.projected?.itemCount ?? null,
+      itemDelta: evidence.delta.itemCount,
+      warningDelta: evidence.delta.warningItemCount,
+      blockedDelta: evidence.delta.blockedIndicatorOrMetricItemCount,
+      byTypeDelta: evidence.delta.byType,
+    },
+    evidence,
   };
 }
