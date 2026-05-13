@@ -61,6 +61,8 @@ DP-06 cost-basis, PnL and price-source policy is documented in `docs/GLOBAL_ASSE
 
 DP-08 warning, confidence and blocked-metrics policy is documented in `docs/GLOBAL_ASSET_TYPE_MODEL.md`, `docs/GLOBAL_ASSET_AGGREGATION.md` and `docs/GLOBAL_ASSET_AUDIT_REPORT.md`. It locks stable warning codes with severity, audience, source, affected entity, confidence impact and explicit `blockedMetrics`; separates user-facing and diagnostic warning projections; prefers metric-level confidence over whole-asset blocking; and authorizes no implementation, UI copy implementation, route migration, provider calls or override/write behavior.
 
+DP-09 override/user-decision model policy is documented in `docs/GLOBAL_ASSET_OVERRIDES.md` for #166/#248. It locks decision categories, effect classes, validation gates, no-op behavior for unsupported/disabled decisions, undo/delete/reset requirements and privacy-safe audit boundaries. It authorizes no write/edit UI, no new write API, no durable storage implementation, no provider/API calls for local decision flows and no route/read-model migration.
+
 DP-11 product read-model and migration-gate policy is locked in this document for #248/#259. It defines the Product Read Model as a UI/route-safe projection, not the internal normalization or aggregation model. It authorizes no implementation, route migration, product UI changes, provider/API calls, durable storage decision, schema migration, feature flag implementation or removal of existing calculation paths.
 
 ## Purpose-Specific Data Source Rules
