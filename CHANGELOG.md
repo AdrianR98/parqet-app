@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added DP-05 transfer handling documentation for deterministic transfer pairing, ambiguity statuses, warning categories, blocked metrics and audit/read-model expectations.
 - Added DP-04 activity normalization contract documentation for app-owned normalized activities, warning-code boundaries, ID/date/currency rules and raw-provider-payload privacy limits.
 - Added DP-03 asset identity and metadata boundary documentation for ISIN-only calculation identity, display-only metadata, identity warnings, confidence impact and blocked-metric handling.
 - Added scope-based Codex verification profiles so local checks are selected by task type while GitHub Actions remains the final PR gate.

@@ -182,15 +182,57 @@ The display type is separate from the normalized activity type. For example, a `
 
 ## Transfer model
 
+DP-05 locks a conservative transfer-candidate model. Transfers remain explicit normalized activity events and must not be collapsed into implicit quantity corrections.
+
 The model prepares transfer types:
 
 - `TransferCandidate`
 - `TransferGroup`
 - `TransferStatus`
 
-No transfer matching is implemented in P1-4.
+Allowed transfer statuses:
+
+- `not_transfer`: the activity is not a security transfer candidate.
+- `transfer_candidate`: an explicit `transfer_in` or `transfer_out` that is eligible for later matching review.
+- `paired`: one inbound and one outbound transfer candidate match deterministically.
+- `unmatched_in`: an inbound transfer candidate has no safe outbound counterpart.
+- `unmatched_out`: an outbound transfer candidate has no safe inbound counterpart.
+- `partial`: only part of the quantity can be related to another candidate.
+- `ambiguous`: more than one interpretation remains possible or required context is unsafe.
+- `unsupported`: the case needs a documented rule that does not exist yet.
+
+A pair may be marked `paired` only when all of these are true:
+
+- same asset identity,
+- same absolute quantity,
+- compatible portfolio context,
+- bounded date window,
+- unique 1:1 candidate relationship,
+- no conflicting warnings or blockers make the match unsafe.
+
+Deposit and withdrawal activities are not security transfer-pairing inputs by default. They remain visible as cash/account-style or audit events unless a later cash/security decision explicitly changes that rule.
+
+Unmatched, partial, duplicate, missing-context, date-uncertain, cross-currency and multi-candidate cases remain ambiguous. Ambiguous transfers stay visible in audit/read models but block affected metrics where ambiguity would mislead.
+
+No transfer matching is implemented by this documentation change.
 
 The model allows transfer groups to contain multiple activity IDs because partial transfers may exist.
+
+Transfer ambiguity reasons include:
+
+- multiple possible `transfer_in` candidates for one `transfer_out`,
+- multiple possible `transfer_out` candidates for one `transfer_in`,
+- different asset identity,
+- missing or invalid asset identity,
+- missing or invalid quantity,
+- quantity mismatch,
+- partial quantity match only,
+- missing portfolio context,
+- uncertain or invalid dates,
+- date window too large,
+- cross-currency case without an FX rule,
+- provider-specific case without a documented safe rule,
+- cost-basis information cannot be safely carried forward.
 
 ## Warnings and confidence
 
@@ -203,6 +245,19 @@ Warnings use:
 - source,
 - entity references,
 - blocked metrics.
+
+Transfer-related warning codes:
+
+- `transfer_unpaired`
+- `transfer_ambiguous`
+- `transfer_partial`
+- `transfer_duplicate_candidate`
+- `transfer_quantity_mismatch`
+- `transfer_asset_mismatch`
+- `transfer_missing_portfolio_context`
+- `transfer_date_uncertain`
+- `transfer_cost_basis_unknown`
+- `transfer_cross_currency_unsupported`
 
 Confidence is represented as:
 
