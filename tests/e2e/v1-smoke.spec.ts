@@ -322,6 +322,10 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
 
     await expect(page.getByText("Geladener Snapshot")).toBeVisible();
     await expect(page.getByText("36 von 36")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Kauf Synthetic Smoke Asset 5 öffnen/ }),
+    ).toBeVisible();
+    await expect(page.getByText("Synthetic Search Needle Fund").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Filter anzeigen" }).click();
     await expect(page.getByRole("button", { name: "Filter einklappen" })).toBeVisible();
@@ -361,6 +365,8 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
 
     await expect(page.getByText("Geladener Snapshot")).toBeVisible();
     await expect(page.getByText("36 Ereignisse").first()).toBeVisible();
+    await expect(page.getByText("Synthetic Search Needle Fund").first()).toBeVisible();
+    await expect(page.getByText(/Synthetic Monat 0[1-4]/).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Filter anzeigen" }).click();
     await expect(page.getByRole("button", { name: "Filter einklappen" })).toBeVisible();

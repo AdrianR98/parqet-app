@@ -2,7 +2,7 @@
 
 Status: Phase 1 active / Phase 2 pipeline-readiness planning
 Owner: AdrianR98
-Last reviewed: 2026-05-13
+Last reviewed: 2026-05-14
 
 ## Current Working Status
 
@@ -111,10 +111,12 @@ Locked/Completed pipeline-readiness decision and test follow-ups:
 - #278: First synthetic Global Asset fixture slice (completed).
 - #280: Remaining synthetic Global Asset fixture matrix for currently exposed pure behavior (completed).
 - #282/#283: Pure readiness helper/test follow-up (completed); deferred readiness cases `stale_snapshot`, `scope_missing`, `scope_unknown` and `price_source_missing` are now covered by synthetic readiness helper tests.
+- #286/#300/#301/#302/#303/#304/#305/#306/#307: Activities/Timeline local PRM migration is stabilized as a browser-local compatibility path with PRM default-on when local evidence is ready, mandatory fallback for missing/stale/scope-mismatch evidence, explicit rollback via feature flag and synthetic route-smoke plus pipeline evidence.
 
 Status note for #248:
 
 - #248 remains open as the pipeline-readiness parent/backlog while next direction is selected.
+- Activities/Timeline local PRM migration finalization is complete as a compatibility path and does not by itself close #248 or authorize canonical Dashboard/AssetTable/Reports replacement.
 - DP-09 is now locked as a documentation decision through #166 and `docs/GLOBAL_ASSET_OVERRIDES.md`; this does not authorize override UI/write/storage implementation.
 - DP-13/status cleanup remains a documentation/status topic; this cleanup does not close #248.
 
@@ -148,7 +150,7 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 1. Use #248 as the pipeline-readiness parent / decision backlog.
 2. Use `docs/PIPELINE_INVENTORY.md` from #249 as the replacement-gate evidence baseline.
 3. Keep #248 open for direction/backlog tracking, and treat DP-13 as docs/status cleanup until the next implementation direction is selected.
-4. Choose the first product route candidate only in a later route-specific issue after #249 evidence identifies a lowest-risk read-only, snapshot/local-first surface.
+4. Keep the first canonical Global Asset product-route migration candidate selection in a later route-specific issue after #249 evidence identifies the next lowest-risk read-only, snapshot/local-first surface.
 5. Keep current product routes and existing calculations stable until route-specific comparison, API-budget, privacy and rollback evidence is reviewed.
 
 ## Risks

@@ -280,20 +280,23 @@ describe("local activity read-model PRM selection bridge", () => {
 });
 
 describe("loadLocalActivityReadModel PRM projection boundary", () => {
-  it("supports rollback/disable by forcing activityItems when the feature flag is explicitly off", () => {
-    process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG = "off";
-    installWindowWithLocalStorage({
-      [DASHBOARD_CACHE_KEY]: JSON.stringify(buildDashboardCacheForLocalProjection()),
-    });
+  it.each(["off", "false", "0"] as const)(
+    "supports rollback/disable by forcing activityItems when feature flag is explicitly %s",
+    (flagValue) => {
+      process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG = flagValue;
+      installWindowWithLocalStorage({
+        [DASHBOARD_CACHE_KEY]: JSON.stringify(buildDashboardCacheForLocalProjection()),
+      });
 
-    const model = loadLocalActivityReadModel();
+      const model = loadLocalActivityReadModel();
 
-    expect(model.activitiesTimelinePrmSelection.selectedSource).toBe("activityItems");
-    expect(model.activitiesTimelinePrmSelection.reason).toBe("feature_flag_disabled");
-    expect(model.activitiesTimelinePrmSelection.diagnostic.status).toBe("ready");
-    expect(model.items).toHaveLength(1);
-    expect(model.items[0]?.id).toBe("current-activity-1");
-  });
+      expect(model.activitiesTimelinePrmSelection.selectedSource).toBe("activityItems");
+      expect(model.activitiesTimelinePrmSelection.reason).toBe("feature_flag_disabled");
+      expect(model.activitiesTimelinePrmSelection.diagnostic.status).toBe("ready");
+      expect(model.items).toHaveLength(1);
+      expect(model.items[0]?.id).toBe("current-activity-1");
+    },
+  );
 
   it("selects PRM items by default when local projected evidence is ready", () => {
     const preservedItem = createCurrentActivityItem({
@@ -368,6 +371,43 @@ describe("loadLocalActivityReadModel PRM projection boundary", () => {
     expect(scopeMismatchProjection.activitiesTimelinePrmSelection.reason).toBe(
       "diagnostic_scope_mismatch",
     );
+  });
+
+  it("falls back safely when freshness metadata is marked missing", () => {
+    installWindowWithLocalStorage({
+      [DASHBOARD_CACHE_KEY]: JSON.stringify(
+        buildDashboardCacheForLocalProjection({
+          freshness: {
+            status: "missing",
+            stale: false,
+            source: "snapshot",
+          },
+        }),
+      ),
+    });
+
+    const model = loadLocalActivityReadModel();
+
+    expect(model.activitiesTimelinePrmSelection.selectedSource).toBe("activityItems");
+    expect(model.activitiesTimelinePrmSelection.reason).toBe("diagnostic_missing");
+    expect(model.items).toHaveLength(1);
+  });
+
+  it("keeps empty local activity state safe without selecting PRM", () => {
+    installWindowWithLocalStorage({
+      [DASHBOARD_CACHE_KEY]: JSON.stringify(
+        buildDashboardCacheForLocalProjection({
+          activityItems: [],
+        }),
+      ),
+    });
+
+    const model = loadLocalActivityReadModel();
+
+    expect(model.items).toEqual([]);
+    expect(model.activitiesTimelinePrmSelection.selectedSource).toBe("activityItems");
+    expect(model.activitiesTimelinePrmSelection.reason).toBe("diagnostic_missing");
+    expect(model.activitiesTimelinePrmSelection.selectedItemCount).toBe(0);
   });
 });
 
