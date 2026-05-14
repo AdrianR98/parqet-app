@@ -71,6 +71,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- Stabilized the Activities/Timeline local PRM migration package with stronger synthetic route-smoke visible-content assertions plus explicit rollback (`off`/`false`/`0`), missing-freshness and empty-state fallback boundary coverage, while keeping provider/API-call behavior unchanged.
 - Improved large local dataset responsiveness for Dashboard AssetTable, Activities, Timeline and Reports with clearer progressive reveal while keeping totals and provider-call behavior unchanged.
 - Improved V1 asset metadata display fallbacks so local/enriched metadata names are preferred over identifier-only asset labels, including Activities and Timeline local read models.
 - V1 warning, data-quality and confidence wording is now more consistent across Dashboard, Asset Detail, Timeline and Reports without adding provider calls or new warning logic.
@@ -123,6 +124,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Docs
 
+- Updated `docs/PROJECT_STATUS.md` and `docs/PIPELINE_INVENTORY.md` to reflect that the Activities/Timeline local PRM compatibility migration slice is finalized while #248 remains open for canonical Global Asset-backed route replacement blockers.
 - Locked DP-09 override/user-decision model documentation in `docs/GLOBAL_ASSET_OVERRIDES.md`, with guardrail/status cross-references and no runtime behavior changes.
 - Added the DP-02 provider data-source strategy for current-state, activity-history, snapshot/read-model, local metadata, provider-reference and blocked metric ownership.
 - Aligned README, roadmap, project status, architecture and v1 guardrail links with the #248/#249 pipeline-readiness workflow and `docs/PIPELINE_INVENTORY.md`.
