@@ -398,4 +398,104 @@ describe("reports guarded source integration", () => {
     expect(report?.totals.totalPositionValue).toBe(336);
     expect(report?.totals.totalUnrealizedPnL).toBe(36);
   });
+
+  it("falls back to compatibility report source when old cache has no global asset product model", () => {
+    process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED = "true";
+    const compatibilityAssets = createCompatibilityAssetsFixture();
+
+    installWindowWithLocalStorage({
+      [DASHBOARD_CACHE_KEY]: JSON.stringify({
+        activeAssets: compatibilityAssets.filter((asset) => asset.netShares > 0),
+        closedAssets: compatibilityAssets.filter((asset) => asset.netShares === 0),
+        rawActivityCount: 5,
+        filteredActivityCount: 5,
+        assetCount: 2,
+        activeAssetCount: 1,
+        closedAssetCount: 1,
+        consistencyReport: null,
+        reconciliationWarnings: [],
+        generatedAt: "2026-05-14T09:00:00.000Z",
+        lastUpdatedAt: "2026-05-14T09:00:00.000Z",
+        selectedPortfolioIds: ["portfolio_demo_1", "portfolio_demo_2"],
+        freshness: {
+          present: true,
+          loadedAt: "2026-05-14T08:30:00.000Z",
+          updatedAt: "2026-05-14T09:00:00.000Z",
+          status: "fresh",
+          source: "snapshot",
+          refreshStatus: "refreshed",
+          stale: false,
+          scope: {
+            portfolioCount: 2,
+            fingerprint: "synthetic-fingerprint",
+          },
+          lastRefreshErrorCategory: null,
+        },
+        activityItems: [],
+      }),
+    });
+
+    const report = loadLocalReportModel();
+
+    expect(report).not.toBeNull();
+    expect(report?.guardedSelection.selectedSource).toBe("compatibility");
+    expect(report?.guardedSelection.reason).toBe("product_read_model_missing");
+    expect(report?.assets.length).toBe(2);
+    expect(report?.totals.totalPositionValue).toBe(336);
+    expect(report?.totals.totalUnrealizedPnL).toBe(36);
+  });
+
+  it("falls back to compatibility report source when product read model is stale", () => {
+    process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED = "true";
+    const projected = buildProjectedProductReadModel();
+    const compatibilityAssets = createCompatibilityAssetsFixture();
+
+    installWindowWithLocalStorage({
+      [DASHBOARD_CACHE_KEY]: JSON.stringify({
+        activeAssets: compatibilityAssets.filter((asset) => asset.netShares > 0),
+        closedAssets: compatibilityAssets.filter((asset) => asset.netShares === 0),
+        rawActivityCount: 5,
+        filteredActivityCount: 5,
+        assetCount: 2,
+        activeAssetCount: 1,
+        closedAssetCount: 1,
+        consistencyReport: null,
+        reconciliationWarnings: [],
+        generatedAt: "2026-05-14T09:00:00.000Z",
+        lastUpdatedAt: "2026-05-14T09:00:00.000Z",
+        selectedPortfolioIds: ["portfolio_demo_1", "portfolio_demo_2"],
+        freshness: {
+          present: true,
+          loadedAt: "2026-05-14T08:30:00.000Z",
+          updatedAt: "2026-05-14T09:00:00.000Z",
+          status: "fresh",
+          source: "snapshot",
+          refreshStatus: "refreshed",
+          stale: false,
+          scope: {
+            portfolioCount: 2,
+            fingerprint: "synthetic-fingerprint",
+          },
+          lastRefreshErrorCategory: null,
+        },
+        activityItems: [],
+        globalAssetProductReadModel: {
+          ...projected,
+          metadata: {
+            ...projected.metadata,
+            freshnessState: "stale",
+          },
+        },
+      }),
+    });
+
+    const report = loadLocalReportModel();
+
+    expect(report).not.toBeNull();
+    expect(report?.guardedSelection.selectedSource).toBe("compatibility");
+    expect(report?.guardedSelection.reason).toBe("product_read_model_not_fresh");
+    expect(report?.assets.length).toBe(2);
+    expect(report?.totals.totalPositionValue).toBe(336);
+    expect(report?.totals.totalUnrealizedPnL).toBe(36);
+  });
 });

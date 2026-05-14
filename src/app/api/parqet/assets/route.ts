@@ -39,6 +39,7 @@ import { loadAssetMetadataByIsin } from "../../../../lib/parqet-assets/metadata"
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 import { resolveAssetDisplay } from "../../../../lib/metadata-utils";
+import { buildGlobalAssetProductReadModelFromActivityContext } from "../../../../lib/parqet/global-assets/coexistence";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
 const ASSETS_API_BUDGET = buildActivityScanBudgetInfo({
@@ -238,6 +239,7 @@ export async function GET(req: Request) {
             activityItems: [],
             message:
               "No Activity snapshot exists for this portfolio scope. Use an explicit Dashboard refresh to load provider data.",
+            globalAssetProductReadModel: null,
             apiBudget: {
               ...ASSETS_API_BUDGET,
               providerCallsMayOccur: false,
@@ -319,6 +321,13 @@ export async function GET(req: Request) {
       );
 
       const consistencyReport = buildConsistencyReport(enrichedAssets);
+      const generatedAt = new Date().toISOString();
+      const globalAssetProductReadModel =
+        buildGlobalAssetProductReadModelFromActivityContext({
+          activityContext,
+          requestedPortfolioIds: portfolioIds,
+          generatedAt,
+        });
 
       return {
         rawActivityCount: activityContext.rawActivityCount,
@@ -330,9 +339,10 @@ export async function GET(req: Request) {
         closedAssets,
         consistencyReport,
         reconciliationWarnings: activityContext.reconciliationWarnings,
-        generatedAt: new Date().toISOString(),
+        generatedAt,
         freshness: activityContext.freshness,
         activityItems: buildActivityItems(activityContext),
+        globalAssetProductReadModel,
         apiBudget: ASSETS_API_BUDGET,
       };
     }

@@ -20,9 +20,12 @@ import {
 import {
   buildDashboardStats,
   isDashboardDataStale,
+  resolveGlobalAssetProductGuardEnabled,
+  selectGuardedDashboardSource,
   sortActiveAssets,
   sortClosedAssets,
 } from "../lib/dashboard-helpers";
+import type { ProductReadModelAssets } from "../lib/parqet/global-assets/product-read-model";
 import type {
   AssetSummary,
   AssetsApiResponse,
@@ -90,6 +93,31 @@ const INITIAL_PORTFOLIO_SCOPE: PortfolioScope = {
   mode: "all",
   selectedPortfolioIds: [],
 };
+const CLOSED_POSITION_EPSILON = 1e-8;
+
+function splitAssetsByPosition(assets: AssetSummary[]): {
+  activeAssets: AssetSummary[];
+  closedAssets: AssetSummary[];
+} {
+  const activeAssets = assets.filter(
+    (asset) => asset.netShares > CLOSED_POSITION_EPSILON,
+  );
+  const closedAssets = assets.filter(
+    (asset) => asset.netShares <= CLOSED_POSITION_EPSILON,
+  );
+
+  return { activeAssets, closedAssets };
+}
+
+function readGlobalAssetProductReadModel(
+  value: unknown,
+): ProductReadModelAssets | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  return value as ProductReadModelAssets;
+}
 
 function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
@@ -194,6 +222,8 @@ export function useDashboardData(): UseDashboardDataResult {
   const [authRequired, setAuthRequired] = useState(false);
   const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
   const assetLoadInFlightRef = useRef(false);
+  const guardedGlobalAssetProductEnabled =
+    resolveGlobalAssetProductGuardEnabled();
 
   function applyAuthState(message?: string, url?: string) {
     setAuthRequired(true);
@@ -276,13 +306,35 @@ export function useDashboardData(): UseDashboardDataResult {
       return;
     }
 
-    setActiveAssets(enrichAssetsWithMetadata(cached.activeAssets ?? []));
-    setClosedAssets(enrichAssetsWithMetadata(cached.closedAssets ?? []));
+    const compatibilityActiveAssets = enrichAssetsWithMetadata(
+      cached.activeAssets ?? [],
+    );
+    const compatibilityClosedAssets = enrichAssetsWithMetadata(
+      cached.closedAssets ?? [],
+    );
+    const compatibilityAssets = [
+      ...compatibilityActiveAssets,
+      ...compatibilityClosedAssets,
+    ];
+    const globalAssetProductReadModel = readGlobalAssetProductReadModel(
+      cached.globalAssetProductReadModel ?? null,
+    );
+    const guardedDashboardSelection = selectGuardedDashboardSource({
+      compatibilityAssets,
+      productReadModel: globalAssetProductReadModel,
+      guardEnabled: guardedGlobalAssetProductEnabled,
+    });
+    const selectedAssets = splitAssetsByPosition(
+      guardedDashboardSelection.assets,
+    );
+
+    setActiveAssets(selectedAssets.activeAssets);
+    setClosedAssets(selectedAssets.closedAssets);
     setRawActivityCount(cached.rawActivityCount ?? 0);
     setFilteredActivityCount(cached.filteredActivityCount ?? 0);
-    setAssetCount(cached.assetCount ?? 0);
-    setActiveAssetCount(cached.activeAssetCount ?? 0);
-    setClosedAssetCount(cached.closedAssetCount ?? 0);
+    setAssetCount(guardedDashboardSelection.assets.length);
+    setActiveAssetCount(selectedAssets.activeAssets.length);
+    setClosedAssetCount(selectedAssets.closedAssets.length);
     setConsistencyReport(cached.consistencyReport ?? null);
     setReconciliationWarnings(cached.reconciliationWarnings ?? []);
     setLastUpdatedAt(cached.lastUpdatedAt ?? null);
@@ -292,7 +344,7 @@ export function useDashboardData(): UseDashboardDataResult {
     if (cached.selectedPortfolioIds?.length) {
       hydratePortfolioSelection(cached.selectedPortfolioIds);
     }
-  }, [hydratePortfolioSelection]);
+  }, [guardedGlobalAssetProductEnabled, hydratePortfolioSelection]);
 
   async function loadAssets() {
     if (assetLoadInFlightRef.current) {
@@ -340,6 +392,21 @@ export function useDashboardData(): UseDashboardDataResult {
       const nextClosedAssets = enrichAssetsWithMetadata(
         data.closedAssets ?? [],
       );
+      const compatibilityAssets = [...nextActiveAssets, ...nextClosedAssets];
+      const dataWithCoexistence = data as AssetsApiResponse & {
+        globalAssetProductReadModel?: unknown;
+      };
+      const globalAssetProductReadModel = readGlobalAssetProductReadModel(
+        dataWithCoexistence.globalAssetProductReadModel ?? null,
+      );
+      const guardedDashboardSelection = selectGuardedDashboardSource({
+        compatibilityAssets,
+        productReadModel: globalAssetProductReadModel,
+        guardEnabled: guardedGlobalAssetProductEnabled,
+      });
+      const selectedAssets = splitAssetsByPosition(
+        guardedDashboardSelection.assets,
+      );
       const nextGeneratedAt = data.generatedAt ?? new Date().toISOString();
 
       const missingMetadataIsins = getMissingMetadataIsins([
@@ -353,13 +420,13 @@ export function useDashboardData(): UseDashboardDataResult {
         data.reconciliationWarnings ?? [],
       );
 
-      setActiveAssets(nextActiveAssets);
-      setClosedAssets(nextClosedAssets);
+      setActiveAssets(selectedAssets.activeAssets);
+      setClosedAssets(selectedAssets.closedAssets);
       setRawActivityCount(data.rawActivityCount ?? 0);
       setFilteredActivityCount(data.filteredActivityCount ?? 0);
-      setAssetCount(data.assetCount ?? 0);
-      setActiveAssetCount(data.activeAssetCount ?? nextActiveAssets.length);
-      setClosedAssetCount(data.closedAssetCount ?? nextClosedAssets.length);
+      setAssetCount(guardedDashboardSelection.assets.length);
+      setActiveAssetCount(selectedAssets.activeAssets.length);
+      setClosedAssetCount(selectedAssets.closedAssets.length);
       setConsistencyReport(data.consistencyReport ?? null);
       setReconciliationWarnings(data.reconciliationWarnings ?? []);
       setLastUpdatedAt(nextGeneratedAt);
@@ -381,6 +448,8 @@ export function useDashboardData(): UseDashboardDataResult {
         selectedPortfolioIds,
         freshness: data.freshness,
         activityItems: data.activityItems ?? [],
+        globalAssetProductReadModel,
+        guardedSourceSelection: guardedDashboardSelection.selection,
       };
 
       saveDashboardCache(cachePayload);
