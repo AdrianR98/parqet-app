@@ -1,4 +1,4 @@
-import { loadDashboardCache } from "./dashboard-cache";
+import { loadDashboardCache, type DashboardCache } from "./dashboard-cache";
 import { createAssetDetailHrefFromParts } from "./asset-detail";
 import { formatCurrency, formatDateTime, formatMonth, formatShares } from "./format";
 import { getMergedAssetMetadataCache } from "./asset-metadata";
@@ -13,6 +13,8 @@ import {
   type ActivitiesTimelinePrmFeatureFlagSelection,
   type ActivitiesTimelineShadowComparisonStatus,
   type ActivitiesTimelineShadowDiagnosticHarness,
+  type ProductReadModelFreshnessState,
+  type ProductReadModelScopeState,
   type ProductReadModelActivitiesTimeline,
 } from "./parqet/global-assets/product-read-model";
 import type {
@@ -166,8 +168,19 @@ function toProjectedActivityDateTime(
 
 function mapProductReadModelItemsToActivitiesAuditItems(
   projected: ProductReadModelActivitiesTimeline,
+  currentItems: ActivitiesAuditItem[],
 ): ActivitiesAuditItem[] {
+  const currentItemsById = new Map(currentItems.map((item) => [item.id, item]));
+
   return projected.items.map((item, index) => {
+    const currentItem = currentItemsById.get(item.activityId);
+
+    if (currentItem) {
+      return {
+        ...currentItem,
+      };
+    }
+
     const datetime = toProjectedActivityDateTime(
       item.datetime,
       item.date,
@@ -215,6 +228,221 @@ function mapActivitiesAuditItemsToSelectorInput(items: ActivitiesAuditItem[]) {
   }));
 }
 
+function resolveLocalPrmFreshnessState(
+  freshness: SnapshotFreshness | null | undefined,
+): ProductReadModelFreshnessState | null {
+  if (!freshness || freshness.status === "missing" || freshness.source === "none") {
+    return null;
+  }
+
+  if (freshness.stale || freshness.status === "stale" || freshness.status === "refresh_failed") {
+    return "stale";
+  }
+
+  if (freshness.status === "fresh") {
+    return "fresh";
+  }
+
+  return null;
+}
+
+function resolveLocalPrmScopeState(
+  scope: PortfolioScope,
+  loadedPortfolioIds: string[],
+): ProductReadModelScopeState {
+  if (scope.mode !== "manual") {
+    return loadedPortfolioIds.length > 0 ? "scope_match" : "scope_unknown";
+  }
+
+  const selectedPortfolioIds = unique(scope.selectedPortfolioIds);
+
+  if (selectedPortfolioIds.length === 0) {
+    return "scope_unknown";
+  }
+
+  if (loadedPortfolioIds.length === 0) {
+    return "scope_missing";
+  }
+
+  const loadedPortfolioIdSet = new Set(loadedPortfolioIds);
+  return selectedPortfolioIds.every((id) => loadedPortfolioIdSet.has(id))
+    ? "scope_match"
+    : "scope_missing";
+}
+
+function toLocalPrmActivityType(
+  type: AuditActivityType,
+): ProductReadModelActivitiesTimeline["items"][number]["activityType"] {
+  switch (type) {
+    case "buy":
+    case "sell":
+    case "dividend":
+    case "transfer_in":
+    case "transfer_out":
+      return type;
+    default:
+      return "unknown";
+  }
+}
+
+function toLocalPrmAssetKey(
+  item: ActivitiesAuditItem,
+): ProductReadModelActivitiesTimeline["items"][number]["assetKey"] {
+  const normalizedIsin = item.isin.trim();
+
+  if (normalizedIsin) {
+    return {
+      type: "isin",
+      value: normalizedIsin,
+    };
+  }
+
+  const normalizedWkn = item.wkn?.trim();
+
+  if (normalizedWkn) {
+    return {
+      type: "wkn",
+      value: normalizedWkn,
+    };
+  }
+
+  return null;
+}
+
+export function buildLocalActivitiesTimelinePrmProjection(
+  cache: DashboardCache | null,
+  scope: PortfolioScope,
+): ProductReadModelActivitiesTimeline | null {
+  if (!cache) {
+    return null;
+  }
+
+  const currentItems = cache.activityItems ?? [];
+
+  if (currentItems.length === 0) {
+    return null;
+  }
+
+  const freshnessState = resolveLocalPrmFreshnessState(cache.freshness);
+
+  if (!freshnessState) {
+    return null;
+  }
+
+  const generatedAt =
+    cache.lastUpdatedAt ?? cache.generatedAt ?? cache.freshness?.updatedAt ?? cache.freshness?.loadedAt;
+
+  if (!generatedAt) {
+    return null;
+  }
+
+  const itemPortfolioIds = unique(
+    currentItems.flatMap((item) => (item.portfolioId ? [item.portfolioId] : [])),
+  );
+  const loadedPortfolioIds = unique([...(cache.selectedPortfolioIds ?? []), ...itemPortfolioIds]);
+  const selectedPortfolioIds =
+    scope.mode === "manual" ? unique(scope.selectedPortfolioIds) : loadedPortfolioIds;
+  const scopeState = resolveLocalPrmScopeState(scope, loadedPortfolioIds);
+  const metadataWarnings: ProductReadModelActivitiesTimeline["metadata"]["warnings"] = [];
+
+  if (freshnessState === "stale") {
+    metadataWarnings.push({
+      code: "LOCAL_ACTIVITY_TIMELINE_STALE",
+      severity: "Warning",
+      source: "local_projection",
+      blockedMetrics: [],
+    });
+  }
+
+  if (scopeState === "scope_missing" || scopeState === "scope_unknown") {
+    metadataWarnings.push({
+      code: "LOCAL_ACTIVITY_TIMELINE_SCOPE_MISMATCH",
+      severity: "Warning",
+      source: "local_projection",
+      blockedMetrics: [],
+    });
+  }
+
+  const valueClassificationCounts = {
+    provider_reference: 0,
+    app_calculated: 0,
+    estimated: 0,
+    preliminary: 0,
+    blocked: 0,
+    none: 0,
+  } as ProductReadModelActivitiesTimeline["summary"]["valueClassificationCounts"];
+
+  const items = currentItems.map((item) => {
+    const warningCodes = Array.from(
+      new Set((item.warningMessages ?? []).map((warning) => warning.trim()).filter(Boolean)),
+    );
+    const warnings = warningCodes.map((warningCode) => ({
+      code: warningCode,
+      severity: "Warning" as const,
+      source: "local_projection",
+      blockedMetrics: [],
+    }));
+    const valueClassification: ProductReadModelActivitiesTimeline["items"][number]["valueClassification"] =
+      warnings.length > 0 ? "preliminary" : "app_calculated";
+    const confidence: ProductReadModelActivitiesTimeline["items"][number]["confidence"] =
+      warnings.length > 0 ? "medium" : "high";
+
+    valueClassificationCounts[valueClassification] += 1;
+
+    return {
+      activityId: item.id,
+      activityType: toLocalPrmActivityType(item.type),
+      displayType: toLocalPrmActivityType(item.type),
+      datetime: item.datetime ?? null,
+      date: item.datetime ? item.datetime.slice(0, 10) : null,
+      assetKey: toLocalPrmAssetKey(item),
+      portfolioId: item.portfolioId ?? "unknown_portfolio",
+      warnings,
+      blockedMetrics: [],
+      confidence,
+      valueClassification,
+    };
+  });
+
+  const warningItemCount = items.filter((item) => item.warnings.length > 0).length;
+
+  return {
+    metadata: {
+      readModelId: `local-activities-timeline-prm:${generatedAt}`,
+      snapshotId: cache.freshness?.scope?.fingerprint ?? null,
+      generatedAt,
+      sourceType:
+        cache.freshness?.source === "snapshot"
+          ? "local_snapshot"
+          : cache.freshness?.source === "local_derived"
+            ? "local_derived"
+            : cache.freshness?.source === "provider"
+              ? "provider"
+              : cache.freshness?.source === "none"
+                ? "none"
+                : "derived",
+      sourceScope: scope.mode === "manual" ? "selected_portfolios" : "global",
+      freshnessAt: cache.freshness?.updatedAt ?? cache.freshness?.loadedAt ?? generatedAt,
+      freshnessState,
+      scopeState,
+      selectedPortfolioIds,
+      confidence: metadataWarnings.length > 0 ? "medium" : "high",
+      warnings: metadataWarnings,
+      blockedMetrics: [],
+      valueClassification: metadataWarnings.length > 0 ? "preliminary" : "app_calculated",
+      providerRequestCount: 0,
+    },
+    items,
+    summary: {
+      itemCount: items.length,
+      warningItemCount,
+      blockerWarningCount: 0,
+      blockedMetricItemCount: 0,
+      valueClassificationCounts,
+    },
+  };
+}
+
 function getDefaultActivitiesTimelinePrmSelection(): ActivitiesTimelinePrmFeatureFlagSelection {
   return selectActivitiesTimelinePrmFeatureFlagSource({
     currentItems: [],
@@ -236,7 +464,7 @@ export function selectLocalActivitiesTimelineSource(
 
   if (selection.selectedSource === "productReadModel" && input.projected) {
     return {
-      items: mapProductReadModelItemsToActivitiesAuditItems(input.projected),
+      items: mapProductReadModelItemsToActivitiesAuditItems(input.projected, input.currentItems),
       selection,
     };
   }
@@ -382,15 +610,17 @@ function hydrateActivityMetadata(items: ActivitiesAuditItem[]): ActivitiesAuditI
 
 export function loadLocalActivityReadModel(): LocalActivityReadModel {
   const cache = loadDashboardCache();
+  const scope = loadPortfolioScope();
+  const projected = buildLocalActivitiesTimelinePrmProjection(cache, scope);
   const featureFlagEnabled = resolveActivitiesTimelinePrmFeatureFlagEnabled();
   const sourceSelection = selectLocalActivitiesTimelineSource({
     currentItems: cache?.activityItems ?? [],
+    projected,
     featureFlagEnabled,
   });
   const items = hydrateActivityMetadata(sourceSelection.items);
   const loadedPortfolioIds = cache?.selectedPortfolioIds ?? [];
   const portfolios = buildPortfoliosFromItems(items, loadedPortfolioIds);
-  const scope = loadPortfolioScope();
   const scopeResolution = resolveLocalScope(scope, portfolios, items, loadedPortfolioIds);
   const source: LocalActivitySource = !cache
     ? "none"
