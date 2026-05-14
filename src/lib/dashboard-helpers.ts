@@ -9,6 +9,17 @@ import {
     type GuardedSourceSelection,
 } from "./parqet/global-assets/product-surface-selectors";
 
+export function resolveGlobalAssetProductGuardEnabled(rawValue?: string): boolean {
+    const value = rawValue ?? process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED;
+
+    if (!value) {
+        return false;
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+    return normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on";
+}
+
 /**
  * Baut die zentralen Dashboard-Kennzahlen aus aktiven und geschlossenen Assets.
  *

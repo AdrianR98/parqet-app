@@ -12,6 +12,7 @@ import {
     selectGuardedProductSurfaceSource,
     type GuardedSourceSelection,
 } from "./parqet/global-assets/product-surface-selectors";
+import { resolveGlobalAssetProductGuardEnabled } from "./dashboard-helpers";
 
 export type ReportAssetRow = {
     name: string;
@@ -62,22 +63,6 @@ export type LocalReportModel = {
         closedAssets: number;
     };
 };
-
-function resolveGlobalAssetProductGuardEnabled(): boolean {
-    const rawValue = process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED;
-
-    if (!rawValue) {
-        return false;
-    }
-
-    const normalizedValue = rawValue.trim().toLowerCase();
-
-    if (normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on") {
-        return true;
-    }
-
-    return false;
-}
 
 function unique(values: string[]): string[] {
     return Array.from(new Set(values.filter(Boolean)));

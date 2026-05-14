@@ -8,9 +8,12 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added real app-flow Global Asset coexistence cache population in `/api/parqet/assets` from existing explicit-load activity context (snapshot/provider context reuse only) with zero additional hidden provider/API requests.
+- Added a pure Global Asset coexistence bridge module to build optional product read models with guarded freshness/scope metadata from existing activity-context data.
 - Added guarded Global Asset product read-model projection for Dashboard/AssetTable/Reports with source/freshness/scope/confidence/warnings/blocked-metrics/value-classification metadata and count-safe old/new comparison evidence helpers.
 - Added optional browser-local Dashboard cache coexistence slots and diagnostics for compatibility + guarded Global Asset product-read-model usage without destructive cache migration.
 - Added synthetic pipeline coverage for guarded Dashboard/AssetTable/Reports selection readiness, blocked valuation/performance fallback handling and guarded report-source integration.
+- Added synthetic pipeline coverage for coexistence cache population and compatibility fallback behavior when product-read-model cache data is missing or stale.
 - Added pure snapshot/scope/price-source readiness helper/test coverage from #282/#283 for `stale_snapshot`, `scope_missing`, `scope_unknown` and `price_source_missing` using synthetic, provider-call-free pipeline tests.
 - Added DP-12 synthetic fixture and audit-validation strategy documentation for privacy-safe pure pipeline fixture categories, expected audit assertions, redacted/count-only local real-data validation and test-tooling follow-up boundaries.
 - Added DP-11 product read-model and migration-gate policy documentation for UI-safe read-model fields, first migration candidate criteria, old/new comparison evidence, rollback expectations and no-hidden-provider-call route migration gates.
@@ -74,6 +77,8 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Changed
 
+- Dashboard explicit-load/cache-hydration flow now applies guarded Global Asset source selection in real app flow while preserving compatibility-default behavior and rollback via env flag.
+- Reports guarded source selection now consumes real coexistence cache data populated by the explicit assets load flow and keeps compatibility fallback for stale/scope-mismatch/missing product data.
 - Dashboard and AssetTable helper layer now includes guarded source selectors that can consume Global Asset product rows when explicitly enabled and ready, while preserving compatibility fallback behavior for blocked or unsupported metrics.
 - Reports read-model helper now includes guarded source selection and compatibility-safe fallback/block behavior for unsupported valuation/performance metrics, with compatibility-first default behavior unchanged.
 - Stabilized the Activities/Timeline local PRM migration package with stronger synthetic route-smoke visible-content assertions plus explicit rollback (`off`/`false`/`0`), missing-freshness and empty-state fallback boundary coverage, while keeping provider/API-call behavior unchanged.
