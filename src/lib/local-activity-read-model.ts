@@ -168,8 +168,19 @@ function toProjectedActivityDateTime(
 
 function mapProductReadModelItemsToActivitiesAuditItems(
   projected: ProductReadModelActivitiesTimeline,
+  currentItems: ActivitiesAuditItem[],
 ): ActivitiesAuditItem[] {
+  const currentItemsById = new Map(currentItems.map((item) => [item.id, item]));
+
   return projected.items.map((item, index) => {
+    const currentItem = currentItemsById.get(item.activityId);
+
+    if (currentItem) {
+      return {
+        ...currentItem,
+      };
+    }
+
     const datetime = toProjectedActivityDateTime(
       item.datetime,
       item.date,
@@ -453,7 +464,7 @@ export function selectLocalActivitiesTimelineSource(
 
   if (selection.selectedSource === "productReadModel" && input.projected) {
     return {
-      items: mapProductReadModelItemsToActivitiesAuditItems(input.projected),
+      items: mapProductReadModelItemsToActivitiesAuditItems(input.projected, input.currentItems),
       selection,
     };
   }

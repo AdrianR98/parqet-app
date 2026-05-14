@@ -149,8 +149,27 @@ describe("local activity read-model PRM selection bridge", () => {
 
   it("selects PRM items only when enabled and projected evidence is ready", () => {
     const currentItems = [
-      createCurrentActivityItem({ id: "current-1", type: "buy" }),
-      createCurrentActivityItem({ id: "current-2", type: "sell", rawType: "sell" }),
+      createCurrentActivityItem({
+        id: "source:prm-ready-1",
+        type: "buy",
+        shares: 7,
+        price: 123.45,
+        amount: 864.15,
+        amountNet: 860.15,
+        portfolioName: "Portfolio Preserve A",
+        name: "Preserved Asset A",
+      }),
+      createCurrentActivityItem({
+        id: "source:prm-ready-2",
+        type: "sell",
+        rawType: "sell",
+        shares: 3,
+        price: 222.2,
+        amount: 666.6,
+        amountNet: 650.6,
+        portfolioName: "Portfolio Preserve B",
+        name: "Preserved Asset B",
+      }),
     ];
     const { aggregation } = runGlobalAssetPipeline([
       createSyntheticActivity({
@@ -185,7 +204,12 @@ describe("local activity read-model PRM selection bridge", () => {
     expect(result.selection.selectedSource).toBe("productReadModel");
     expect(result.selection.reason).toBe("diagnostic_ready");
     expect(result.items).toHaveLength(projected.summary.itemCount);
-    expect(result.items[0]?.id).toBe(projected.items[0]?.activityId);
+    expect(result.items[0]?.id).toBe("source:prm-ready-1");
+    expect(result.items[0]?.shares).toBe(7);
+    expect(result.items[0]?.price).toBe(123.45);
+    expect(result.items[0]?.amount).toBe(864.15);
+    expect(result.items[0]?.portfolioName).toBe("Portfolio Preserve A");
+    expect(result.items[0]?.name).toBe("Preserved Asset A");
   });
 
   it("falls back to activityItems for missing, stale, scope mismatch and unavailable evidence", () => {
@@ -265,9 +289,25 @@ describe("loadLocalActivityReadModel PRM projection boundary", () => {
 
   it("selects PRM items when explicitly enabled and local projected evidence is ready", () => {
     process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG = "true";
+    const preservedItem = createCurrentActivityItem({
+      id: "current-activity-1",
+      shares: 9,
+      price: 222.22,
+      amount: 1999.98,
+      amountNet: 1989.98,
+      portfolioName: "Portfolio Preserve Local",
+      name: "Preserved Local Asset",
+      note: "synthetic note",
+      fee: 5.5,
+      tax: 2.2,
+    });
 
     installWindowWithLocalStorage({
-      [DASHBOARD_CACHE_KEY]: JSON.stringify(buildDashboardCacheForLocalProjection()),
+      [DASHBOARD_CACHE_KEY]: JSON.stringify(
+        buildDashboardCacheForLocalProjection({
+          activityItems: [preservedItem],
+        }),
+      ),
     });
 
     const model = loadLocalActivityReadModel();
@@ -277,6 +317,12 @@ describe("loadLocalActivityReadModel PRM projection boundary", () => {
     expect(model.activitiesTimelinePrmSelection.diagnostic.status).toBe("ready");
     expect(model.items).toHaveLength(1);
     expect(model.items[0]?.id).toBe("current-activity-1");
+    expect(model.items[0]?.shares).toBe(9);
+    expect(model.items[0]?.price).toBe(222.22);
+    expect(model.items[0]?.amount).toBe(1999.98);
+    expect(model.items[0]?.amountNet).toBe(1989.98);
+    expect(model.items[0]?.portfolioName).toBe("Portfolio Preserve Local");
+    expect(model.items[0]?.name).toBe("Preserved Local Asset");
   });
 
   it("falls back to activityItems for missing, stale and scope-mismatch local projection evidence", () => {
