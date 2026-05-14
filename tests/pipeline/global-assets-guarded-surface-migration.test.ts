@@ -11,6 +11,7 @@ import {
 import {
   selectGuardedAssetTableSource,
   selectGuardedDashboardSource,
+  resolveGlobalAssetProductGuardEnabled,
 } from "../../src/lib/dashboard-helpers";
 import { loadLocalReportModel } from "../../src/lib/reporting";
 import { DASHBOARD_CACHE_KEY } from "../../src/lib/dashboard-cache";
@@ -236,6 +237,16 @@ afterEach(() => {
 });
 
 describe("guarded global-asset product migration selectors", () => {
+  it("defaults to safe guarded mode and supports explicit rollback values", () => {
+    expect(resolveGlobalAssetProductGuardEnabled()).toBe(true);
+    expect(resolveGlobalAssetProductGuardEnabled("true")).toBe(true);
+    expect(resolveGlobalAssetProductGuardEnabled("on")).toBe(true);
+    expect(resolveGlobalAssetProductGuardEnabled("1")).toBe(true);
+    expect(resolveGlobalAssetProductGuardEnabled("false")).toBe(false);
+    expect(resolveGlobalAssetProductGuardEnabled("off")).toBe(false);
+    expect(resolveGlobalAssetProductGuardEnabled("0")).toBe(false);
+  });
+
   it("projects dashboard/report-ready asset rows with metadata and safe blocked-metric semantics", () => {
     const projected = buildProjectedProductReadModel();
 
@@ -322,39 +333,117 @@ describe("guarded global-asset product migration selectors", () => {
     expect(readySelection.reason).toBe("product_read_model_ready");
   });
 
-  it("keeps valuation/performance fallbacks honest when guarded rows block those metrics", () => {
+  it("keeps valuation/performance and transfer-sensitive fields compatibility-backed while using safe product identity fields", () => {
     const projected = buildProjectedProductReadModel();
+    const projectedWithForcedValuationValues = {
+      ...projected,
+      assets: projected.assets.map((asset) =>
+        asset.identity.compatibilityIsin === "DEMO00000011"
+          ? {
+              ...asset,
+              display: {
+                ...asset.display,
+                displayName: "Guarded Product Asset",
+                symbol: "GPA",
+                wkn: "WKNGPA1",
+              },
+              quantity: 999,
+              marketValue: {
+                ...asset.marketValue,
+                amount: 999_999,
+                currency: "EUR",
+              },
+              costBasis: {
+                ...asset.costBasis,
+                amount: 888_888,
+                currency: "EUR",
+              },
+              unrealizedPnL: {
+                ...asset.unrealizedPnL,
+                amount: 777_777,
+                currency: "EUR",
+              },
+              portfolioBreakdown: asset.portfolioBreakdown.map((entry, index) => ({
+                ...entry,
+                portfolioName:
+                  index === 0 ? "Guarded Portfolio One" : "Guarded Portfolio Two",
+                quantity: 444,
+                marketValue: {
+                  ...entry.marketValue,
+                  amount: 444_444,
+                  currency: "EUR",
+                },
+                costBasis: {
+                  ...entry.costBasis,
+                  amount: 333_333,
+                  currency: "EUR",
+                },
+                unrealizedPnL: {
+                  ...entry.unrealizedPnL,
+                  amount: 222_222,
+                  currency: "EUR",
+                },
+              })),
+            }
+          : asset,
+      ),
+    };
     const compatibilityAssets = createCompatibilityAssetsFixture();
     const fallbackRows = buildCompatibilityAssetSummariesFromGuardedRows({
-      productReadModel: projected,
+      productReadModel: projectedWithForcedValuationValues,
       compatibilityAssets,
     });
     const dashboardSelection = selectGuardedDashboardSource({
       compatibilityAssets,
-      productReadModel: projected,
+      productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
     });
     const assetTableSelection = selectGuardedAssetTableSource({
       compatibilityAssets,
-      productReadModel: projected,
+      productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
     });
 
+    expect(fallbackRows[0]?.name).toBe("Guarded Product Asset");
+    expect(fallbackRows[0]?.portfolioBreakdown[0]?.portfolioName).toBe(
+      "Guarded Portfolio One",
+    );
     expect(fallbackRows[0]?.positionValue).toBe(336);
     expect(fallbackRows[0]?.unrealizedPnL).toBe(36);
     expect(fallbackRows[0]?.netShares).toBe(3);
+    expect(fallbackRows[0]?.remainingCostBasis).toBe(300);
+    expect(fallbackRows[0]?.avgBuyPrice).toBe(100);
+    expect(fallbackRows[0]?.portfolioBreakdown[0]?.positionValue).toBe(336);
+    expect(fallbackRows[0]?.portfolioBreakdown[0]?.unrealizedPnL).toBe(36);
+    expect(fallbackRows[0]?.portfolioBreakdown[0]?.netShares).toBe(3);
     expect(dashboardSelection.selection.selectedSource).toBe("global_asset_product");
     expect(assetTableSelection.selection.selectedSource).toBe("global_asset_product");
     expect(dashboardSelection.selection.fallbackFields).toContain("position_value");
     expect(dashboardSelection.selection.fallbackFields).toContain("unrealized_pnl");
+    expect(dashboardSelection.selection.fallbackFields).toContain("remaining_cost_basis");
+    expect(dashboardSelection.selection.fallbackFields).toContain("avg_buy_price");
+    expect(dashboardSelection.selection.fallbackFields).toContain("net_shares");
   });
 });
 
 describe("reports guarded source integration", () => {
-  it("uses guarded reports source when local coexistence cache is ready and enabled", () => {
-    process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED = "true";
+  it("uses guarded reports source by default when local coexistence cache is ready", () => {
     const projected = buildProjectedProductReadModel();
     const compatibilityAssets = createCompatibilityAssetsFixture();
+    const projectedWithSafeIdentity = {
+      ...projected,
+      assets: projected.assets.map((asset) =>
+        asset.identity.compatibilityIsin === "DEMO00000011"
+          ? {
+              ...asset,
+              display: {
+                ...asset.display,
+                displayName: "Guarded Report Asset",
+              },
+            }
+          : asset,
+      ),
+    };
 
     installWindowWithLocalStorage({
       [DASHBOARD_CACHE_KEY]: JSON.stringify({
@@ -385,7 +474,7 @@ describe("reports guarded source integration", () => {
           lastRefreshErrorCategory: null,
         },
         activityItems: [],
-        globalAssetProductReadModel: projected,
+        globalAssetProductReadModel: projectedWithSafeIdentity,
       }),
     });
 
@@ -394,6 +483,7 @@ describe("reports guarded source integration", () => {
     expect(report).not.toBeNull();
     expect(report?.guardedSelection.selectedSource).toBe("global_asset_product");
     expect(report?.guardedSelection.reason).toBe("product_read_model_ready");
+    expect(report?.assets[0]?.name).toBe("Guarded Report Asset");
     expect(report?.assets.length).toBe(2);
     expect(report?.totals.totalPositionValue).toBe(336);
     expect(report?.totals.totalUnrealizedPnL).toBe(36);
@@ -498,4 +588,54 @@ describe("reports guarded source integration", () => {
     expect(report?.totals.totalPositionValue).toBe(336);
     expect(report?.totals.totalUnrealizedPnL).toBe(36);
   });
+
+  it.each(["false", "off", "0"])(
+    "supports rollback by forcing compatibility report source when guard flag is %s",
+    (rawFlagValue) => {
+      process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED = rawFlagValue;
+      const projected = buildProjectedProductReadModel();
+      const compatibilityAssets = createCompatibilityAssetsFixture();
+
+      installWindowWithLocalStorage({
+        [DASHBOARD_CACHE_KEY]: JSON.stringify({
+          activeAssets: compatibilityAssets.filter((asset) => asset.netShares > 0),
+          closedAssets: compatibilityAssets.filter((asset) => asset.netShares === 0),
+          rawActivityCount: 5,
+          filteredActivityCount: 5,
+          assetCount: 2,
+          activeAssetCount: 1,
+          closedAssetCount: 1,
+          consistencyReport: null,
+          reconciliationWarnings: [],
+          generatedAt: "2026-05-14T09:00:00.000Z",
+          lastUpdatedAt: "2026-05-14T09:00:00.000Z",
+          selectedPortfolioIds: ["portfolio_demo_1", "portfolio_demo_2"],
+          freshness: {
+            present: true,
+            loadedAt: "2026-05-14T08:30:00.000Z",
+            updatedAt: "2026-05-14T09:00:00.000Z",
+            status: "fresh",
+            source: "snapshot",
+            refreshStatus: "refreshed",
+            stale: false,
+            scope: {
+              portfolioCount: 2,
+              fingerprint: "synthetic-fingerprint",
+            },
+            lastRefreshErrorCategory: null,
+          },
+          activityItems: [],
+          globalAssetProductReadModel: projected,
+        }),
+      });
+
+      const report = loadLocalReportModel();
+
+      expect(report).not.toBeNull();
+      expect(report?.guardedSelection.selectedSource).toBe("compatibility");
+      expect(report?.guardedSelection.reason).toBe("guard_not_enabled");
+      expect(report?.totals.totalPositionValue).toBe(336);
+      expect(report?.totals.totalUnrealizedPnL).toBe(36);
+    },
+  );
 });
