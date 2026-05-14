@@ -2,6 +2,12 @@
 
 import type { AssetSummary, DashboardStats } from "./types";
 import { FIVE_DAYS_MS } from "./dashboard-cache";
+import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
+import {
+    buildCompatibilityAssetSummariesFromGuardedRows,
+    selectGuardedProductSurfaceSource,
+    type GuardedSourceSelection,
+} from "./parqet/global-assets/product-surface-selectors";
 
 /**
  * Baut die zentralen Dashboard-Kennzahlen aus aktiven und geschlossenen Assets.
@@ -99,4 +105,65 @@ export function isDashboardDataStale(lastUpdatedAt: string | null): boolean {
 
     const age = Date.now() - new Date(lastUpdatedAt).getTime();
     return age > FIVE_DAYS_MS;
+}
+
+export type GuardedDashboardSourceSelection = {
+    selection: GuardedSourceSelection;
+    assets: AssetSummary[];
+};
+
+export function selectGuardedDashboardSource(input: {
+    compatibilityAssets: AssetSummary[];
+    productReadModel?: ProductReadModelAssets | null;
+    guardEnabled: boolean;
+}): GuardedDashboardSourceSelection {
+    const selection = selectGuardedProductSurfaceSource({
+        surface: "dashboard",
+        compatibilityAssets: input.compatibilityAssets,
+        productReadModel: input.productReadModel,
+        guardEnabled: input.guardEnabled,
+    });
+
+    if (selection.selectedSource === "global_asset_product" && input.productReadModel) {
+        return {
+            selection,
+            assets: buildCompatibilityAssetSummariesFromGuardedRows({
+                productReadModel: input.productReadModel,
+                compatibilityAssets: input.compatibilityAssets,
+            }),
+        };
+    }
+
+    return {
+        selection,
+        assets: input.compatibilityAssets,
+    };
+}
+
+export function selectGuardedAssetTableSource(input: {
+    compatibilityAssets: AssetSummary[];
+    productReadModel?: ProductReadModelAssets | null;
+    guardEnabled: boolean;
+}): GuardedDashboardSourceSelection {
+    const selection = selectGuardedProductSurfaceSource({
+        surface: "asset_table",
+        compatibilityAssets: input.compatibilityAssets,
+        productReadModel: input.productReadModel,
+        guardEnabled: input.guardEnabled,
+    });
+
+    if (selection.selectedSource === "global_asset_product" && input.productReadModel) {
+        return {
+            selection,
+            assets: buildCompatibilityAssetSummariesFromGuardedRows({
+                productReadModel: input.productReadModel,
+                compatibilityAssets: input.compatibilityAssets,
+            }),
+        };
+    }
+
+    return {
+        selection,
+        assets: input.compatibilityAssets,
+    };
 }
