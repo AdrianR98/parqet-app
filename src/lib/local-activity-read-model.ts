@@ -106,11 +106,20 @@ function resolveActivitiesTimelinePrmFeatureFlagEnabled(): boolean {
   const rawValue = process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG;
 
   if (!rawValue) {
-    return false;
+    return true;
   }
 
   const normalizedValue = rawValue.trim().toLowerCase();
-  return normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on";
+
+  if (normalizedValue === "0" || normalizedValue === "false" || normalizedValue === "off") {
+    return false;
+  }
+
+  if (normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on") {
+    return true;
+  }
+
+  return true;
 }
 
 function toAuditActivityType(type: string): AuditActivityType {

@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  filterActivities,
+  groupProjectedActivities,
   loadLocalActivityReadModel,
+  projectActivity,
   selectLocalActivitiesTimelineSource,
+  sortActivities,
 } from "../../src/lib/local-activity-read-model";
 import { projectActivitiesTimelineProductReadModel } from "../../src/lib/parqet/global-assets/product-read-model";
 import { createSyntheticActivity, runGlobalAssetPipeline } from "./global-assets-test-helpers";
@@ -29,6 +33,9 @@ function createCurrentActivityItem(partial?: Partial<ActivitiesAuditItem>): Acti
     price: partial?.price ?? 10,
     amount: partial?.amount ?? 10,
     amountNet: partial?.amountNet ?? 10,
+    fee: partial?.fee ?? null,
+    tax: partial?.tax ?? null,
+    note: partial?.note ?? null,
     warningMessages: partial?.warningMessages ?? [],
     hasOverrides: partial?.hasOverrides ?? false,
     overrideCount: partial?.overrideCount ?? 0,
@@ -273,7 +280,8 @@ describe("local activity read-model PRM selection bridge", () => {
 });
 
 describe("loadLocalActivityReadModel PRM projection boundary", () => {
-  it("keeps activityItems as default source when projection is present but the feature flag is off", () => {
+  it("supports rollback/disable by forcing activityItems when the feature flag is explicitly off", () => {
+    process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG = "off";
     installWindowWithLocalStorage({
       [DASHBOARD_CACHE_KEY]: JSON.stringify(buildDashboardCacheForLocalProjection()),
     });
@@ -287,8 +295,7 @@ describe("loadLocalActivityReadModel PRM projection boundary", () => {
     expect(model.items[0]?.id).toBe("current-activity-1");
   });
 
-  it("selects PRM items when explicitly enabled and local projected evidence is ready", () => {
-    process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG = "true";
+  it("selects PRM items by default when local projected evidence is ready", () => {
     const preservedItem = createCurrentActivityItem({
       id: "current-activity-1",
       shares: 9,
@@ -326,8 +333,6 @@ describe("loadLocalActivityReadModel PRM projection boundary", () => {
   });
 
   it("falls back to activityItems for missing, stale and scope-mismatch local projection evidence", () => {
-    process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG = "true";
-
     installWindowWithLocalStorage();
     const missingProjection = loadLocalActivityReadModel();
 
@@ -363,5 +368,174 @@ describe("loadLocalActivityReadModel PRM projection boundary", () => {
     expect(scopeMismatchProjection.activitiesTimelinePrmSelection.reason).toBe(
       "diagnostic_scope_mismatch",
     );
+  });
+});
+
+describe("PRM-selected local helper parity", () => {
+  function loadPrmSelectedModel() {
+    installWindowWithLocalStorage({
+      [DASHBOARD_CACHE_KEY]: JSON.stringify(
+        buildDashboardCacheForLocalProjection({
+          selectedPortfolioIds: ["portfolio_current_1", "portfolio_current_2"],
+          activityItems: [
+            createCurrentActivityItem({
+              id: "activity-zeta",
+              datetime: "2026-05-10T10:00:00.000Z",
+              monthKey: "2026-05",
+              monthLabel: "Mai 2026",
+              portfolioId: "portfolio_current_1",
+              portfolioName: "Portfolio Zeta",
+              isin: "DEMO00000510",
+              name: "Zeta Asset",
+              symbol: "ZETA",
+              wkn: "WKNZETA1",
+              type: "buy",
+              shares: 12,
+              price: 123.45,
+              amount: 1481.4,
+              amountNet: 1471.4,
+              fee: 7.5,
+              tax: 2.25,
+              note: "Synthetic note",
+              warningMessages: ["warning.synthetic.zeta"],
+              hasOverrides: true,
+              overrideCount: 1,
+              overrideFlags: { amount: true },
+            }),
+            createCurrentActivityItem({
+              id: "activity-alpha",
+              datetime: "2026-04-09T10:00:00.000Z",
+              monthKey: "2026-04",
+              monthLabel: "April 2026",
+              portfolioId: "portfolio_current_2",
+              portfolioName: "Portfolio Alpha",
+              isin: "DEMO00000409",
+              name: "Alpha Asset",
+              symbol: "ALPHA",
+              wkn: "WKNALPH1",
+              type: "sell",
+              shares: 5,
+              price: 60,
+              amount: 300,
+              amountNet: 290,
+              fee: 3,
+              tax: 1.5,
+              note: null,
+              warningMessages: [],
+              hasOverrides: false,
+              overrideCount: 0,
+              overrideFlags: {},
+            }),
+            createCurrentActivityItem({
+              id: "activity-beta",
+              datetime: "2026-05-15T10:00:00.000Z",
+              monthKey: "2026-05",
+              monthLabel: "Mai 2026",
+              portfolioId: "portfolio_current_1",
+              portfolioName: "Portfolio Zeta",
+              isin: "DEMO00000515",
+              name: "Beta Asset",
+              symbol: "BETA",
+              wkn: "WKNBETA1",
+              type: "dividend",
+              shares: 1,
+              price: 0,
+              amount: 50,
+              amountNet: 49,
+              fee: null,
+              tax: 0.4,
+              note: "Dividend note",
+              warningMessages: [],
+              hasOverrides: false,
+              overrideCount: 0,
+              overrideFlags: {},
+            }),
+          ],
+        }),
+      ),
+    });
+
+    return loadLocalActivityReadModel();
+  }
+
+  it("keeps representative visible values in projectActivity output when PRM is selected", () => {
+    const model = loadPrmSelectedModel();
+
+    expect(model.activitiesTimelinePrmSelection.selectedSource).toBe("productReadModel");
+    expect(model.activitiesTimelinePrmSelection.reason).toBe("diagnostic_ready");
+
+    const projected = projectActivity(model.items[0]!);
+
+    expect(projected.assetLabel).toBe("Zeta Asset");
+    expect(projected.portfolioLabel).toBe("Portfolio Zeta");
+    expect(projected.sharesLabel).toBe("12");
+    expect(projected.priceLabel).toMatch(/123,45.*€/);
+    expect(projected.amountLabel).toMatch(/1\.481,40.*€/);
+    expect(projected.amountNetLabel).toMatch(/1\.471,40.*€/);
+    expect(projected.feeLabel).toMatch(/7,50.*€/);
+    expect(projected.taxLabel).toMatch(/2,25.*€/);
+    expect(projected.noteLabel).toBe("Synthetic note");
+    expect(projected.hasWarnings).toBe(true);
+    expect(projected.warningMessages).toEqual(["warning.synthetic.zeta"]);
+    expect(projected.overrideLabel).toBe("1 Override");
+  });
+
+  it("keeps warnings-only and overrides-only filtering stable when PRM is selected", () => {
+    const model = loadPrmSelectedModel();
+
+    const warningsOnly = filterActivities(model.items, {
+      portfolioIds: model.scopedPortfolioIds,
+      query: "",
+      types: ["buy", "sell", "dividend", "transfer_in", "transfer_out", "unknown"],
+      dateFrom: "",
+      dateTo: "",
+      warningsOnly: true,
+      overridesOnly: false,
+    });
+    const overridesOnly = filterActivities(model.items, {
+      portfolioIds: model.scopedPortfolioIds,
+      query: "",
+      types: ["buy", "sell", "dividend", "transfer_in", "transfer_out", "unknown"],
+      dateFrom: "",
+      dateTo: "",
+      warningsOnly: false,
+      overridesOnly: true,
+    });
+
+    expect(warningsOnly.map((item) => item.id)).toEqual(["activity-zeta"]);
+    expect(overridesOnly.map((item) => item.id)).toEqual(["activity-zeta"]);
+  });
+
+  it("keeps date/asset/amount sorting representative when PRM is selected", () => {
+    const model = loadPrmSelectedModel();
+
+    const byDateDesc = sortActivities(model.items, {
+      key: "date",
+      direction: "desc",
+    });
+    const byAssetAsc = sortActivities(model.items, {
+      key: "asset",
+      direction: "asc",
+    });
+    const byAmountDesc = sortActivities(model.items, {
+      key: "amount",
+      direction: "desc",
+    });
+
+    expect(byDateDesc.map((item) => item.id)).toEqual(["activity-beta", "activity-zeta", "activity-alpha"]);
+    expect(byAssetAsc.map((item) => item.id)).toEqual(["activity-alpha", "activity-beta", "activity-zeta"]);
+    expect(byAmountDesc.map((item) => item.id)).toEqual(["activity-zeta", "activity-alpha", "activity-beta"]);
+  });
+
+  it("keeps month grouping stable for projected activities when PRM is selected", () => {
+    const model = loadPrmSelectedModel();
+    const projected = model.items.map((item) => projectActivity(item));
+    const grouped = groupProjectedActivities(projected, "month");
+
+    expect(grouped).toHaveLength(2);
+    expect(grouped[0]?.key).toBe("2026-05");
+    expect(grouped[0]?.items.map((item) => item.id)).toEqual(["activity-zeta", "activity-beta"]);
+    expect(grouped[1]?.key).toBe("2026-04");
+    expect(grouped[1]?.items.map((item) => item.id)).toEqual(["activity-alpha"]);
   });
 });
