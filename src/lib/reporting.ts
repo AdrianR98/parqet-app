@@ -6,6 +6,12 @@ import {
     resolvePortfolioScope,
 } from "./app-settings";
 import type { AssetSummary, ReconciliationWarning } from "./types";
+import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
+import {
+    buildCompatibilityAssetSummariesFromGuardedRows,
+    selectGuardedProductSurfaceSource,
+    type GuardedSourceSelection,
+} from "./parqet/global-assets/product-surface-selectors";
 
 export type ReportAssetRow = {
     name: string;
@@ -47,6 +53,7 @@ export type LocalReportModel = {
     assets: ReportAssetRow[];
     breakdown: ReportBreakdownRow[];
     quality: ReportQualitySummary;
+    guardedSelection: GuardedSourceSelection;
     totals: {
         totalPositionValue: number | null;
         totalUnrealizedPnL: number | null;
@@ -55,6 +62,22 @@ export type LocalReportModel = {
         closedAssets: number;
     };
 };
+
+function resolveGlobalAssetProductGuardEnabled(): boolean {
+    const rawValue = process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED;
+
+    if (!rawValue) {
+        return false;
+    }
+
+    const normalizedValue = rawValue.trim().toLowerCase();
+
+    if (normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on") {
+        return true;
+    }
+
+    return false;
+}
 
 function unique(values: string[]): string[] {
     return Array.from(new Set(values.filter(Boolean)));
@@ -193,8 +216,23 @@ export function loadLocalReportModel(): LocalReportModel | null {
         resolvedScope.selectedPortfolioIds.length > 0
             ? resolvedScope.selectedPortfolioIds
             : cache.selectedPortfolioIds;
+    const compatibilityAssets = [...cache.activeAssets, ...cache.closedAssets];
+    const productReadModel = (cache.globalAssetProductReadModel ?? null) as ProductReadModelAssets | null;
+    const guardedSelection = selectGuardedProductSurfaceSource({
+        surface: "reports",
+        compatibilityAssets,
+        productReadModel,
+        guardEnabled: resolveGlobalAssetProductGuardEnabled(),
+    });
+    const selectedAssets =
+        guardedSelection.selectedSource === "global_asset_product" && productReadModel
+            ? buildCompatibilityAssetSummariesFromGuardedRows({
+                productReadModel,
+                compatibilityAssets,
+            })
+            : compatibilityAssets;
     const allRows = toReportRows(
-        [...cache.activeAssets, ...cache.closedAssets],
+        selectedAssets,
         selectedPortfolioIds
     );
     const activeAssets = allRows.filter((row) => row.status === "Aktiv").length;
@@ -212,8 +250,9 @@ export function loadLocalReportModel(): LocalReportModel | null {
         hasScopeMismatch: !sameSelection(selectedPortfolioIds, cache.selectedPortfolioIds),
         generatedAt: cache.lastUpdatedAt ?? cache.generatedAt,
         assets: allRows,
-        breakdown: buildBreakdown([...cache.activeAssets, ...cache.closedAssets], selectedPortfolioIds),
+        breakdown: buildBreakdown(selectedAssets, selectedPortfolioIds),
         quality: summarizeQuality(cache),
+        guardedSelection,
         totals: {
             totalPositionValue: hasPositionValues
                 ? allRows.reduce((sum, row) => sum + (row.positionValue ?? 0), 0)

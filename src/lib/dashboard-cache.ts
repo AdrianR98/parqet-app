@@ -7,6 +7,8 @@ import type {
   ReconciliationWarning,
   SnapshotFreshness,
 } from "./types";
+import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
+import type { GuardedSourceSelection } from "./parqet/global-assets/product-surface-selectors";
 
 /**
  * Zentraler localStorage-Key fuer den Dashboard-Cache.
@@ -41,6 +43,8 @@ export type DashboardCache = {
   selectedPortfolioIds: string[];
   freshness?: SnapshotFreshness;
   activityItems?: ActivitiesAuditItem[];
+  globalAssetProductReadModel?: ProductReadModelAssets | null;
+  guardedSourceSelection?: GuardedSourceSelection | null;
 };
 
 /**
@@ -113,6 +117,14 @@ function isDashboardCacheCompatible(cache: unknown): cache is DashboardCache {
   const activityItemsValid =
     candidate.activityItems === undefined ||
     Array.isArray(candidate.activityItems);
+  const guardedProductReadModelValid =
+    candidate.globalAssetProductReadModel === undefined ||
+    candidate.globalAssetProductReadModel === null ||
+    typeof candidate.globalAssetProductReadModel === "object";
+  const guardedSelectionValid =
+    candidate.guardedSourceSelection === undefined ||
+    candidate.guardedSourceSelection === null ||
+    typeof candidate.guardedSourceSelection === "object";
 
   return (
     activeAssetsValid &&
@@ -120,8 +132,39 @@ function isDashboardCacheCompatible(cache: unknown): cache is DashboardCache {
     selectedPortfolioIdsValid &&
     Array.isArray(reconciliationWarnings) &&
     generatedAtValid &&
-    activityItemsValid
+    activityItemsValid &&
+    guardedProductReadModelValid &&
+    guardedSelectionValid
   );
+}
+
+export function hasGuardedGlobalAssetCoexistence(cache: DashboardCache | null): boolean {
+  if (!cache) {
+    return false;
+  }
+
+  return Boolean(cache.globalAssetProductReadModel);
+}
+
+export function getGuardedGlobalAssetCoexistenceDiagnostics(cache: DashboardCache | null): {
+  hasCoexistingProductReadModel: boolean;
+  selectedSource: GuardedSourceSelection["selectedSource"] | "none";
+  reason: GuardedSourceSelection["reason"] | "none";
+  compatibilityAssetCount: number;
+  productAssetCount: number;
+  blockedMetricAssetCount: number;
+} {
+  const selection = cache?.guardedSourceSelection ?? null;
+  const productAssets = cache?.globalAssetProductReadModel?.assets ?? [];
+
+  return {
+    hasCoexistingProductReadModel: Boolean(cache?.globalAssetProductReadModel),
+    selectedSource: selection?.selectedSource ?? "none",
+    reason: selection?.reason ?? "none",
+    compatibilityAssetCount: (cache?.activeAssets.length ?? 0) + (cache?.closedAssets.length ?? 0),
+    productAssetCount: productAssets.length,
+    blockedMetricAssetCount: productAssets.filter((asset) => asset.blockedMetrics.length > 0).length,
+  };
 }
 
 /**
