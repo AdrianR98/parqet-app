@@ -8,6 +8,7 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Added a TanStack-based Dashboard AssetTable column/state pattern with local UI-only visible-column preferences, fixed-column protection, safe stored-preference fallback and compact settings toggles without provider/API calls.
 - Added real app-flow Global Asset coexistence cache population in `/api/parqet/assets` from existing explicit-load activity context (snapshot/provider context reuse only) with zero additional hidden provider/API requests.
 - Added a pure Global Asset coexistence bridge module to build optional product read models with guarded freshness/scope metadata from existing activity-context data.
 - Added guarded Global Asset product read-model projection for Dashboard/AssetTable/Reports with source/freshness/scope/confidence/warnings/blocked-metrics/value-classification metadata and count-safe old/new comparison evidence helpers.

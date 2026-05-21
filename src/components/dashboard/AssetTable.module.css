@@ -124,6 +124,15 @@
     gap: 4px;
 }
 
+.columnMenuTitle {
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
 .columnMenuItem {
     display: flex;
     align-items: center;
@@ -177,8 +186,15 @@
 }
 
 .actionCell {
-    width: 1%;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     white-space: nowrap;
+}
+
+.sortIndicator {
+    min-width: 12px;
+    text-align: center;
 }
 
 .expandedRow td {
