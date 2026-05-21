@@ -1,62 +1,83 @@
-version: 2
-purpose: Quick rules for Mini, Spar, Folgeauftrag and Review-Fix tasks.
+version: 3
+purpose: Low-budget quick rules for Mini, Spar, Folgeauftrag and Review-Fix tasks.
 
 defaults:
   read_before_editing: true
   preserve_product_behavior: true
-  report_verification: true
+  verification_profile: not_run_by_default
+  final_output_only: true
   never_merge: true
 
 mode_selection:
   selected_by: ChatGPT
   codex_must_not_choose_mode: true
   missing_mode: stop_and_report_incomplete_task
+  missing_branch: stop_and_report_incomplete_task
 
 shared_rules:
   - Read AGENTS.md before editing.
   - Every non-trivial Codex task must include all required fields from prompts/codex-task-template.yaml.
   - A prompt missing any required field is not ready to issue and must be corrected before Codex receives it.
-  - If Mode is missing, stop and report the task as incomplete instead of choosing a default mode.
+  - If Mode or Branch is missing, stop and report the task as incomplete instead of choosing defaults.
   - Use the requested branch only.
   - Do not choose a branch name when none is provided.
   - Commit only when explicitly allowed.
-  - Never create PRs; Create PR remains disabled for Codex execution.
+  - Push only when explicitly allowed.
+  - Never create PRs unless explicitly authorized; Create PR remains disabled for normal Codex execution.
   - Never run gh pr create.
+  - Do not close issues, merge, or change labels/milestones unless explicitly authorized.
   - Keep changes within Allowed changes.
   - Do not edit paths listed under Do not modify.
   - Do not widen scope for cleanup.
   - Stop for unclear product goal, user flow, data model, privacy or security questions.
+  - Stop if scope would exceed the selected mode file limit unless the task explicitly allows broader scope.
   - Use Refs for parent issues and partial work.
   - Use Fixes only when a sub-issue is fully completed.
   - Keep AGENTS.md as the compact entrypoint; use detailed prompt/docs files only when required by mode or scope.
 
+forbidden_by_default:
+  - committing changes
+  - pushing branches
+  - creating pull requests
+  - closing issues
+  - merging pull requests
+  - changing labels or milestones
+  - npm run lint
+  - npx tsc --noEmit
+  - npm run build
+  - tests, including Playwright, Vitest, Jest and E2E suites
+  - smoke probes
+  - browser probes
+  - API probes
+  - Vercel deploys
+  - verification commands not explicitly named in the task
+  - broad repository searches when exact files are known
+  - printing command logs, full files, full diffs or routine narration
+
 efficiency_rules:
-  - Prefer rg, git grep and git ls-files before reading full files.
+  - Read only the minimum required files.
+  - Prefer rg, git grep and git ls-files only when exact files or sections are unknown.
   - Prefer focused excerpts around matches over full-file reads for large files.
   - Batch independent context reads where practical instead of reading files one-by-one.
   - Do not re-read or re-edit the same file repeatedly without a new reason.
   - Stop and report if two implementation strategies fail for the same blocker.
-  - Keep progress updates short and milestone-based; do not narrate every command.
+  - Default to final-only output; report only concise blockers during execution.
 
 context_budget_rules:
   - Treat broad UI, architecture, data and test tasks as context-budgeted work.
   - Do not print full files unless they are short or required for a safe edit.
-  - Do not print full diffs after implementation; prefer git diff --stat plus targeted changed-hunk excerpts only when needed.
+  - Do not print full diffs after implementation.
   - Prefer analysis-only first passes for broad or uncertain work before implementing.
-  - Manual browser inspection is optional unless tests do not cover the changed behavior, a visual interaction must be checked, or the task explicitly requires browser review.
+  - Do not run manual browser inspection unless the task explicitly requires it.
   - If more than 6 app files appear necessary for a non-Voll implementation task, stop and propose a smaller slice unless the prompt explicitly allows the broader scope.
   - Keep PR bodies complete but concise; do not repeat the full issue text.
 
 verification_profile_rules:
-  - Use scope-based verification instead of running all local checks by default.
-  - GitHub Actions is the final PR gate for lint/build and V1 Playwright smoke.
-  - Codex should not poll CI for long; one short status check is enough unless the task explicitly requires waiting.
-  - Docs/prompt-only tasks should normally run only git diff --check plus markdown/yaml validation when relevant.
-  - Workflow-only tasks should normally run git diff --check plus workflow syntax/lint when available, then rely on GitHub Actions.
-  - TypeScript/UI tasks should normally run git diff --check, npm run lint and npx tsc --noEmit.
-  - Local npm run build should run only when app runtime, Next route/config, dependency or build-relevant behavior changed.
-  - Local npm run test:e2e should run only for E2E-sensitive changes such as Playwright config/tests, hydration, browser-local state, navigation/provider-route guards or smoke-covered browser interactions.
-  - Manual browser checks must stay bounded to affected pages and only run when automated tests do not cover the changed behavior or visual review is explicitly needed.
+  - Default verification_profile is not_run_by_default.
+  - Do not run local checks unless the task explicitly names the check.
+  - Do not run tests, lint, typecheck, build, Playwright, smoke, browser, API or deploy commands by default.
+  - If checks are explicitly requested, run only those named checks and report only compact results.
+  - GitHub Actions, user review and ChatGPT diff review are the default final gates.
 
 mini:
   use_for:
@@ -96,7 +117,7 @@ spar:
   plan_required: only_when_uncertain
   requirements:
     - list changed files when reporting a PR
-    - run relevant lightweight verification
+    - run only explicitly requested verification
     - report risks only when relevant
 
 folgeauftrag:
@@ -116,7 +137,7 @@ review_fix:
     - fixing CI or lint/build failures introduced by the PR
   requirements:
     - address only actionable feedback
-    - run checks affected by the fix
+    - run checks only when explicitly requested or required by the review task
     - update PR body if scope, changed files, verification profile, verification, risks or known gaps changed
     - re-check Refs/Fixes correctness
     - report comments fixed and comments deferred
@@ -145,7 +166,7 @@ known_project_patterns:
     - Use Playwright storageState for initial synthetic browser-local state.
     - Use http://localhost:3000 for Playwright baseURL and webServer.url.
     - Do not use addInitScript, setup routes or post-navigation localStorage writes for initial hydration-state fixtures unless explicitly justified.
-    - During development, run focused Playwright tests with -g only when E2E-sensitive behavior changed.
+    - During development, run focused Playwright tests only when the task explicitly requests them.
     - Rely on GitHub Actions V1 Playwright smoke as the final PR E2E gate.
     - Do not run lint, build and E2E tests concurrently.
   browser_local_hydration:
@@ -155,20 +176,12 @@ known_project_patterns:
     - Navigation, filtering, sorting, detail panels, report layout and local settings must not trigger hidden provider calls.
 
 verification_shortcuts:
-  docs_or_prompt_only:
-    - git diff --check
-    - markdown or yaml check when available and relevant
-  workflow_only:
-    - git diff --check
-    - workflow syntax/lint check when available and relevant
-    - GitHub Actions final gate
-  ts_ui:
-    - git diff --check
-    - npm run lint
-    - npx tsc --noEmit
-    - GitHub Actions final gate for build/e2e
-  e2e_sensitive:
-    - git diff --check
-    - focused Playwright test when practical
-    - npm run test:e2e only when the changed behavior directly needs local E2E feedback
-    - GitHub Actions final gate
+  not_run_by_default:
+    local_run: []
+    final_gate:
+      - GitHub Actions
+      - user review
+      - ChatGPT diff review
+  if_explicitly_requested:
+    - Run only named checks.
+    - Re-run only checks affected by later edits or fixes.

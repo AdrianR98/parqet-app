@@ -1,4 +1,4 @@
-version: 2
+version: 3
 mode_selection:
   required: true
   selected_by: ChatGPT
@@ -32,19 +32,36 @@ required_fields:
   - create_pr
   - linked_issues
   - allowed_changes
+  - do_not_modify
   - non_goals
   - acceptance_criteria
+  - verification_profile
   - verification
   - api_budget_impact
   - privacy_data_impact
+  - handoff_requirements
 
 required_field_rule: >
   Every non-trivial Codex task must include all required_fields. If any
   required field is missing, the prompt is not ready to be issued and must be
-  corrected before it is given to Codex. If mode is missing, Codex must stop
-  and report the task as incomplete instead of choosing a default mode.
+  corrected before it is given to Codex. If mode or branch is missing, Codex
+  must stop and report the task as incomplete instead of choosing defaults.
 
 create_pr_policy: Codex never creates pull requests. Keep create_pr present for governance tracking and set it to no for Codex tasks.
+
+low_budget_defaults:
+  purpose: Keep Codex usage low unless the task explicitly asks for verification, commit, push or PR work.
+  default_rules:
+    - Default verification_profile is not_run_by_default.
+    - Do not commit.
+    - Do not push.
+    - Do not create PRs.
+    - Do not run tests, lint, typecheck, build, Playwright, Vitest, Jest, smoke probes, browser probes, API probes, Vercel deploys or verification commands unless explicitly named in the task.
+    - Read only the minimum required files.
+    - Prefer targeted sections/ranges over full-file reads.
+    - Do not run broad repository searches unless the exact file is unknown or blocked.
+    - Stop if scope would exceed the selected mode file limit unless explicitly allowed.
+    - Output final compact handoff only unless blocked.
 
 optional_fields:
   - tool_plugin_guidance
@@ -58,15 +75,35 @@ branch_prefixes:
   - refactor/
 
 verification_profiles:
+  not_run_by_default:
+    use_for:
+      - default low-budget Codex tasks
+      - prompt/governance-only changes unless checks are explicitly requested
+      - implementation work where user, ChatGPT or GitHub Actions will verify
+    local_run: []
+    local_do_not_run_by_default:
+      - git diff --check
+      - npm run lint
+      - npx tsc --noEmit
+      - npm run build
+      - npm run test:e2e
+      - Playwright, Vitest, Jest or smoke probes
+      - browser probes
+      - API probes
+      - Vercel deploys
+    final_gate:
+      - GitHub Actions
+      - user review
+      - ChatGPT diff review
   docs_or_prompt_only:
     use_for:
       - markdown-only changes
       - prompt/governance-only changes
       - documentation text with no app runtime impact
     local_run:
-      - git diff --check
-      - markdown/yaml validation when available and relevant
+      - only checks explicitly named in the task
     local_do_not_run_by_default:
+      - git diff --check
       - npm run lint
       - npx tsc --noEmit
       - npm run build
@@ -78,11 +115,13 @@ verification_profiles:
       - .github/workflows changes
       - CI configuration changes without app runtime changes
     local_run:
-      - git diff --check
-      - workflow syntax/lint check when available and relevant
+      - only checks explicitly named in the task
     local_do_not_run_by_default:
-      - npm run test:e2e unless the workflow change directly changes E2E behavior and local feedback is needed
-      - npm run build unless package/runtime behavior changed
+      - git diff --check
+      - npm run lint
+      - npx tsc --noEmit
+      - npm run build
+      - npm run test:e2e
     final_gate:
       - GitHub Actions workflow execution
   ts_ui:
@@ -91,12 +130,12 @@ verification_profiles:
       - TypeScript UI changes
       - CSS plus TSX interaction changes
     local_run:
+      - only checks explicitly named in the task
+    local_do_not_run_by_default:
       - git diff --check
       - npm run lint
       - npx tsc --noEmit
-    local_optional:
-      - npm run build only when app runtime, Next route/config, dependency or build-relevant behavior changed
-    local_do_not_run_by_default:
+      - npm run build
       - npm run test:e2e
     final_gate:
       - GitHub Actions lint/build/e2e
@@ -107,14 +146,13 @@ verification_profiles:
       - package/dependency changes
       - build/config changes
     local_run:
+      - only checks explicitly named in the task
+    local_do_not_run_by_default:
       - git diff --check
       - npm run lint
       - npx tsc --noEmit
       - npm run build
-    local_optional:
-      - focused tests when available and directly relevant
-    local_do_not_run_by_default:
-      - npm run test:e2e unless route/navigation/browser behavior is directly affected
+      - npm run test:e2e
     final_gate:
       - GitHub Actions lint/build/e2e
   e2e_sensitive:
@@ -126,11 +164,14 @@ verification_profiles:
       - provider-route guards
       - UI interactions explicitly covered by smoke tests
     local_run:
+      - only checks explicitly named in the task
+    local_do_not_run_by_default:
       - git diff --check
-      - npm run lint when code changed
-      - npx tsc --noEmit when TypeScript changed
-      - focused Playwright tests with -g when practical
-      - npm run test:e2e when E2E config/tests or smoke-covered behavior changed materially
+      - npm run lint
+      - npx tsc --noEmit
+      - npm run build
+      - focused Playwright tests
+      - npm run test:e2e
     final_gate:
       - GitHub Actions lint/build/e2e
 
@@ -192,18 +233,17 @@ context_budget_block: |
 
 verification_profile_block: |
   Verification profile:
-  - Select one profile: docs_or_prompt_only, workflow_only, ts_ui, runtime_route_or_config, or e2e_sensitive.
-  - Run only the local checks required by the selected profile unless the task explicitly requires more.
-  - Do not run npm run test:e2e locally by default; rely on GitHub Actions V1 Playwright smoke as the final PR E2E gate.
-  - Do not run npm run build locally unless app runtime, Next route/config, dependency, package or build-relevant behavior changed.
-  - Do not create PRs or poll CI for docs-only local tasks.
-  - Report GitHub Actions as the final gate to be checked by ChatGPT/Reviewer before merge.
+  - Default profile: not_run_by_default.
+  - Select one profile: not_run_by_default, docs_or_prompt_only, workflow_only, ts_ui, runtime_route_or_config, or e2e_sensitive.
+  - Do not run local checks unless the task explicitly names the check.
+  - Do not run tests, lint, typecheck, build, Playwright, smoke, browser, API or deploy commands by default.
+  - GitHub Actions, user review and ChatGPT diff review are the default final gates.
 
 known_patterns_block: |
   Known project patterns:
   - Playwright local-state tests should use storageState and http://localhost:3000.
   - Do not use addInitScript, setup routes or post-navigation localStorage writes for initial hydration-state fixtures unless explicitly justified.
-  - Run focused Playwright tests with -g only when E2E-sensitive behavior changed.
+  - Run focused Playwright tests only when the task explicitly requests them.
   - Rely on GitHub Actions V1 Playwright smoke as the final PR E2E gate.
   - Do not run lint, build and E2E tests concurrently.
 
@@ -220,8 +260,31 @@ template: |
   Refs #<parent>
   Fixes #<child-if-fully-completed>
 
+  Goal:
+  <what should be true after this task>
+
+  Budget / execution limits:
+  - Do not commit.
+  - Do not push.
+  - Do not create a PR.
+  - Do not run tests, lint, typecheck, build, Playwright, Vitest, Jest, smoke probes, browser probes, API probes, Vercel deploys or verification commands unless explicitly requested.
+  - Read only the minimum required files.
+  - Prefer targeted sections/ranges over full-file reads.
+  - Do not run broad repository searches unless blocked.
+
+  Hard output limit:
+  - Do not print command logs.
+  - Do not list executed commands.
+  - Do not mention routine reads/searches/checks.
+  - Do not narrate implementation phases.
+  - Do not print full files, full diffs, full logs or generated output.
+  - Only output a blocker message if blocked; otherwise output only final compact handoff.
+
   Allowed changes:
   - <specific path or area>
+
+  Do not modify:
+  - <specific path or critical area>
 
   Non-goals:
   - <explicitly out of scope>
@@ -229,8 +292,11 @@ template: |
   Acceptance criteria:
   - [ ] <criterion>
 
+  Verification profile:
+  - not_run_by_default
+
   Verification:
-  - <Run / Not run / Not applicable with reason>
+  - Not run by Codex unless explicitly requested. User/ChatGPT will verify after implementation.
 
   API Budget Impact:
   - <none, or request impact / cache strategy / retry and rate-limit behavior>
@@ -238,16 +304,13 @@ template: |
   Privacy/Data Impact:
   - <none, or private data / diagnostics / export / redaction impact>
 
-  Goal:
-  <what should be true after this task>
-
   Read first:
   - AGENTS.md
   - <mode-specific files from read_first_by_mode>
   - <other files required by scope>
 
   Efficiency constraints:
-  - Use targeted rg/git grep/git ls-files before full-file reads.
+  - Use targeted rg/git grep/git ls-files before full-file reads only when exact files are unknown.
   - Prefer focused excerpts around matches over full-file reads for large files.
   - Batch independent reads where practical.
   - Stop and report if two implementation strategies fail for the same blocker.
@@ -255,15 +318,8 @@ template: |
   Token / context budget:
   - Treat this as a context-budgeted task.
   - Do not print full files or full diffs unless necessary for a safe edit or diagnosis.
-  - Prefer git diff --stat plus targeted changed-hunk excerpts after implementation.
-  - Manual browser inspection is optional unless automated tests do not cover the changed behavior, a visual interaction must be checked, or this task explicitly requires browser review.
+  - Do not run manual browser inspection unless this task explicitly requires browser review.
   - If more than 6 app files seem necessary, stop and propose a smaller implementation slice unless this task explicitly allows the broader scope.
-
-  Verification profile:
-  - Select one profile: docs_or_prompt_only, workflow_only, ts_ui, runtime_route_or_config, or e2e_sensitive.
-  - Run only local checks required by the selected profile unless this task explicitly requires more.
-  - Do not run npm run test:e2e locally by default; GitHub Actions V1 Playwright smoke is the final PR E2E gate.
-  - Do not create PRs or poll CI for docs-only local tasks.
 
   Tool / Plugin Guidance:
   - GitHub/repository context is the source of truth.
@@ -282,8 +338,15 @@ template: |
   Known project patterns:
   - <include only patterns relevant to this task>
 
-  Do not modify:
-  - <specific path or critical area>
+  Handoff requirements:
+  - Do not commit.
+  - Do not push.
+  - Do not create PR.
+  - Use compact handoff format only:
+    - Branch
+    - Changed files
+    - What changed
+    - Known blockers / manual checks needed
 
   Risks / notes:
   - <risk or note to watch>
