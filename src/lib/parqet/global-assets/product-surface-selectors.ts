@@ -52,12 +52,22 @@ export type SelectGuardedSourceInput = {
   guardEnabled: boolean;
 };
 
+const ALWAYS_COMPATIBILITY_FALLBACK_FIELDS: GuardedFallbackField[] = [
+  "position_value",
+  "unrealized_pnl",
+  "remaining_cost_basis",
+  "avg_buy_price",
+  "net_shares",
+];
+
 function uniqueBlockedMetrics(rows: ProductReadModelAssetRow[]): BlockedMetric[] {
   return Array.from(new Set(rows.flatMap((row) => row.blockedMetrics)));
 }
 
 function blockedMetricsToFallbackFields(metrics: BlockedMetric[]): GuardedFallbackField[] {
-  const fallbackFields = new Set<GuardedFallbackField>();
+  const fallbackFields = new Set<GuardedFallbackField>(
+    ALWAYS_COMPATIBILITY_FALLBACK_FIELDS,
+  );
 
   for (const metric of metrics) {
     if (metric === "market_value") {
@@ -180,11 +190,11 @@ function mapPortfolioBreakdown(input: {
 
   return input.row.portfolioBreakdown.map((entry) => {
     const fallback = fallbackByPortfolioId.get(entry.portfolioId);
-    const netShares = entry.quantity ?? fallback?.netShares ?? 0;
-    const remainingCostBasis = entry.costBasis.amount ?? fallback?.remainingCostBasis ?? 0;
-    const avgBuyPrice = netShares > 0 ? remainingCostBasis / netShares : fallback?.avgBuyPrice ?? null;
-    const positionValue = entry.marketValue.amount ?? fallback?.positionValue ?? null;
-    const unrealizedPnL = entry.unrealizedPnL.amount ?? fallback?.unrealizedPnL ?? null;
+    const netShares = fallback?.netShares ?? 0;
+    const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
+    const avgBuyPrice = fallback?.avgBuyPrice ?? null;
+    const positionValue = fallback?.positionValue ?? null;
+    const unrealizedPnL = fallback?.unrealizedPnL ?? null;
 
     return {
       portfolioId: entry.portfolioId,
@@ -217,11 +227,11 @@ export function buildCompatibilityAssetSummariesFromGuardedRows(input: {
       fallback?.isin ??
       row.identity.stableKey ??
       row.display.displayName;
-    const netShares = row.quantity ?? fallback?.netShares ?? 0;
-    const remainingCostBasis = row.costBasis.amount ?? fallback?.remainingCostBasis ?? 0;
-    const avgBuyPrice = netShares > 0 ? remainingCostBasis / netShares : fallback?.avgBuyPrice ?? null;
-    const positionValue = row.marketValue.amount ?? fallback?.positionValue ?? null;
-    const unrealizedPnL = row.unrealizedPnL.amount ?? fallback?.unrealizedPnL ?? null;
+    const netShares = fallback?.netShares ?? 0;
+    const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
+    const avgBuyPrice = fallback?.avgBuyPrice ?? null;
+    const positionValue = fallback?.positionValue ?? null;
+    const unrealizedPnL = fallback?.unrealizedPnL ?? null;
 
     return {
       isin,
@@ -249,9 +259,9 @@ export function buildCompatibilityAssetSummariesFromGuardedRows(input: {
       totalDividendNet: row.dividendsNet.amount ?? fallback?.totalDividendNet ?? 0,
       latestActivityAt: row.latestActivityAt ?? fallback?.latestActivityAt ?? null,
       name: row.display.displayName,
-      assetName: fallback?.assetName ?? row.display.displayName,
-      displayName: fallback?.displayName ?? row.display.displayName,
-      title: fallback?.title ?? row.display.displayName,
+      assetName: row.display.displayName,
+      displayName: row.display.displayName,
+      title: row.display.displayName,
       symbol: row.display.symbol ?? fallback?.symbol ?? null,
       ticker: fallback?.ticker ?? null,
       tickerSymbol: fallback?.tickerSymbol ?? null,

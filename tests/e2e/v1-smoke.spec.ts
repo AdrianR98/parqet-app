@@ -247,6 +247,306 @@ const SYNTHETIC_DASHBOARD_CACHE = {
   activityItems: SYNTHETIC_ACTIVITIES,
 };
 
+const SYNTHETIC_GUARDED_PRODUCT_READ_MODEL = {
+  metadata: {
+    readModelId: "synthetic-guarded-product-read-model",
+    snapshotId: "synthetic-snapshot-id",
+    generatedAt: SYNTHETIC_LOADED_AT,
+    sourceType: "local_snapshot",
+    sourceScope: "selected_portfolios",
+    freshnessAt: SYNTHETIC_LOADED_AT,
+    freshnessState: "fresh",
+    scopeState: "scope_match",
+    selectedPortfolioIds: ["synthetic-portfolio-alpha", "synthetic-portfolio-beta"],
+    confidence: "medium",
+    warnings: [],
+    blockedMetrics: [],
+    valueClassification: "preliminary",
+    providerRequestCount: 0,
+  },
+  assets: [
+    {
+      identity: {
+        assetKey: { type: "isin", value: "XSYNTH000001" },
+        stableKey: "isin:XSYNTH000001",
+        compatibilityIsin: "XSYNTH000001",
+      },
+      display: {
+        displayName: "Synthetic Guarded Product One",
+        subtitle: null,
+        symbol: "SGP1",
+        wkn: "SGP001",
+      },
+      status: "active",
+      quantity: 999,
+      quantityValueClassification: "app_calculated",
+      marketValue: {
+        amount: 999999,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      costBasis: {
+        amount: 888888,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      unrealizedPnL: {
+        amount: 777777,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      dividendsNet: {
+        amount: 30,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      fees: {
+        amount: null,
+        currency: null,
+        valueClassification: "none",
+        blockedMetrics: [],
+      },
+      taxes: {
+        amount: null,
+        currency: null,
+        valueClassification: "none",
+        blockedMetrics: [],
+      },
+      warnings: [],
+      blockedMetrics: [],
+      confidence: "medium",
+      valueClassification: "preliminary",
+      sourceType: "local_snapshot",
+      sourceScope: "selected_portfolios",
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+      portfolioBreakdown: [
+        {
+          portfolioId: "synthetic-portfolio-alpha",
+          portfolioName: "Synthetic Guarded Alpha Portfolio",
+          status: "active",
+          quantity: 400,
+          marketValue: {
+            amount: 400000,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          costBasis: {
+            amount: 300000,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          unrealizedPnL: {
+            amount: 100000,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          dividendsNet: {
+            amount: 20,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          fees: {
+            amount: null,
+            currency: null,
+            valueClassification: "none",
+            blockedMetrics: [],
+          },
+          taxes: {
+            amount: null,
+            currency: null,
+            valueClassification: "none",
+            blockedMetrics: [],
+          },
+          warnings: [],
+          blockedMetrics: [],
+          confidence: "medium",
+        },
+        {
+          portfolioId: "synthetic-portfolio-beta",
+          portfolioName: "Synthetic Guarded Beta Portfolio",
+          status: "active",
+          quantity: 599,
+          marketValue: {
+            amount: 599999,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          costBasis: {
+            amount: 588888,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          unrealizedPnL: {
+            amount: 11111,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          dividendsNet: {
+            amount: 10,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          fees: {
+            amount: null,
+            currency: null,
+            valueClassification: "none",
+            blockedMetrics: [],
+          },
+          taxes: {
+            amount: null,
+            currency: null,
+            valueClassification: "none",
+            blockedMetrics: [],
+          },
+          warnings: [],
+          blockedMetrics: [],
+          confidence: "medium",
+        },
+      ],
+      latestActivityAt: SYNTHETIC_LOADED_AT,
+    },
+    {
+      identity: {
+        assetKey: { type: "isin", value: "XSYNTH000002" },
+        stableKey: "isin:XSYNTH000002",
+        compatibilityIsin: "XSYNTH000002",
+      },
+      display: {
+        displayName: "Synthetic Guarded Product Two",
+        subtitle: null,
+        symbol: "SGP2",
+        wkn: "SGP002",
+      },
+      status: "active",
+      quantity: 888,
+      quantityValueClassification: "app_calculated",
+      marketValue: {
+        amount: 888888,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      costBasis: {
+        amount: 777777,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      unrealizedPnL: {
+        amount: 111111,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      dividendsNet: {
+        amount: 30,
+        currency: "EUR",
+        valueClassification: "app_calculated",
+        blockedMetrics: [],
+      },
+      fees: {
+        amount: null,
+        currency: null,
+        valueClassification: "none",
+        blockedMetrics: [],
+      },
+      taxes: {
+        amount: null,
+        currency: null,
+        valueClassification: "none",
+        blockedMetrics: [],
+      },
+      warnings: [],
+      blockedMetrics: [],
+      confidence: "medium",
+      valueClassification: "preliminary",
+      sourceType: "local_snapshot",
+      sourceScope: "selected_portfolios",
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+      portfolioBreakdown: [
+        {
+          portfolioId: "synthetic-portfolio-alpha",
+          portfolioName: "Synthetic Guarded Alpha Portfolio",
+          status: "active",
+          quantity: 888,
+          marketValue: {
+            amount: 888888,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          costBasis: {
+            amount: 777777,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          unrealizedPnL: {
+            amount: 111111,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          dividendsNet: {
+            amount: 30,
+            currency: "EUR",
+            valueClassification: "app_calculated",
+            blockedMetrics: [],
+          },
+          fees: {
+            amount: null,
+            currency: null,
+            valueClassification: "none",
+            blockedMetrics: [],
+          },
+          taxes: {
+            amount: null,
+            currency: null,
+            valueClassification: "none",
+            blockedMetrics: [],
+          },
+          warnings: [],
+          blockedMetrics: [],
+          confidence: "medium",
+        },
+      ],
+      latestActivityAt: SYNTHETIC_LOADED_AT,
+    },
+  ],
+  summary: {
+    assetCount: 2,
+    activeAssetCount: 2,
+    closedAssetCount: 0,
+    unknownAssetCount: 0,
+    warningAssetCount: 0,
+    blockerWarningCount: 0,
+    blockedMetricAssetCount: 0,
+    blockedMetricCount: 0,
+    valueClassificationCounts: {
+      provider_reference: 0,
+      app_calculated: 0,
+      estimated: 0,
+      preliminary: 2,
+      blocked: 0,
+      none: 0,
+    },
+  },
+};
+
 const SYNTHETIC_STORAGE_STATE = {
   cookies: [],
   origins: ["http://127.0.0.1:3000", "http://localhost:3000"].map((origin) => ({
@@ -266,6 +566,33 @@ const SYNTHETIC_STORAGE_STATE = {
       {
         name: DASHBOARD_CACHE_KEY,
         value: JSON.stringify(SYNTHETIC_DASHBOARD_CACHE),
+      },
+    ],
+  })),
+};
+
+const SYNTHETIC_STORAGE_STATE_WITH_GUARDED_PRODUCT = {
+  cookies: [],
+  origins: ["http://127.0.0.1:3000", "http://localhost:3000"].map((origin) => ({
+    origin,
+    localStorage: [
+      {
+        name: KNOWN_PORTFOLIOS_STORAGE_KEY,
+        value: JSON.stringify(SYNTHETIC_KNOWN_PORTFOLIOS),
+      },
+      {
+        name: PORTFOLIO_SCOPE_STORAGE_KEY,
+        value: JSON.stringify({
+          mode: "manual",
+          selectedPortfolioIds: ["synthetic-portfolio-alpha", "synthetic-portfolio-beta"],
+        }),
+      },
+      {
+        name: DASHBOARD_CACHE_KEY,
+        value: JSON.stringify({
+          ...SYNTHETIC_DASHBOARD_CACHE,
+          globalAssetProductReadModel: SYNTHETIC_GUARDED_PRODUCT_READ_MODEL,
+        }),
       },
     ],
   })),
@@ -425,6 +752,32 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
     await expect(page.getByText("Synthetic Alpha Portfolio, Synthetic Beta Portfolio").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Markdown kopieren" })).toBeEnabled();
     await expect(page.getByRole("button", { name: "CSV exportieren" })).toBeEnabled();
+
+    await expectNoRouteFailures(page, monitor, providerMonitor);
+  });
+});
+
+test.describe("V1 guarded global asset safe-default smoke", () => {
+  test.use({ storageState: SYNTHETIC_STORAGE_STATE_WITH_GUARDED_PRODUCT });
+
+  test("dashboard and reports use guarded identity fields while valuation remains compatibility-backed", async ({
+    page,
+  }) => {
+    const monitor = createFailureMonitor(page);
+    const providerMonitor = createProviderRouteMonitor(page);
+
+    await visitSmokeRoute(page, "/dashboard");
+    await expect(page.getByText("Synthetic Guarded Product One")).toBeVisible();
+    await expect(page.getByText("Synthetic Guarded Product Two")).toBeVisible();
+    await expect(page.getByText("4.248,00", { exact: false })).toBeVisible();
+
+    await page.goto("/reports", { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("Synthetic Guarded Product One")).toBeVisible();
+    await expect(
+      page.getByText("Synthetic Guarded Alpha Portfolio, Synthetic Guarded Beta Portfolio"),
+    ).toBeVisible();
+    await expect(page.getByText("4.248,00", { exact: false })).toBeVisible();
+    await expect(page.getByText("168,00", { exact: false })).toBeVisible();
 
     await expectNoRouteFailures(page, monitor, providerMonitor);
   });

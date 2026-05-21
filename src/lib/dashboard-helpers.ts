@@ -12,12 +12,21 @@ import {
 export function resolveGlobalAssetProductGuardEnabled(rawValue?: string): boolean {
     const value = rawValue ?? process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED;
 
-    if (!value) {
-        return false;
+    if (!value || value.trim().length === 0) {
+        return true;
     }
 
     const normalizedValue = value.trim().toLowerCase();
-    return normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on";
+
+    if (normalizedValue === "0" || normalizedValue === "false" || normalizedValue === "off") {
+        return false;
+    }
+
+    if (normalizedValue === "1" || normalizedValue === "true" || normalizedValue === "on") {
+        return true;
+    }
+
+    return true;
 }
 
 /**
