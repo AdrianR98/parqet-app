@@ -5,12 +5,12 @@ import {
   projectGlobalAssetsProductReadModel,
 } from "../../src/lib/parqet/global-assets/product-read-model";
 import {
-  buildCompatibilityAssetSummariesFromGuardedRows,
-  selectGuardedProductSurfaceSource,
+  buildAssetSummariesFromCanonicalSafeFields,
+  selectCanonicalSafeFieldProductSurfaceSource,
 } from "../../src/lib/parqet/global-assets/product-surface-selectors";
 import {
-  selectGuardedAssetTableSource,
-  selectGuardedDashboardSource,
+  selectCanonicalAssetTableSafeFieldSource,
+  selectCanonicalDashboardSafeFieldSource,
   resolveGlobalAssetProductGuardEnabled,
 } from "../../src/lib/dashboard-helpers";
 import { loadLocalReportModel } from "../../src/lib/reporting";
@@ -236,8 +236,8 @@ afterEach(() => {
   Reflect.deleteProperty(globalThis, "window");
 });
 
-describe("guarded global-asset product migration selectors", () => {
-  it("defaults to safe guarded mode and supports explicit rollback values", () => {
+describe("canonical global-asset safe-field migration selectors", () => {
+  it("defaults to canonical safe-field mode and supports explicit rollback values", () => {
     expect(resolveGlobalAssetProductGuardEnabled()).toBe(true);
     expect(resolveGlobalAssetProductGuardEnabled("true")).toBe(true);
     expect(resolveGlobalAssetProductGuardEnabled("on")).toBe(true);
@@ -280,11 +280,11 @@ describe("guarded global-asset product migration selectors", () => {
     expect(evidence.delta.assetCount).toBe(0);
   });
 
-  it("selects guarded source for dashboard/asset-table/reports only when enabled and ready", () => {
+  it("selects canonical safe-field source for dashboard/asset-table/reports only when enabled and ready", () => {
     const projected = buildProjectedProductReadModel();
     const compatibilityAssets = createCompatibilityAssetsFixture();
 
-    const disabledSelection = selectGuardedProductSurfaceSource({
+    const disabledSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
       compatibilityAssets,
       productReadModel: projected,
@@ -293,7 +293,7 @@ describe("guarded global-asset product migration selectors", () => {
     expect(disabledSelection.selectedSource).toBe("compatibility");
     expect(disabledSelection.reason).toBe("guard_not_enabled");
 
-    const staleSelection = selectGuardedProductSurfaceSource({
+    const staleSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "reports",
       compatibilityAssets,
       productReadModel: {
@@ -308,7 +308,7 @@ describe("guarded global-asset product migration selectors", () => {
     expect(staleSelection.selectedSource).toBe("compatibility");
     expect(staleSelection.reason).toBe("product_read_model_not_fresh");
 
-    const scopeMismatchSelection = selectGuardedProductSurfaceSource({
+    const scopeMismatchSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "asset_table",
       compatibilityAssets,
       productReadModel: {
@@ -323,7 +323,7 @@ describe("guarded global-asset product migration selectors", () => {
     expect(scopeMismatchSelection.selectedSource).toBe("compatibility");
     expect(scopeMismatchSelection.reason).toBe("product_read_model_scope_mismatch");
 
-    const readySelection = selectGuardedProductSurfaceSource({
+    const readySelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
       compatibilityAssets,
       productReadModel: projected,
@@ -331,9 +331,40 @@ describe("guarded global-asset product migration selectors", () => {
     });
     expect(readySelection.selectedSource).toBe("global_asset_product");
     expect(readySelection.reason).toBe("product_read_model_ready");
+    expect(readySelection.diagnostics.readModelId).toBe("rm-global-assets-guarded");
+    expect(readySelection.diagnostics.sourceType).toBe("local_snapshot");
+    expect(readySelection.diagnostics.sourceScope).toBe("selected_portfolios");
+    expect(readySelection.diagnostics.confidence).toBe("high");
+    expect(readySelection.diagnostics.providerRequestCount).toBe(0);
   });
 
-  it("keeps valuation/performance and transfer-sensitive fields compatibility-backed while using safe product identity fields", () => {
+  it("falls back to compatibility for invalid or empty product read-model data", () => {
+    const projected = buildProjectedProductReadModel();
+    const compatibilityAssets = createCompatibilityAssetsFixture();
+
+    const invalidSelection = selectCanonicalSafeFieldProductSurfaceSource({
+      surface: "dashboard",
+      compatibilityAssets,
+      productReadModel: { assets: [] },
+      guardEnabled: true,
+    });
+    expect(invalidSelection.selectedSource).toBe("compatibility");
+    expect(invalidSelection.reason).toBe("product_read_model_invalid");
+
+    const emptySelection = selectCanonicalSafeFieldProductSurfaceSource({
+      surface: "reports",
+      compatibilityAssets,
+      productReadModel: {
+        ...projected,
+        assets: [],
+      },
+      guardEnabled: true,
+    });
+    expect(emptySelection.selectedSource).toBe("compatibility");
+    expect(emptySelection.reason).toBe("product_read_model_missing");
+  });
+
+  it("keeps valuation/performance and transfer-sensitive fields compatibility-backed while using canonical product safe fields", () => {
     const projected = buildProjectedProductReadModel();
     const projectedWithForcedValuationValues = {
       ...projected,
@@ -363,6 +394,11 @@ describe("guarded global-asset product migration selectors", () => {
                 amount: 777_777,
                 currency: "EUR",
               },
+              dividendsNet: {
+                ...asset.dividendsNet,
+                amount: 666_666,
+                currency: "EUR",
+              },
               portfolioBreakdown: asset.portfolioBreakdown.map((entry, index) => ({
                 ...entry,
                 portfolioName:
@@ -383,22 +419,27 @@ describe("guarded global-asset product migration selectors", () => {
                   amount: 222_222,
                   currency: "EUR",
                 },
+                dividendsNet: {
+                  ...entry.dividendsNet,
+                  amount: 111_111,
+                  currency: "EUR",
+                },
               })),
             }
           : asset,
       ),
     };
     const compatibilityAssets = createCompatibilityAssetsFixture();
-    const fallbackRows = buildCompatibilityAssetSummariesFromGuardedRows({
+    const fallbackRows = buildAssetSummariesFromCanonicalSafeFields({
       productReadModel: projectedWithForcedValuationValues,
       compatibilityAssets,
     });
-    const dashboardSelection = selectGuardedDashboardSource({
+    const dashboardSelection = selectCanonicalDashboardSafeFieldSource({
       compatibilityAssets,
       productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
     });
-    const assetTableSelection = selectGuardedAssetTableSource({
+    const assetTableSelection = selectCanonicalAssetTableSafeFieldSource({
       compatibilityAssets,
       productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
@@ -413,9 +454,11 @@ describe("guarded global-asset product migration selectors", () => {
     expect(fallbackRows[0]?.netShares).toBe(3);
     expect(fallbackRows[0]?.remainingCostBasis).toBe(300);
     expect(fallbackRows[0]?.avgBuyPrice).toBe(100);
+    expect(fallbackRows[0]?.totalDividendNet).toBe(12);
     expect(fallbackRows[0]?.portfolioBreakdown[0]?.positionValue).toBe(336);
     expect(fallbackRows[0]?.portfolioBreakdown[0]?.unrealizedPnL).toBe(36);
     expect(fallbackRows[0]?.portfolioBreakdown[0]?.netShares).toBe(3);
+    expect(fallbackRows[0]?.portfolioBreakdown[0]?.totalDividendNet).toBe(12);
     expect(dashboardSelection.selection.selectedSource).toBe("global_asset_product");
     expect(assetTableSelection.selection.selectedSource).toBe("global_asset_product");
     expect(dashboardSelection.selection.fallbackFields).toContain("position_value");
@@ -423,11 +466,32 @@ describe("guarded global-asset product migration selectors", () => {
     expect(dashboardSelection.selection.fallbackFields).toContain("remaining_cost_basis");
     expect(dashboardSelection.selection.fallbackFields).toContain("avg_buy_price");
     expect(dashboardSelection.selection.fallbackFields).toContain("net_shares");
+    expect(dashboardSelection.selection.fallbackFields).toContain("total_dividend_net");
+  });
+
+  it("preserves compatibility rows when canonical product safe-field rows are missing", () => {
+    const projected = buildProjectedProductReadModel();
+    const compatibilityAssets = createCompatibilityAssetsFixture();
+    const projectedMissingSecondAsset = {
+      ...projected,
+      assets: projected.assets.filter(
+        (asset) => asset.identity.compatibilityIsin !== "DEMO00000012",
+      ),
+    };
+    const selectedRows = buildAssetSummariesFromCanonicalSafeFields({
+      productReadModel: projectedMissingSecondAsset,
+      compatibilityAssets,
+    });
+
+    expect(selectedRows).toHaveLength(2);
+    expect(selectedRows[0]?.isin).toBe("DEMO00000011");
+    expect(selectedRows[1]?.isin).toBe("DEMO00000012");
+    expect(selectedRows[1]?.name).toBe("Demo Asset Two");
   });
 });
 
-describe("reports guarded source integration", () => {
-  it("uses guarded reports source by default when local coexistence cache is ready", () => {
+describe("reports canonical safe-field source integration", () => {
+  it("uses canonical reports safe-field source by default when local coexistence cache is ready", () => {
     const projected = buildProjectedProductReadModel();
     const compatibilityAssets = createCompatibilityAssetsFixture();
     const projectedWithSafeIdentity = {

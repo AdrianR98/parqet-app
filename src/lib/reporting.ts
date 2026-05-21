@@ -6,11 +6,11 @@ import {
     resolvePortfolioScope,
 } from "./app-settings";
 import type { AssetSummary, ReconciliationWarning } from "./types";
-import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
 import {
-    buildCompatibilityAssetSummariesFromGuardedRows,
-    selectGuardedProductSurfaceSource,
-    type GuardedSourceSelection,
+    buildAssetSummariesFromCanonicalSafeFields,
+    readGlobalAssetProductReadModel,
+    selectCanonicalSafeFieldProductSurfaceSource,
+    type CanonicalSafeFieldSelection,
 } from "./parqet/global-assets/product-surface-selectors";
 import { resolveGlobalAssetProductGuardEnabled } from "./dashboard-helpers";
 
@@ -54,7 +54,7 @@ export type LocalReportModel = {
     assets: ReportAssetRow[];
     breakdown: ReportBreakdownRow[];
     quality: ReportQualitySummary;
-    guardedSelection: GuardedSourceSelection;
+    guardedSelection: CanonicalSafeFieldSelection;
     totals: {
         totalPositionValue: number | null;
         totalUnrealizedPnL: number | null;
@@ -202,16 +202,19 @@ export function loadLocalReportModel(): LocalReportModel | null {
             ? resolvedScope.selectedPortfolioIds
             : cache.selectedPortfolioIds;
     const compatibilityAssets = [...cache.activeAssets, ...cache.closedAssets];
-    const productReadModel = (cache.globalAssetProductReadModel ?? null) as ProductReadModelAssets | null;
-    const guardedSelection = selectGuardedProductSurfaceSource({
+    const rawProductReadModel = cache.globalAssetProductReadModel ?? null;
+    const productReadModel = readGlobalAssetProductReadModel(
+        rawProductReadModel
+    );
+    const guardedSelection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "reports",
         compatibilityAssets,
-        productReadModel,
+        productReadModel: rawProductReadModel,
         guardEnabled: resolveGlobalAssetProductGuardEnabled(),
     });
     const selectedAssets =
         guardedSelection.selectedSource === "global_asset_product" && productReadModel
-            ? buildCompatibilityAssetSummariesFromGuardedRows({
+            ? buildAssetSummariesFromCanonicalSafeFields({
                 productReadModel,
                 compatibilityAssets,
             })

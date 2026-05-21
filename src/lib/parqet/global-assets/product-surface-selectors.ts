@@ -2,23 +2,27 @@ import type { AssetSummary, PortfolioPosition } from "../../types";
 import type {
   ProductReadModelAssetRow,
   ProductReadModelAssets,
+  ProductReadModelConfidence,
   ProductReadModelFreshnessState,
+  ProductReadModelSourceScope,
+  ProductReadModelSourceType,
   ProductReadModelScopeState,
 } from "./product-read-model";
 import type { BlockedMetric } from "./types";
 
-export type GuardedSurfaceId = "dashboard" | "asset_table" | "reports";
+export type CanonicalSafeFieldSurfaceId = "dashboard" | "asset_table" | "reports";
 
-export type GuardedProductSource = "compatibility" | "global_asset_product";
+export type CanonicalSafeFieldProductSource = "compatibility" | "global_asset_product";
 
-export type GuardedSourceSelectionReason =
+export type CanonicalSafeFieldSelectionReason =
   | "guard_not_enabled"
   | "product_read_model_missing"
+  | "product_read_model_invalid"
   | "product_read_model_not_fresh"
   | "product_read_model_scope_mismatch"
   | "product_read_model_ready";
 
-export type GuardedFallbackField =
+export type CanonicalSafeFieldFallbackField =
   | "position_value"
   | "unrealized_pnl"
   | "remaining_cost_basis"
@@ -26,46 +30,60 @@ export type GuardedFallbackField =
   | "net_shares"
   | "total_dividend_net";
 
-export type GuardedSourceSelectionDiagnostics = {
+export type CanonicalSafeFieldSelectionDiagnostics = {
+  readModelId: string | null;
   compatibilityAssetCount: number;
   productAssetCount: number;
   blockedMetricAssetCount: number;
   blockedMetricCount: number;
+  sourceType: ProductReadModelSourceType | "none";
+  sourceScope: ProductReadModelSourceScope | "none";
   freshnessState: ProductReadModelFreshnessState | "none";
   scopeState: ProductReadModelScopeState | "none";
+  confidence: ProductReadModelConfidence | "none";
+  providerRequestCount: number | null;
   warningCount: number;
 };
 
-export type GuardedSourceSelection = {
-  surface: GuardedSurfaceId;
-  selectedSource: GuardedProductSource;
-  reason: GuardedSourceSelectionReason;
+export type CanonicalSafeFieldSelection = {
+  surface: CanonicalSafeFieldSurfaceId;
+  selectedSource: CanonicalSafeFieldProductSource;
+  reason: CanonicalSafeFieldSelectionReason;
   blockedMetrics: BlockedMetric[];
-  fallbackFields: GuardedFallbackField[];
-  diagnostics: GuardedSourceSelectionDiagnostics;
+  fallbackFields: CanonicalSafeFieldFallbackField[];
+  diagnostics: CanonicalSafeFieldSelectionDiagnostics;
 };
 
-export type SelectGuardedSourceInput = {
-  surface: GuardedSurfaceId;
+export type SelectCanonicalSafeFieldSourceInput = {
+  surface: CanonicalSafeFieldSurfaceId;
   compatibilityAssets: AssetSummary[];
-  productReadModel?: ProductReadModelAssets | null;
+  productReadModel?: unknown;
   guardEnabled: boolean;
 };
 
-const ALWAYS_COMPATIBILITY_FALLBACK_FIELDS: GuardedFallbackField[] = [
+export type GuardedSurfaceId = CanonicalSafeFieldSurfaceId;
+export type GuardedProductSource = CanonicalSafeFieldProductSource;
+export type GuardedSourceSelectionReason = CanonicalSafeFieldSelectionReason;
+export type GuardedFallbackField = CanonicalSafeFieldFallbackField;
+export type GuardedSourceSelectionDiagnostics = CanonicalSafeFieldSelectionDiagnostics;
+export type GuardedSourceSelection = CanonicalSafeFieldSelection;
+export type SelectGuardedSourceInput = SelectCanonicalSafeFieldSourceInput;
+
+const ALWAYS_COMPATIBILITY_FALLBACK_FIELDS: CanonicalSafeFieldFallbackField[] = [
   "position_value",
   "unrealized_pnl",
   "remaining_cost_basis",
   "avg_buy_price",
   "net_shares",
+  "total_dividend_net",
 ];
 
 function uniqueBlockedMetrics(rows: ProductReadModelAssetRow[]): BlockedMetric[] {
   return Array.from(new Set(rows.flatMap((row) => row.blockedMetrics)));
 }
 
-function blockedMetricsToFallbackFields(metrics: BlockedMetric[]): GuardedFallbackField[] {
-  const fallbackFields = new Set<GuardedFallbackField>(
+function blockedMetricsToFallbackFields(metrics: BlockedMetric[]): CanonicalSafeFieldFallbackField[] {
+  const fallbackFields = new Set<CanonicalSafeFieldFallbackField>(
     ALWAYS_COMPATIBILITY_FALLBACK_FIELDS,
   );
 
@@ -95,35 +113,105 @@ function blockedMetricsToFallbackFields(metrics: BlockedMetric[]): GuardedFallba
   return Array.from(fallbackFields);
 }
 
-function isFreshEnoughForGuardedSelection(state: ProductReadModelFreshnessState): boolean {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object");
+}
+
+function isProductReadModelPortfolioBreakdown(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.portfolioId === "string" &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.blockedMetrics)
+  );
+}
+
+function isProductReadModelAssetRow(value: unknown): value is ProductReadModelAssetRow {
+  if (!isRecord(value) || !isRecord(value.identity) || !isRecord(value.display)) {
+    return false;
+  }
+
+  return (
+    typeof value.display.displayName === "string" &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.blockedMetrics) &&
+    Array.isArray(value.portfolioBreakdown) &&
+    value.portfolioBreakdown.every(isProductReadModelPortfolioBreakdown)
+  );
+}
+
+export function readGlobalAssetProductReadModel(value: unknown): ProductReadModelAssets | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const metadata = value.metadata;
+  const summary = value.summary;
+
+  if (
+    !isRecord(metadata) ||
+    !isRecord(summary) ||
+    !Array.isArray(value.assets) ||
+    !value.assets.every(isProductReadModelAssetRow)
+  ) {
+    return null;
+  }
+
+  if (
+    typeof metadata.readModelId !== "string" ||
+    typeof metadata.sourceType !== "string" ||
+    typeof metadata.sourceScope !== "string" ||
+    typeof metadata.freshnessState !== "string" ||
+    typeof metadata.scopeState !== "string" ||
+    typeof metadata.confidence !== "string"
+  ) {
+    return null;
+  }
+
+  return value as ProductReadModelAssets;
+}
+
+function isFreshEnoughForCanonicalSafeFieldSelection(state: ProductReadModelFreshnessState): boolean {
   return state === "fresh";
 }
 
-function isScopeCompatibleForGuardedSelection(state: ProductReadModelScopeState): boolean {
+function isScopeCompatibleForCanonicalSafeFieldSelection(state: ProductReadModelScopeState): boolean {
   return state === "scope_match" || state === "scope_subset";
 }
 
-function buildDiagnostics(input: SelectGuardedSourceInput): GuardedSourceSelectionDiagnostics {
+function buildDiagnostics(input: {
+  compatibilityAssets: AssetSummary[];
+  productReadModel: ProductReadModelAssets | null;
+}): CanonicalSafeFieldSelectionDiagnostics {
   const productAssets = input.productReadModel?.assets ?? [];
   const blockedMetrics = uniqueBlockedMetrics(productAssets);
   const warningCount = productAssets.reduce((count, row) => count + row.warnings.length, 0);
 
   return {
+    readModelId: input.productReadModel?.metadata.readModelId ?? null,
     compatibilityAssetCount: input.compatibilityAssets.length,
     productAssetCount: productAssets.length,
     blockedMetricAssetCount: productAssets.filter((row) => row.blockedMetrics.length > 0).length,
     blockedMetricCount: blockedMetrics.length,
+    sourceType: input.productReadModel?.metadata.sourceType ?? "none",
+    sourceScope: input.productReadModel?.metadata.sourceScope ?? "none",
     freshnessState: input.productReadModel?.metadata.freshnessState ?? "none",
     scopeState: input.productReadModel?.metadata.scopeState ?? "none",
+    confidence: input.productReadModel?.metadata.confidence ?? "none",
+    providerRequestCount: input.productReadModel?.metadata.providerRequestCount ?? null,
     warningCount,
   };
 }
 
-export function selectGuardedProductSurfaceSource(
-  input: SelectGuardedSourceInput,
-): GuardedSourceSelection {
-  const diagnostics = buildDiagnostics(input);
-  const blockedMetrics = uniqueBlockedMetrics(input.productReadModel?.assets ?? []);
+export function selectCanonicalSafeFieldProductSurfaceSource(
+  input: SelectCanonicalSafeFieldSourceInput,
+): CanonicalSafeFieldSelection {
+  const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
+  const diagnostics = buildDiagnostics({
+    compatibilityAssets: input.compatibilityAssets,
+    productReadModel,
+  });
+  const blockedMetrics = uniqueBlockedMetrics(productReadModel?.assets ?? []);
   const fallbackFields = blockedMetricsToFallbackFields(blockedMetrics);
 
   if (!input.guardEnabled) {
@@ -137,7 +225,7 @@ export function selectGuardedProductSurfaceSource(
     };
   }
 
-  if (!input.productReadModel) {
+  if (input.productReadModel == null) {
     return {
       surface: input.surface,
       selectedSource: "compatibility",
@@ -148,7 +236,29 @@ export function selectGuardedProductSurfaceSource(
     };
   }
 
-  if (!isFreshEnoughForGuardedSelection(input.productReadModel.metadata.freshnessState)) {
+  if (!productReadModel) {
+    return {
+      surface: input.surface,
+      selectedSource: "compatibility",
+      reason: "product_read_model_invalid",
+      blockedMetrics,
+      fallbackFields,
+      diagnostics,
+    };
+  }
+
+  if (input.compatibilityAssets.length > 0 && productReadModel.assets.length === 0) {
+    return {
+      surface: input.surface,
+      selectedSource: "compatibility",
+      reason: "product_read_model_missing",
+      blockedMetrics,
+      fallbackFields,
+      diagnostics,
+    };
+  }
+
+  if (!isFreshEnoughForCanonicalSafeFieldSelection(productReadModel.metadata.freshnessState)) {
     return {
       surface: input.surface,
       selectedSource: "compatibility",
@@ -159,7 +269,7 @@ export function selectGuardedProductSurfaceSource(
     };
   }
 
-  if (!isScopeCompatibleForGuardedSelection(input.productReadModel.metadata.scopeState)) {
+  if (!isScopeCompatibleForCanonicalSafeFieldSelection(productReadModel.metadata.scopeState)) {
     return {
       surface: input.surface,
       selectedSource: "compatibility",
@@ -180,6 +290,12 @@ export function selectGuardedProductSurfaceSource(
   };
 }
 
+export function selectGuardedProductSurfaceSource(
+  input: SelectGuardedSourceInput,
+): GuardedSourceSelection {
+  return selectCanonicalSafeFieldProductSurfaceSource(input);
+}
+
 function mapPortfolioBreakdown(input: {
   row: ProductReadModelAssetRow;
   fallback?: AssetSummary;
@@ -188,7 +304,7 @@ function mapPortfolioBreakdown(input: {
     (input.fallback?.portfolioBreakdown ?? []).map((entry) => [entry.portfolioId, entry]),
   );
 
-  return input.row.portfolioBreakdown.map((entry) => {
+  const projected = input.row.portfolioBreakdown.map((entry) => {
     const fallback = fallbackByPortfolioId.get(entry.portfolioId);
     const netShares = fallback?.netShares ?? 0;
     const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
@@ -206,69 +322,109 @@ function mapPortfolioBreakdown(input: {
       marketPrice: fallback?.marketPrice ?? null,
       positionValue,
       unrealizedPnL,
-      totalDividendNet: entry.dividendsNet.amount ?? fallback?.totalDividendNet ?? 0,
+      totalDividendNet: fallback?.totalDividendNet ?? 0,
     };
   });
+
+  const productPortfolioIds = new Set(input.row.portfolioBreakdown.map((entry) => entry.portfolioId));
+  const missingCompatibilityEntries =
+    input.fallback?.portfolioBreakdown.filter((entry) => !productPortfolioIds.has(entry.portfolioId)) ??
+    [];
+
+  return [...projected, ...missingCompatibilityEntries];
+}
+
+function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
+  row: ProductReadModelAssetRow;
+  fallback?: AssetSummary;
+}): AssetSummary {
+  const { row, fallback } = input;
+  const isin =
+    row.identity.compatibilityIsin ??
+    fallback?.isin ??
+    row.identity.stableKey ??
+    row.display.displayName;
+  const netShares = fallback?.netShares ?? 0;
+  const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
+  const avgBuyPrice = fallback?.avgBuyPrice ?? null;
+  const positionValue = fallback?.positionValue ?? null;
+  const unrealizedPnL = fallback?.unrealizedPnL ?? null;
+  const portfolioBreakdown = mapPortfolioBreakdown({ row, fallback });
+
+  return {
+    isin,
+    portfolioIds: portfolioBreakdown.map((entry) => entry.portfolioId),
+    portfolioNames: portfolioBreakdown.map((entry) => entry.portfolioName),
+    portfolioBreakdown,
+    activityCount: fallback?.activityCount ?? 0,
+    buyCount: fallback?.buyCount ?? 0,
+    sellCount: fallback?.sellCount ?? 0,
+    dividendCount: fallback?.dividendCount ?? 0,
+    totalBoughtShares: fallback?.totalBoughtShares ?? 0,
+    totalSoldShares: fallback?.totalSoldShares ?? 0,
+    netShares,
+    totalInvestedGross: fallback?.totalInvestedGross ?? 0,
+    remainingCostBasis,
+    avgBuyPrice,
+    latestTradePrice: fallback?.latestTradePrice ?? null,
+    marketPrice: fallback?.marketPrice ?? null,
+    marketPriceAt: fallback?.marketPriceAt ?? null,
+    marketPriceSource: fallback?.marketPriceSource ?? null,
+    positionValue,
+    unrealizedPnL,
+    totalDividendNet: fallback?.totalDividendNet ?? 0,
+    latestActivityAt: row.latestActivityAt ?? fallback?.latestActivityAt ?? null,
+    name: row.display.displayName,
+    assetName: row.display.displayName,
+    displayName: row.display.displayName,
+    title: row.display.displayName,
+    symbol: row.display.symbol ?? fallback?.symbol ?? null,
+    ticker: fallback?.ticker ?? null,
+    tickerSymbol: fallback?.tickerSymbol ?? null,
+    wkn: row.display.wkn ?? fallback?.wkn ?? null,
+    metadata: fallback?.metadata ?? null,
+    externalMetadata: fallback?.externalMetadata ?? null,
+    assetMeta: fallback?.assetMeta ?? null,
+  };
+}
+
+export function buildAssetSummariesFromCanonicalSafeFields(input: {
+  productReadModel: ProductReadModelAssets;
+  compatibilityAssets: AssetSummary[];
+}): AssetSummary[] {
+  const productRowsByIsin = new Map<string, ProductReadModelAssetRow>();
+  const productRowsWithoutCompatibilityIsin: ProductReadModelAssetRow[] = [];
+
+  for (const row of input.productReadModel.assets) {
+    const fallbackIsin = row.identity.compatibilityIsin?.toUpperCase() ?? null;
+
+    if (fallbackIsin) {
+      productRowsByIsin.set(fallbackIsin, row);
+    } else {
+      productRowsWithoutCompatibilityIsin.push(row);
+    }
+  }
+
+  const compatibilityRows = input.compatibilityAssets.map((fallback) => {
+    const row = productRowsByIsin.get(fallback.isin.toUpperCase());
+
+    if (!row) {
+      return fallback;
+    }
+
+    return buildAssetSummaryFromCanonicalSafeFieldRow({ row, fallback });
+  });
+
+  const productOnlyRows = productRowsWithoutCompatibilityIsin.map((row) =>
+    buildAssetSummaryFromCanonicalSafeFieldRow({ row }),
+  );
+
+  return [...compatibilityRows, ...productOnlyRows];
 }
 
 export function buildCompatibilityAssetSummariesFromGuardedRows(input: {
   productReadModel: ProductReadModelAssets;
   compatibilityAssets: AssetSummary[];
 }): AssetSummary[] {
-  const fallbackByIsin = new Map<string, AssetSummary>(
-    input.compatibilityAssets.map((asset) => [asset.isin.toUpperCase(), asset]),
-  );
-
-  return input.productReadModel.assets.map((row) => {
-    const fallbackIsin = row.identity.compatibilityIsin?.toUpperCase() ?? null;
-    const fallback = fallbackIsin ? fallbackByIsin.get(fallbackIsin) : undefined;
-    const isin =
-      row.identity.compatibilityIsin ??
-      fallback?.isin ??
-      row.identity.stableKey ??
-      row.display.displayName;
-    const netShares = fallback?.netShares ?? 0;
-    const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
-    const avgBuyPrice = fallback?.avgBuyPrice ?? null;
-    const positionValue = fallback?.positionValue ?? null;
-    const unrealizedPnL = fallback?.unrealizedPnL ?? null;
-
-    return {
-      isin,
-      portfolioIds: row.portfolioBreakdown.map((entry) => entry.portfolioId),
-      portfolioNames: row.portfolioBreakdown.map(
-        (entry) => entry.portfolioName ?? entry.portfolioId,
-      ),
-      portfolioBreakdown: mapPortfolioBreakdown({ row, fallback }),
-      activityCount: fallback?.activityCount ?? 0,
-      buyCount: fallback?.buyCount ?? 0,
-      sellCount: fallback?.sellCount ?? 0,
-      dividendCount: fallback?.dividendCount ?? 0,
-      totalBoughtShares: fallback?.totalBoughtShares ?? 0,
-      totalSoldShares: fallback?.totalSoldShares ?? 0,
-      netShares,
-      totalInvestedGross: fallback?.totalInvestedGross ?? 0,
-      remainingCostBasis,
-      avgBuyPrice,
-      latestTradePrice: fallback?.latestTradePrice ?? null,
-      marketPrice: fallback?.marketPrice ?? null,
-      marketPriceAt: fallback?.marketPriceAt ?? null,
-      marketPriceSource: fallback?.marketPriceSource ?? null,
-      positionValue,
-      unrealizedPnL,
-      totalDividendNet: row.dividendsNet.amount ?? fallback?.totalDividendNet ?? 0,
-      latestActivityAt: row.latestActivityAt ?? fallback?.latestActivityAt ?? null,
-      name: row.display.displayName,
-      assetName: row.display.displayName,
-      displayName: row.display.displayName,
-      title: row.display.displayName,
-      symbol: row.display.symbol ?? fallback?.symbol ?? null,
-      ticker: fallback?.ticker ?? null,
-      tickerSymbol: fallback?.tickerSymbol ?? null,
-      wkn: row.display.wkn ?? fallback?.wkn ?? null,
-      metadata: fallback?.metadata ?? null,
-      externalMetadata: fallback?.externalMetadata ?? null,
-      assetMeta: fallback?.assetMeta ?? null,
-    };
-  });
+  return buildAssetSummariesFromCanonicalSafeFields(input);
 }

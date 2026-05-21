@@ -757,10 +757,10 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
   });
 });
 
-test.describe("V1 guarded global asset safe-default smoke", () => {
+test.describe("V1 canonical global asset safe-field smoke", () => {
   test.use({ storageState: SYNTHETIC_STORAGE_STATE_WITH_GUARDED_PRODUCT });
 
-  test("dashboard and reports use guarded identity fields while valuation remains compatibility-backed", async ({
+  test("dashboard and reports use canonical safe fields while valuation remains compatibility-backed", async ({
     page,
   }) => {
     const monitor = createFailureMonitor(page);

@@ -114,12 +114,13 @@ Locked/Completed pipeline-readiness decision and test follow-ups:
 - #286/#300/#301/#302/#303/#304/#305/#306/#307: Activities/Timeline local PRM migration is stabilized as a browser-local compatibility path with PRM default-on when local evidence is ready, mandatory fallback for missing/stale/scope-mismatch evidence, explicit rollback via feature flag and synthetic route-smoke plus pipeline evidence.
 - #309: Guarded Global Asset product migration for Dashboard/AssetTable/Reports now includes real app-flow coexistence cache population from the explicit `/api/parqet/assets` load path, guarded dashboard/report source selection wiring and compatibility-safe fallback behavior for missing/stale/scope-mismatch/blocked fields.
 - Follow-up to #309/#310/#311: Dashboard, AssetTable and Reports now run safe non-valuation Global Asset defaults when product-read-model freshness/scope evidence is ready, while valuation/performance and transfer-sensitive fields remain compatibility-backed and rollback can force full compatibility via `NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED=off|false|0`.
+- #314: First broad canonical safe-field route group migration completed for Dashboard, AssetTable-visible Dashboard rows and Reports. Global Asset PRM identity/display/portfolio labels are canonical only when readiness evidence is fresh and scope-compatible; missing/stale/scope-mismatch/invalid PRM data and explicit rollback stay compatibility-backed. Valuation, performance, cost-basis, dividend totals, transfer-sensitive and quantity-sensitive fields remain compatibility-owned.
 
 Status note for #248:
 
 - #248 remains open as the pipeline-readiness parent/backlog while next direction is selected.
 - Activities/Timeline local PRM migration finalization is complete as a compatibility path and does not by itself close #248 or authorize canonical Dashboard/AssetTable/Reports replacement.
-- #309/#310/#311 follow-up does not close #248: Dashboard/AssetTable/Reports are now safe-default enabled for identity/display/portfolio-breakdown fields when readiness evidence is present, but canonical route replacement, provider/runtime migration and valuation ownership transition remain open.
+- #314 does not close #248: Dashboard/AssetTable/Reports have completed the first canonical safe-field slice for identity/display/portfolio labels when readiness evidence is present, but full canonical route replacement, provider/runtime migration, old-path removal and valuation ownership transition remain open.
 - DP-09 is now locked as a documentation decision through #166 and `docs/GLOBAL_ASSET_OVERRIDES.md`; this does not authorize override UI/write/storage implementation.
 - DP-13/status cleanup remains a documentation/status topic; this cleanup does not close #248.
 
@@ -144,7 +145,8 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 - [ ] Existing asset calculation has not been replaced.
 - [x] #248 follow-up decisions are locked for the affected route/read-model (DP-01/DP-02/DP-03/DP-04/DP-05/DP-06/DP-07/DP-08/DP-09/DP-10/DP-11/DP-12 complete; DP-13 remains docs/status cleanup).
 - [ ] Route/read-model replacement evidence from `docs/PIPELINE_INVENTORY.md` is satisfied.
-- [ ] First route migration candidate is selected from #249 evidence and satisfies the DP-11 read-only, snapshot/local-first, comparison and rollback gate.
+- [x] First safe-field route migration candidate is selected from #249 evidence and satisfies the DP-11 read-only, snapshot/local-first, comparison and rollback gate for Dashboard/AssetTable/Reports safe fields only.
+- [ ] Full route/read-model replacement candidate for valuation ownership and old-path removal is selected and satisfies the remaining replacement evidence.
 - [ ] Decision documented for when/how the new pipeline becomes productive.
 - [ ] Vercel deployability remains intact.
 
@@ -153,9 +155,9 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 1. Use #248 as the pipeline-readiness parent / decision backlog.
 2. Use `docs/PIPELINE_INVENTORY.md` from #249 as the replacement-gate evidence baseline.
 3. Keep #248 open for direction/backlog tracking, and treat DP-13 as docs/status cleanup until the next implementation direction is selected.
-4. Keep the first canonical Global Asset product-route migration candidate selection in a later route-specific issue after #249 evidence identifies the next lowest-risk read-only, snapshot/local-first surface.
-5. Keep current product routes and existing calculations stable until route-specific comparison, API-budget, privacy and rollback evidence is reviewed.
-6. Next direct implementation step after safe-default guarded migration: decide the first canonical Global Asset-backed product route candidate and deliver route-level old/new comparison evidence with rollback coverage before any old-path removal.
+4. Keep the #314 safe-field route group as a limited canonical slice, not a valuation/full-route replacement.
+5. Keep current product routes and existing calculations stable until full route-specific comparison, API-budget, privacy and rollback evidence is reviewed.
+6. Next direct implementation step after #314: define the valuation/full-route replacement path for #248, including cost basis, market value, unrealized PnL, transfer-pairing, FX and old-path removal evidence.
 
 ## Risks
 
