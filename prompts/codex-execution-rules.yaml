@@ -1,26 +1,28 @@
-version: 2
-purpose: Execution and reporting rules for Codex tasks.
+version: 3
+purpose: Low-budget execution, verification and reporting rules for Codex tasks.
 
 execution:
-  - Inspect requested files before editing.
+  - Implement the requested change only.
+  - Inspect only requested and directly relevant files before editing.
   - Treat prompts missing any required field from prompts/codex-task-template.yaml as not ready to issue.
-  - Respect the branch requested by the task.
-  - Do not choose a branch name if none was provided.
+  - Use the supplied mode and branch only.
+  - Stop if Mode or Branch is missing.
+  - Do not choose a branch name or infer a mode.
   - Commit only when the task explicitly allows commits.
-  - Never create PRs; Create PR remains disabled for Codex execution.
+  - Push only when the task explicitly allows pushing.
+  - Never create PRs unless explicitly authorized; Create PR remains disabled for normal Codex execution.
   - Never run gh pr create.
+  - Do not close issues, set milestones, change labels, set parent/sub-issue relationships or merge PRs unless explicitly authorized.
   - Keep unrelated dirty worktree changes out of the PR.
   - Use explicit staging when the worktree is mixed.
   - Stay within Allowed changes and Do not modify.
-  - Stop and ask before exceeding mode file limits unless mode is Voll.
+  - Stop before exceeding mode file limits unless mode is Voll or the task explicitly allows broader scope.
   - Treat broad UI, architecture, data and test tasks as context-budgeted work.
   - For non-Voll implementation tasks, stop and propose a smaller slice if more than 6 app files appear necessary unless the task explicitly allows the broader scope.
   - Prefer an analysis-only first pass for broad or uncertain work before implementing.
   - Do not modify app implementation files for governance-only tasks.
   - Do not add tests, libraries or tooling unless requested by the issue.
-  - Do not create or modify GitHub labels in code.
-  - Do not create label-management scripts.
-  - Do not close issues, set milestones, set parent/sub-issue relationships or merge PRs.
+  - Do not create or modify GitHub labels in code or label-management scripts.
 
 search:
   preferred:
@@ -28,7 +30,7 @@ search:
     - git ls-files
     - rg when available
   efficiency:
-    - Use search before broad file reads unless the exact file and needed section are already known.
+    - Use search before broad file reads only when the exact file or needed section is unknown.
     - Prefer focused excerpts around matches over full-file reads for large files.
     - Batch independent file reads or searches when possible.
     - Read full files only when the complete file shape is required for a safe edit or review.
@@ -116,17 +118,34 @@ mode_file_limits:
   Review-Fix: review feedback or introduced failure only
 
 verification:
+  default: not_run_by_default
+  rule: Do not run local checks unless explicitly requested.
   final_gate:
     - GitHub Actions is the final PR gate for lint/build and V1 Playwright smoke unless Adrian explicitly approves and documents an exception.
-    - Codex should run only scope-relevant local checks before reporting completion.
-    - Codex should not open PRs or poll CI for docs-only local tasks.
-    - ChatGPT/Reviewer verifies final GitHub Actions status before merge.
+    - User review and ChatGPT diff review are default gates when Codex does not create a PR.
+    - Codex must not open PRs or poll CI unless explicitly requested.
   profiles:
+    not_run_by_default:
+      local_run: []
+      local_do_not_run_by_default:
+        - git diff --check
+        - npm run lint
+        - npx tsc --noEmit
+        - npm run build
+        - npm run test:e2e
+        - Playwright, Vitest, Jest or smoke probes
+        - browser probes
+        - API probes
+        - Vercel deploys
+      final_gate:
+        - GitHub Actions
+        - user review
+        - ChatGPT diff review
     docs_or_prompt_only:
       local_run:
-        - git diff --check
-        - markdown/yaml validation when available and relevant
+        - only checks explicitly named in the task
       local_do_not_run_by_default:
+        - git diff --check
         - npm run lint
         - npx tsc --noEmit
         - npm run build
@@ -135,34 +154,35 @@ verification:
         - GitHub Actions
     workflow_only:
       local_run:
-        - git diff --check
-        - workflow syntax/lint check when available and relevant
+        - only checks explicitly named in the task
       local_do_not_run_by_default:
-        - npm run test:e2e unless the workflow change directly changes E2E behavior and local feedback is needed
-        - npm run build unless package/runtime behavior changed
+        - git diff --check
+        - npm run lint
+        - npx tsc --noEmit
+        - npm run build
+        - npm run test:e2e
       final_gate:
         - GitHub Actions workflow execution
     ts_ui:
       local_run:
+        - only checks explicitly named in the task
+      local_do_not_run_by_default:
         - git diff --check
         - npm run lint
         - npx tsc --noEmit
-      local_optional:
-        - npm run build only when app runtime, Next route/config, dependency or build-relevant behavior changed
-      local_do_not_run_by_default:
+        - npm run build
         - npm run test:e2e
       final_gate:
         - GitHub Actions lint/build/e2e
     runtime_route_or_config:
       local_run:
+        - only checks explicitly named in the task
+      local_do_not_run_by_default:
         - git diff --check
         - npm run lint
         - npx tsc --noEmit
         - npm run build
-      local_optional:
-        - focused tests when available and directly relevant
-      local_do_not_run_by_default:
-        - npm run test:e2e unless route/navigation/browser behavior is directly affected
+        - npm run test:e2e
       final_gate:
         - GitHub Actions lint/build/e2e
     e2e_sensitive:
@@ -174,30 +194,22 @@ verification:
         - provider-route guards
         - UI interactions explicitly covered by smoke tests
       local_run:
+        - only checks explicitly named in the task
+      local_do_not_run_by_default:
         - git diff --check
-        - npm run lint when code changed
-        - npx tsc --noEmit when TypeScript changed
-        - focused Playwright tests with -g when practical
-        - npm run test:e2e when E2E config/tests or smoke-covered behavior changed materially
+        - npm run lint
+        - npx tsc --noEmit
+        - npm run build
+        - focused Playwright tests
+        - npm run test:e2e
       final_gate:
         - GitHub Actions lint/build/e2e
-  legacy_defaults:
-    current_ci:
-      - npm run lint
-      - npm run build
-    docs_or_prompt_only:
-      - git diff --check
-      - markdown/yaml validation when available and relevant
-    code_changes:
-      - npm run lint
-      - npm run build only when build-relevant
-      - relevant focused tests only when scope-relevant
   test_loop:
-    - Run focused tests during development when available and relevant to the verification profile.
-    - Run the full relevant local test suite only when the profile requires it.
+    - Run tests only when explicitly requested.
+    - Run the full relevant local test suite only when explicitly requested.
     - Do not run lint, build and E2E tests concurrently.
     - Re-run failed checks only after a relevant fix.
-    - Manual browser inspection is optional unless automated tests do not cover the changed behavior, a visual interaction must be checked, or the task explicitly requires browser review.
+    - Manual browser inspection must not run unless explicitly requested.
     - If manual browser inspection is run, keep it bounded to the affected pages and avoid reading browser/tool skill docs unless needed.
   always_use_terms:
     - Run
@@ -218,9 +230,9 @@ ci_and_vercel:
 
 reporting:
   progress_updates:
-    - Keep updates short and milestone-based.
-    - Do not narrate every command or routine file read.
-    - Report meaningful blockers, verification results and scope deviations.
+    - Default to final-only output.
+    - During execution, output only a concise blocker message if blocked.
+    - Do not narrate commands, routine file reads, searches, checks or implementation phases.
   include_when_relevant:
     - branch
     - changed files
@@ -236,6 +248,8 @@ reporting:
     - huge logs
     - full-file dumps
     - full-diff dumps after successful implementation
+    - command lists
+    - routine narration
     - private chain-of-thought
     - private API response data
   diff_reporting:
