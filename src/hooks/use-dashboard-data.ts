@@ -21,11 +21,11 @@ import {
   buildDashboardStats,
   isDashboardDataStale,
   resolveGlobalAssetProductGuardEnabled,
-  selectGuardedDashboardSource,
+  selectCanonicalDashboardSafeFieldSource,
   sortActiveAssets,
   sortClosedAssets,
 } from "../lib/dashboard-helpers";
-import type { ProductReadModelAssets } from "../lib/parqet/global-assets/product-read-model";
+import { readGlobalAssetProductReadModel } from "../lib/parqet/global-assets/product-surface-selectors";
 import type {
   AssetSummary,
   AssetsApiResponse,
@@ -107,16 +107,6 @@ function splitAssetsByPosition(assets: AssetSummary[]): {
   );
 
   return { activeAssets, closedAssets };
-}
-
-function readGlobalAssetProductReadModel(
-  value: unknown,
-): ProductReadModelAssets | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  return value as ProductReadModelAssets;
 }
 
 function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
@@ -316,23 +306,21 @@ export function useDashboardData(): UseDashboardDataResult {
       ...compatibilityActiveAssets,
       ...compatibilityClosedAssets,
     ];
-    const globalAssetProductReadModel = readGlobalAssetProductReadModel(
-      cached.globalAssetProductReadModel ?? null,
-    );
-    const guardedDashboardSelection = selectGuardedDashboardSource({
+    const rawGlobalAssetProductReadModel = cached.globalAssetProductReadModel ?? null;
+    const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
       compatibilityAssets,
-      productReadModel: globalAssetProductReadModel,
+      productReadModel: rawGlobalAssetProductReadModel,
       guardEnabled: guardedGlobalAssetProductEnabled,
     });
     const selectedAssets = splitAssetsByPosition(
-      guardedDashboardSelection.assets,
+      canonicalSafeFieldSelection.assets,
     );
 
     setActiveAssets(selectedAssets.activeAssets);
     setClosedAssets(selectedAssets.closedAssets);
     setRawActivityCount(cached.rawActivityCount ?? 0);
     setFilteredActivityCount(cached.filteredActivityCount ?? 0);
-    setAssetCount(guardedDashboardSelection.assets.length);
+    setAssetCount(canonicalSafeFieldSelection.assets.length);
     setActiveAssetCount(selectedAssets.activeAssets.length);
     setClosedAssetCount(selectedAssets.closedAssets.length);
     setConsistencyReport(cached.consistencyReport ?? null);
@@ -396,16 +384,18 @@ export function useDashboardData(): UseDashboardDataResult {
       const dataWithCoexistence = data as AssetsApiResponse & {
         globalAssetProductReadModel?: unknown;
       };
+      const rawGlobalAssetProductReadModel =
+        dataWithCoexistence.globalAssetProductReadModel ?? null;
       const globalAssetProductReadModel = readGlobalAssetProductReadModel(
-        dataWithCoexistence.globalAssetProductReadModel ?? null,
+        rawGlobalAssetProductReadModel,
       );
-      const guardedDashboardSelection = selectGuardedDashboardSource({
+      const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
         compatibilityAssets,
-        productReadModel: globalAssetProductReadModel,
+        productReadModel: rawGlobalAssetProductReadModel,
         guardEnabled: guardedGlobalAssetProductEnabled,
       });
       const selectedAssets = splitAssetsByPosition(
-        guardedDashboardSelection.assets,
+        canonicalSafeFieldSelection.assets,
       );
       const nextGeneratedAt = data.generatedAt ?? new Date().toISOString();
 
@@ -424,7 +414,7 @@ export function useDashboardData(): UseDashboardDataResult {
       setClosedAssets(selectedAssets.closedAssets);
       setRawActivityCount(data.rawActivityCount ?? 0);
       setFilteredActivityCount(data.filteredActivityCount ?? 0);
-      setAssetCount(guardedDashboardSelection.assets.length);
+      setAssetCount(canonicalSafeFieldSelection.assets.length);
       setActiveAssetCount(selectedAssets.activeAssets.length);
       setClosedAssetCount(selectedAssets.closedAssets.length);
       setConsistencyReport(data.consistencyReport ?? null);
@@ -449,7 +439,7 @@ export function useDashboardData(): UseDashboardDataResult {
         freshness: data.freshness,
         activityItems: data.activityItems ?? [],
         globalAssetProductReadModel,
-        guardedSourceSelection: guardedDashboardSelection.selection,
+        guardedSourceSelection: canonicalSafeFieldSelection.selection,
       };
 
       saveDashboardCache(cachePayload);
