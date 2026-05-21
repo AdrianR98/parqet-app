@@ -29,7 +29,7 @@ type AssetTableProps = {
     emptyDescription?: string;
 };
 
-const FIXED_COLUMNS: AssetTableColumnKey[] = ["name", "positionValue"];
+const FIXED_COLUMNS: AssetTableColumnKey[] = ["name", "positionValue", "actions"];
 const ALL_COLUMNS: AssetTableColumnKey[] = [
     "name",
     "positionValue",

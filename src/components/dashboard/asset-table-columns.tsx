@@ -155,6 +155,7 @@ export function getAssetTableColumns(
         columnHelper.display({
             id: "actions",
             header: "Aktionen",
+            enableHiding: false,
             cell: ({ row }) => {
                 const asset = row.original;
                 const detailHref = createAssetDetailHref(asset);
