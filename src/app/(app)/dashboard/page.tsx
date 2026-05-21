@@ -3,65 +3,30 @@
 import CollapsibleAssetTableSection from "../../../components/dashboard/CollapsibleAssetTableSection";
 import DataWarningsPanel from "../../../components/dashboard/DataWarningsPanel";
 import HeroSection from "../../../components/dashboard/HeroSection";
-import StatsGrid from "../../../components/dashboard/StatsGrid";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
+import type { AssetSummary } from "../../../lib/types";
 
-/**
- * ============================================================
- * PAGE: DASHBOARD
- * ============================================================
- *
- * Verantwortlichkeiten:
- * - Seite orchestriert Daten + Panels
- * - Hero, Stats und Sections bleiben getrennte UI-Bausteine
- * - globale Layout-Utilities kommen aus globals.css
- *
- * Typische Erweiterungspunkte:
- * - persistente Filterzustände
- * - weitere Section-Typen
- * - zusätzliche Drawer / Sidepanels
- */
+function isCryptoAsset(asset: AssetSummary): boolean {
+    const typeCandidate = [asset.metadata?.assetType, asset.externalMetadata?.assetType, asset.assetMeta?.assetType]
+        .find((value) => typeof value === "string")
+        ?.toLowerCase() ?? "";
+    return typeCandidate.includes("crypto") || typeCandidate.includes("coin") || typeCandidate.includes("token");
+}
+
 export default function DashboardPage() {
     const {
-        portfolios,
-        selectedPortfolioIds,
-        draftPortfolioIds,
-        selectedPortfolioCount,
-        loadedPortfolioCount,
-        isPortfolioDropdownOpen,
-        showWarningsPanel,
-        portfolioDropdownRef,
-
-        assetCount,
-        consistencyReport,
-        reconciliationWarnings,
-        lastUpdatedAt,
-        hasPendingPortfolioSelection,
-        missingPortfolioScopeIds,
-        usedPortfolioScopeFallback,
-
-        loadingPortfolios,
-        loadingAssets,
-        refreshingAssets,
-        hasCachedData,
-        errorMessage,
-        authRequired,
-        startReconnect,
-
-        stats,
-        showStaleWarning,
-
-        sortedActiveAssets,
-        sortedClosedAssets,
-
-        setIsPortfolioDropdownOpen,
-        setShowWarningsPanel,
-
-        toggleDraftPortfolio,
-        applyPortfolioFilter,
-        resetPortfolioFilter,
-        loadAssets,
+        portfolios, selectedPortfolioIds, draftPortfolioIds, selectedPortfolioCount, loadedPortfolioCount, isPortfolioDropdownOpen, showWarningsPanel, portfolioDropdownRef,
+        assetCount, consistencyReport, reconciliationWarnings, hasPendingPortfolioSelection,
+        loadingAssets, refreshingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
+        stats, sortedActiveAssets, sortedClosedAssets,
+        setIsPortfolioDropdownOpen, setShowWarningsPanel,
+        toggleDraftPortfolio, applyPortfolioFilter, resetPortfolioFilter, loadAssets,
     } = useDashboardData();
+
+    const activeSecurities = sortedActiveAssets.filter((asset) => !isCryptoAsset(asset));
+    const activeCrypto = sortedActiveAssets.filter((asset) => isCryptoAsset(asset));
+    const soldSecurities = sortedClosedAssets.filter((asset) => !isCryptoAsset(asset));
+    const soldCrypto = sortedClosedAssets.filter((asset) => isCryptoAsset(asset));
 
     return (
         <>
@@ -79,9 +44,7 @@ export default function DashboardPage() {
                         hasCachedData={hasCachedData}
                         hasPendingPortfolioSelection={hasPendingPortfolioSelection}
                         isPortfolioDropdownOpen={isPortfolioDropdownOpen}
-                        onToggleOpen={() =>
-                            setIsPortfolioDropdownOpen((current) => !current)
-                        }
+                        onToggleOpen={() => setIsPortfolioDropdownOpen((current) => !current)}
                         onToggleDraftPortfolio={toggleDraftPortfolio}
                         onApply={applyPortfolioFilter}
                         onReset={resetPortfolioFilter}
@@ -89,85 +52,16 @@ export default function DashboardPage() {
                         totalPositionValue={stats.totalPositionValue}
                         totalUnrealizedPnL={stats.totalUnrealizedPnL}
                         totalDividendNet={stats.totalDividendNet}
-                        consistencyWarningCount={consistencyReport?.warningCount ?? 0}
-                        reconciliationWarningCount={reconciliationWarnings.length}
-                        lastUpdatedAt={lastUpdatedAt}
-                        showStaleWarning={showStaleWarning}
-                        showWarningsPanel={showWarningsPanel}
-                        onToggleWarningsPanel={() =>
-                            setShowWarningsPanel((current) => !current)
-                        }
                     />
 
-                    {loadingPortfolios ? (
-                        <div className="ui-banner ui-banner-info">
-                            Portfolios werden geladen. Die Asset-Liste startet erst nach deiner expliziten Ladeaktion.
-                        </div>
-                    ) : null}
-
-                    {missingPortfolioScopeIds.length > 0 || usedPortfolioScopeFallback ? (
-                        <div className="ui-banner ui-banner-info">
-                            Einige gespeicherte Portfolios sind nicht mehr lokal verfügbar oder nicht mehr autorisiert. AssetTrace nutzt sicher die verfügbaren Portfolios; prüfe den globalen Scope in den Einstellungen.
-                        </div>
-                    ) : null}
-
-                    {hasPendingPortfolioSelection ? (
-                        <div className="ui-banner ui-banner-info">
-                            Die Portfolio-Auswahl wurde geändert. Die Ansicht zeigt weiterhin den letzten geladenen Stand. Klicke auf „Manuell aktualisieren“, um Daten für die neue Auswahl zu laden.
-                        </div>
-                    ) : null}
-
-                    {refreshingAssets ? (
-                        <div className="ui-banner ui-banner-info">
-                            Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar, bis neue Daten bereitstehen.
-                        </div>
-                    ) : null}
-
-                    {errorMessage ? (
-                        <div className="ui-banner ui-banner-error">
-                            <strong>
-                                {authRequired
-                                    ? "Parqet-Verbindung abgelaufen"
-                                    : "Fehler"}
-                            </strong>
-                            <div>{errorMessage}</div>
-
-                            {authRequired ? (
-                                <div className="ui-banner-actions">
-                                    <button
-                                        type="button"
-                                        className="ui-btn ui-btn-secondary"
-                                        onClick={startReconnect}
-                                    >
-                                        Erneut verbinden
-                                    </button>
-                                </div>
-                            ) : null}
-                        </div>
-                    ) : null}
-
-                    <StatsGrid stats={stats} />
+                    {refreshingAssets ? <div className="ui-banner ui-banner-info">Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar.</div> : null}
+                    {errorMessage ? <div className="ui-banner ui-banner-error"><strong>{authRequired ? "Parqet-Verbindung abgelaufen" : "Fehler"}</strong><div>{errorMessage}</div>{authRequired ? <div className="ui-banner-actions"><button type="button" className="ui-btn ui-btn-secondary" onClick={startReconnect}>Erneut verbinden</button></div> : null}</div> : null}
 
                     <div className="app-section-stack">
-                        <CollapsibleAssetTableSection
-                            title="Wertpapiere"
-                            subtitle="Offene Positionen aus dem zuletzt geladenen Stand. Suche, Sortierung und Spaltenauswahl bleiben lokal."
-                            assets={sortedActiveAssets}
-                            loading={loadingAssets && !hasCachedData}
-                            emptyTitle="Noch keine Wertpapiere geladen"
-                            emptyDescription="Wähle Portfolios aus und lade Assets explizit, um den aktuellen Parqet-Stand in AssetTrace zu betrachten."
-                            defaultExpanded={true}
-                        />
-
-                        <CollapsibleAssetTableSection
-                            title="Geschlossene Wertpapiere"
-                            subtitle="Positionen ohne aktuellen Bestand aus dem geladenen Stand"
-                            assets={sortedClosedAssets}
-                            loading={loadingAssets && !hasCachedData}
-                            emptyTitle="Keine geschlossenen Positionen im geladenen Stand"
-                            emptyDescription="Wenn Parqet geschlossene Positionen für die Auswahl liefert, erscheinen sie nach einer manuellen Aktualisierung hier."
-                            defaultExpanded={false}
-                        />
+                        <CollapsibleAssetTableSection title="Wertpapiere" subtitle="Aktive Positionen" assets={activeSecurities} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
+                        <CollapsibleAssetTableSection title="Kryptowährungen" subtitle="Aktive Positionen" assets={activeCrypto} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
+                        <CollapsibleAssetTableSection title="Verkaufte Wertpapiere" subtitle="Geschlossene Positionen" assets={soldSecurities} loading={loadingAssets && !hasCachedData} defaultExpanded={false} />
+                        <CollapsibleAssetTableSection title="Verkaufte Kryptowährungen" subtitle="Geschlossene Positionen" assets={soldCrypto} loading={loadingAssets && !hasCachedData} defaultExpanded={false} />
                     </div>
                 </div>
             </div>

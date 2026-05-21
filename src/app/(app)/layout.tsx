@@ -2,18 +2,16 @@
 
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
-import AppSidebar, { type AppNavItemKey } from "../../components/layout/AppSidebar";
 import HeaderBar from "../../components/dashboard/HeaderBar";
 import { useTheme } from "../../hooks/use-theme";
 import styles from "./layout.module.css";
 
-function getActiveView(pathname: string): AppNavItemKey {
-    if (pathname.startsWith("/activities")) return "activities";
-    if (pathname.startsWith("/timeline")) return "timeline";
-    if (pathname.startsWith("/reports")) return "reports";
-    if (pathname.startsWith("/settings")) return "settings";
+export type TopNavKey = "overview" | "activities" | "settings";
 
-    return "dashboard";
+function getActiveView(pathname: string): TopNavKey {
+    if (pathname.startsWith("/activities")) return "activities";
+    if (pathname.startsWith("/settings")) return "settings";
+    return "overview";
 }
 
 export default function AppLayout({
@@ -28,8 +26,6 @@ export default function AppLayout({
 
     return (
         <div className={styles.app} style={themeStyle}>
-            <AppSidebar activeItem={activeView} />
-
             <div className={styles.main}>
                 <HeaderBar
                     theme={theme}
