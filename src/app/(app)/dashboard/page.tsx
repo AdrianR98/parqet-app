@@ -58,8 +58,8 @@ export default function DashboardPage() {
                     {errorMessage ? <div className="ui-banner ui-banner-error"><strong>{authRequired ? "Parqet-Verbindung abgelaufen" : "Fehler"}</strong><div>{errorMessage}</div>{authRequired ? <div className="ui-banner-actions"><button type="button" className="ui-btn ui-btn-secondary" onClick={startReconnect}>Erneut verbinden</button></div> : null}</div> : null}
 
                     <div className="app-section-stack">
-                        <CollapsibleAssetTableSection title="Wertpapiere" subtitle="Aktive Positionen" assets={activeSecurities} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
-                        <CollapsibleAssetTableSection title="Kryptowährungen" subtitle="Aktive Positionen" assets={activeCrypto} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
+                        <CollapsibleAssetTableSection title="Wertpapiere" assets={activeSecurities} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
+                        <CollapsibleAssetTableSection title="Kryptowährungen" assets={activeCrypto} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
                         <CollapsibleAssetTableSection title="Verkaufte Wertpapiere" subtitle="Geschlossene Positionen" assets={soldSecurities} loading={loadingAssets && !hasCachedData} defaultExpanded={false} />
                         <CollapsibleAssetTableSection title="Verkaufte Kryptowährungen" subtitle="Geschlossene Positionen" assets={soldCrypto} loading={loadingAssets && !hasCachedData} defaultExpanded={false} />
                     </div>

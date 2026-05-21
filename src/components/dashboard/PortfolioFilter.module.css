@@ -3,8 +3,17 @@
 }
 
 .trigger {
-    min-width: 220px;
-    background: rgba(255, 255, 255, 0.6);
+    min-width: 240px;
+    border-radius: 14px;
+    border: 1px solid var(--panel-border);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.58));
+    box-shadow: 0 8px 18px rgba(79, 108, 145, 0.12);
+    backdrop-filter: blur(14px);
+}
+
+.trigger:hover {
+    border-color: color-mix(in srgb, var(--accent-cyan) 35%, var(--panel-border));
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.64));
 }
 
 .menu {
@@ -12,11 +21,11 @@
     top: calc(100% + 8px);
     left: 0;
     z-index: 30;
-    min-width: 280px;
+    min-width: 300px;
     padding: 10px;
     border: 1px solid var(--panel-border);
     border-radius: 14px;
-    background: color-mix(in srgb, var(--panel-bg) 70%, white 30%);
+    background: linear-gradient(160deg, rgba(248, 252, 255, 0.92), rgba(238, 246, 252, 0.88));
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(14px);
 }
@@ -24,6 +33,17 @@
 .list { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow-y: auto; }
 .helperText { margin: 0 0 8px; color: var(--text-soft); font-size: 12px; line-height: 1.4; }
 .item { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 6px; border-radius: 10px; color: var(--text-main); }
-.item:hover { background: rgba(255, 255, 255, 0.5); }
+.item:hover { background: rgba(255, 255, 255, 0.55); }
 .footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--panel-border); }
 .triggerMeta { margin-left: auto; font-size: 12px; color: var(--text-soft); }
+
+@media (max-width: 760px) {
+    .trigger {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .menu {
+        min-width: min(300px, 100%);
+    }
+}

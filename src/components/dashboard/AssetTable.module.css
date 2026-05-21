@@ -1,10 +1,4 @@
 .container { margin-top: 0; }
-.toolbar { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.searchInput { max-width: 340px; }
-.columnMenuWrap { position: relative; }
-.columnMenu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; min-width: 200px; padding: 10px; border: 1px solid var(--panel-border); border-radius: 12px; background: color-mix(in srgb, var(--panel-bg) 72%, white 28%); box-shadow: var(--shadow-soft); }
-.columnMenuItem { display: flex; gap: 8px; padding: 6px; border-radius: 8px; }
-.columnMenuItem:hover { background: rgba(255,255,255,0.45); }
 .tableWrap { border: 1px solid var(--panel-border); border-radius: 16px; background: rgba(255,255,255,0.42); overflow: hidden; }
 .table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
 .table th { padding: 10px 12px; text-align: left; font-size: 12px; color: var(--text-soft); border-bottom: 1px solid var(--panel-border); }
@@ -26,7 +20,5 @@
   .table th:nth-child(2), .table td:nth-child(2), .table th:nth-child(6), .table td:nth-child(6) { display: none; }
 }
 @media (max-width: 760px) {
-  .toolbar { flex-wrap: wrap; }
-  .searchInput { max-width: none; }
   .table th:nth-child(4), .table td:nth-child(4), .table th:nth-child(5), .table td:nth-child(5) { display: none; }
 }
