@@ -5,6 +5,7 @@ export const LEGACY_THEME_STORAGE_KEY = "parqet-theme-v1";
 export const PORTFOLIO_SCOPE_STORAGE_KEY = "assettrace-portfolio-scope-v1";
 export const KNOWN_PORTFOLIOS_STORAGE_KEY = "assettrace-known-portfolios-v1";
 export const REVEAL_BLOCK_SIZE_STORAGE_KEY = "assettrace-reveal-block-size-v1";
+export const ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY = "assettrace-asset-table-visible-columns-v1";
 export const LOCAL_SETTINGS_CHANGE_EVENT = "assettrace:settings-local-state-change";
 
 export const REVEAL_BLOCK_SIZE_OPTIONS = [20, 50, 100] as const;
@@ -132,6 +133,71 @@ export function saveRevealBlockSize(size: RevealBlockSize): void {
 
     try {
         window.localStorage.setItem(REVEAL_BLOCK_SIZE_STORAGE_KEY, String(parseRevealBlockSize(size)));
+    } catch {
+        // localStorage-Probleme bewusst ignorieren.
+    }
+}
+
+function parseStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value.filter((item): item is string => typeof item === "string");
+}
+
+export function loadAssetTableVisibleColumns(
+    allowedColumns: string[],
+    defaultColumns: string[],
+    fixedColumns: string[]
+): string[] {
+    const allowedSet = new Set(allowedColumns);
+
+    const fallback = Array.from(new Set(defaultColumns.filter((key) => allowedSet.has(key))));
+
+    if (!isBrowser()) {
+        return fallback;
+    }
+
+    try {
+        const raw = window.localStorage.getItem(ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY);
+
+        if (!raw) {
+            return fallback;
+        }
+
+        const parsed = parseStringList(JSON.parse(raw) as unknown)
+            .filter((key) => allowedSet.has(key));
+
+        if (parsed.length === 0) {
+            return fallback;
+        }
+
+        const next = Array.from(new Set(parsed));
+
+        for (const key of fixedColumns) {
+            if (allowedSet.has(key) && !next.includes(key)) {
+                next.unshift(key);
+            }
+        }
+
+        return next;
+    } catch {
+        return fallback;
+    }
+}
+
+export function saveAssetTableVisibleColumns(columns: string[]): void {
+    if (!isBrowser()) {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(
+            ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY,
+            JSON.stringify(Array.from(new Set(columns.filter((key) => typeof key === "string"))))
+        );
+        notifyLocalSettingsChanged();
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }
@@ -275,6 +341,7 @@ export function clearLocalAssetTraceState(): void {
         window.localStorage.removeItem(PORTFOLIO_SCOPE_STORAGE_KEY);
         window.localStorage.removeItem(KNOWN_PORTFOLIOS_STORAGE_KEY);
         window.localStorage.removeItem(REVEAL_BLOCK_SIZE_STORAGE_KEY);
+        window.localStorage.removeItem(ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY);
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }

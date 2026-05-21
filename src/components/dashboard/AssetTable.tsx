@@ -1,26 +1,26 @@
-// src/components/dashboard/AssetTable.tsx
-
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+    flexRender,
+    getCoreRowModel,
+    getSortedRowModel,
+    type ColumnVisibilityState,
+    type SortingState,
+    useReactTable,
+} from "@tanstack/react-table";
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import styles from "./AssetTable.module.css";
 import SyncedHorizontalScroll from "./SyncedHorizontalScroll";
-import AssetTableHeader from "./AssetTableHeader";
-import AssetTableRows from "./AssetTableRows";
+import { getAssetTableColumns, renderExpandedRow, type AssetTableColumnKey } from "./asset-table-columns";
 import type { AssetSummary } from "../../lib/types";
 import {
     DEFAULT_REVEAL_BLOCK_SIZE,
+    loadAssetTableVisibleColumns,
     loadRevealBlockSize,
+    saveAssetTableVisibleColumns,
     subscribeToLocalSettings,
 } from "../../lib/app-settings";
-import {
-    DEFAULT_VISIBLE_COLUMNS,
-    FIXED_COLUMNS,
-    type AssetSortKey,
-    type VisibleColumnKey,
-    getColumnMinWidth,
-    sortAssets,
-} from "./asset-table-config";
+import { getColumnMinWidth } from "./asset-table-config";
 
 type AssetTableProps = {
     assets: AssetSummary[];
@@ -28,6 +28,21 @@ type AssetTableProps = {
     emptyTitle?: string;
     emptyDescription?: string;
 };
+
+const FIXED_COLUMNS: AssetTableColumnKey[] = ["name", "positionValue", "actions"];
+const ALL_COLUMNS: AssetTableColumnKey[] = [
+    "name",
+    "positionValue",
+    "netShares",
+    "avgBuyPrice",
+    "latestTradePrice",
+    "unrealizedPnL",
+    "totalDividendNet",
+    "latestActivityAt",
+    "actions",
+];
+const DEFAULT_VISIBLE_COLUMNS: AssetTableColumnKey[] = [...ALL_COLUMNS];
+const TOGGLABLE_COLUMNS: AssetTableColumnKey[] = ALL_COLUMNS.filter((key) => !FIXED_COLUMNS.includes(key));
 
 function getSearchText(asset: AssetSummary): string {
     return [
@@ -46,6 +61,21 @@ function getSearchText(asset: AssetSummary): string {
         .toLowerCase();
 }
 
+function toVisibilityState(visibleColumns: AssetTableColumnKey[]): ColumnVisibilityState {
+    const selected = new Set(visibleColumns);
+    const visibility: ColumnVisibilityState = {};
+
+    for (const key of ALL_COLUMNS) {
+        visibility[key] = selected.has(key);
+    }
+
+    for (const key of FIXED_COLUMNS) {
+        visibility[key] = true;
+    }
+
+    return visibility;
+}
+
 export default function AssetTable({
     assets,
     loading = false,
@@ -57,36 +87,20 @@ export default function AssetTable({
         loadRevealBlockSize,
         () => DEFAULT_REVEAL_BLOCK_SIZE
     );
-    const [visibleColumns, setVisibleColumns] =
-        useState<VisibleColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
-    const [sortKey, setSortKey] = useState<AssetSortKey>("positionValue");
-    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+    const [sorting, setSorting] = useState<SortingState>([{ id: "positionValue", desc: true }]);
     const [expandedIsins, setExpandedIsins] = useState<string[]>([]);
     const [showColumnMenu, setShowColumnMenu] = useState(false);
     const [showTopScrollbar, setShowTopScrollbar] = useState(false);
     const [query, setQuery] = useState("");
     const [visibleAssetCount, setVisibleAssetCount] = useState(DEFAULT_REVEAL_BLOCK_SIZE);
+    const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>(() =>
+        toVisibilityState(
+            loadAssetTableVisibleColumns(ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, FIXED_COLUMNS) as AssetTableColumnKey[]
+        )
+    );
 
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const columnMenuRef = useRef<HTMLDivElement | null>(null);
-
-    const normalizedVisibleColumns = useMemo(() => {
-        const next = [...FIXED_COLUMNS];
-
-        for (const key of visibleColumns) {
-            if (!next.includes(key)) {
-                next.push(key);
-            }
-        }
-
-        return next;
-    }, [visibleColumns]);
-
-    const tableMinWidth = useMemo(() => {
-        return normalizedVisibleColumns.reduce((sum, key) => {
-            return sum + getColumnMinWidth(key);
-        }, 0);
-    }, [normalizedVisibleColumns]);
 
     const filteredAssets = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -98,13 +112,43 @@ export default function AssetTable({
         return assets.filter((asset) => getSearchText(asset).includes(normalizedQuery));
     }, [assets, query]);
 
-    const sortedAssets = useMemo(() => {
-        return sortAssets(filteredAssets, sortKey, sortDirection);
-    }, [filteredAssets, sortKey, sortDirection]);
+    const visibleData = useMemo(() => filteredAssets.slice(0, visibleAssetCount), [filteredAssets, visibleAssetCount]);
+    const columns = useMemo(() => getAssetTableColumns(expandedIsins, setExpandedIsins), [expandedIsins]);
 
-    const visibleAssets = useMemo(() => {
-        return sortedAssets.slice(0, visibleAssetCount);
-    }, [sortedAssets, visibleAssetCount]);
+    const table = useReactTable({
+        data: visibleData,
+        columns,
+        state: { sorting, columnVisibility },
+        onSortingChange: setSorting,
+        onColumnVisibilityChange: (updater) => {
+            setColumnVisibility((current) => {
+                const next = typeof updater === "function" ? updater(current) : updater;
+                const forced = { ...next };
+
+                for (const key of FIXED_COLUMNS) {
+                    forced[key] = true;
+                }
+
+                saveAssetTableVisibleColumns(
+                    ALL_COLUMNS.filter((key) => forced[key] !== false)
+                );
+
+                return forced;
+            });
+        },
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+    });
+
+    const visibleColumns = table.getVisibleLeafColumns();
+    const sortedAssets = table.getSortedRowModel().rows;
+    const hasRows = sortedAssets.length > 0;
+    const isSearchEmpty = !hasRows && query.trim().length > 0;
+    const hasMoreAssets = visibleAssetCount < filteredAssets.length;
+
+    const tableMinWidth = useMemo(() => {
+        return visibleColumns.reduce((sum, column) => sum + getColumnMinWidth(column.id as AssetTableColumnKey), 0);
+    }, [visibleColumns]);
 
     useEffect(() => {
         setVisibleAssetCount(revealBlockSize);
@@ -117,26 +161,19 @@ export default function AssetTable({
         function updateOverflowState() {
             const currentNode = tableScrollRef.current;
             if (!currentNode) return;
-
-            const hasOverflow = currentNode.scrollWidth > currentNode.clientWidth + 1;
-            setShowTopScrollbar(hasOverflow);
+            setShowTopScrollbar(currentNode.scrollWidth > currentNode.clientWidth + 1);
         }
 
         updateOverflowState();
-
-        const observer = new ResizeObserver(() => {
-            updateOverflowState();
-        });
-
+        const observer = new ResizeObserver(updateOverflowState);
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [normalizedVisibleColumns, sortedAssets]);
+    }, [visibleColumns, sortedAssets.length, expandedIsins.length]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             const target = event.target as Node;
-
             if (!columnMenuRef.current?.contains(target)) {
                 setShowColumnMenu(false);
             }
@@ -146,46 +183,8 @@ export default function AssetTable({
             document.addEventListener("mousedown", handleClickOutside);
         }
 
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showColumnMenu]);
-
-    const toggleColumnAction = useCallback((key: VisibleColumnKey) => {
-        if (FIXED_COLUMNS.includes(key)) {
-            return;
-        }
-
-        setVisibleColumns((current) =>
-            current.includes(key)
-                ? current.filter((entry) => entry !== key)
-                : [...current, key]
-        );
-    }, []);
-
-    const sortAction = useCallback((nextSortKey: AssetSortKey) => {
-        setVisibleAssetCount(revealBlockSize);
-
-        if (sortKey === nextSortKey) {
-            setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-            return;
-        }
-
-        setSortKey(nextSortKey);
-        setSortDirection("desc");
-    }, [revealBlockSize, sortKey]);
-
-    const toggleExpandedAction = useCallback((isin: string) => {
-        setExpandedIsins((current) =>
-            current.includes(isin)
-                ? current.filter((entry) => entry !== isin)
-                : [...current, isin]
-        );
-    }, []);
-
-    const hasRows = sortedAssets.length > 0;
-    const isSearchEmpty = !hasRows && query.trim().length > 0;
-    const hasMoreAssets = visibleAssets.length < sortedAssets.length;
 
     return (
         <div className={styles.container} aria-busy={loading}>
@@ -196,8 +195,8 @@ export default function AssetTable({
                         {loading
                             ? "Initiale Daten werden geladen"
                             : hasMoreAssets
-                                ? `${visibleAssets.length} von ${sortedAssets.length} Treffern angezeigt · ${assets.length} Assets geladen`
-                                : `${sortedAssets.length} von ${assets.length} Assets sichtbar`}
+                                ? `${visibleAssetCount} von ${filteredAssets.length} Treffern angezeigt · ${assets.length} Assets geladen`
+                                : `${filteredAssets.length} von ${assets.length} Assets sichtbar`}
                     </div>
                 </div>
 
@@ -214,6 +213,36 @@ export default function AssetTable({
                         aria-label="Assets lokal suchen"
                         disabled={loading}
                     />
+                    <div ref={columnMenuRef} className={styles.columnMenuWrap}>
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn-ghost"
+                            aria-haspopup="menu"
+                            aria-expanded={showColumnMenu}
+                            aria-label="Spalteneinstellungen"
+                            onClick={() => setShowColumnMenu((current) => !current)}
+                            disabled={loading || !hasRows}
+                        >
+                            Einstellungen
+                        </button>
+                        {showColumnMenu ? (
+                            <div className={styles.columnMenu} role="menu" aria-label="Sichtbare Spalten">
+                                <div className={styles.columnMenuTitle}>Sichtbare Spalten</div>
+                                <div className={styles.columnMenuList}>
+                                    {table.getAllLeafColumns().filter((column) => TOGGLABLE_COLUMNS.includes(column.id as AssetTableColumnKey)).map((column) => (
+                                        <label key={column.id} className={styles.columnMenuItem}>
+                                            <input
+                                                type="checkbox"
+                                                checked={column.getIsVisible()}
+                                                onChange={column.getToggleVisibilityHandler()}
+                                            />
+                                            <span>{String(column.columnDef.header)}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
                     {query ? (
                         <button
                             type="button"
@@ -255,42 +284,73 @@ export default function AssetTable({
 
                     <div ref={tableScrollRef} className={styles.tableScroll}>
                         <div className={styles.tableShell} style={{ minWidth: tableMinWidth }}>
-                            <AssetTableHeader
-                                visibleColumns={normalizedVisibleColumns}
-                                sortKey={sortKey}
-                                sortDirection={sortDirection}
-                                showColumnMenu={showColumnMenu}
-                                columnMenuRef={columnMenuRef}
-                                onToggleColumnMenuAction={() =>
-                                    setShowColumnMenu((current) => !current)
-                                }
-                                onToggleColumnAction={toggleColumnAction}
-                                onSortAction={sortAction}
-                            />
+                            <table className={styles.table}>
+                                <thead>
+                                    {table.getHeaderGroups().map((headerGroup) => (
+                                        <tr key={headerGroup.id}>
+                                            {headerGroup.headers.map((header) => {
+                                                if (!header.column.getIsVisible()) {
+                                                    return null;
+                                                }
 
-                            <AssetTableRows
-                                assets={visibleAssets}
-                                visibleColumns={normalizedVisibleColumns}
-                                expandedIsins={expandedIsins}
-                                onToggleExpandedAction={toggleExpandedAction}
-                            />
+                                                const sorted = header.column.getIsSorted();
+
+                                                return (
+                                                    <th key={header.id}>
+                                                        {header.column.getCanSort() ? (
+                                                            <button
+                                                                type="button"
+                                                                className="ui-btn ui-btn-ghost"
+                                                                onClick={header.column.getToggleSortingHandler()}
+                                                            >
+                                                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                                                <span className={styles.sortIndicator}>
+                                                                    {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : ""}
+                                                                </span>
+                                                            </button>
+                                                        ) : (
+                                                            flexRender(header.column.columnDef.header, header.getContext())
+                                                        )}
+                                                    </th>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </thead>
+                                <tbody>
+                                    {sortedAssets.map((row) => {
+                                        const isExpanded = expandedIsins.includes(row.original.isin);
+
+                                        return (
+                                            <Fragment key={row.id}>
+                                                <tr>
+                                                    {row.getVisibleCells().map((cell) => (
+                                                        <td key={cell.id}>
+                                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                                {isExpanded ? renderExpandedRow(row.original, visibleColumns.length) : null}
+                                            </Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
                     {hasMoreAssets ? (
                         <div className={styles.revealFooter}>
                             <div>
-                                {sortedAssets.length} lokale Treffer im geladenen Stand. Tabellenwerte und Summen
-                                beziehen sich weiterhin auf den vollständigen geladenen Datenbestand.
+                                {filteredAssets.length} lokale Treffer im geladenen Stand. Tabellenwerte und Summen beziehen sich
+                                weiterhin auf den vollständigen geladenen Datenbestand.
                             </div>
                             <button
                                 type="button"
                                 className="ui-btn ui-btn-secondary"
-                                onClick={() =>
-                                    setVisibleAssetCount((count) => count + revealBlockSize)
-                                }
+                                onClick={() => setVisibleAssetCount((count) => count + revealBlockSize)}
                             >
-                                Mehr lokale Assets anzeigen ({Math.min(revealBlockSize, sortedAssets.length - visibleAssets.length)} weitere)
+                                Mehr lokale Assets anzeigen ({Math.min(revealBlockSize, filteredAssets.length - visibleAssetCount)} weitere)
                             </button>
                         </div>
                     ) : null}
