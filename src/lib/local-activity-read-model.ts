@@ -104,7 +104,7 @@ export type SelectLocalActivitiesTimelineSourceOutput = {
 };
 
 export function normalizeExactIsin(value: string | null | undefined): string {
-  return normalizeIsin(value ?? "");
+  return normalizeIsin(value ?? "") ?? "";
 }
 
 function resolveActivitiesTimelinePrmFeatureFlagEnabled(): boolean {
@@ -770,7 +770,7 @@ export function filterActivities(
   filters: ActivityFilters,
 ): ActivitiesAuditItem[] {
   const query = filters.query.trim().toLowerCase();
-  const exactIsin = normalizeExactIsin(filters.exactIsin);
+  const exactIsin = normalizeExactIsin(filters.exactIsin ?? "");
   const portfolioIdSet = new Set(filters.portfolioIds);
   const typeSet = new Set(filters.types);
   const fromTime = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`).getTime() : null;

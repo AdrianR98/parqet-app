@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import { NextResponse } from "next/server";
+import { setParqetOAuthFlowCookies } from "../../../../lib/parqet";
 
 export async function GET() {
     const clientId = process.env.PARQET_CLIENT_ID;
@@ -11,6 +13,7 @@ export async function GET() {
     }
 
     const codeVerifier = crypto.randomBytes(32).toString("hex");
+    const state = crypto.randomBytes(16).toString("hex");
 
     const hash = crypto.createHash("sha256").update(codeVerifier).digest();
 
@@ -27,10 +30,11 @@ export async function GET() {
         scope: "portfolio:read",
         code_challenge: codeChallenge,
         code_challenge_method: "S256",
-        state: codeVerifier,
+        state,
     });
 
     const url = `https://connect.parqet.com/oauth2/authorize?${params.toString()}`;
-
-    return Response.redirect(url);
+    const response = NextResponse.redirect(url);
+    setParqetOAuthFlowCookies(response, { state, codeVerifier });
+    return response;
 }

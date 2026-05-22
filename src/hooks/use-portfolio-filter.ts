@@ -5,6 +5,21 @@
 import { useCallback, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
+function normalizeIds(ids: string[]): string[] {
+    return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
+}
+
+function haveSameSelection(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+        return false;
+    }
+
+    const sortedLeft = [...left].sort();
+    const sortedRight = [...right].sort();
+
+    return sortedLeft.every((value, index) => value === sortedRight[index]);
+}
+
 type UsePortfolioFilterResult = {
     selectedPortfolioIds: string[];
     visiblePortfolioIds: string[];
@@ -47,7 +62,10 @@ export function usePortfolioFilter(): UsePortfolioFilterResult {
      * nicht bei jedem Render erneut ausgelöst werden.
      */
     const hydratePortfolioSelection = useCallback((ids: string[]) => {
-        setSelectedPortfolioIds(ids);
+        const nextIds = normalizeIds(ids);
+        setSelectedPortfolioIds((current) => (
+            haveSameSelection(current, nextIds) ? current : nextIds
+        ));
     }, []);
 
     /**
@@ -55,11 +73,16 @@ export function usePortfolioFilter(): UsePortfolioFilterResult {
      */
     const togglePortfolio = useCallback((portfolioId: string) => {
         setSelectedPortfolioIds((current) => {
-            if (current.includes(portfolioId)) {
-                return current.filter((id) => id !== portfolioId);
+            const nextIds = current.includes(portfolioId)
+                ? current.filter((id) => id !== portfolioId)
+                : [...current, portfolioId];
+            const normalizedNextIds = normalizeIds(nextIds);
+
+            if (haveSameSelection(current, normalizedNextIds)) {
+                return current;
             }
 
-            return [...current, portfolioId];
+            return normalizedNextIds;
         });
     }, []);
 
@@ -67,7 +90,10 @@ export function usePortfolioFilter(): UsePortfolioFilterResult {
      * Setzt die aktive Auswahl auf alle verfuegbaren Portfolios zurueck.
      */
     const resetPortfolioSelection = useCallback((allPortfolioIds: string[]) => {
-        setSelectedPortfolioIds(allPortfolioIds);
+        const normalizedAllIds = normalizeIds(allPortfolioIds);
+        setSelectedPortfolioIds((current) => (
+            haveSameSelection(current, normalizedAllIds) ? current : normalizedAllIds
+        ));
     }, []);
 
     return {

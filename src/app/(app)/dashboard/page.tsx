@@ -119,6 +119,7 @@ export default function DashboardPage() {
     const {
         selectedPortfolioIds, showWarningsPanel,
         consistencyReport, reconciliationWarnings, selectedPortfoliosMissingInLocalLoad,
+        hasEmptyManualScopeIntersection,
         loadingAssets, refreshingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
         sortedActiveAssets, sortedClosedAssets,
         setShowWarningsPanel,
@@ -177,6 +178,11 @@ export default function DashboardPage() {
                     {hasCachedData && selectedPortfoliosMissingInLocalLoad.length > 0 ? (
                         <div className="ui-banner ui-banner-info">
                             Auswahl enthält noch nicht lokal geladene Portfolios.
+                        </div>
+                    ) : null}
+                    {hasCachedData && hasEmptyManualScopeIntersection ? (
+                        <div className="ui-banner ui-banner-info">
+                            Für die ausgewählten Portfolios liegen lokal keine Daten vor.
                         </div>
                     ) : null}
                     {errorMessage ? <div className="ui-banner ui-banner-error"><strong>{authRequired ? "Parqet-Verbindung abgelaufen" : "Fehler"}</strong><div>{errorMessage}</div>{authRequired ? <div className="ui-banner-actions"><button type="button" className="ui-btn ui-btn-secondary" onClick={startReconnect}>Erneut verbinden</button></div> : null}</div> : null}

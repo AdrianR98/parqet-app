@@ -7,7 +7,6 @@ import { getConnectionStatusView } from "../../lib/connection-status";
 import {
     loadKnownPortfolios,
     loadPortfolioScope,
-    notifyLocalSettingsChanged,
     resolvePortfolioScope,
     savePortfolioScope,
     subscribeToLocalSettings,
@@ -111,12 +110,10 @@ export default function HeaderBar({
                 : { mode: "manual", selectedPortfolioIds: nextSelected };
 
         savePortfolioScope(nextScope);
-        notifyLocalSettingsChanged();
     }
 
     function handleResetPortfolioFilter() {
         savePortfolioScope({ mode: "all", selectedPortfolioIds: [] });
-        notifyLocalSettingsChanged();
     }
 
     return (

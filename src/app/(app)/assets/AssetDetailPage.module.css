@@ -16,7 +16,7 @@
 
 .headerCard {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr;
     align-items: center;
     gap: 14px;
     padding: 16px;
@@ -38,6 +38,7 @@
     justify-content: center;
     font-weight: 700;
 }
+
 .assetMark img {
     width: 100%;
     height: 100%;
@@ -63,7 +64,7 @@
 
 .analysisGrid {
     display: grid;
-    grid-template-columns: 1.05fr 1fr;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 16px;
 }
 
@@ -74,8 +75,13 @@
     background: rgba(255, 255, 255, 0.56);
 }
 
-.metricAnchor { min-height: 240px; }
-.chartCard { min-height: 240px; }
+.chartCard {
+    min-height: 240px;
+}
+
+.metricAnchor {
+    min-height: 240px;
+}
 
 .prominentCard {
     min-height: 220px;
@@ -94,13 +100,46 @@
     font-size: 16px;
 }
 
-.metricGrid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+.rangeSelector {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgba(88, 116, 147, 0.24);
+    border-radius: 999px;
+    background: linear-gradient(170deg, rgba(255, 255, 255, 0.82), rgba(232, 244, 255, 0.62));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 8px 16px rgba(41, 67, 99, 0.08);
 }
 
-.dividendSummary {
+.rangeButton {
+    border: 0;
+    background: transparent;
+    color: var(--text-soft);
+    font-size: 12px;
+    line-height: 1;
+    border-radius: 999px;
+    padding: 7px 10px;
+    cursor: pointer;
+}
+
+.rangeButton:hover,
+.rangeButton:focus-visible {
+    color: var(--text-main);
+    outline: none;
+}
+
+.rangeButton:focus-visible {
+    box-shadow: 0 0 0 2px rgba(87, 133, 184, 0.38);
+}
+
+.rangeButtonActive {
+    background: linear-gradient(170deg, rgba(126, 175, 230, 0.34), rgba(183, 214, 244, 0.46));
+    color: #244d7d;
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.metricGrid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -113,19 +152,7 @@
     background: rgba(255, 255, 255, 0.66);
 }
 
-.dividendSummary > div {
-    padding: 9px 10px;
-    border: 1px solid rgba(85, 112, 142, 0.14);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.66);
-}
-
 .metricGrid span {
-    color: var(--text-soft);
-    font-size: 12px;
-}
-
-.dividendSummary span {
     color: var(--text-soft);
     font-size: 12px;
 }
@@ -135,9 +162,9 @@
     margin-top: 4px;
 }
 
-.dividendSummary strong {
-    display: block;
-    margin-top: 4px;
+.metricPrimary strong {
+    font-size: 18px;
+    line-height: 1.2;
 }
 
 .positive { color: var(--positive); }
@@ -147,6 +174,23 @@
     margin-top: 12px;
     padding-top: 10px;
     border-top: 1px solid rgba(85, 112, 142, 0.14);
+}
+
+.warningHint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.breakdownHeader {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    gap: 10px;
+    padding: 0 10px 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-soft);
 }
 
 .inlineSection h3 {
@@ -177,65 +221,241 @@
 .breakdownName {
     color: var(--text-main);
     font-weight: 600;
+}
+
+.dividendSummary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.dividendSummary > div {
+    padding: 9px 10px;
+    border: 1px solid rgba(85, 112, 142, 0.14);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.66);
+}
+
+.kpiCard {
+    position: relative;
+    padding-right: 24px;
+}
+
+.kpiHelpWrap {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+}
+
+.kpiHelpButton {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(84, 112, 143, 0.28);
+    background: rgba(255, 255, 255, 0.68);
+    color: rgba(69, 95, 124, 0.8);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    cursor: help;
+    transition: border-color 120ms ease, color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.kpiHelpButton:hover,
+.kpiHelpButton:focus-visible {
+    border-color: rgba(76, 112, 153, 0.48);
+    color: rgba(38, 64, 93, 0.95);
+    background: rgba(255, 255, 255, 0.9);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(106, 150, 196, 0.24);
+}
+
+.kpiHelpTooltip {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    width: min(280px, calc(100vw - 44px));
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(80, 112, 146, 0.22);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 10px 22px rgba(29, 54, 84, 0.14);
+    color: var(--text-soft);
+    font-size: 12px;
+    line-height: 1.38;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.kpiHelpWrap:hover .kpiHelpTooltip,
+.kpiHelpWrap:focus-within .kpiHelpTooltip {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.dividendSummary span {
+    color: var(--text-soft);
+    font-size: 12px;
+}
+
+.dividendSummary strong {
+    display: block;
+    margin-top: 4px;
+}
+
+.dividendModule {
+    margin-top: 14px;
+    display: grid;
+    gap: 10px;
+}
+
+.dividendLegend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.legendItem {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.legendSwatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(57, 82, 109, 0.25);
 }
 
 .dividendChart {
-    margin-top: 12px;
-    padding: 10px 8px 4px;
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 10px;
+    padding: 12px 10px 8px;
     border: 1px solid rgba(85, 112, 142, 0.14);
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.58);
+}
+
+.dividendYAxis {
+    height: calc(230px + 18px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: right;
+    font-size: 11px;
+    color: var(--text-soft);
+    padding-right: 4px;
+}
+
+.dividendPlot {
+    position: relative;
+    min-width: 0;
+}
+
+.dividendGridLines {
+    position: absolute;
+    inset: 0 0 18px 0;
+    pointer-events: none;
+}
+
+.gridLine {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid rgba(90, 120, 154, 0.18);
+}
+
+.dividendBarsRow {
+    height: calc(230px + 18px);
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 7px;
     align-items: end;
-    min-height: 152px;
-    border-bottom: 2px solid rgba(96, 124, 156, 0.2);
 }
 
 .dividendBarItem {
+    min-width: 0;
     display: grid;
+    grid-template-rows: 230px auto;
     gap: 6px;
     justify-items: center;
 }
 
 .dividendBarTrack {
-    height: 116px;
-    width: 24px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
+    position: relative;
+    width: 100%;
+    height: 230px;
+    border-bottom: 1px solid rgba(90, 120, 154, 0.3);
 }
 
 .dividendBar {
-    width: 20px;
-    min-height: 10px;
-    border-radius: 7px 7px 4px 4px;
-    background: linear-gradient(180deg, rgba(75, 143, 191, 0.95), rgba(83, 168, 192, 0.75));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    position: absolute;
+    left: 10%;
+    width: 80%;
     border: 0;
-    cursor: pointer;
     padding: 0;
+    border-radius: 0;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    transition: transform 120ms ease, filter 120ms ease;
 }
 
-.dividendBarItem span {
-    font-size: 10px;
+.dividendBarBottom {
+    border-radius: 5px 5px 0 0;
+}
+
+.dividendBarTop {
+    border-radius: 5px 5px 0 0;
+}
+
+.dividendBar:hover,
+.dividendBar:focus-visible {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+    outline: none;
+}
+
+.monthLabel {
+    font-size: 11px;
+    line-height: 1.15;
     color: var(--text-soft);
+    white-space: nowrap;
+    overflow: visible;
+    min-height: 14px;
+    text-align: center;
+    width: 100%;
 }
 
-.dividendHint {
-    margin-top: 8px;
+.dividendTooltip {
+    position: absolute;
+    transform: translate(-50%, -112%);
+    min-width: 180px;
+    max-width: 220px;
+    pointer-events: none;
+    z-index: 4;
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(73, 103, 136, 0.22);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 12px 26px rgba(25, 52, 84, 0.16);
     font-size: 12px;
     color: var(--text-soft);
 }
 
-.scopeHint {
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--text-soft);
+.dividendTooltip strong {
+    color: var(--text-main);
 }
 
 .collapsedHint {
@@ -265,8 +485,6 @@
     background: rgba(255, 255, 255, 0.6);
 }
 
-.metricNote { margin-top: 10px; font-size: 12px; color: var(--text-soft); }
-
 .activityTable {
     display: grid;
     gap: 6px;
@@ -275,7 +493,7 @@
 .activityHeadRow,
 .activityDataRow {
     display: grid;
-    grid-template-columns: 1fr 0.8fr 1.4fr 0.9fr 0.9fr;
+    grid-template-columns: 1fr 0.85fr 1.35fr 0.9fr 0.9fr;
     gap: 8px;
     align-items: center;
 }
@@ -338,9 +556,30 @@
     justify-content: center;
 }
 
-.chartMissing { padding: 18px; border-radius: 14px; border: 1px dashed rgba(88, 116, 147, 0.3); background: rgba(255,255,255,0.52); }
-.chartMissing strong { display: block; margin-bottom: 6px; }
-.chartMissing p { margin: 0; color: var(--text-soft); font-size: 13px; line-height: 1.45; }
+.chartMissing {
+    min-height: 172px;
+    padding: 18px;
+    border-radius: 14px;
+    border: 1px dashed rgba(88, 116, 147, 0.3);
+    background: rgba(255,255,255,0.52);
+    display: grid;
+    gap: 6px;
+    align-content: center;
+}
+
+.chartMissing strong { display: block; }
+.chartMissing p {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+@media (max-width: 1080px) {
+    .dividendSummary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
 
 @media (max-width: 980px) {
     .page {
@@ -350,12 +589,17 @@
     .analysisGrid {
         grid-template-columns: 1fr;
     }
+
+    .dividendChart {
+        grid-template-columns: 60px 1fr;
+    }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 760px) {
     .metricGrid,
     .dividendSummary,
-    .breakdownRow {
+    .breakdownRow,
+    .breakdownHeader {
         grid-template-columns: 1fr;
     }
 
@@ -366,5 +610,32 @@
 
     .activityNumber {
         text-align: left;
+    }
+
+    .dividendChart {
+        grid-template-columns: 1fr;
+    }
+
+    .dividendYAxis {
+        display: none;
+    }
+
+    .dividendBarsRow {
+        gap: 6px;
+    }
+
+    .dividendTooltip {
+        min-width: 160px;
+    }
+
+    .rangeSelector {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .kpiHelpTooltip {
+        right: -4px;
+        width: min(240px, calc(100vw - 32px));
     }
 }

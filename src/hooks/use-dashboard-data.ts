@@ -59,6 +59,7 @@ type UseDashboardDataResult = {
   selectedPortfoliosMissingInLocalLoad: string[];
   missingPortfolioScopeIds: string[];
   usedPortfolioScopeFallback: boolean;
+  hasEmptyManualScopeIntersection: boolean;
 
   loadingPortfolios: boolean;
   loadingAssets: boolean;
@@ -108,6 +109,10 @@ function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
   const sortedRight = [...right].sort();
 
   return sortedLeft.every((id, index) => id === sortedRight[index]);
+}
+
+function haveSameStringSet(left: string[], right: string[]): boolean {
+  return haveSamePortfolioSelection(left, right);
 }
 
 function getResponseDiagnostic(
@@ -188,6 +193,8 @@ export function useDashboardData(): UseDashboardDataResult {
   >([]);
   const [usedPortfolioScopeFallback, setUsedPortfolioScopeFallback] =
     useState(false);
+  const [hasEmptyManualScopeIntersection, setHasEmptyManualScopeIntersection] =
+    useState(false);
 
   const [loadingPortfolios, setLoadingPortfolios] = useState(true);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -197,8 +204,28 @@ export function useDashboardData(): UseDashboardDataResult {
   const [authRequired, setAuthRequired] = useState(false);
   const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
   const assetLoadInFlightRef = useRef(false);
+  const selectedPortfolioIdsRef = useRef<string[]>(selectedPortfolioIds);
+  const portfolioScopeRef = useRef<PortfolioScope>(portfolioScope);
+  const missingPortfolioScopeIdsRef = useRef<string[]>(missingPortfolioScopeIds);
+  const usedPortfolioScopeFallbackRef = useRef<boolean>(usedPortfolioScopeFallback);
   const guardedGlobalAssetProductEnabled =
     resolveGlobalAssetProductGuardEnabled();
+
+  useEffect(() => {
+    selectedPortfolioIdsRef.current = selectedPortfolioIds;
+  }, [selectedPortfolioIds]);
+
+  useEffect(() => {
+    portfolioScopeRef.current = portfolioScope;
+  }, [portfolioScope]);
+
+  useEffect(() => {
+    missingPortfolioScopeIdsRef.current = missingPortfolioScopeIds;
+  }, [missingPortfolioScopeIds]);
+
+  useEffect(() => {
+    usedPortfolioScopeFallbackRef.current = usedPortfolioScopeFallback;
+  }, [usedPortfolioScopeFallback]);
 
   function applyAuthState(message?: string, url?: string) {
     setAuthRequired(true);
@@ -254,6 +281,7 @@ export function useDashboardData(): UseDashboardDataResult {
         setPortfolioScope(resolvedScope.scope);
         setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
         setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+        setHasEmptyManualScopeIntersection(resolvedScope.hasEmptyManualIntersection);
         hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
 
         if (resolvedScope.usedFallback) {
@@ -410,9 +438,19 @@ export function useDashboardData(): UseDashboardDataResult {
       : { mode: "manual", selectedPortfolioIds };
 
     savePortfolioScope(nextScope);
-    setPortfolioScope(nextScope);
-    setMissingPortfolioScopeIds([]);
-    setUsedPortfolioScopeFallback(false);
+    setPortfolioScope((current) => (
+      current.mode === nextScope.mode &&
+      haveSameStringSet(current.selectedPortfolioIds, nextScope.selectedPortfolioIds)
+        ? current
+        : nextScope
+    ));
+    setMissingPortfolioScopeIds((current) => (
+      current.length === 0 ? current : []
+    ));
+    setUsedPortfolioScopeFallback((current) => (
+      current ? false : current
+    ));
+    setHasEmptyManualScopeIntersection(false);
   }, [portfolios, selectedPortfolioIds]);
 
   useEffect(() => {
@@ -422,10 +460,30 @@ export function useDashboardData(): UseDashboardDataResult {
 
     function syncSelectionFromScope() {
       const resolvedScope = resolvePortfolioScope(loadPortfolioScope(), portfolios);
-      hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
-      setPortfolioScope(resolvedScope.scope);
-      setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
-      setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+      if (!haveSameStringSet(selectedPortfolioIdsRef.current, resolvedScope.selectedPortfolioIds)) {
+        hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
+      }
+
+      if (
+        portfolioScopeRef.current.mode !== resolvedScope.scope.mode ||
+        !haveSameStringSet(portfolioScopeRef.current.selectedPortfolioIds, resolvedScope.scope.selectedPortfolioIds)
+      ) {
+        setPortfolioScope(resolvedScope.scope);
+      }
+
+      if (!haveSameStringSet(missingPortfolioScopeIdsRef.current, resolvedScope.missingPortfolioIds)) {
+        setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
+      }
+
+      if (usedPortfolioScopeFallbackRef.current !== resolvedScope.usedFallback) {
+        setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+      }
+
+      setHasEmptyManualScopeIntersection((current) => (
+        current === resolvedScope.hasEmptyManualIntersection
+          ? current
+          : resolvedScope.hasEmptyManualIntersection
+      ));
     }
 
     syncSelectionFromScope();
@@ -466,6 +524,7 @@ export function useDashboardData(): UseDashboardDataResult {
     const resolvedScope = resolvePortfolioScope(portfolioScope, portfolios);
     setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
     setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+    setHasEmptyManualScopeIntersection(resolvedScope.hasEmptyManualIntersection);
   }, [portfolioScope, portfolios]);
 
   const stats: DashboardStats = useMemo(() => {
@@ -524,6 +583,7 @@ export function useDashboardData(): UseDashboardDataResult {
     selectedPortfoliosMissingInLocalLoad,
     missingPortfolioScopeIds,
     usedPortfolioScopeFallback,
+    hasEmptyManualScopeIntersection,
 
     loadingPortfolios,
     loadingAssets,

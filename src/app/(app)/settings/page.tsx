@@ -171,7 +171,6 @@ export default function SettingsPage() {
 
   function setScope(nextScope: PortfolioScope) {
     savePortfolioScope(nextScope);
-    notifyLocalSettingsChanged();
     setResetMessage(
       "Portfolio-Scope lokal gespeichert. Es wurden keine Parqet-Daten geladen.",
     );
@@ -433,6 +432,18 @@ export default function SettingsPage() {
                   : "kein lokaler Stand"}
                 .
               </p>
+              {portfolioScope.mode === "manual" &&
+              portfolioScope.selectedPortfolioIds.length > 0 &&
+              selectedIds.length === 0 ? (
+                <p className={styles.meta}>
+                  Die manuelle Auswahl enthält aktuell keine Portfolios im lokalen Datenstand.
+                </p>
+              ) : null}
+              {scopeResolution.missingPortfolioIds.length > 0 ? (
+                <p className={styles.meta}>
+                  Ausgewählt, aber lokal nicht verfügbar: {scopeResolution.missingPortfolioIds.length}.
+                </p>
+              ) : null}
               <p className={styles.meta}>
                 Scope-Änderungen speichern nur die Auswahl. Den lokalen
                 Parqet-Stand aktualisierst du explizit über Verbindung.
@@ -440,11 +451,10 @@ export default function SettingsPage() {
             </>
           )}
 
-          {scopeResolution.missingPortfolioIds.length > 0 ||
-          scopeResolution.usedFallback ? (
+          {scopeResolution.missingPortfolioIds.length > 0 ? (
             <div className="ui-banner ui-banner-info">
               Gespeicherte Portfolios sind nicht mehr lokal verfügbar.
-              AssetTrace nutzt sicher „Alle“, bis du den Scope neu speicherst.
+              Die manuelle Auswahl bleibt erhalten und wird nicht implizit auf „Alle“ gesetzt.
             </div>
           ) : null}
         </section>

@@ -3,11 +3,11 @@
 import { Fragment, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import styles from "./AssetTable.module.css";
 import type { AssetSummary } from "../../lib/types";
 import { createAssetDetailHref } from "../../lib/asset-detail";
-import { formatCurrency, formatShares } from "../../lib/format";
+import { formatCurrency } from "../../lib/format";
 import { getSafePortfolioBreakdown } from "./asset-table-config";
 import { getAssetDisplayName, getAssetSubtitle, getAssetInitials, getAssetResolvedLogoUrl } from "../../lib/asset-display";
 
@@ -53,7 +53,7 @@ function AssetLogo({ asset, displayName }: { asset: AssetSummary; displayName: s
     );
 }
 
-export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: Dispatch<SetStateAction<string[]>>, totalPositionValue: number): ColumnDef<AssetSummary, unknown>[] {
+export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: Dispatch<SetStateAction<string[]>>, totalPositionValue: number) {
     const expandedSet = new Set(expandedIsins);
 
     return [

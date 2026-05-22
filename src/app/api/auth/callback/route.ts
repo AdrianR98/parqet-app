@@ -1,4 +1,11 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import {
+    clearParqetOAuthFlowCookies,
+    getCookieValue,
+    OAUTH_CODE_VERIFIER_COOKIE,
+    OAUTH_STATE_COOKIE,
+    setParqetTokenCookies,
+} from "../../../../lib/parqet";
 
 // Diese Route verarbeitet den OAuth-Callback von Parqet.
 // Sie tauscht den Authorization Code gegen Tokens aus.
@@ -7,44 +14,38 @@
 
 export async function GET(req: Request) {
     try {
-        // Die aktuelle URL lesen, damit wir an die Query-Parameter kommen.
         const url = new URL(req.url);
-
-        // Der Authorization Code kommt von Parqet zurück.
         const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
+        const cookieHeader = req.headers.get("cookie") || "";
+        const storedState = getCookieValue(cookieHeader, OAUTH_STATE_COOKIE);
+        const codeVerifier = getCookieValue(cookieHeader, OAUTH_CODE_VERIFIER_COOKIE);
 
-        // Für PKCE haben wir den code_verifier im state transportiert.
-        const codeVerifier = url.searchParams.get("state");
-
-        // Ohne diese Werte kann kein Token-Tausch stattfinden.
-        if (!code || !codeVerifier) {
-            return NextResponse.json(
+        if (!code || !state || !storedState || !codeVerifier || state !== storedState) {
+            const response = NextResponse.json(
                 {
-                    error: "Missing code or verifier",
-                    code,
-                    codeVerifier,
+                    error: "Ungültiger OAuth-Status. Bitte den Verbindungsaufbau erneut starten.",
                 },
                 { status: 400 }
             );
+            clearParqetOAuthFlowCookies(response);
+            return response;
         }
 
-        // Die notwendigen Umgebungsvariablen laden.
         const clientId = process.env.PARQET_CLIENT_ID;
         const redirectUri = process.env.PARQET_REDIRECT_URI;
 
-        // Wenn eine Variable fehlt, geben wir einen lesbaren Fehler zurück.
         if (!clientId || !redirectUri) {
-            return NextResponse.json(
+            const response = NextResponse.json(
                 {
-                    error: "Missing environment variables",
-                    hasClientId: Boolean(clientId),
-                    hasRedirectUri: Boolean(redirectUri),
+                    error: "OAuth-Konfiguration fehlt.",
                 },
                 { status: 500 }
             );
+            clearParqetOAuthFlowCookies(response);
+            return response;
         }
 
-        // Den Authorization Code gegen Tokens austauschen.
         const tokenRes = await fetch("https://connect.parqet.com/oauth2/token", {
             method: "POST",
             headers: {
@@ -59,67 +60,66 @@ export async function GET(req: Request) {
             }),
         });
 
-        // Die Antwort zuerst als Text lesen, damit Fehler besser sichtbar sind.
         const rawText = await tokenRes.text();
 
-        // Wenn Parqet einen Fehler liefert, geben wir ihn lesbar zurück.
         if (!tokenRes.ok) {
-            return NextResponse.json(
+            const response = NextResponse.json(
                 {
                     error: "Token exchange failed",
                     status: tokenRes.status,
-                    response: rawText,
                 },
                 { status: 500 }
             );
+            clearParqetOAuthFlowCookies(response);
+            return response;
         }
 
-        // Die erfolgreiche Antwort als JSON parsen.
-        const tokenData = JSON.parse(rawText);
+        const tokenData = JSON.parse(rawText) as {
+            access_token?: string;
+            refresh_token?: string;
+            expires_in?: number;
+            refresh_expires_in?: number;
+        };
 
-        // Access Token und Refresh Token aus der Antwort holen.
         const accessToken = tokenData.access_token;
         const refreshToken = tokenData.refresh_token;
 
-        // Wenn kein Access Token zurückkommt, geben wir die Fehlersituation zurück.
         if (!accessToken) {
-            return NextResponse.json(
+            const response = NextResponse.json(
                 {
                     error: "No access token received",
-                    tokenData,
                 },
                 { status: 500 }
             );
+            clearParqetOAuthFlowCookies(response);
+            return response;
         }
 
-        // Nach erfolgreichem Login leiten wir auf das Dashboard weiter.
-        const response = NextResponse.redirect("http://localhost:3000/dashboard");
+        const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+        const redirectBase =
+            configuredAppUrl && configuredAppUrl.length > 0
+                ? configuredAppUrl
+                : url.origin;
+        const redirectTarget = new URL("/dashboard", redirectBase);
+        const response = NextResponse.redirect(redirectTarget);
 
-        // Das Access Token in einem HttpOnly-Cookie speichern.
-        response.cookies.set("parqet_access_token", accessToken, {
-            httpOnly: true,
-            sameSite: "lax",
-            path: "/",
+        setParqetTokenCookies(response, {
+            accessToken,
+            refreshToken,
+            accessTokenExpiresInSeconds: tokenData.expires_in ?? null,
+            refreshTokenExpiresInSeconds: tokenData.refresh_expires_in ?? null,
         });
-
-        // Das Refresh Token ebenfalls speichern, falls vorhanden.
-        if (refreshToken) {
-            response.cookies.set("parqet_refresh_token", refreshToken, {
-                httpOnly: true,
-                sameSite: "lax",
-                path: "/",
-            });
-        }
+        clearParqetOAuthFlowCookies(response);
 
         return response;
-    } catch (error) {
-        // Unerwartete Fehler lesbar zurückgeben.
-        return NextResponse.json(
+    } catch {
+        const response = NextResponse.json(
             {
-                error: "Unexpected server error",
-                details: error instanceof Error ? error.message : String(error),
+                error: "Unerwarteter OAuth-Fehler.",
             },
             { status: 500 }
         );
+        clearParqetOAuthFlowCookies(response);
+        return response;
     }
 }

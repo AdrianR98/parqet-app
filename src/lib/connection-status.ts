@@ -19,6 +19,7 @@ const AUTH_ERROR_CATEGORIES = new Set([
   "auth_refresh_failed",
   "missing_access_token",
 ]);
+const TEMPORARY_ERROR_CATEGORIES = new Set(["provider_error", "rate_limit"]);
 
 export function getConnectionStatusView(
   cache: Pick<DashboardCache, "assetCount" | "lastUpdatedAt" | "freshness"> | null,
@@ -32,9 +33,25 @@ export function getConnectionStatusView(
     return {
       kind: "auth_required",
       label: "Neu verbinden",
-      description: "Die Parqet-Verbindung muss erneuert werden.",
+      description:
+        "Die Parqet-Verbindung muss erneuert werden. Lokale Daten bleiben verfügbar.",
       actionLabel: "Parqet erneut verbinden",
       actionHref: "/api/auth/start",
+    };
+  }
+
+  if (
+    freshness?.lastRefreshErrorCategory &&
+    TEMPORARY_ERROR_CATEGORIES.has(freshness.lastRefreshErrorCategory) &&
+    cache?.lastUpdatedAt
+  ) {
+    return {
+      kind: "usable",
+      label: "Lokale Daten vorhanden",
+      description:
+        "Parqet ist vorübergehend nicht erreichbar. Der lokale Stand bleibt verfügbar.",
+      actionLabel: null,
+      actionHref: null,
     };
   }
 

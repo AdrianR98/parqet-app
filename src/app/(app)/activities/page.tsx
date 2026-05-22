@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./ActivitiesPage.module.css";
@@ -210,7 +210,7 @@ function getDefaultActivityFilters(): ActivityFilters {
   };
 }
 
-export default function ActivitiesPage() {
+function ActivitiesPageContent() {
   const searchParams = useSearchParams();
   const initialIsinFilter = normalizeExactIsin(searchParams.get("isin"));
   const { value: readModel } = useHydrationSafeLocalSnapshot(
@@ -262,6 +262,10 @@ export default function ActivitiesPage() {
   );
   const hasLocalData = readModel.items.length > 0;
   const hasMore = visibleCount < filteredItems.length;
+  const hasEmptyManualScopeIntersection =
+    readModel.scope.mode === "manual" &&
+    readModel.scope.selectedPortfolioIds.length > 0 &&
+    readModel.scopedPortfolioIds.length === 0;
 
   function updateFilter(next: Partial<ActivityFilters>) {
     if ("portfolioIds" in next) {
@@ -331,6 +335,11 @@ export default function ActivitiesPage() {
         <div className="ui-banner ui-banner-info">
           Der gespeicherte Portfolio-Scope enthält Portfolios, die im lokalen Datenstand nicht vorhanden sind.
           Bitte aktualisiere die Daten bei Bedarf explizit im Dashboard; diese Seite lädt nicht automatisch nach.
+        </div>
+      ) : null}
+      {hasEmptyManualScopeIntersection ? (
+        <div className="ui-banner ui-banner-info">
+          Für die ausgewählten Portfolios liegen lokal keine Aktivitäten vor.
         </div>
       ) : null}
       {effectiveFilters.exactIsin ? (
@@ -491,5 +500,22 @@ export default function ActivitiesPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function ActivitiesPage() {
+  return (
+    <Suspense fallback={(
+      <main className={`app-content ${styles.page}`}>
+        <section className={`ui-surface ${styles.emptyState}`}>
+          <p className={styles.eyebrow}>AssetTrace · Aktivitäten</p>
+          <h2>Lokale Aktivitäten werden geladen</h2>
+          <p>Die gefilterte Read-only Ansicht wird vorbereitet.</p>
+        </section>
+      </main>
+    )}
+    >
+      <ActivitiesPageContent />
+    </Suspense>
   );
 }

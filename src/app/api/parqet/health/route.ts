@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { getCookieValue, refreshParqetAccessToken } from "../../../../lib/parqet";
+import {
+    clearParqetTokenCookies,
+    getCookieValue,
+    refreshParqetAccessToken,
+    setParqetTokenCookies,
+    type TokenRefreshResult,
+} from "../../../../lib/parqet";
 import {
     buildPortfolioHealthBudgetInfo,
     classifyParqetApiError,
@@ -23,21 +29,35 @@ function buildReconnectResponse(message: string) {
         { status: 401 }
     );
 
-    response.cookies.set("parqet_access_token", "", {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 0,
-    });
-
-    response.cookies.set("parqet_refresh_token", "", {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 0,
-    });
-
+    clearParqetTokenCookies(response, { clearRefreshToken: true });
     return response;
+}
+
+function buildTemporaryRefreshFailureResponse() {
+    return NextResponse.json(
+        {
+            ok: false,
+            authRequired: false,
+            message:
+                "Parqet ist vorübergehend nicht erreichbar. Bitte versuche die Aktualisierung später erneut.",
+            apiBudget: HEALTH_API_BUDGET,
+        },
+        { status: 503 }
+    );
+}
+
+function isInvalidRefresh(result: TokenRefreshResult): boolean {
+    return !result.ok && result.reason === "invalid_refresh";
+}
+
+function isTemporaryRefreshFailure(result: TokenRefreshResult): boolean {
+    return (
+        !result.ok &&
+        (result.reason === "provider_error" ||
+            result.reason === "network_error" ||
+            result.reason === "unknown" ||
+            result.reason === "missing_client_id")
+    );
 }
 
 function getStatusForDiagnostic(diagnostic: ParqetApiDiagnostic): number {
@@ -109,6 +129,42 @@ export async function GET(req: Request) {
         let accessToken = getCookieValue(cookieHeader, "parqet_access_token");
         const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
+        if (!accessToken && !refreshToken) {
+            return buildReconnectResponse("Parqet-Verbindung nicht vorhanden oder abgelaufen.");
+        }
+
+        if (!accessToken && refreshToken) {
+            const refreshed = await refreshParqetAccessToken(refreshToken);
+
+            if (isInvalidRefresh(refreshed)) {
+                return buildReconnectResponse("Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.");
+            }
+
+            if (isTemporaryRefreshFailure(refreshed)) {
+                return buildTemporaryRefreshFailureResponse();
+            }
+
+            if (!refreshed.ok) {
+                return buildReconnectResponse("Parqet-Verbindung muss erneuert werden.");
+            }
+
+            accessToken = refreshed.accessToken;
+
+            const response = NextResponse.json({
+                ...(await buildHealthResult(accessToken)),
+                refreshed: true,
+            });
+
+            setParqetTokenCookies(response, {
+                accessToken,
+                refreshToken: refreshed.newRefreshToken,
+                accessTokenExpiresInSeconds: refreshed.accessTokenExpiresInSeconds ?? null,
+                refreshTokenExpiresInSeconds: refreshed.refreshTokenExpiresInSeconds ?? null,
+            });
+
+            return response;
+        }
+
         if (!accessToken) {
             return buildReconnectResponse("Parqet-Verbindung nicht vorhanden oder abgelaufen.");
         }
@@ -126,13 +182,21 @@ export async function GET(req: Request) {
             }
 
             if (!refreshToken) {
-                return buildFailureResponse({ diagnostic, error, refreshed: false });
+                return buildReconnectResponse("Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.");
             }
 
             const refreshed = await refreshParqetAccessToken(refreshToken);
 
-            if (!refreshed.accessToken) {
+            if (isInvalidRefresh(refreshed)) {
                 return buildReconnectResponse("Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.");
+            }
+
+            if (isTemporaryRefreshFailure(refreshed)) {
+                return buildTemporaryRefreshFailureResponse();
+            }
+
+            if (!refreshed.ok) {
+                return buildReconnectResponse("Parqet-Verbindung muss erneuert werden.");
             }
 
             accessToken = refreshed.accessToken;
@@ -143,19 +207,12 @@ export async function GET(req: Request) {
                     refreshed: true,
                 });
 
-                response.cookies.set("parqet_access_token", accessToken, {
-                    httpOnly: true,
-                    sameSite: "lax",
-                    path: "/",
+                setParqetTokenCookies(response, {
+                    accessToken,
+                    refreshToken: refreshed.newRefreshToken,
+                    accessTokenExpiresInSeconds: refreshed.accessTokenExpiresInSeconds ?? null,
+                    refreshTokenExpiresInSeconds: refreshed.refreshTokenExpiresInSeconds ?? null,
                 });
-
-                if (refreshed.newRefreshToken) {
-                    response.cookies.set("parqet_refresh_token", refreshed.newRefreshToken, {
-                        httpOnly: true,
-                        sameSite: "lax",
-                        path: "/",
-                    });
-                }
 
                 return response;
             } catch (retryError) {
