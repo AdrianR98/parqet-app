@@ -1,4 +1,4 @@
-export type MarketDataProvider = "alphavantage";
+export type MarketDataProvider = "alphavantage" | "yfinance";
 
 export type MarketDataPoint = {
     date: string;
@@ -10,16 +10,25 @@ export type MarketDataPoint = {
     currency?: string | null;
 };
 
+export type MarketDataAction = {
+    actionType: "dividend";
+    date: string;
+    amount: number;
+    currency?: string | null;
+};
+
 export type MarketDataSeries = {
     provider: MarketDataProvider;
     symbol: string;
     isin: string;
     points: MarketDataPoint[];
+    actions?: MarketDataAction[];
     refreshedAt: string;
     source: string;
 };
 
 export type MarketDataStatus =
+    | "db_hit"
     | "cache_miss"
     | "cache_hit"
     | "refreshed"

@@ -24,7 +24,7 @@ import { persistDashboardCacheWrite } from "../../../lib/dashboard-cache-writer"
 import { getConnectionStatusView } from "../../../lib/connection-status";
 import { resolveGlobalAssetProductGuardEnabled } from "../../../lib/dashboard-helpers";
 import type { DashboardCache } from "../../../lib/dashboard-cache";
-import type { AssetsApiResponse, Portfolio } from "../../../lib/types";
+import type { AssetSummary, AssetsApiResponse, Portfolio } from "../../../lib/types";
 import { useTheme } from "../../../hooks/use-theme";
 import styles from "./SettingsPage.module.css";
 
@@ -85,6 +85,20 @@ type ConnectionRefreshState =
   | "error"
   | "auth";
 
+type LocalMarketAsset = {
+  isin: string;
+  name: string | null;
+  assetType: string | null;
+  currency: string | null;
+  symbol: string | null;
+  portfolioNames: string[];
+};
+
+type LocalMarketAssetExport = {
+  activeAssets: LocalMarketAsset[];
+  closedAssets: LocalMarketAsset[];
+};
+
 function formatDateTime(value: string | null | undefined): string {
   if (!value) {
     return "Kein geladener Stand";
@@ -135,6 +149,109 @@ function getServerSettingsSnapshot(): string {
   return JSON.stringify(EMPTY_SETTINGS_SNAPSHOT);
 }
 
+function normalizeIsin(value: string | null | undefined): string {
+  return String(value ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+function normalizeAssetType(asset: AssetSummary): string | null {
+  const value =
+    asset.metadata?.assetType ??
+    asset.externalMetadata?.assetType ??
+    asset.assetMeta?.assetType ??
+    null;
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized || null;
+}
+
+function normalizeCurrency(asset: AssetSummary): string | null {
+  const value =
+    asset.metadata?.currency ??
+    asset.externalMetadata?.currency ??
+    asset.assetMeta?.currency ??
+    null;
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || null;
+}
+
+function normalizeName(asset: AssetSummary): string | null {
+  const value =
+    asset.name ??
+    asset.displayName ??
+    asset.assetName ??
+    asset.title ??
+    asset.metadata?.name ??
+    asset.metadata?.displayName ??
+    asset.externalMetadata?.name ??
+    asset.assetMeta?.name ??
+    null;
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+}
+
+function normalizeSymbol(asset: AssetSummary): string | null {
+  const value =
+    asset.symbol ??
+    asset.ticker ??
+    asset.tickerSymbol ??
+    asset.metadata?.symbol ??
+    asset.externalMetadata?.symbol ??
+    asset.assetMeta?.symbol ??
+    null;
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || null;
+}
+
+function toLocalMarketAsset(asset: AssetSummary): LocalMarketAsset | null {
+  const isin = normalizeIsin(asset.isin);
+  if (!/^[A-Z0-9]{12}$/.test(isin)) {
+    return null;
+  }
+
+  return {
+    isin,
+    name: normalizeName(asset),
+    assetType: normalizeAssetType(asset),
+    currency: normalizeCurrency(asset),
+    symbol: normalizeSymbol(asset),
+    portfolioNames: Array.from(new Set((asset.portfolioNames ?? []).filter(Boolean))),
+  };
+}
+
+function buildLocalMarketAssetExport(cache: DashboardCache): LocalMarketAssetExport {
+  const mapAndFilter = (assets: AssetSummary[]): LocalMarketAsset[] => {
+    const byIsin = new Map<string, LocalMarketAsset>();
+
+    for (const asset of assets) {
+      const mapped = toLocalMarketAsset(asset);
+      if (!mapped) {
+        continue;
+      }
+
+      const existing = byIsin.get(mapped.isin);
+      if (!existing) {
+        byIsin.set(mapped.isin, mapped);
+        continue;
+      }
+
+      byIsin.set(mapped.isin, {
+        isin: mapped.isin,
+        name: existing.name ?? mapped.name,
+        assetType: existing.assetType ?? mapped.assetType,
+        currency: existing.currency ?? mapped.currency,
+        symbol: existing.symbol ?? mapped.symbol,
+        portfolioNames: Array.from(new Set([...existing.portfolioNames, ...mapped.portfolioNames])),
+      });
+    }
+
+    return [...byIsin.values()].sort((left, right) => left.isin.localeCompare(right.isin));
+  };
+
+  return {
+    activeAssets: mapAndFilter(cache.activeAssets ?? []),
+    closedAssets: mapAndFilter(cache.closedAssets ?? []),
+  };
+}
+
 export default function SettingsPage() {
   const { appearanceMode, resolvedTheme, setAppearanceMode } = useTheme();
   const settingsSnapshot = useSyncExternalStore(
@@ -159,6 +276,7 @@ export default function SettingsPage() {
   const [connectionRefreshState, setConnectionRefreshState] =
     useState<ConnectionRefreshState>("idle");
   const [connectionRefreshMessage, setConnectionRefreshMessage] = useState("");
+  const [marketExportMessage, setMarketExportMessage] = useState("");
 
   const scopeResolution = useMemo(
     () => resolvePortfolioScope(portfolioScope, knownPortfolios),
@@ -271,6 +389,42 @@ export default function SettingsPage() {
         "Parqet-Daten konnten nicht lokal erneuert werden.",
       );
     }
+  }
+
+  function exportLocalAssetsForMarketSync() {
+    const cache = loadDashboardCache();
+    if (!cache) {
+      setMarketExportMessage(
+        "Kein lokaler Dashboard-Stand vorhanden. Bitte zuerst Parqet-Daten lokal erneuern.",
+      );
+      return;
+    }
+
+    const payload = buildLocalMarketAssetExport(cache);
+    const totalAssets = payload.activeAssets.length + payload.closedAssets.length;
+
+    if (totalAssets === 0) {
+      setMarketExportMessage(
+        "Keine exportierbaren Assets gefunden. Bitte zuerst Parqet-Daten lokal erneuern.",
+      );
+      return;
+    }
+
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const objectUrl = URL.createObjectURL(blob);
+
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = "local-assets.json";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+
+    setMarketExportMessage(
+      `Export erstellt: ${payload.activeAssets.length} aktive / ${payload.closedAssets.length} geschlossene Assets.`,
+    );
   }
 
   return (
@@ -560,13 +714,27 @@ export default function SettingsPage() {
             >
               Lokale Einstellungen zurücksetzen
             </button>
+            <button
+              type="button"
+              className="ui-btn ui-btn-secondary"
+              onClick={exportLocalAssetsForMarketSync}
+            >
+              Asset-Universum für Marktdaten exportieren
+            </button>
           </div>
           <p className={styles.meta}>
             Diese Aktionen löschen keine Parqet-Daten und führen keine
             serverseitige Aktion aus.
           </p>
+          <p className={styles.meta}>
+            Exportiert nur den lokalen Dashboard-Stand als <code>local-assets.json</code>
+            für den Marktdaten-Instrument-Sync.
+          </p>
           {resetMessage ? (
             <div className="ui-banner ui-banner-info">{resetMessage}</div>
+          ) : null}
+          {marketExportMessage ? (
+            <div className="ui-banner ui-banner-info">{marketExportMessage}</div>
           ) : null}
 
           {diagnosticsEnabled ? (

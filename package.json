@@ -12,23 +12,38 @@
     "audit:summary": "powershell -ExecutionPolicy Bypass -File scripts/local-audit-summary.ps1",
     "audit:asset": "powershell -ExecutionPolicy Bypass -File scripts/local-audit-asset.ps1",
     "generate:asset-metadata": "node scripts/generate-asset-metadata-from-csv.mjs",
-    "vercel:ignore-build": "node scripts/vercel-ignore-build.mjs"
+    "vercel:ignore-build": "node scripts/vercel-ignore-build.mjs",
+    "db:market:migrate": "tsx scripts/run-market-data-migrations.mjs",
+    "db:market:seed:realty-income": "tsx scripts/seed-realty-income-market-data-mapping.mjs",
+    "db:market:import:json": "tsx scripts/import-market-data-json.mjs",
+    "db:market:match:symbols": "tsx scripts/match-stock-symbol-candidates.mjs",
+    "db:market:sync:instruments": "tsx scripts/sync-market-instruments-from-local-assets.mjs",
+    "db:market:export:candidates": "tsx scripts/export-market-symbol-candidates.mjs",
+    "db:market:import:validation": "tsx scripts/import-symbol-validation-results.mjs",
+    "db:market:status": "tsx scripts/market-data-status.mjs",
+    "db:market:promote:verified": "tsx scripts/promote-verified-market-symbols.mjs",
+    "db:market:backfill:primary": "tsx scripts/backfill-primary-market-data.mjs",
+    "yfinance:validate:symbols": "python scripts/yfinance/validate-symbol-candidates.py"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",
     "next": "16.2.6",
+    "pg": "^8.21.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.22.3",
     "typescript": "^5",
     "vitest": "^3.2.4"
   }
