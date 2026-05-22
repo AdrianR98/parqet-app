@@ -1,0 +1,8 @@
+[
+  {
+    "isin": "US0378331005",
+    "provider": "alphavantage",
+    "symbol": "AAPL",
+    "name": "Apple Inc."
+  }
+]
