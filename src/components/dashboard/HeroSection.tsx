@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+import type { RefObject } from "react";
 import PortfolioFilter from "./PortfolioFilter";
 import styles from "./HeroSection.module.css";
 import type { Portfolio } from "../../lib/types";
@@ -13,18 +15,15 @@ type HeroSectionProps = {
     portfolios: Portfolio[];
     selectedPortfolioIds: string[];
     draftPortfolioIds: string[];
-    selectedPortfolioCount: number;
-    loadedPortfolioCount: number;
-    assetCount: number;
     loadingAssets: boolean;
     refreshingAssets: boolean;
     hasCachedData: boolean;
-    hasPendingPortfolioSelection: boolean;
     isPortfolioDropdownOpen: boolean;
     onToggleOpen: () => void;
     onToggleDraftPortfolio: (portfolioId: string) => void;
     onApply: () => void;
     onReset: () => void;
+    portfolioDropdownRef: RefObject<HTMLDivElement | null>;
     onLoadAssets: () => void;
     searchQuery: string;
     onSearchQueryChange: (value: string) => void;
@@ -34,40 +33,49 @@ type HeroSectionProps = {
     allocationSegments: AllocationSegment[];
 };
 
-function buildDonutGradient(segments: AllocationSegment[]): string {
-    if (segments.length === 0) {
-        return "conic-gradient(#d6e2ef 0 100%)";
+type DonutSegment = AllocationSegment & {
+    ratio: number;
+    dashLength: number;
+    dashOffset: number;
+};
+
+const DONUT_RADIUS = 38;
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS;
+
+function buildDonutSegments(segments: AllocationSegment[]): DonutSegment[] {
+    const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+    if (total <= 0) {
+        return [];
     }
 
-    const total = segments.reduce((sum, segment) => sum + segment.value, 0);
     let offset = 0;
-
-    const stops = segments.map((segment) => {
-        const start = offset;
-        const size = total > 0 ? (segment.value / total) * 100 : 0;
-        offset += size;
-        return `${segment.color} ${start}% ${offset}%`;
+    return segments.map((segment) => {
+        const ratio = segment.value / total;
+        const dashLength = ratio * DONUT_CIRCUMFERENCE;
+        const result: DonutSegment = {
+            ...segment,
+            ratio,
+            dashLength,
+            dashOffset: -offset,
+        };
+        offset += dashLength;
+        return result;
     });
-
-    return `conic-gradient(${stops.join(", ")})`;
 }
 
 export default function HeroSection({
     portfolios,
     selectedPortfolioIds,
     draftPortfolioIds,
-    selectedPortfolioCount,
-    loadedPortfolioCount,
-    assetCount,
     loadingAssets,
     refreshingAssets,
     hasCachedData,
-    hasPendingPortfolioSelection,
     isPortfolioDropdownOpen,
     onToggleOpen,
     onToggleDraftPortfolio,
     onApply,
     onReset,
+    portfolioDropdownRef,
     onLoadAssets,
     searchQuery,
     onSearchQueryChange,
@@ -76,8 +84,17 @@ export default function HeroSection({
     totalDividendNet,
     allocationSegments,
 }: HeroSectionProps) {
+    const [hoveredSegmentIndex, setHoveredSegmentIndex] = useState<number | null>(null);
     const invested = (totalPositionValue ?? 0) - (totalUnrealizedPnL ?? 0);
-    const donutGradient = buildDonutGradient(allocationSegments);
+    const donutTotal = useMemo(
+        () => allocationSegments.reduce((sum, segment) => sum + segment.value, 0),
+        [allocationSegments],
+    );
+    const donutSegments = useMemo(
+        () => buildDonutSegments(allocationSegments),
+        [allocationSegments],
+    );
+    const hoveredSegment = hoveredSegmentIndex != null ? donutSegments[hoveredSegmentIndex] : null;
 
     return (
         <section className={`ui-surface ${styles.hero}`}>
@@ -91,6 +108,7 @@ export default function HeroSection({
                     onToggleDraftPortfolio={onToggleDraftPortfolio}
                     onApply={onApply}
                     onReset={onReset}
+                    dropdownRef={portfolioDropdownRef}
                 />
 
                 <input
@@ -101,29 +119,58 @@ export default function HeroSection({
                     value={searchQuery}
                     onChange={(event) => onSearchQueryChange(event.target.value)}
                 />
-
-                <button type="button" className="ui-btn ui-btn-secondary" onClick={onLoadAssets} disabled={loadingAssets || refreshingAssets}>
-                    {loadingAssets ? "Lädt..." : refreshingAssets && hasCachedData ? "Lädt neu..." : "Daten neu laden"}
-                </button>
             </div>
 
             <div className={styles.summary}>
                 <div className={styles.donutWrap}>
-                    {allocationSegments.length > 0 ? <div className={styles.donut} aria-hidden="true" style={{ background: donutGradient }} /> : <div className={styles.donutEmpty}>Keine Allokationsdaten</div>}
-                    {allocationSegments.length > 0 ? (
-                        <div className={styles.legend}>
-                            {allocationSegments.map((segment) => {
-                                const total = allocationSegments.reduce((sum, item) => sum + item.value, 0);
-                                const ratio = total > 0 ? (segment.value / total) * 100 : 0;
-                                return (
-                                    <span key={segment.label} className={styles.legendItem}>
-                                        <i style={{ background: segment.color }} />
-                                        {segment.label} {ratio.toFixed(1)}%
-                                    </span>
-                                );
-                            })}
+                    {donutSegments.length > 0 ? (
+                        <div className={styles.donutChart}>
+                            <svg viewBox="0 0 96 96" className={styles.donutSvg} role="img" aria-label="Allokation aktiver Wertpapiere">
+                                <circle
+                                    cx="48"
+                                    cy="48"
+                                    r={DONUT_RADIUS}
+                                    fill="none"
+                                    stroke="rgba(214, 226, 239, 0.9)"
+                                    strokeWidth="14"
+                                />
+                                {donutSegments.map((segment, index) => (
+                                    <circle
+                                        key={segment.label}
+                                        cx="48"
+                                        cy="48"
+                                        r={DONUT_RADIUS}
+                                        fill="none"
+                                        stroke={segment.color}
+                                        strokeWidth="14"
+                                        strokeDasharray={`${segment.dashLength} ${DONUT_CIRCUMFERENCE}`}
+                                        strokeDashoffset={segment.dashOffset}
+                                        transform="rotate(-90 48 48)"
+                                        strokeLinecap="butt"
+                                        tabIndex={0}
+                                        role="presentation"
+                                        aria-label={`${segment.label} ${(segment.ratio * 100).toFixed(1)} Prozent`}
+                                        onMouseEnter={() => setHoveredSegmentIndex(index)}
+                                        onMouseLeave={() => setHoveredSegmentIndex(null)}
+                                        onFocus={() => setHoveredSegmentIndex(index)}
+                                        onBlur={() => setHoveredSegmentIndex(null)}
+                                    >
+                                        <title>{`${segment.label}: ${(segment.ratio * 100).toFixed(1)}%`}</title>
+                                    </circle>
+                                ))}
+                            </svg>
+                            <div className={styles.donutCenter}>
+                                <span>Wertpapiere</span>
+                                <strong>{formatCurrency(donutTotal)}</strong>
+                            </div>
+                            {hoveredSegment ? (
+                                <div className={styles.donutTooltip}>
+                                    <strong>{hoveredSegment.label}</strong>
+                                    <span>{(hoveredSegment.ratio * 100).toFixed(1)}% · {formatCurrency(hoveredSegment.value)}</span>
+                                </div>
+                            ) : null}
                         </div>
-                    ) : null}
+                    ) : <div className={styles.donutEmpty}>Keine Allokationsdaten</div>}
                 </div>
                 <div className={styles.kpiGrid}>
                     <div className={styles.kpiCard}><span>Portfoliowert</span><strong>{formatCurrency(totalPositionValue ?? 0)}</strong></div>
@@ -132,8 +179,11 @@ export default function HeroSection({
                     <div className={styles.kpiCard}><span>Dividenden</span><strong>{formatCurrency(totalDividendNet ?? 0)}</strong></div>
                 </div>
             </div>
-
-            <div className={styles.meta}>Lokale Daten vorhanden · {assetCount} Assets{hasPendingPortfolioSelection ? " · Auswahl noch nicht geladen" : " · Aktuell"}</div>
+            <div className={styles.actionsRow}>
+                <button type="button" className={`ui-btn ui-btn-ghost ${styles.refreshAction}`} onClick={onLoadAssets} disabled={loadingAssets || refreshingAssets}>
+                    {loadingAssets ? "Lädt..." : refreshingAssets && hasCachedData ? "Lädt neu..." : "Daten neu laden"}
+                </button>
+            </div>
         </section>
     );
 }

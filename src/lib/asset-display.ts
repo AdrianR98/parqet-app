@@ -258,6 +258,25 @@ export function getAssetLogoUrl(asset: AssetSummary): string {
 }
 
 /**
+ * Liefert bevorzugt ein vorhandenes Metadaten-Logo und faellt sonst auf
+ * die ISIN-basierte Logo-URL zurueck.
+ */
+export function getAssetResolvedLogoUrl(asset: AssetSummary): string | null {
+    for (const metadata of getMetadataCandidates(asset)) {
+        const logoUrl = pickFirstDisplayString((metadata as { logoUrl?: unknown }).logoUrl);
+        if (logoUrl) {
+            return logoUrl;
+        }
+    }
+
+    if (!isNonEmptyDisplayString(asset.isin)) {
+        return null;
+    }
+
+    return getAssetLogoUrl(asset);
+}
+
+/**
  * Baut robuste Initialen fuer den Logo-Fallback.
  */
 export function getAssetInitials(asset: AssetSummary): string {

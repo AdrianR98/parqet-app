@@ -5,10 +5,11 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadPortfolioScope, resolvePortfolioScope } from "../../../lib/app-settings";
 import { loadDashboardCache } from "../../../lib/dashboard-cache";
-import { findAssetByKey, getAssetDetailKey, getAssetDisplayName, getAssetInitials, getAssetLogoUrl, getAssetStatusLabel, getAssetWarnings, scopeAssetMetrics } from "../../../lib/asset-detail";
+import { findAssetByKey, getAssetDetailKey, getAssetDisplayName, getAssetStatusLabel, getAssetWarnings, scopeAssetMetrics } from "../../../lib/asset-detail";
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
 import { getActivityTypeLabel } from "../../../lib/local-activity-read-model";
 import { formatCurrency, formatShares } from "../../../lib/format";
+import { getAssetInitials, getAssetResolvedLogoUrl } from "../../../lib/asset-display";
 import type { AssetSummary, PortfolioPosition } from "../../../lib/types";
 import styles from "./AssetDetailPage.module.css";
 
@@ -84,7 +85,7 @@ export default function AssetDetailPage() {
 
     const { asset, metrics, warnings, lastUpdatedAt, selectedPortfolioIds, activityItems } = viewModel;
     const displayName = getAssetDisplayName(asset);
-    const logoUrl = getAssetLogoUrl(asset);
+    const logoUrl = getAssetResolvedLogoUrl(asset);
     const statusLabel = getAssetStatusLabel(metrics);
     const hasDividends = (metrics.totalDividendNet ?? 0) > 0 || asset.dividendCount > 0;
     const scopedIds = new Set(selectedPortfolioIds);

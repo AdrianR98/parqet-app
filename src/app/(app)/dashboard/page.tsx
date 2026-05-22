@@ -8,6 +8,8 @@ import { useDashboardData } from "../../../hooks/use-dashboard-data";
 import { getAssetDisplayName, getAssetSubtitle } from "../../../lib/asset-display";
 import type { AssetSummary } from "../../../lib/types";
 
+const CLOSED_POSITION_EPSILON = 1e-8;
+
 function getAssetTypeLabel(asset: AssetSummary): "Kryptowährungen" | "Wertpapiere" | "Sonstige" {
     const typeCandidate = [asset.metadata?.assetType, asset.externalMetadata?.assetType, asset.assetMeta?.assetType]
         .find((value) => typeof value === "string")
@@ -26,6 +28,36 @@ function getAssetTypeLabel(asset: AssetSummary): "Kryptowährungen" | "Wertpapie
 
 function isCryptoAsset(asset: AssetSummary): boolean {
     return getAssetTypeLabel(asset) === "Kryptowährungen";
+}
+
+function scopeAssetToSelection(asset: AssetSummary, selectedPortfolioIds: string[]): AssetSummary | null {
+    const selectedSet = new Set(selectedPortfolioIds);
+    const breakdown = asset.portfolioBreakdown.filter((entry) => selectedSet.has(entry.portfolioId));
+
+    if (breakdown.length === 0) {
+        return null;
+    }
+
+    const hasPositionValue = breakdown.some((entry) => entry.positionValue != null);
+    const hasUnrealizedPnL = breakdown.some((entry) => entry.unrealizedPnL != null);
+    const netShares = breakdown.reduce((sum, entry) => sum + entry.netShares, 0);
+    const remainingCostBasis = breakdown.reduce((sum, entry) => sum + entry.remainingCostBasis, 0);
+    const totalDividendNet = breakdown.reduce((sum, entry) => sum + entry.totalDividendNet, 0);
+    const positionValue = breakdown.reduce((sum, entry) => sum + (entry.positionValue ?? 0), 0);
+    const unrealizedPnL = breakdown.reduce((sum, entry) => sum + (entry.unrealizedPnL ?? 0), 0);
+
+    return {
+        ...asset,
+        portfolioBreakdown: breakdown,
+        portfolioIds: breakdown.map((entry) => entry.portfolioId),
+        portfolioNames: breakdown.map((entry) => entry.portfolioName),
+        netShares,
+        remainingCostBasis,
+        avgBuyPrice: netShares > 0 ? remainingCostBasis / netShares : null,
+        positionValue: hasPositionValue ? positionValue : null,
+        unrealizedPnL: hasUnrealizedPnL ? unrealizedPnL : null,
+        totalDividendNet,
+    };
 }
 
 function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
@@ -78,20 +110,44 @@ function matchesSearch(asset: AssetSummary, query: string): boolean {
 
 export default function DashboardPage() {
     const {
-        portfolios, selectedPortfolioIds, draftPortfolioIds, selectedPortfolioCount, loadedPortfolioCount, isPortfolioDropdownOpen, showWarningsPanel, portfolioDropdownRef,
-        assetCount, consistencyReport, reconciliationWarnings, hasPendingPortfolioSelection,
+        portfolios, selectedPortfolioIds, draftPortfolioIds, isPortfolioDropdownOpen, showWarningsPanel, portfolioDropdownRef,
+        consistencyReport, reconciliationWarnings,
         loadingAssets, refreshingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
-        stats, sortedActiveAssets, sortedClosedAssets,
+        sortedActiveAssets, sortedClosedAssets,
         setIsPortfolioDropdownOpen, setShowWarningsPanel,
         toggleDraftPortfolio, applyPortfolioFilter, resetPortfolioFilter, loadAssets,
     } = useDashboardData();
     const [searchQuery, setSearchQuery] = useState("");
 
-    const activeSecurities = useMemo(() => sortedActiveAssets.filter((asset) => !isCryptoAsset(asset)), [sortedActiveAssets]);
-    const activeCrypto = useMemo(() => sortedActiveAssets.filter((asset) => isCryptoAsset(asset)), [sortedActiveAssets]);
-    const soldSecurities = useMemo(() => sortedClosedAssets.filter((asset) => !isCryptoAsset(asset)), [sortedClosedAssets]);
-    const soldCrypto = useMemo(() => sortedClosedAssets.filter((asset) => isCryptoAsset(asset)), [sortedClosedAssets]);
+    const scopedAssets = useMemo(() => {
+        const allAssets = [...sortedActiveAssets, ...sortedClosedAssets];
+        return allAssets
+            .map((asset) => scopeAssetToSelection(asset, selectedPortfolioIds))
+            .filter((asset): asset is AssetSummary => asset != null);
+    }, [selectedPortfolioIds, sortedActiveAssets, sortedClosedAssets]);
+
+    const activeAssets = useMemo(
+        () => scopedAssets
+            .filter((asset) => asset.netShares > CLOSED_POSITION_EPSILON)
+            .sort((left, right) => (right.positionValue ?? 0) - (left.positionValue ?? 0)),
+        [scopedAssets],
+    );
+    const closedAssets = useMemo(
+        () => scopedAssets
+            .filter((asset) => asset.netShares <= CLOSED_POSITION_EPSILON)
+            .sort((left, right) => (right.positionValue ?? 0) - (left.positionValue ?? 0)),
+        [scopedAssets],
+    );
+    const activeSecurities = useMemo(() => activeAssets.filter((asset) => !isCryptoAsset(asset)), [activeAssets]);
+    const activeCrypto = useMemo(() => activeAssets.filter((asset) => isCryptoAsset(asset)), [activeAssets]);
+    const soldSecurities = useMemo(() => closedAssets.filter((asset) => !isCryptoAsset(asset)), [closedAssets]);
+    const soldCrypto = useMemo(() => closedAssets.filter((asset) => isCryptoAsset(asset)), [closedAssets]);
     const allocationSegments = useMemo(() => buildAllocationSegments(activeSecurities), [activeSecurities]);
+    const scopedTotals = useMemo(() => ({
+        totalPositionValue: scopedAssets.reduce((sum, asset) => sum + (asset.positionValue ?? 0), 0),
+        totalUnrealizedPnL: scopedAssets.reduce((sum, asset) => sum + (asset.unrealizedPnL ?? 0), 0),
+        totalDividendNet: scopedAssets.reduce((sum, asset) => sum + (asset.totalDividendNet ?? 0), 0),
+    }), [scopedAssets]);
 
     const filteredActiveSecurities = useMemo(() => activeSecurities.filter((asset) => matchesSearch(asset, searchQuery)), [activeSecurities, searchQuery]);
     const filteredActiveCrypto = useMemo(() => activeCrypto.filter((asset) => matchesSearch(asset, searchQuery)), [activeCrypto, searchQuery]);
@@ -100,30 +156,27 @@ export default function DashboardPage() {
 
     return (
         <>
-            <div className="app-content" ref={portfolioDropdownRef}>
+            <div className="app-content">
                 <div className="app-stack">
                     <HeroSection
                         portfolios={portfolios}
                         selectedPortfolioIds={selectedPortfolioIds}
                         draftPortfolioIds={draftPortfolioIds}
-                        selectedPortfolioCount={selectedPortfolioCount}
-                        loadedPortfolioCount={loadedPortfolioCount}
-                        assetCount={assetCount}
                         loadingAssets={loadingAssets}
                         refreshingAssets={refreshingAssets}
                         hasCachedData={hasCachedData}
-                        hasPendingPortfolioSelection={hasPendingPortfolioSelection}
                         isPortfolioDropdownOpen={isPortfolioDropdownOpen}
                         onToggleOpen={() => setIsPortfolioDropdownOpen((current) => !current)}
                         onToggleDraftPortfolio={toggleDraftPortfolio}
                         onApply={applyPortfolioFilter}
                         onReset={resetPortfolioFilter}
+                        portfolioDropdownRef={portfolioDropdownRef}
                         onLoadAssets={loadAssets}
                         searchQuery={searchQuery}
                         onSearchQueryChange={setSearchQuery}
-                        totalPositionValue={stats.totalPositionValue}
-                        totalUnrealizedPnL={stats.totalUnrealizedPnL}
-                        totalDividendNet={stats.totalDividendNet}
+                        totalPositionValue={scopedTotals.totalPositionValue}
+                        totalUnrealizedPnL={scopedTotals.totalUnrealizedPnL}
+                        totalDividendNet={scopedTotals.totalDividendNet}
                         allocationSegments={allocationSegments}
                     />
 

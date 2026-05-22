@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import styles from "./PortfolioFilter.module.css";
 import type { Portfolio } from "../../lib/types";
 
@@ -11,6 +12,7 @@ type PortfolioFilterProps = {
     onToggleDraftPortfolio: (portfolioId: string) => void;
     onApply: () => void;
     onReset: () => void;
+    dropdownRef?: RefObject<HTMLDivElement | null>;
 };
 
 export default function PortfolioFilter({
@@ -22,11 +24,18 @@ export default function PortfolioFilter({
     onToggleDraftPortfolio,
     onApply,
     onReset,
+    dropdownRef,
 }: PortfolioFilterProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const shouldApplyRef = useRef(false);
+    const shouldReopenRef = useRef(false);
     const selectedCount = selectedPortfolioIds.length;
     const totalCount = portfolios.length;
+
+    function toggleMenu() {
+        shouldReopenRef.current = false;
+        onToggleOpen();
+    }
 
     const triggerLabel =
         selectedCount === 0
@@ -45,9 +54,12 @@ export default function PortfolioFilter({
         if (shouldApplyRef.current) {
             shouldApplyRef.current = false;
             onApply();
-            setTimeout(() => {
-                onToggleOpen();
-            }, 0);
+            if (shouldReopenRef.current) {
+                shouldReopenRef.current = false;
+                setTimeout(() => {
+                    onToggleOpen();
+                }, 0);
+            }
         }
     }, [draftPortfolioIds, isOpen, onApply, onToggleOpen]);
 
@@ -57,10 +69,11 @@ export default function PortfolioFilter({
         }
 
         function closeMenu() {
+            shouldReopenRef.current = false;
             onToggleOpen();
         }
 
-        function handlePointerDown(event: MouseEvent) {
+        function handlePointerDown(event: PointerEvent) {
             const target = event.target as Node;
             if (!wrapperRef.current?.contains(target)) {
                 closeMenu();
@@ -73,35 +86,48 @@ export default function PortfolioFilter({
             }
         }
 
-        document.addEventListener("mousedown", handlePointerDown);
+        document.addEventListener("pointerdown", handlePointerDown, true);
         document.addEventListener("keydown", handleEscape);
 
         return () => {
-            document.removeEventListener("mousedown", handlePointerDown);
+            document.removeEventListener("pointerdown", handlePointerDown, true);
             document.removeEventListener("keydown", handleEscape);
         };
     }, [isOpen, onToggleOpen]);
 
     function handleTogglePortfolio(portfolioId: string) {
         shouldApplyRef.current = true;
+        shouldReopenRef.current = true;
         onToggleDraftPortfolio(portfolioId);
     }
 
     function handleReset() {
         shouldApplyRef.current = true;
+        shouldReopenRef.current = true;
         onReset();
     }
 
     return (
-        <div className={styles.wrapper} ref={wrapperRef}>
+        <div
+            className={styles.wrapper}
+            ref={(node) => {
+                wrapperRef.current = node;
+                if (dropdownRef) {
+                    dropdownRef.current = node;
+                }
+            }}
+        >
             <button
                 type="button"
                 className={`ui-filter-btn ${styles.trigger}`}
-                onClick={onToggleOpen}
+                onClick={toggleMenu}
                 aria-expanded={isOpen}
             >
+                <span className={styles.icon} aria-hidden="true">◉</span>
                 <span className={styles.label}>Portfolios</span>
-                <span className={styles.value}>{selectedCount > 0 ? `${selectedCount} ausgewählt` : triggerLabel}</span>
+                <span className={styles.value}>
+                    {selectedCount === totalCount ? "Alle Portfolios" : selectedCount > 0 ? `${selectedCount} ausgewählt` : triggerLabel}
+                </span>
                 <span className={styles.chevron}>▾</span>
             </button>
 

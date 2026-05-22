@@ -9,28 +9,11 @@ import type { AssetSummary } from "../../lib/types";
 import { createAssetDetailHref } from "../../lib/asset-detail";
 import { formatCurrency, formatShares } from "../../lib/format";
 import { getSafePortfolioBreakdown } from "./asset-table-config";
-import { getAssetDisplayName, getAssetSubtitle, getAssetInitials, getAssetLogoUrl as getIsinLogoUrl } from "../../lib/asset-display";
+import { getAssetDisplayName, getAssetSubtitle, getAssetInitials, getAssetResolvedLogoUrl } from "../../lib/asset-display";
 
 export type AssetTableColumnKey = "name" | "remainingCostBasis" | "positionValue" | "unrealizedPnL" | "totalDividendNet" | "allocation" | "actions";
 
 const columnHelper = createColumnHelper<AssetSummary>();
-
-function getLogoUrl(asset: AssetSummary): string | null {
-    const candidates = [
-        asset.metadata as Record<string, unknown> | undefined,
-        asset.externalMetadata as Record<string, unknown> | undefined,
-        asset.assetMeta as Record<string, unknown> | undefined,
-    ];
-
-    for (const candidate of candidates) {
-        const value = candidate?.logoUrl;
-        if (typeof value === "string" && value.trim().length > 0) {
-            return value;
-        }
-    }
-
-    return getIsinLogoUrl(asset);
-}
 
 function buildMetaLine(asset: AssetSummary, subtitle: string): string {
     const parts: string[] = [];
@@ -50,7 +33,7 @@ function buildMetaLine(asset: AssetSummary, subtitle: string): string {
 
 function AssetLogo({ asset, displayName }: { asset: AssetSummary; displayName: string }) {
     const [imageFailed, setImageFailed] = useState(false);
-    const logoUrl = getLogoUrl(asset);
+    const logoUrl = getAssetResolvedLogoUrl(asset);
 
     if (!logoUrl || imageFailed) {
         return <span className={styles.assetLogoFallback}>{getAssetInitials(asset)}</span>;
