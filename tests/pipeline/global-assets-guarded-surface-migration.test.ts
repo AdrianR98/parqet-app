@@ -334,7 +334,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
     expect(readySelection.diagnostics.readModelId).toBe("rm-global-assets-guarded");
     expect(readySelection.diagnostics.sourceType).toBe("local_snapshot");
     expect(readySelection.diagnostics.sourceScope).toBe("selected_portfolios");
-    expect(readySelection.diagnostics.confidence).toBe("high");
+    expect(readySelection.diagnostics.confidence).toBe(projected.metadata.confidence);
     expect(readySelection.diagnostics.providerRequestCount).toBe(0);
   });
 
