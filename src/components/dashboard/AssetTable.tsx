@@ -54,12 +54,11 @@ export default function AssetTable({ assets, loading = false, emptyTitle = "Kein
     const [visibleAssetCount, setVisibleAssetCount] = useState(DEFAULT_REVEAL_BLOCK_SIZE);
     const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>(() => toVisibilityState(loadAssetTableVisibleColumns(ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, FIXED_COLUMNS) as AssetTableColumnKey[]));
 
-    const visibleData = useMemo(() => assets.slice(0, visibleAssetCount), [assets, visibleAssetCount]);
     const totalPositionValue = useMemo(() => assets.reduce((sum, asset) => sum + (asset.positionValue ?? 0), 0), [assets]);
     const columns = useMemo(() => getAssetTableColumns(expandedIsins, setExpandedIsins, totalPositionValue), [expandedIsins, totalPositionValue]);
 
     const table = useReactTable({
-        data: visibleData,
+        data: assets,
         columns,
         state: { sorting, columnVisibility },
         onSortingChange: setSorting,
@@ -76,10 +75,17 @@ export default function AssetTable({ assets, loading = false, emptyTitle = "Kein
 
     const visibleColumns = table.getVisibleLeafColumns();
     const visibleColumnIds = visibleColumns.map((column) => column.id as AssetTableColumnKey);
-    const sortedAssets = table.getSortedRowModel().rows;
-    const hasRows = sortedAssets.length > 0;
+    const sortedRows = table.getSortedRowModel().rows;
+    const visibleRows = sortedRows.slice(0, visibleAssetCount);
+    const totalRows = sortedRows.length;
+    const shownRows = visibleRows.length;
+    const hiddenRows = Math.max(0, totalRows - shownRows);
+    const hasRows = totalRows > 0;
 
     useEffect(() => setVisibleAssetCount(revealBlockSize), [revealBlockSize]);
+    useEffect(() => {
+        setVisibleAssetCount((current) => Math.max(revealBlockSize, current));
+    }, [sorting, revealBlockSize]);
     useEffect(() => {
         const nextVisible = loadAssetTableVisibleColumns(ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, FIXED_COLUMNS) as AssetTableColumnKey[];
         setColumnVisibility(toVisibilityState(nextVisible));
@@ -113,7 +119,7 @@ export default function AssetTable({ assets, loading = false, emptyTitle = "Kein
                         ))}
                     </thead>
                     <tbody>
-                        {sortedAssets.map((row) => {
+                        {visibleRows.map((row) => {
                             const isExpanded = expandedIsins.includes(row.original.isin);
                             return (
                                 <Fragment key={row.id}>
@@ -127,6 +133,18 @@ export default function AssetTable({ assets, loading = false, emptyTitle = "Kein
                     </tbody>
                 </table>
             </div>
+            {hiddenRows > 0 ? (
+                <div className={styles.revealFooter}>
+                    <span>{shownRows} von {totalRows} anzeigen</span>
+                    <button
+                        type="button"
+                        className="ui-btn ui-btn-secondary"
+                        onClick={() => setVisibleAssetCount((current) => Math.min(totalRows, current + revealBlockSize))}
+                    >
+                        Weitere {Math.min(revealBlockSize, hiddenRows)} laden
+                    </button>
+                </div>
+            ) : null}
         </div>
     );
 }
