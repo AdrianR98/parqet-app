@@ -15,16 +15,11 @@ type HeroSectionProps = {
     portfolios: Portfolio[];
     selectedPortfolioIds: string[];
     draftPortfolioIds: string[];
-    loadingAssets: boolean;
-    refreshingAssets: boolean;
-    hasCachedData: boolean;
     isPortfolioDropdownOpen: boolean;
     onToggleOpen: () => void;
     onToggleDraftPortfolio: (portfolioId: string) => void;
-    onApply: () => void;
     onReset: () => void;
     portfolioDropdownRef: RefObject<HTMLDivElement | null>;
-    onLoadAssets: () => void;
     searchQuery: string;
     onSearchQueryChange: (value: string) => void;
     totalPositionValue?: number;
@@ -67,16 +62,11 @@ export default function HeroSection({
     portfolios,
     selectedPortfolioIds,
     draftPortfolioIds,
-    loadingAssets,
-    refreshingAssets,
-    hasCachedData,
     isPortfolioDropdownOpen,
     onToggleOpen,
     onToggleDraftPortfolio,
-    onApply,
     onReset,
     portfolioDropdownRef,
-    onLoadAssets,
     searchQuery,
     onSearchQueryChange,
     totalPositionValue,
@@ -86,10 +76,6 @@ export default function HeroSection({
 }: HeroSectionProps) {
     const [hoveredSegmentIndex, setHoveredSegmentIndex] = useState<number | null>(null);
     const invested = (totalPositionValue ?? 0) - (totalUnrealizedPnL ?? 0);
-    const donutTotal = useMemo(
-        () => allocationSegments.reduce((sum, segment) => sum + segment.value, 0),
-        [allocationSegments],
-    );
     const donutSegments = useMemo(
         () => buildDonutSegments(allocationSegments),
         [allocationSegments],
@@ -106,7 +92,6 @@ export default function HeroSection({
                     isOpen={isPortfolioDropdownOpen}
                     onToggleOpen={onToggleOpen}
                     onToggleDraftPortfolio={onToggleDraftPortfolio}
-                    onApply={onApply}
                     onReset={onReset}
                     dropdownRef={portfolioDropdownRef}
                 />
@@ -160,8 +145,12 @@ export default function HeroSection({
                                 ))}
                             </svg>
                             <div className={styles.donutCenter}>
-                                <span>Wertpapiere</span>
-                                <strong>{formatCurrency(donutTotal)}</strong>
+                                {hoveredSegment ? (
+                                    <>
+                                        <span>Positionswert</span>
+                                        <strong>{formatCurrency(hoveredSegment.value)}</strong>
+                                    </>
+                                ) : <i aria-hidden="true" className={styles.centerIdleDot} />}
                             </div>
                             {hoveredSegment ? (
                                 <div className={styles.donutTooltip}>
@@ -178,11 +167,6 @@ export default function HeroSection({
                     <div className={styles.kpiCard}><span>Investiert</span><strong>{formatCurrency(invested)}</strong></div>
                     <div className={styles.kpiCard}><span>Dividenden</span><strong>{formatCurrency(totalDividendNet ?? 0)}</strong></div>
                 </div>
-            </div>
-            <div className={styles.actionsRow}>
-                <button type="button" className={`ui-btn ui-btn-ghost ${styles.refreshAction}`} onClick={onLoadAssets} disabled={loadingAssets || refreshingAssets}>
-                    {loadingAssets ? "Lädt..." : refreshingAssets && hasCachedData ? "Lädt neu..." : "Daten neu laden"}
-                </button>
             </div>
         </section>
     );

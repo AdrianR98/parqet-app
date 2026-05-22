@@ -10,7 +10,6 @@ type PortfolioFilterProps = {
     isOpen: boolean;
     onToggleOpen: () => void;
     onToggleDraftPortfolio: (portfolioId: string) => void;
-    onApply: () => void;
     onReset: () => void;
     dropdownRef?: RefObject<HTMLDivElement | null>;
 };
@@ -22,18 +21,14 @@ export default function PortfolioFilter({
     isOpen,
     onToggleOpen,
     onToggleDraftPortfolio,
-    onApply,
     onReset,
     dropdownRef,
 }: PortfolioFilterProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
-    const shouldApplyRef = useRef(false);
-    const shouldReopenRef = useRef(false);
     const selectedCount = selectedPortfolioIds.length;
     const totalCount = portfolios.length;
 
     function toggleMenu() {
-        shouldReopenRef.current = false;
         onToggleOpen();
     }
 
@@ -51,25 +46,7 @@ export default function PortfolioFilter({
             return;
         }
 
-        if (shouldApplyRef.current) {
-            shouldApplyRef.current = false;
-            onApply();
-            if (shouldReopenRef.current) {
-                shouldReopenRef.current = false;
-                setTimeout(() => {
-                    onToggleOpen();
-                }, 0);
-            }
-        }
-    }, [draftPortfolioIds, isOpen, onApply, onToggleOpen]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-
         function closeMenu() {
-            shouldReopenRef.current = false;
             onToggleOpen();
         }
 
@@ -96,14 +73,10 @@ export default function PortfolioFilter({
     }, [isOpen, onToggleOpen]);
 
     function handleTogglePortfolio(portfolioId: string) {
-        shouldApplyRef.current = true;
-        shouldReopenRef.current = true;
         onToggleDraftPortfolio(portfolioId);
     }
 
     function handleReset() {
-        shouldApplyRef.current = true;
-        shouldReopenRef.current = true;
         onReset();
     }
 

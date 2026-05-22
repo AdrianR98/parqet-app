@@ -200,6 +200,7 @@ function getDefaultActivityFilters(): ActivityFilters {
   return {
     portfolioIds: [],
     query: "",
+    exactIsin: "",
     types: ALL_ACTIVITY_TYPES,
     dateFrom: "",
     dateTo: "",
@@ -210,14 +211,14 @@ function getDefaultActivityFilters(): ActivityFilters {
 
 export default function ActivitiesPage() {
   const searchParams = useSearchParams();
-  const initialIsinFilter = searchParams.get("isin")?.trim() ?? "";
+  const initialIsinFilter = searchParams.get("isin")?.trim().toUpperCase() ?? "";
   const { value: readModel } = useHydrationSafeLocalSnapshot(
     loadLocalActivityReadModel,
     getEmptyLocalActivityReadModel,
   );
   const [filters, setFilters] = useState<ActivityFilters>(() => ({
     ...getDefaultActivityFilters(),
-    query: initialIsinFilter,
+    exactIsin: initialIsinFilter,
   }));
   const [useHydratedPortfolioScope, setUseHydratedPortfolioScope] = useState(true);
   const [sort, setSort] = useState<ActivitySort>({ key: "date", direction: "desc" });
@@ -274,7 +275,10 @@ export default function ActivitiesPage() {
   function reloadFromLocalCache() {
     notifyBrowserLocalStateChanged();
     setUseHydratedPortfolioScope(true);
-    setFilters(getDefaultActivityFilters());
+    setFilters({
+      ...getDefaultActivityFilters(),
+      exactIsin: initialIsinFilter,
+    });
     setVisibleCount(PAGE_SIZE);
     setSelectedActivityId(null);
   }
@@ -283,7 +287,10 @@ export default function ActivitiesPage() {
     setUseHydratedPortfolioScope(true);
     setVisibleCount(PAGE_SIZE);
     setSelectedActivityId(null);
-    setFilters(getDefaultActivityFilters());
+    setFilters({
+      ...getDefaultActivityFilters(),
+      exactIsin: initialIsinFilter,
+    });
   }
 
   return (
@@ -323,6 +330,11 @@ export default function ActivitiesPage() {
         <div className="ui-banner ui-banner-info">
           Der gespeicherte Portfolio-Scope enthält Portfolios, die im lokalen Datenstand nicht vorhanden sind.
           Bitte aktualisiere die Daten bei Bedarf explizit im Dashboard; diese Seite lädt nicht automatisch nach.
+        </div>
+      ) : null}
+      {effectiveFilters.exactIsin ? (
+        <div className="ui-banner ui-banner-info">
+          Gefiltert nach ISIN {effectiveFilters.exactIsin}.
         </div>
       ) : null}
 

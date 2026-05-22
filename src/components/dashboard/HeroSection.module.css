@@ -72,6 +72,14 @@
     color: var(--text-main);
 }
 
+.centerIdleDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(109, 135, 166, 0.35);
+    display: inline-block;
+}
+
 .donutTooltip {
     position: absolute;
     left: 50%;
@@ -140,18 +148,6 @@
 
 .positive { color: var(--positive) !important; }
 .negative { color: var(--negative) !important; }
-
-.actionsRow {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 10px;
-}
-
-.refreshAction {
-    font-size: 12px;
-    padding-inline: 10px;
-    min-height: 32px;
-}
 
 @media (max-width: 1020px) {
     .topRow {

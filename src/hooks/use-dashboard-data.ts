@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  enrichAssetsWithMetadata,
-  getMissingMetadataIsins,
-} from "../lib/asset-metadata";
+import { enrichAssetsWithMetadata } from "../lib/asset-metadata";
 import {
   loadDashboardCache,
   saveDashboardCache,
@@ -65,6 +62,7 @@ type UseDashboardDataResult = {
   reconciliationWarnings: ReconciliationWarning[];
   lastUpdatedAt: string | null;
   hasPendingPortfolioSelection: boolean;
+  selectedPortfoliosMissingInLocalLoad: string[];
   missingPortfolioScopeIds: string[];
   usedPortfolioScopeFallback: boolean;
 
@@ -399,17 +397,6 @@ export function useDashboardData(): UseDashboardDataResult {
       );
       const nextGeneratedAt = data.generatedAt ?? new Date().toISOString();
 
-      const missingMetadataIsins = getMissingMetadataIsins([
-        ...nextActiveAssets,
-        ...nextClosedAssets,
-      ]);
-
-      console.log("Fehlende Asset-Metadaten:", missingMetadataIsins);
-      console.log(
-        "Reconciliation-Warnungen:",
-        data.reconciliationWarnings ?? [],
-      );
-
       setActiveAssets(selectedAssets.activeAssets);
       setClosedAssets(selectedAssets.closedAssets);
       setRawActivityCount(data.rawActivityCount ?? 0);
@@ -457,19 +444,7 @@ export function useDashboardData(): UseDashboardDataResult {
     }
   }
 
-  function applyPortfolioFilterWithPersistence() {
-    const allIds = portfolios.map((portfolio) => portfolio.id);
-    const nextScope: PortfolioScope = haveSamePortfolioSelection(
-      draftPortfolioIds,
-      allIds,
-    )
-      ? { mode: "all", selectedPortfolioIds: [] }
-      : { mode: "manual", selectedPortfolioIds: draftPortfolioIds };
-
-    savePortfolioScope(nextScope);
-    setPortfolioScope(nextScope);
-    setMissingPortfolioScopeIds([]);
-    setUsedPortfolioScopeFallback(false);
+  function applyPortfolioFilterCompat() {
     applyPortfolioFilter();
   }
 
@@ -477,6 +452,25 @@ export function useDashboardData(): UseDashboardDataResult {
     const allIds = portfolios.map((portfolio) => portfolio.id);
     resetPortfolioFilterInternal(allIds);
   }
+
+  useEffect(() => {
+    if (portfolios.length === 0) {
+      return;
+    }
+
+    const allIds = portfolios.map((portfolio) => portfolio.id);
+    const nextScope: PortfolioScope = haveSamePortfolioSelection(
+      selectedPortfolioIds,
+      allIds,
+    )
+      ? { mode: "all", selectedPortfolioIds: [] }
+      : { mode: "manual", selectedPortfolioIds };
+
+    savePortfolioScope(nextScope);
+    setPortfolioScope(nextScope);
+    setMissingPortfolioScopeIds([]);
+    setUsedPortfolioScopeFallback(false);
+  }, [portfolios, selectedPortfolioIds]);
 
   const selectedPortfolioCount = useMemo(() => {
     return portfolios.filter((portfolio) =>
@@ -494,6 +488,15 @@ export function useDashboardData(): UseDashboardDataResult {
       !haveSamePortfolioSelection(selectedPortfolioIds, lastLoadedPortfolioIds)
     );
   }, [hasCachedData, selectedPortfolioIds, lastLoadedPortfolioIds]);
+
+  const selectedPortfoliosMissingInLocalLoad = useMemo(() => {
+    if (!hasCachedData) {
+      return [];
+    }
+
+    const loadedIds = new Set(lastLoadedPortfolioIds);
+    return selectedPortfolioIds.filter((id) => !loadedIds.has(id));
+  }, [hasCachedData, lastLoadedPortfolioIds, selectedPortfolioIds]);
 
   useEffect(() => {
     if (portfolios.length === 0) {
@@ -561,6 +564,7 @@ export function useDashboardData(): UseDashboardDataResult {
     reconciliationWarnings,
     lastUpdatedAt,
     hasPendingPortfolioSelection,
+    selectedPortfoliosMissingInLocalLoad,
     missingPortfolioScopeIds,
     usedPortfolioScopeFallback,
 
@@ -579,7 +583,7 @@ export function useDashboardData(): UseDashboardDataResult {
     setShowWarningsPanel,
 
     toggleDraftPortfolio,
-    applyPortfolioFilter: applyPortfolioFilterWithPersistence,
+    applyPortfolioFilter: applyPortfolioFilterCompat,
     resetPortfolioFilter,
     loadAssets,
     startReconnect,

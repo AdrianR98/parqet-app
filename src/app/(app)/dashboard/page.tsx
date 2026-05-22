@@ -70,7 +70,7 @@ function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
         return [];
     }
 
-    const palette = ["#78a7da", "#8bb4e0", "#a2c2e7", "#b7d0ed", "#ccdef3"];
+    const palette = ["#3f80c7", "#57a0d9", "#6fb9c4", "#5f95db", "#7aa0cf"];
     const topAssets = validAssets.slice(0, 5);
     const remainder = validAssets.slice(5).reduce((sum, asset) => sum + asset.value, 0);
     const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
@@ -80,7 +80,7 @@ function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
     }));
 
     if (remainder > 0) {
-        segments.push({ label: "Weitere", value: remainder, color: "#dce8f5" });
+        segments.push({ label: "Weitere", value: remainder, color: "#bccbda" });
     }
 
     return segments;
@@ -111,11 +111,11 @@ function matchesSearch(asset: AssetSummary, query: string): boolean {
 export default function DashboardPage() {
     const {
         portfolios, selectedPortfolioIds, draftPortfolioIds, isPortfolioDropdownOpen, showWarningsPanel, portfolioDropdownRef,
-        consistencyReport, reconciliationWarnings,
+        consistencyReport, reconciliationWarnings, selectedPortfoliosMissingInLocalLoad,
         loadingAssets, refreshingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
         sortedActiveAssets, sortedClosedAssets,
         setIsPortfolioDropdownOpen, setShowWarningsPanel,
-        toggleDraftPortfolio, applyPortfolioFilter, resetPortfolioFilter, loadAssets,
+        toggleDraftPortfolio, resetPortfolioFilter,
     } = useDashboardData();
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -162,16 +162,11 @@ export default function DashboardPage() {
                         portfolios={portfolios}
                         selectedPortfolioIds={selectedPortfolioIds}
                         draftPortfolioIds={draftPortfolioIds}
-                        loadingAssets={loadingAssets}
-                        refreshingAssets={refreshingAssets}
-                        hasCachedData={hasCachedData}
                         isPortfolioDropdownOpen={isPortfolioDropdownOpen}
                         onToggleOpen={() => setIsPortfolioDropdownOpen((current) => !current)}
                         onToggleDraftPortfolio={toggleDraftPortfolio}
-                        onApply={applyPortfolioFilter}
                         onReset={resetPortfolioFilter}
                         portfolioDropdownRef={portfolioDropdownRef}
-                        onLoadAssets={loadAssets}
                         searchQuery={searchQuery}
                         onSearchQueryChange={setSearchQuery}
                         totalPositionValue={scopedTotals.totalPositionValue}
@@ -181,6 +176,11 @@ export default function DashboardPage() {
                     />
 
                     {refreshingAssets ? <div className="ui-banner ui-banner-info">Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar.</div> : null}
+                    {hasCachedData && selectedPortfoliosMissingInLocalLoad.length > 0 ? (
+                        <div className="ui-banner ui-banner-info">
+                            Auswahl enthält noch nicht lokal geladene Portfolios.
+                        </div>
+                    ) : null}
                     {errorMessage ? <div className="ui-banner ui-banner-error"><strong>{authRequired ? "Parqet-Verbindung abgelaufen" : "Fehler"}</strong><div>{errorMessage}</div>{authRequired ? <div className="ui-banner-actions"><button type="button" className="ui-btn ui-btn-secondary" onClick={startReconnect}>Erneut verbinden</button></div> : null}</div> : null}
 
                     <div className="app-section-stack">

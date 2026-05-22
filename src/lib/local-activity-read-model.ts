@@ -45,6 +45,7 @@ export type ActivitySortDirection = "asc" | "desc";
 export type ActivityFilters = {
   portfolioIds: string[];
   query: string;
+  exactIsin?: string;
   types: AuditActivityType[];
   dateFrom: string;
   dateTo: string;
@@ -765,6 +766,7 @@ export function filterActivities(
   filters: ActivityFilters,
 ): ActivitiesAuditItem[] {
   const query = filters.query.trim().toLowerCase();
+  const exactIsin = (filters.exactIsin ?? "").trim().toUpperCase();
   const portfolioIdSet = new Set(filters.portfolioIds);
   const typeSet = new Set(filters.types);
   const fromTime = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`).getTime() : null;
@@ -781,6 +783,8 @@ export function filterActivities(
       [item.name, item.isin, item.symbol, item.wkn, item.portfolioName]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
+    const matchesExactIsin =
+      exactIsin.length === 0 || item.isin.trim().toUpperCase() === exactIsin;
     const matchesFrom = fromTime === null || (!Number.isNaN(itemTime) && itemTime >= fromTime);
     const matchesTo = toTime === null || (!Number.isNaN(itemTime) && itemTime <= toTime);
     const matchesWarnings = !filters.warningsOnly || (item.warningMessages ?? []).length > 0;
@@ -790,6 +794,7 @@ export function filterActivities(
       matchesPortfolio &&
       matchesType &&
       matchesQuery &&
+      matchesExactIsin &&
       matchesFrom &&
       matchesTo &&
       matchesWarnings &&

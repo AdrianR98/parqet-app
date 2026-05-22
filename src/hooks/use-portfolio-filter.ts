@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 type UsePortfolioFilterResult = {
@@ -24,9 +24,7 @@ type UsePortfolioFilterResult = {
  *
  * Verantwortlichkeiten:
  * - aktive Auswahl
- * - temporaere Draft-Auswahl im Dropdown
  * - Open/Close-State
- * - Outside-Click-Handling
  *
  * Wichtig:
  * Die oeffentlichen Handler werden mit useCallback stabil gehalten,
@@ -34,29 +32,8 @@ type UsePortfolioFilterResult = {
  */
 export function usePortfolioFilter(): UsePortfolioFilterResult {
     const [selectedPortfolioIds, setSelectedPortfolioIds] = useState<string[]>([]);
-    const [draftPortfolioIds, setDraftPortfolioIds] = useState<string[]>([]);
     const [isPortfolioDropdownOpen, setIsPortfolioDropdownOpen] = useState(false);
     const portfolioDropdownRef = useRef<HTMLDivElement | null>(null);
-
-    /**
-     * Schliesst das Portfolio-Dropdown, wenn ausserhalb geklickt wird.
-     */
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (
-                portfolioDropdownRef.current &&
-                !portfolioDropdownRef.current.contains(event.target as Node)
-            ) {
-                setIsPortfolioDropdownOpen(false);
-            }
-        }
-
-        document.addEventListener("mousedown", handleClickOutside);
-
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, []);
 
     /**
      * Setzt aktive und temporaere Auswahl gleichzeitig.
@@ -67,17 +44,13 @@ export function usePortfolioFilter(): UsePortfolioFilterResult {
      */
     const hydratePortfolioSelection = useCallback((ids: string[]) => {
         setSelectedPortfolioIds(ids);
-        setDraftPortfolioIds(ids);
     }, []);
 
     /**
-     * Fuegt ein Portfolio aus der temporaeren Auswahl hinzu oder entfernt es.
-     *
-     * Die Aenderung wird zunaechst nur in draftPortfolioIds gehalten und
-     * erst mit "Anwenden" aktiv uebernommen.
+     * Fuegt ein Portfolio direkt in der aktiven Auswahl hinzu oder entfernt es.
      */
     const toggleDraftPortfolio = useCallback((portfolioId: string) => {
-        setDraftPortfolioIds((current) => {
+        setSelectedPortfolioIds((current) => {
             if (current.includes(portfolioId)) {
                 return current.filter((id) => id !== portfolioId);
             }
@@ -87,27 +60,26 @@ export function usePortfolioFilter(): UsePortfolioFilterResult {
     }, []);
 
     /**
-     * Uebernimmt die temporaere Portfolio-Auswahl als aktive Filtermenge.
+     * Kompatibilitaets-Hook fuer alte Aufrufer; Hot-Apply passiert bereits direkt.
      */
     const applyPortfolioFilter = useCallback(() => {
-        setSelectedPortfolioIds(draftPortfolioIds);
-        setIsPortfolioDropdownOpen(false);
-    }, [draftPortfolioIds]);
+        // Hot-apply ist bereits bei jedem Toggle aktiv.
+    }, []);
 
     /**
-     * Setzt die temporaere Auswahl auf alle verfuegbaren Portfolios zurueck.
+     * Setzt die aktive Auswahl auf alle verfuegbaren Portfolios zurueck.
      */
     const resetPortfolioFilter = useCallback((allPortfolioIds: string[]) => {
-        setDraftPortfolioIds(allPortfolioIds);
+        setSelectedPortfolioIds(allPortfolioIds);
     }, []);
 
     return {
         selectedPortfolioIds,
-        draftPortfolioIds,
+        draftPortfolioIds: selectedPortfolioIds,
         isPortfolioDropdownOpen,
         portfolioDropdownRef,
         setSelectedPortfolioIds,
-        setDraftPortfolioIds,
+        setDraftPortfolioIds: setSelectedPortfolioIds,
         setIsPortfolioDropdownOpen,
         toggleDraftPortfolio,
         applyPortfolioFilter,
