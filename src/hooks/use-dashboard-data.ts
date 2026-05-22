@@ -2,11 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { enrichAssetsWithMetadata } from "../lib/asset-metadata";
-import {
-  loadDashboardCache,
-  saveDashboardCache,
-  type DashboardCache,
-} from "../lib/dashboard-cache";
+import { loadDashboardCache } from "../lib/dashboard-cache";
 import {
   loadPortfolioScope,
   resolvePortfolioScope,
@@ -22,7 +18,7 @@ import {
   sortActiveAssets,
   sortClosedAssets,
 } from "../lib/dashboard-helpers";
-import { readGlobalAssetProductReadModel } from "../lib/parqet/global-assets/product-surface-selectors";
+import { persistDashboardCacheWrite } from "../lib/dashboard-cache-writer";
 import type {
   AssetSummary,
   AssetsApiResponse,
@@ -372,64 +368,24 @@ export function useDashboardData(): UseDashboardDataResult {
 
       clearAuthState();
 
-      const nextActiveAssets = enrichAssetsWithMetadata(
-        data.activeAssets ?? [],
-      );
-      const nextClosedAssets = enrichAssetsWithMetadata(
-        data.closedAssets ?? [],
-      );
-      const compatibilityAssets = [...nextActiveAssets, ...nextClosedAssets];
-      const dataWithCoexistence = data as AssetsApiResponse & {
-        globalAssetProductReadModel?: unknown;
-      };
-      const rawGlobalAssetProductReadModel =
-        dataWithCoexistence.globalAssetProductReadModel ?? null;
-      const globalAssetProductReadModel = readGlobalAssetProductReadModel(
-        rawGlobalAssetProductReadModel,
-      );
-      const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-        compatibilityAssets,
-        productReadModel: rawGlobalAssetProductReadModel,
+      const preparedCacheWrite = persistDashboardCacheWrite({
+        response: data,
+        selectedPortfolioIds,
         guardEnabled: guardedGlobalAssetProductEnabled,
       });
-      const selectedAssets = splitAssetsByPosition(
-        canonicalSafeFieldSelection.assets,
-      );
-      const nextGeneratedAt = data.generatedAt ?? new Date().toISOString();
 
-      setActiveAssets(selectedAssets.activeAssets);
-      setClosedAssets(selectedAssets.closedAssets);
+      setActiveAssets(preparedCacheWrite.selectedActiveAssets);
+      setClosedAssets(preparedCacheWrite.selectedClosedAssets);
       setRawActivityCount(data.rawActivityCount ?? 0);
       setFilteredActivityCount(data.filteredActivityCount ?? 0);
-      setAssetCount(canonicalSafeFieldSelection.assets.length);
-      setActiveAssetCount(selectedAssets.activeAssets.length);
-      setClosedAssetCount(selectedAssets.closedAssets.length);
+      setAssetCount(preparedCacheWrite.selectedAssets.length);
+      setActiveAssetCount(preparedCacheWrite.selectedActiveAssets.length);
+      setClosedAssetCount(preparedCacheWrite.selectedClosedAssets.length);
       setConsistencyReport(data.consistencyReport ?? null);
       setReconciliationWarnings(data.reconciliationWarnings ?? []);
-      setLastUpdatedAt(nextGeneratedAt);
+      setLastUpdatedAt(preparedCacheWrite.generatedAt);
       setLastLoadedPortfolioIds(selectedPortfolioIds);
       setHasCachedData(true);
-
-      const cachePayload: DashboardCache = {
-        activeAssets: nextActiveAssets,
-        closedAssets: nextClosedAssets,
-        rawActivityCount: data.rawActivityCount ?? 0,
-        filteredActivityCount: data.filteredActivityCount ?? 0,
-        assetCount: data.assetCount ?? 0,
-        activeAssetCount: data.activeAssetCount ?? nextActiveAssets.length,
-        closedAssetCount: data.closedAssetCount ?? nextClosedAssets.length,
-        consistencyReport: data.consistencyReport ?? null,
-        reconciliationWarnings: data.reconciliationWarnings ?? [],
-        generatedAt: nextGeneratedAt,
-        lastUpdatedAt: nextGeneratedAt,
-        selectedPortfolioIds,
-        freshness: data.freshness,
-        activityItems: data.activityItems ?? [],
-        globalAssetProductReadModel,
-        guardedSourceSelection: canonicalSafeFieldSelection.selection,
-      };
-
-      saveDashboardCache(cachePayload);
     } catch (error) {
       setErrorMessage(
         getUserFacingCaughtErrorMessage(

@@ -20,9 +20,11 @@ import {
   clearDashboardCache,
   loadDashboardCache,
 } from "../../../lib/dashboard-cache";
+import { persistDashboardCacheWrite } from "../../../lib/dashboard-cache-writer";
 import { getConnectionStatusView } from "../../../lib/connection-status";
+import { resolveGlobalAssetProductGuardEnabled } from "../../../lib/dashboard-helpers";
 import type { DashboardCache } from "../../../lib/dashboard-cache";
-import type { Portfolio } from "../../../lib/types";
+import type { AssetsApiResponse, Portfolio } from "../../../lib/types";
 import { useTheme } from "../../../hooks/use-theme";
 import styles from "./SettingsPage.module.css";
 
@@ -74,6 +76,14 @@ const EMPTY_SETTINGS_SNAPSHOT: SettingsSnapshot = {
   cacheFreshness: null,
   connectionStatus: getConnectionStatusView(null),
 };
+
+type ConnectionRefreshState =
+  | "idle"
+  | "loading"
+  | "success"
+  | "warning"
+  | "error"
+  | "auth";
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) {
@@ -146,6 +156,9 @@ export default function SettingsPage() {
     [settingsSnapshot],
   );
   const [resetMessage, setResetMessage] = useState("");
+  const [connectionRefreshState, setConnectionRefreshState] =
+    useState<ConnectionRefreshState>("idle");
+  const [connectionRefreshMessage, setConnectionRefreshMessage] = useState("");
 
   const scopeResolution = useMemo(
     () => resolvePortfolioScope(portfolioScope, knownPortfolios),
@@ -199,6 +212,67 @@ export default function SettingsPage() {
   }
 
   const diagnosticsEnabled = process.env.NODE_ENV !== "production";
+  const canRunConnectionRefresh =
+    knownPortfolios.length > 0 && selectedIds.length > 0;
+
+  async function refreshParqetDataLocally() {
+    if (!canRunConnectionRefresh) {
+      setConnectionRefreshState("error");
+      setConnectionRefreshMessage(
+        "Parqet-Daten konnten nicht lokal erneuert werden.",
+      );
+      return;
+    }
+
+    setConnectionRefreshState("loading");
+    setConnectionRefreshMessage("Parqet-Daten werden lokal aufbereitet …");
+
+    try {
+      const params = new URLSearchParams();
+      for (const portfolioId of selectedIds) {
+        params.append("portfolioId", portfolioId);
+      }
+      params.set("refresh", "1");
+
+      const response = await fetch(`/api/parqet/assets?${params.toString()}`);
+      const raw = await response.text();
+      const data = JSON.parse(raw) as AssetsApiResponse;
+
+      if (!data.ok) {
+        if (data.authRequired) {
+          setConnectionRefreshState("auth");
+          setConnectionRefreshMessage("Parqet-Verbindung muss erneuert werden.");
+          return;
+        }
+
+        setConnectionRefreshState("error");
+        setConnectionRefreshMessage("Parqet-Daten konnten nicht lokal erneuert werden.");
+        return;
+      }
+
+      const prepared = persistDashboardCacheWrite({
+        response: data,
+        selectedPortfolioIds: selectedIds,
+        guardEnabled: resolveGlobalAssetProductGuardEnabled(),
+      });
+
+      if (prepared.selectedAssets.length === 0) {
+        setConnectionRefreshState("warning");
+        setConnectionRefreshMessage(
+          "Lokaler Stand wurde aktualisiert. Der aktuelle Scope enthält keine Assets.",
+        );
+        return;
+      }
+
+      setConnectionRefreshState("success");
+      setConnectionRefreshMessage("Lokaler Stand wurde aktualisiert.");
+    } catch {
+      setConnectionRefreshState("error");
+      setConnectionRefreshMessage(
+        "Parqet-Daten konnten nicht lokal erneuert werden.",
+      );
+    }
+  }
 
   return (
     <main className={`app-content ${styles.page}`}>
@@ -207,8 +281,8 @@ export default function SettingsPage() {
         <h1 className={styles.title}>Einstellungen</h1>
         <p className={styles.description}>
           Steuere Darstellung, Portfolio-Scope, Verbindungshinweise und lokale
-          Datenschutz-/Debug-Optionen. Alle Änderungen auf dieser Seite bleiben
-          im Browser und lösen keine Provider-Calls aus.
+          Datenschutz-/Debug-Optionen. Portfolio-/UI-Einstellungen bleiben
+          lokal; Parqet wird nur über explizite Aktionen abgerufen.
         </p>
       </section>
 
@@ -304,8 +378,8 @@ export default function SettingsPage() {
           {knownPortfolios.length === 0 ? (
             <div className="ui-banner ui-banner-info">
               Noch keine lokal bekannte Portfolio-Liste vorhanden. Öffne das
-              Dashboard und lade die autorisierten Portfolios; Settings selbst
-              startet keinen Parqet-Abruf.
+              Dashboard, verbinde Parqet und aktualisiere anschließend den
+              lokalen Stand über die Verbindungskarte.
             </div>
           ) : (
             <>
@@ -360,8 +434,8 @@ export default function SettingsPage() {
                 .
               </p>
               <p className={styles.meta}>
-                Scope-Änderungen speichern nur die Auswahl. Neue Parqet-Daten
-                lädst du danach explizit im Dashboard.
+                Scope-Änderungen speichern nur die Auswahl. Den lokalen
+                Parqet-Stand aktualisierst du explizit über Verbindung.
               </p>
             </>
           )}
@@ -390,8 +464,8 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="ui-banner ui-banner-info">
-            Status wird nur aus dem lokalen Stand abgeleitet. Es werden keine
-            Daten automatisch geladen.
+            Status wird nur aus dem lokalen Stand abgeleitet. Navigation und
+            Scope-Wechsel laden weiterhin keine Daten automatisch.
           </div>
           <div
             className={`${styles.connectionStatus} ${styles[`connection_${connectionStatus.kind}`]}`}
@@ -402,14 +476,48 @@ export default function SettingsPage() {
               {connectionStatus.description}
             </span>
           </div>
-          {connectionStatus.actionHref && connectionStatus.actionLabel ? (
-            <div className={styles.actions}>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className="ui-btn ui-btn-secondary"
+              onClick={refreshParqetDataLocally}
+              disabled={!canRunConnectionRefresh || connectionRefreshState === "loading"}
+            >
+              Parqet-Daten lokal erneuern
+            </button>
+            {connectionStatus.actionHref && connectionStatus.actionLabel ? (
               <a
                 className="ui-btn ui-btn-secondary"
                 href={connectionStatus.actionHref}
               >
                 {connectionStatus.actionLabel}
               </a>
+            ) : null}
+          </div>
+          <p className={styles.meta}>
+            Ruft Parqet ab, normalisiert die Daten und speichert den lokalen Stand neu.
+          </p>
+          {!canRunConnectionRefresh ? (
+            <p className={styles.meta}>
+              Für diese Aktion müssen zuerst autorisierte Portfolios lokal bekannt sein
+              und im Scope ausgewählt werden.
+            </p>
+          ) : null}
+          {connectionRefreshMessage ? (
+            <div
+              className={
+                connectionRefreshState === "success"
+                  ? "ui-banner ui-banner-info"
+                  : connectionRefreshState === "warning"
+                    ? "ui-banner ui-banner-info"
+                    : connectionRefreshState === "loading"
+                      ? "ui-banner ui-banner-info"
+                      : connectionRefreshState === "auth"
+                        ? "ui-banner ui-banner-error"
+                        : "ui-banner ui-banner-error"
+              }
+            >
+              {connectionRefreshMessage}
             </div>
           ) : null}
         </section>
