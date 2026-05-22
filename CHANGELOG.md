@@ -8,6 +8,9 @@ The format follows a slim version of Keep a Changelog. This project does not def
 
 ### Added
 
+- Implemented the selected light liquid-glass presentation refresh for Übersicht and Asset-Detail surfaces with top glass navigation, grouped overview sections (Wertpapiere/Kryptowährungen inkl. verkaufte Gruppen), responsive non-horizontal-scroll asset rows, and reordered compact asset-detail tiles with local-only settings controls.
+
+
 - Added a TanStack-based Dashboard AssetTable column/state pattern with local UI-only visible-column preferences, fixed-column protection, safe stored-preference fallback and compact settings toggles without provider/API calls.
 - Added real app-flow Global Asset coexistence cache population in `/api/parqet/assets` from existing explicit-load activity context (snapshot/provider context reuse only) with zero additional hidden provider/API requests.
 - Added a pure Global Asset coexistence bridge module to build optional product read models with guarded freshness/scope metadata from existing activity-context data.
@@ -192,3 +195,4 @@ The format follows a slim version of Keep a Changelog. This project does not def
 - Documented that real local override decisions must not be committed.
 - Documented that local audit cookie jars remain under `.local/` and must not be committed.
 - Redacted local audit diagnostic error messages before returning them from guarded API-budget/audit routes.
+

@@ -1,46 +1,43 @@
-﻿import styles from "./PortfolioFilter.module.css";
+import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
+import styles from "./PortfolioFilter.module.css";
 import type { Portfolio } from "../../lib/types";
 
 type PortfolioFilterProps = {
     portfolios: Portfolio[];
     selectedPortfolioIds: string[];
-    draftPortfolioIds: string[];
+    visiblePortfolioIds: string[];
     isOpen: boolean;
     onToggleOpen: () => void;
-    onToggleDraftPortfolio: (portfolioId: string) => void;
-    onApply: () => void;
-    onReset: () => void;
+    onTogglePortfolio?: (portfolioId: string) => void;
+    onResetSelection?: () => void;
+    dropdownRef?: RefObject<HTMLDivElement | null>;
+    // Legacy aliases for compatibility.
+    draftPortfolioIds?: string[];
+    onToggleDraftPortfolio?: (portfolioId: string) => void;
+    onReset?: () => void;
 };
 
-/**
- * ============================================================
- * COMPONENT: PORTFOLIO FILTER
- * ============================================================
- *
- * Wichtig:
- * - bewusst OHNE "use client"
- * - reine UI-Unterkomponente
- * - wird aus einer Client-Komponente heraus benutzt
- *
- * So verschwinden die Warnungen zu Funktionsprops an der
- * Client-Entry-Grenze.
- */
 export default function PortfolioFilter({
     portfolios,
     selectedPortfolioIds,
-    draftPortfolioIds,
+    visiblePortfolioIds,
     isOpen,
     onToggleOpen,
+    onTogglePortfolio,
+    onResetSelection,
+    dropdownRef,
+    draftPortfolioIds,
     onToggleDraftPortfolio,
-    onApply,
     onReset,
 }: PortfolioFilterProps) {
+    const wrapperRef = useRef<HTMLDivElement | null>(null);
     const selectedCount = selectedPortfolioIds.length;
-    const draftCount = draftPortfolioIds.length;
     const totalCount = portfolios.length;
-    const hasDraftChanges =
-        selectedCount !== draftCount ||
-        selectedPortfolioIds.some((id) => !draftPortfolioIds.includes(id));
+
+    function toggleMenu() {
+        onToggleOpen();
+    }
 
     const triggerLabel =
         selectedCount === 0
@@ -48,43 +45,96 @@ export default function PortfolioFilter({
             : selectedCount === totalCount
                 ? "Alle Portfolios"
                 : selectedCount === 1
-                    ? (portfolios.find((p) => p.id === selectedPortfolioIds[0])?.name ??
-                        "1 Portfolio")
+                    ? "1 Portfolio"
                     : `${selectedCount} Portfolios`;
 
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        function closeMenu() {
+            onToggleOpen();
+        }
+
+        function handlePointerDown(event: PointerEvent) {
+            const target = event.target as Node;
+            if (!wrapperRef.current?.contains(target)) {
+                closeMenu();
+            }
+        }
+
+        function handleEscape(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                closeMenu();
+            }
+        }
+
+        document.addEventListener("pointerdown", handlePointerDown, true);
+        document.addEventListener("keydown", handleEscape);
+
+        return () => {
+            document.removeEventListener("pointerdown", handlePointerDown, true);
+            document.removeEventListener("keydown", handleEscape);
+        };
+    }, [isOpen, onToggleOpen]);
+
+    function handleTogglePortfolio(portfolioId: string) {
+        if (onTogglePortfolio) {
+            onTogglePortfolio(portfolioId);
+            return;
+        }
+
+        onToggleDraftPortfolio?.(portfolioId);
+    }
+
+    function handleReset() {
+        if (onResetSelection) {
+            onResetSelection();
+            return;
+        }
+
+        onReset?.();
+    }
+
     return (
-        <div className={styles.wrapper}>
+        <div
+            className={styles.wrapper}
+            ref={(node) => {
+                wrapperRef.current = node;
+                if (dropdownRef) {
+                    dropdownRef.current = node;
+                }
+            }}
+        >
             <button
                 type="button"
                 className={`ui-filter-btn ${styles.trigger}`}
-                onClick={onToggleOpen}
+                onClick={toggleMenu}
                 aria-expanded={isOpen}
             >
-                <span>Portfolios: {triggerLabel}</span>
-                <span className={styles.triggerMeta}>
-                    Auswahl {selectedCount}/{totalCount}
+                <span className={styles.icon} aria-hidden="true">◉</span>
+                <span className={styles.label}>Portfolios</span>
+                <span className={styles.value}>
+                    {selectedCount === totalCount ? "Alle Portfolios" : selectedCount > 0 ? `${selectedCount} ausgewählt` : triggerLabel}
                 </span>
-                <span>▾</span>
+                <span className={styles.chevron}>▾</span>
             </button>
 
             {isOpen ? (
                 <div className={styles.menu}>
-                    <div className={styles.helperText}>
-                        Ausgewählt: {selectedCount}/{totalCount}. Im Menü markiert:{" "}
-                        {draftCount}/{totalCount}
-                        {hasDraftChanges ? " · erst nach Anwenden aktiv" : ""}.
-                    </div>
+                    <div className={styles.helperText}>{selectedCount} von {totalCount} Portfolios ausgewählt</div>
 
                     <div className={styles.list}>
                         {portfolios.map((portfolio) => {
-                            const checked = draftPortfolioIds.includes(portfolio.id);
+                            const checked = (draftPortfolioIds ?? visiblePortfolioIds).includes(portfolio.id);
 
                             return (
                                 <label key={portfolio.id} className={styles.item}>
                                     <input
                                         type="checkbox"
                                         checked={checked}
-                                        onChange={() => onToggleDraftPortfolio(portfolio.id)}
+                                        onChange={() => handleTogglePortfolio(portfolio.id)}
                                     />
                                     <span>{portfolio.name}</span>
                                 </label>
@@ -93,21 +143,7 @@ export default function PortfolioFilter({
                     </div>
 
                     <div className={styles.footer}>
-                        <button
-                            type="button"
-                            className="ui-btn ui-btn-secondary"
-                            onClick={onReset}
-                        >
-                            Zurücksetzen
-                        </button>
-
-                        <button
-                            type="button"
-                            className="ui-btn ui-btn-primary"
-                            onClick={onApply}
-                        >
-                            Auswahl anwenden
-                        </button>
+                        <button type="button" className="ui-btn ui-btn-secondary" onClick={handleReset}>Zurücksetzen</button>
                     </div>
                 </div>
             ) : null}

@@ -1,16 +1,27 @@
-﻿.section {
+.section {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 22px;
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.7), rgba(247, 251, 255, 0.54));
+    box-shadow: var(--shadow-soft);
+}
+
+.headerRow {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
 }
 
 .header {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    width: 100%;
-    padding: 4px 0;
+    padding: 4px 2px;
     background: transparent;
     border: none;
     text-align: left;
@@ -30,7 +41,7 @@
 
 .title {
     margin: 0;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--text-main);
 }
@@ -40,11 +51,12 @@
     align-items: center;
     justify-content: center;
     min-height: 22px;
-    padding: 0 8px;
+    padding: 0 9px;
     border-radius: 999px;
     border: 1px solid var(--panel-border);
     font-size: 12px;
     color: var(--text-soft);
+    background: rgba(255, 255, 255, 0.64);
 }
 
 .subtitle {
@@ -57,23 +69,60 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    border: 1px solid transparent;
     color: var(--text-soft);
-    transition: transform 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+    transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
     flex-shrink: 0;
 }
 
 .header:hover .chevron {
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--text-main);
+    border-color: var(--panel-border);
+    background: rgba(255, 255, 255, 0.64);
 }
 
 .open {
     transform: rotate(180deg);
 }
 
+.menuWrap {
+    position: relative;
+}
+
+.menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 25;
+    min-width: 220px;
+    padding: 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(249, 252, 255, 0.95), rgba(240, 248, 255, 0.9));
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(14px);
+}
+
+.menuItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 10px;
+    color: var(--text-main);
+    font-size: 13px;
+}
+
+.menuItem:hover {
+    background: rgba(255, 255, 255, 0.58);
+}
+
 .content {
     margin-top: 2px;
 }
+
+.menuTitle { margin-bottom: 8px; font-size: 11px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+
+

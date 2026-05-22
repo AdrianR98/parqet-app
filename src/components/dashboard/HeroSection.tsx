@@ -1,198 +1,142 @@
-import PortfolioFilter from "./PortfolioFilter";
+import { useMemo, useState } from "react";
 import styles from "./HeroSection.module.css";
-import type { Portfolio } from "../../lib/types";
 import { formatCurrency } from "../../lib/format";
 
+export type AllocationSegment = {
+    label: string;
+    value: number;
+    color: string;
+};
+
 type HeroSectionProps = {
-    portfolios: Portfolio[];
-    selectedPortfolioIds: string[];
-    draftPortfolioIds: string[];
-    selectedPortfolioCount: number;
-    loadedPortfolioCount: number;
-    assetCount: number;
-    loadingAssets: boolean;
-    refreshingAssets: boolean;
-    hasCachedData: boolean;
-    hasPendingPortfolioSelection: boolean;
-    isPortfolioDropdownOpen: boolean;
-    onToggleOpen: () => void;
-    onToggleDraftPortfolio: (portfolioId: string) => void;
-    onApply: () => void;
-    onReset: () => void;
-    onLoadAssets: () => void;
+    searchQuery: string;
+    onSearchQueryChange: (value: string) => void;
     totalPositionValue?: number;
     totalUnrealizedPnL?: number;
     totalDividendNet?: number;
-    consistencyWarningCount?: number;
-    reconciliationWarningCount?: number;
-    lastUpdatedAt?: string | null;
-    showStaleWarning?: boolean;
-    showWarningsPanel?: boolean;
-    onToggleWarningsPanel: () => void;
+    allocationSegments: AllocationSegment[];
 };
 
-/**
- * ============================================================
- * COMPONENT: HERO SECTION
- * ============================================================
- *
- * Wichtig:
- * - bewusst OHNE "use client"
- * - rein präsentationale Unterkomponente
- * - wird innerhalb einer Client-Seite verwendet
- *
- * Dadurch vermeiden wir die Next-Warnungen zu Funktionsprops
- * auf Client-Entry-Ebene.
- */
+type DonutSegment = AllocationSegment & {
+    ratio: number;
+    dashLength: number;
+    visibleDashLength: number;
+    dashOffset: number;
+};
+
+const DONUT_RADIUS = 38;
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS;
+const DONUT_SEGMENT_GAP = 1.4;
+
+function buildDonutSegments(segments: AllocationSegment[]): DonutSegment[] {
+    const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+    if (total <= 0) {
+        return [];
+    }
+
+    let offset = 0;
+    return segments.map((segment) => {
+        const ratio = segment.value / total;
+        const dashLength = ratio * DONUT_CIRCUMFERENCE;
+        const result: DonutSegment = {
+            ...segment,
+            ratio,
+            dashLength,
+            visibleDashLength: Math.max(dashLength - DONUT_SEGMENT_GAP, 0),
+            dashOffset: -offset,
+        };
+        offset += dashLength;
+        return result;
+    });
+}
+
 export default function HeroSection({
-    portfolios,
-    selectedPortfolioIds,
-    draftPortfolioIds,
-    selectedPortfolioCount,
-    loadedPortfolioCount,
-    assetCount,
-    loadingAssets,
-    refreshingAssets,
-    hasCachedData,
-    hasPendingPortfolioSelection,
-    isPortfolioDropdownOpen,
-    onToggleOpen,
-    onToggleDraftPortfolio,
-    onApply,
-    onReset,
-    onLoadAssets,
+    searchQuery,
+    onSearchQueryChange,
     totalPositionValue,
     totalUnrealizedPnL,
     totalDividendNet,
-    consistencyWarningCount = 0,
-    reconciliationWarningCount = 0,
-    lastUpdatedAt,
-    showStaleWarning = false,
-    onToggleWarningsPanel,
+    allocationSegments,
 }: HeroSectionProps) {
-    const totalWarningCount =
-        (consistencyWarningCount ?? 0) + (reconciliationWarningCount ?? 0);
-    const warningButtonLabel =
-        totalWarningCount > 0 ? "Datenhinweise prüfen" : "Keine Datenhinweise";
+    const [hoveredSegmentIndex, setHoveredSegmentIndex] = useState<number | null>(null);
+    const invested = (totalPositionValue ?? 0) - (totalUnrealizedPnL ?? 0);
+    const donutSegments = useMemo(
+        () => buildDonutSegments(allocationSegments),
+        [allocationSegments],
+    );
+    const hoveredSegment = hoveredSegmentIndex != null ? donutSegments[hoveredSegmentIndex] : null;
 
     return (
         <section className={`ui-surface ${styles.hero}`}>
             <div className={styles.topRow}>
-                <div className={styles.left}>
-                    <div className={styles.eyebrow}>AssetTrace · Dashboard</div>
-                    <h1 className={styles.title}>Parqet-Daten verstehen</h1>
-
-                    <div className={styles.metaLine}>
-                        <span>{selectedPortfolioCount} Portfolios ausgewählt</span>
-                        <span>·</span>
-                        <span>
-                            {loadedPortfolioCount > 0
-                                ? `${loadedPortfolioCount} im geladenen Stand`
-                                : "Noch kein geladener Portfolio-Stand"}
-                        </span>
-                        <span>·</span>
-                        <span>{assetCount} geladene Assets</span>
-                        {lastUpdatedAt ? (
-                            <>
-                                <span>·</span>
-                                <span>
-                                    Stand:{" "}
-                                    {new Intl.DateTimeFormat("de-DE", {
-                                        day: "2-digit",
-                                        month: "2-digit",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                    }).format(new Date(lastUpdatedAt))}
-                                </span>
-                            </>
-                        ) : null}
-                    </div>
-
-                    {showStaleWarning ? (
-                        <div className={styles.warningLine}>
-                            Hinweis: Der Stand kann veraltet sein. Aktualisiere explizit, wenn du neue Parqet-Daten übernehmen möchtest.
-                        </div>
-                    ) : null}
-
-                    {hasPendingPortfolioSelection ? (
-                        <div className={styles.warningLine}>
-                            Auswahl und geladener Stand unterscheiden sich. Aktualisiere manuell, wenn die neue Auswahl geladen werden soll.
-                        </div>
-                    ) : null}
-
-                    {totalWarningCount > 0 ? (
-                        <div className={styles.warningLine}>
-                            {totalWarningCount} Datenhinweis{totalWarningCount === 1 ? "" : "e"} im geladenen Stand können einzelne Werte einschränken. Details findest du im Hinweise-Panel.
-                        </div>
-                    ) : null}
-
-                    <p className={styles.description}>
-                        AssetTrace ergänzt Parqet um eine klare Analyse- und Transparenzschicht.
-                        Daten werden nur über die explizite Lade- oder Aktualisierungsaktion erneuert.
-                    </p>
-                </div>
-
-                <div className={styles.actions}>
-                    <PortfolioFilter
-                        portfolios={portfolios}
-                        selectedPortfolioIds={selectedPortfolioIds}
-                        draftPortfolioIds={draftPortfolioIds}
-                        isOpen={isPortfolioDropdownOpen}
-                        onToggleOpen={onToggleOpen}
-                        onToggleDraftPortfolio={onToggleDraftPortfolio}
-                        onApply={onApply}
-                        onReset={onReset}
-                    />
-
-                    <button
-                        type="button"
-                        className="ui-btn ui-btn-secondary"
-                        onClick={onToggleWarningsPanel}
-                    >
-                        {warningButtonLabel}
-                        {totalWarningCount > 0 ? (
-                            <span className={styles.actionBadge}>{totalWarningCount}</span>
-                        ) : null}
-                    </button>
-
-                    <button
-                        type="button"
-                        className="ui-btn ui-btn-primary"
-                        onClick={onLoadAssets}
-                        disabled={loadingAssets || refreshingAssets}
-                    >
-                        {loadingAssets
-                            ? "Erstladung läuft..."
-                            : refreshingAssets && hasCachedData
-                                ? "Parqet-Daten werden aktualisiert..."
-                                : hasCachedData
-                                    ? "Parqet-Daten aktualisieren"
-                                    : "Assets laden"}
-                    </button>
-                </div>
+                <input
+                    className={`ui-input ${styles.search}`}
+                    type="search"
+                    placeholder="Suche nach Wertpapieren, ETFs, Kryptowährungen …"
+                    aria-label="Globale Suche"
+                    value={searchQuery}
+                    onChange={(event) => onSearchQueryChange(event.target.value)}
+                />
             </div>
 
-            <div className={styles.kpiGrid}>
-                <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Positionswert aus geladenem Stand</span>
-                    <strong className={styles.kpiValue}>
-                        {formatCurrency(totalPositionValue ?? 0)}
-                    </strong>
+            <div className={styles.summary}>
+                <div className={styles.donutWrap}>
+                    {donutSegments.length > 0 ? (
+                        <div className={styles.donutChart}>
+                            <svg viewBox="0 0 96 96" className={styles.donutSvg} role="img" aria-label="Allokation aktiver Wertpapiere">
+                                <circle
+                                    cx="48"
+                                    cy="48"
+                                    r={DONUT_RADIUS}
+                                    fill="none"
+                                    stroke="rgba(214, 226, 239, 0.9)"
+                                    strokeWidth="14"
+                                />
+                                {donutSegments.map((segment, index) => (
+                                    <circle
+                                        key={segment.label}
+                                        className={styles.donutSegment}
+                                        cx="48"
+                                        cy="48"
+                                        r={DONUT_RADIUS}
+                                        fill="none"
+                                        stroke={segment.color}
+                                        strokeWidth="14"
+                                        strokeDasharray={`${segment.visibleDashLength} ${DONUT_CIRCUMFERENCE}`}
+                                        strokeDashoffset={segment.dashOffset}
+                                        transform="rotate(-90 48 48)"
+                                        strokeLinecap="butt"
+                                        tabIndex={0}
+                                        role="presentation"
+                                        aria-label={`${segment.label} ${(segment.ratio * 100).toFixed(1)} Prozent`}
+                                        onMouseEnter={() => setHoveredSegmentIndex(index)}
+                                        onMouseLeave={() => setHoveredSegmentIndex(null)}
+                                        onFocus={() => setHoveredSegmentIndex(index)}
+                                        onBlur={() => setHoveredSegmentIndex(null)}
+                                    >
+                                        <title>{`${segment.label}: ${(segment.ratio * 100).toFixed(1)}%`}</title>
+                                    </circle>
+                                ))}
+                            </svg>
+                            <div className={styles.donutCenter}>
+                                {hoveredSegment ? (
+                                    <strong className={styles.centerValue}>{formatCurrency(hoveredSegment.value)}</strong>
+                                ) : <i aria-hidden="true" className={styles.centerIdleDot} />}
+                            </div>
+                            {hoveredSegment ? (
+                                <div className={styles.donutTooltip}>
+                                    <strong>{hoveredSegment.label}</strong>
+                                    <span>{(hoveredSegment.ratio * 100).toFixed(1)}% · {formatCurrency(hoveredSegment.value)}</span>
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : <div className={styles.donutEmpty}>Keine Allokationsdaten</div>}
                 </div>
-
-                <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Unrealisierter Gewinn</span>
-                    <strong className={styles.kpiValue}>
-                        {formatCurrency(totalUnrealizedPnL ?? 0)}
-                    </strong>
-                </div>
-
-                <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Dividenden netto</span>
-                    <strong className={styles.kpiValue}>
-                        {formatCurrency(totalDividendNet ?? 0)}
-                    </strong>
+                <div className={styles.kpiGrid}>
+                    <div className={styles.kpiCard}><span>Portfoliowert</span><strong>{formatCurrency(totalPositionValue ?? 0)}</strong></div>
+                    <div className={styles.kpiCard}><span>Gewinn / Verlust</span><strong className={(totalUnrealizedPnL ?? 0) >= 0 ? styles.positive : styles.negative}>{formatCurrency(totalUnrealizedPnL ?? 0)}</strong></div>
+                    <div className={styles.kpiCard}><span>Investiert</span><strong>{formatCurrency(invested)}</strong></div>
+                    <div className={styles.kpiCard}><span>Dividenden</span><strong>{formatCurrency(totalDividendNet ?? 0)}</strong></div>
                 </div>
             </div>
         </section>

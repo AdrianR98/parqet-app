@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  enrichAssetsWithMetadata,
-  getMissingMetadataIsins,
-} from "../lib/asset-metadata";
-import {
-  loadDashboardCache,
-  saveDashboardCache,
-  type DashboardCache,
-} from "../lib/dashboard-cache";
+import { enrichAssetsWithMetadata } from "../lib/asset-metadata";
+import { loadDashboardCache } from "../lib/dashboard-cache";
 import {
   loadPortfolioScope,
   resolvePortfolioScope,
   saveKnownPortfolios,
   savePortfolioScope,
+  subscribeToLocalSettings,
   type PortfolioScope,
 } from "../lib/app-settings";
 import {
@@ -25,7 +19,7 @@ import {
   sortActiveAssets,
   sortClosedAssets,
 } from "../lib/dashboard-helpers";
-import { readGlobalAssetProductReadModel } from "../lib/parqet/global-assets/product-surface-selectors";
+import { persistDashboardCacheWrite } from "../lib/dashboard-cache-writer";
 import type {
   AssetSummary,
   AssetsApiResponse,
@@ -44,12 +38,9 @@ import { usePortfolioFilter } from "./use-portfolio-filter";
 type UseDashboardDataResult = {
   portfolios: Portfolio[];
   selectedPortfolioIds: string[];
-  draftPortfolioIds: string[];
   selectedPortfolioCount: number;
   loadedPortfolioCount: number;
-  isPortfolioDropdownOpen: boolean;
   showWarningsPanel: boolean;
-  portfolioDropdownRef: React.RefObject<HTMLDivElement | null>;
 
   activeAssets: AssetSummary[];
   closedAssets: AssetSummary[];
@@ -65,8 +56,10 @@ type UseDashboardDataResult = {
   reconciliationWarnings: ReconciliationWarning[];
   lastUpdatedAt: string | null;
   hasPendingPortfolioSelection: boolean;
+  selectedPortfoliosMissingInLocalLoad: string[];
   missingPortfolioScopeIds: string[];
   usedPortfolioScopeFallback: boolean;
+  hasEmptyManualScopeIntersection: boolean;
 
   loadingPortfolios: boolean;
   loadingAssets: boolean;
@@ -79,12 +72,10 @@ type UseDashboardDataResult = {
   stats: DashboardStats;
   showStaleWarning: boolean;
 
-  setIsPortfolioDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setShowWarningsPanel: React.Dispatch<React.SetStateAction<boolean>>;
 
-  toggleDraftPortfolio: (portfolioId: string) => void;
-  applyPortfolioFilter: () => void;
-  resetPortfolioFilter: () => void;
+  togglePortfolio: (portfolioId: string) => void;
+  resetPortfolioSelection: () => void;
   loadAssets: () => Promise<void>;
   startReconnect: () => void;
 };
@@ -118,6 +109,10 @@ function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
   const sortedRight = [...right].sort();
 
   return sortedLeft.every((id, index) => id === sortedRight[index]);
+}
+
+function haveSameStringSet(left: string[], right: string[]): boolean {
+  return haveSamePortfolioSelection(left, right);
 }
 
 function getResponseDiagnostic(
@@ -169,13 +164,8 @@ export function useDashboardData(): UseDashboardDataResult {
 
   const {
     selectedPortfolioIds,
-    draftPortfolioIds,
-    isPortfolioDropdownOpen,
-    portfolioDropdownRef,
-    setIsPortfolioDropdownOpen,
-    toggleDraftPortfolio,
-    applyPortfolioFilter,
-    resetPortfolioFilter: resetPortfolioFilterInternal,
+    togglePortfolio,
+    resetPortfolioSelection,
     hydratePortfolioSelection,
   } = usePortfolioFilter();
 
@@ -203,6 +193,8 @@ export function useDashboardData(): UseDashboardDataResult {
   >([]);
   const [usedPortfolioScopeFallback, setUsedPortfolioScopeFallback] =
     useState(false);
+  const [hasEmptyManualScopeIntersection, setHasEmptyManualScopeIntersection] =
+    useState(false);
 
   const [loadingPortfolios, setLoadingPortfolios] = useState(true);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -212,8 +204,28 @@ export function useDashboardData(): UseDashboardDataResult {
   const [authRequired, setAuthRequired] = useState(false);
   const [reconnectUrl, setReconnectUrl] = useState("/api/auth/start");
   const assetLoadInFlightRef = useRef(false);
+  const selectedPortfolioIdsRef = useRef<string[]>(selectedPortfolioIds);
+  const portfolioScopeRef = useRef<PortfolioScope>(portfolioScope);
+  const missingPortfolioScopeIdsRef = useRef<string[]>(missingPortfolioScopeIds);
+  const usedPortfolioScopeFallbackRef = useRef<boolean>(usedPortfolioScopeFallback);
   const guardedGlobalAssetProductEnabled =
     resolveGlobalAssetProductGuardEnabled();
+
+  useEffect(() => {
+    selectedPortfolioIdsRef.current = selectedPortfolioIds;
+  }, [selectedPortfolioIds]);
+
+  useEffect(() => {
+    portfolioScopeRef.current = portfolioScope;
+  }, [portfolioScope]);
+
+  useEffect(() => {
+    missingPortfolioScopeIdsRef.current = missingPortfolioScopeIds;
+  }, [missingPortfolioScopeIds]);
+
+  useEffect(() => {
+    usedPortfolioScopeFallbackRef.current = usedPortfolioScopeFallback;
+  }, [usedPortfolioScopeFallback]);
 
   function applyAuthState(message?: string, url?: string) {
     setAuthRequired(true);
@@ -269,6 +281,7 @@ export function useDashboardData(): UseDashboardDataResult {
         setPortfolioScope(resolvedScope.scope);
         setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
         setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+        setHasEmptyManualScopeIntersection(resolvedScope.hasEmptyManualIntersection);
         hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
 
         if (resolvedScope.usedFallback) {
@@ -374,75 +387,24 @@ export function useDashboardData(): UseDashboardDataResult {
 
       clearAuthState();
 
-      const nextActiveAssets = enrichAssetsWithMetadata(
-        data.activeAssets ?? [],
-      );
-      const nextClosedAssets = enrichAssetsWithMetadata(
-        data.closedAssets ?? [],
-      );
-      const compatibilityAssets = [...nextActiveAssets, ...nextClosedAssets];
-      const dataWithCoexistence = data as AssetsApiResponse & {
-        globalAssetProductReadModel?: unknown;
-      };
-      const rawGlobalAssetProductReadModel =
-        dataWithCoexistence.globalAssetProductReadModel ?? null;
-      const globalAssetProductReadModel = readGlobalAssetProductReadModel(
-        rawGlobalAssetProductReadModel,
-      );
-      const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-        compatibilityAssets,
-        productReadModel: rawGlobalAssetProductReadModel,
+      const preparedCacheWrite = persistDashboardCacheWrite({
+        response: data,
+        selectedPortfolioIds,
         guardEnabled: guardedGlobalAssetProductEnabled,
       });
-      const selectedAssets = splitAssetsByPosition(
-        canonicalSafeFieldSelection.assets,
-      );
-      const nextGeneratedAt = data.generatedAt ?? new Date().toISOString();
 
-      const missingMetadataIsins = getMissingMetadataIsins([
-        ...nextActiveAssets,
-        ...nextClosedAssets,
-      ]);
-
-      console.log("Fehlende Asset-Metadaten:", missingMetadataIsins);
-      console.log(
-        "Reconciliation-Warnungen:",
-        data.reconciliationWarnings ?? [],
-      );
-
-      setActiveAssets(selectedAssets.activeAssets);
-      setClosedAssets(selectedAssets.closedAssets);
+      setActiveAssets(preparedCacheWrite.selectedActiveAssets);
+      setClosedAssets(preparedCacheWrite.selectedClosedAssets);
       setRawActivityCount(data.rawActivityCount ?? 0);
       setFilteredActivityCount(data.filteredActivityCount ?? 0);
-      setAssetCount(canonicalSafeFieldSelection.assets.length);
-      setActiveAssetCount(selectedAssets.activeAssets.length);
-      setClosedAssetCount(selectedAssets.closedAssets.length);
+      setAssetCount(preparedCacheWrite.selectedAssets.length);
+      setActiveAssetCount(preparedCacheWrite.selectedActiveAssets.length);
+      setClosedAssetCount(preparedCacheWrite.selectedClosedAssets.length);
       setConsistencyReport(data.consistencyReport ?? null);
       setReconciliationWarnings(data.reconciliationWarnings ?? []);
-      setLastUpdatedAt(nextGeneratedAt);
+      setLastUpdatedAt(preparedCacheWrite.generatedAt);
       setLastLoadedPortfolioIds(selectedPortfolioIds);
       setHasCachedData(true);
-
-      const cachePayload: DashboardCache = {
-        activeAssets: nextActiveAssets,
-        closedAssets: nextClosedAssets,
-        rawActivityCount: data.rawActivityCount ?? 0,
-        filteredActivityCount: data.filteredActivityCount ?? 0,
-        assetCount: data.assetCount ?? 0,
-        activeAssetCount: data.activeAssetCount ?? nextActiveAssets.length,
-        closedAssetCount: data.closedAssetCount ?? nextClosedAssets.length,
-        consistencyReport: data.consistencyReport ?? null,
-        reconciliationWarnings: data.reconciliationWarnings ?? [],
-        generatedAt: nextGeneratedAt,
-        lastUpdatedAt: nextGeneratedAt,
-        selectedPortfolioIds,
-        freshness: data.freshness,
-        activityItems: data.activityItems ?? [],
-        globalAssetProductReadModel,
-        guardedSourceSelection: canonicalSafeFieldSelection.selection,
-      };
-
-      saveDashboardCache(cachePayload);
     } catch (error) {
       setErrorMessage(
         getUserFacingCaughtErrorMessage(
@@ -457,26 +419,76 @@ export function useDashboardData(): UseDashboardDataResult {
     }
   }
 
-  function applyPortfolioFilterWithPersistence() {
+  function resetPortfolioSelectionToAll() {
+    const allIds = portfolios.map((portfolio) => portfolio.id);
+    resetPortfolioSelection(allIds);
+  }
+
+  useEffect(() => {
+    if (portfolios.length === 0) {
+      return;
+    }
+
     const allIds = portfolios.map((portfolio) => portfolio.id);
     const nextScope: PortfolioScope = haveSamePortfolioSelection(
-      draftPortfolioIds,
+      selectedPortfolioIds,
       allIds,
     )
       ? { mode: "all", selectedPortfolioIds: [] }
-      : { mode: "manual", selectedPortfolioIds: draftPortfolioIds };
+      : { mode: "manual", selectedPortfolioIds };
 
     savePortfolioScope(nextScope);
-    setPortfolioScope(nextScope);
-    setMissingPortfolioScopeIds([]);
-    setUsedPortfolioScopeFallback(false);
-    applyPortfolioFilter();
-  }
+    setPortfolioScope((current) => (
+      current.mode === nextScope.mode &&
+      haveSameStringSet(current.selectedPortfolioIds, nextScope.selectedPortfolioIds)
+        ? current
+        : nextScope
+    ));
+    setMissingPortfolioScopeIds((current) => (
+      current.length === 0 ? current : []
+    ));
+    setUsedPortfolioScopeFallback((current) => (
+      current ? false : current
+    ));
+    setHasEmptyManualScopeIntersection(false);
+  }, [portfolios, selectedPortfolioIds]);
 
-  function resetPortfolioFilter() {
-    const allIds = portfolios.map((portfolio) => portfolio.id);
-    resetPortfolioFilterInternal(allIds);
-  }
+  useEffect(() => {
+    if (portfolios.length === 0) {
+      return;
+    }
+
+    function syncSelectionFromScope() {
+      const resolvedScope = resolvePortfolioScope(loadPortfolioScope(), portfolios);
+      if (!haveSameStringSet(selectedPortfolioIdsRef.current, resolvedScope.selectedPortfolioIds)) {
+        hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
+      }
+
+      if (
+        portfolioScopeRef.current.mode !== resolvedScope.scope.mode ||
+        !haveSameStringSet(portfolioScopeRef.current.selectedPortfolioIds, resolvedScope.scope.selectedPortfolioIds)
+      ) {
+        setPortfolioScope(resolvedScope.scope);
+      }
+
+      if (!haveSameStringSet(missingPortfolioScopeIdsRef.current, resolvedScope.missingPortfolioIds)) {
+        setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
+      }
+
+      if (usedPortfolioScopeFallbackRef.current !== resolvedScope.usedFallback) {
+        setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+      }
+
+      setHasEmptyManualScopeIntersection((current) => (
+        current === resolvedScope.hasEmptyManualIntersection
+          ? current
+          : resolvedScope.hasEmptyManualIntersection
+      ));
+    }
+
+    syncSelectionFromScope();
+    return subscribeToLocalSettings(syncSelectionFromScope);
+  }, [portfolios, hydratePortfolioSelection]);
 
   const selectedPortfolioCount = useMemo(() => {
     return portfolios.filter((portfolio) =>
@@ -495,6 +507,15 @@ export function useDashboardData(): UseDashboardDataResult {
     );
   }, [hasCachedData, selectedPortfolioIds, lastLoadedPortfolioIds]);
 
+  const selectedPortfoliosMissingInLocalLoad = useMemo(() => {
+    if (!hasCachedData) {
+      return [];
+    }
+
+    const loadedIds = new Set(lastLoadedPortfolioIds);
+    return selectedPortfolioIds.filter((id) => !loadedIds.has(id));
+  }, [hasCachedData, lastLoadedPortfolioIds, selectedPortfolioIds]);
+
   useEffect(() => {
     if (portfolios.length === 0) {
       return;
@@ -503,6 +524,7 @@ export function useDashboardData(): UseDashboardDataResult {
     const resolvedScope = resolvePortfolioScope(portfolioScope, portfolios);
     setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
     setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+    setHasEmptyManualScopeIntersection(resolvedScope.hasEmptyManualIntersection);
   }, [portfolioScope, portfolios]);
 
   const stats: DashboardStats = useMemo(() => {
@@ -540,12 +562,9 @@ export function useDashboardData(): UseDashboardDataResult {
   return {
     portfolios,
     selectedPortfolioIds,
-    draftPortfolioIds,
     selectedPortfolioCount,
     loadedPortfolioCount,
-    isPortfolioDropdownOpen,
     showWarningsPanel,
-    portfolioDropdownRef,
 
     activeAssets,
     closedAssets,
@@ -561,8 +580,10 @@ export function useDashboardData(): UseDashboardDataResult {
     reconciliationWarnings,
     lastUpdatedAt,
     hasPendingPortfolioSelection,
+    selectedPortfoliosMissingInLocalLoad,
     missingPortfolioScopeIds,
     usedPortfolioScopeFallback,
+    hasEmptyManualScopeIntersection,
 
     loadingPortfolios,
     loadingAssets,
@@ -575,12 +596,10 @@ export function useDashboardData(): UseDashboardDataResult {
     stats,
     showStaleWarning,
 
-    setIsPortfolioDropdownOpen,
     setShowWarningsPanel,
 
-    toggleDraftPortfolio,
-    applyPortfolioFilter: applyPortfolioFilterWithPersistence,
-    resetPortfolioFilter,
+    togglePortfolio,
+    resetPortfolioSelection: resetPortfolioSelectionToAll,
     loadAssets,
     startReconnect,
   };

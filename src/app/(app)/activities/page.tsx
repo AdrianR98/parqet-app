@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import styles from "./ActivitiesPage.module.css";
 import {
   ALL_ACTIVITY_TYPES,
@@ -9,6 +10,7 @@ import {
   getEmptyLocalActivityReadModel,
   getActivityTypeLabel,
   getFreshnessLabel,
+  normalizeExactIsin,
   getSourceLabel,
   groupProjectedActivities,
   loadLocalActivityReadModel,
@@ -199,6 +201,7 @@ function getDefaultActivityFilters(): ActivityFilters {
   return {
     portfolioIds: [],
     query: "",
+    exactIsin: "",
     types: ALL_ACTIVITY_TYPES,
     dateFrom: "",
     dateTo: "",
@@ -207,12 +210,17 @@ function getDefaultActivityFilters(): ActivityFilters {
   };
 }
 
-export default function ActivitiesPage() {
+function ActivitiesPageContent() {
+  const searchParams = useSearchParams();
+  const initialIsinFilter = normalizeExactIsin(searchParams.get("isin"));
   const { value: readModel } = useHydrationSafeLocalSnapshot(
     loadLocalActivityReadModel,
     getEmptyLocalActivityReadModel,
   );
-  const [filters, setFilters] = useState<ActivityFilters>(() => getDefaultActivityFilters());
+  const [filters, setFilters] = useState<ActivityFilters>(() => ({
+    ...getDefaultActivityFilters(),
+    exactIsin: initialIsinFilter,
+  }));
   const [useHydratedPortfolioScope, setUseHydratedPortfolioScope] = useState(true);
   const [sort, setSort] = useState<ActivitySort>({ key: "date", direction: "desc" });
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -254,6 +262,10 @@ export default function ActivitiesPage() {
   );
   const hasLocalData = readModel.items.length > 0;
   const hasMore = visibleCount < filteredItems.length;
+  const hasEmptyManualScopeIntersection =
+    readModel.scope.mode === "manual" &&
+    readModel.scope.selectedPortfolioIds.length > 0 &&
+    readModel.scopedPortfolioIds.length === 0;
 
   function updateFilter(next: Partial<ActivityFilters>) {
     if ("portfolioIds" in next) {
@@ -268,7 +280,10 @@ export default function ActivitiesPage() {
   function reloadFromLocalCache() {
     notifyBrowserLocalStateChanged();
     setUseHydratedPortfolioScope(true);
-    setFilters(getDefaultActivityFilters());
+    setFilters({
+      ...getDefaultActivityFilters(),
+      exactIsin: initialIsinFilter,
+    });
     setVisibleCount(PAGE_SIZE);
     setSelectedActivityId(null);
   }
@@ -277,7 +292,10 @@ export default function ActivitiesPage() {
     setUseHydratedPortfolioScope(true);
     setVisibleCount(PAGE_SIZE);
     setSelectedActivityId(null);
-    setFilters(getDefaultActivityFilters());
+    setFilters({
+      ...getDefaultActivityFilters(),
+      exactIsin: initialIsinFilter,
+    });
   }
 
   return (
@@ -317,6 +335,16 @@ export default function ActivitiesPage() {
         <div className="ui-banner ui-banner-info">
           Der gespeicherte Portfolio-Scope enthält Portfolios, die im lokalen Datenstand nicht vorhanden sind.
           Bitte aktualisiere die Daten bei Bedarf explizit im Dashboard; diese Seite lädt nicht automatisch nach.
+        </div>
+      ) : null}
+      {hasEmptyManualScopeIntersection ? (
+        <div className="ui-banner ui-banner-info">
+          Für die ausgewählten Portfolios liegen lokal keine Aktivitäten vor.
+        </div>
+      ) : null}
+      {effectiveFilters.exactIsin ? (
+        <div className="ui-banner ui-banner-info">
+          Gefiltert nach ISIN {effectiveFilters.exactIsin}.
         </div>
       ) : null}
 
@@ -472,5 +500,22 @@ export default function ActivitiesPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function ActivitiesPage() {
+  return (
+    <Suspense fallback={(
+      <main className={`app-content ${styles.page}`}>
+        <section className={`ui-surface ${styles.emptyState}`}>
+          <p className={styles.eyebrow}>AssetTrace · Aktivitäten</p>
+          <h2>Lokale Aktivitäten werden geladen</h2>
+          <p>Die gefilterte Read-only Ansicht wird vorbereitet.</p>
+        </section>
+      </main>
+    )}
+    >
+      <ActivitiesPageContent />
+    </Suspense>
   );
 }

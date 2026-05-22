@@ -18,8 +18,11 @@
 import { NextResponse } from "next/server";
 import type { ActivitiesAuditItem, AssetSummary } from "../../../../lib/types";
 import {
+  clearParqetTokenCookies,
   getCookieValue,
   refreshParqetAccessToken,
+  setParqetTokenCookies,
+  type TokenRefreshResult,
 } from "../../../../lib/parqet";
 import {
   buildActivityScanBudgetInfo,
@@ -69,21 +72,50 @@ function buildReconnectResponse(message: string) {
     { status: 401 },
   );
 
-  response.cookies.set("parqet_access_token", "", {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
-
-  response.cookies.set("parqet_refresh_token", "", {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  clearParqetTokenCookies(response, { clearRefreshToken: true });
 
   return response;
+}
+
+function buildTemporaryAuthFailureResponse(input: {
+  message?: string;
+  refreshed: boolean;
+  portfolioIds: string[];
+}) {
+  const diagnostic: ParqetApiDiagnostic = { category: "provider_error" };
+  const freshness = markActivitySnapshotRefreshFailed(
+    input.portfolioIds,
+    "provider_error",
+  );
+
+  return NextResponse.json(
+    {
+      ok: false,
+      refreshed: input.refreshed,
+      authRequired: false,
+      message:
+        input.message ??
+        "Parqet ist vorübergehend nicht erreichbar. Bitte versuche die Aktualisierung später erneut.",
+      diagnostic,
+      freshness,
+      apiBudget: ASSETS_API_BUDGET,
+    },
+    { status: 503 },
+  );
+}
+
+function isInvalidRefresh(result: TokenRefreshResult): boolean {
+  return !result.ok && result.reason === "invalid_refresh";
+}
+
+function isTemporaryRefreshFailure(result: TokenRefreshResult): boolean {
+  return (
+    !result.ok &&
+    (result.reason === "provider_error" ||
+      result.reason === "network_error" ||
+      result.reason === "unknown" ||
+      result.reason === "missing_client_id")
+  );
 }
 
 function getMonthKey(value: string): string {
@@ -190,14 +222,21 @@ function buildFailureResponse(input: {
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const portfolioIds = url.searchParams.getAll("portfolioId");
+    const portfolioIds = Array.from(
+      new Set(
+        url.searchParams
+          .getAll("portfolioId")
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0),
+      ),
+    );
     const explicitRefresh = url.searchParams.get("refresh") === "1";
 
     if (portfolioIds.length === 0) {
       return NextResponse.json(
         {
           ok: false,
-          message: "No portfolioId parameters provided.",
+          message: "Keine portfolioId-Parameter vorhanden.",
           apiBudget: ASSETS_API_BUDGET,
         },
         { status: 400 },
@@ -209,7 +248,7 @@ export async function GET(req: Request) {
     let accessToken = getCookieValue(cookieHeader, "parqet_access_token");
     const refreshToken = getCookieValue(cookieHeader, "parqet_refresh_token");
 
-    if (!accessToken) {
+    if (!accessToken && !refreshToken) {
       return buildReconnectResponse(
         "Parqet-Verbindung nicht vorhanden oder abgelaufen.",
       );
@@ -352,14 +391,59 @@ export async function GET(req: Request) {
     // ========================================================
 
     try {
+      let refreshedFromMissingAccess: TokenRefreshResult | null = null;
+
+      if (!accessToken && refreshToken) {
+        const refreshed = await refreshParqetAccessToken(refreshToken);
+
+        if (isInvalidRefresh(refreshed)) {
+          return buildReconnectResponse(
+            "Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.",
+          );
+        }
+
+        if (isTemporaryRefreshFailure(refreshed)) {
+          return buildTemporaryAuthFailureResponse({
+            refreshed: false,
+            portfolioIds,
+          });
+        }
+
+        if (!refreshed.ok) {
+          return buildReconnectResponse("Parqet-Verbindung muss erneuert werden.");
+        }
+
+        accessToken = refreshed.accessToken;
+        refreshedFromMissingAccess = refreshed;
+      }
+
+      if (!accessToken) {
+        return buildReconnectResponse(
+          "Parqet-Verbindung nicht vorhanden oder abgelaufen.",
+        );
+      }
+
       const result = await buildAssetView(accessToken);
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         ok: true,
-        refreshed: false,
+        refreshed: refreshedFromMissingAccess?.ok ?? false,
         requestedPortfolioIds: portfolioIds,
         ...result,
       });
+
+      if (refreshedFromMissingAccess?.ok) {
+        setParqetTokenCookies(response, {
+          accessToken,
+          refreshToken: refreshedFromMissingAccess.newRefreshToken,
+          accessTokenExpiresInSeconds:
+            refreshedFromMissingAccess.accessTokenExpiresInSeconds ?? null,
+          refreshTokenExpiresInSeconds:
+            refreshedFromMissingAccess.refreshTokenExpiresInSeconds ?? null,
+        });
+      }
+
+      return response;
     } catch (error) {
       const diagnostic = classifyParqetApiError(error);
 
@@ -373,12 +457,9 @@ export async function GET(req: Request) {
       }
 
       if (!refreshToken) {
-        return buildFailureResponse({
-          diagnostic,
-          error,
-          refreshed: false,
-          portfolioIds,
-        });
+        return buildReconnectResponse(
+          "Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.",
+        );
       }
 
       // ====================================================
@@ -387,10 +468,21 @@ export async function GET(req: Request) {
 
       const refreshed = await refreshParqetAccessToken(refreshToken);
 
-      if (!refreshed.accessToken) {
+      if (isInvalidRefresh(refreshed)) {
         return buildReconnectResponse(
           "Parqet-Verbindung ist abgelaufen. Bitte erneut verbinden.",
         );
+      }
+
+      if (isTemporaryRefreshFailure(refreshed)) {
+        return buildTemporaryAuthFailureResponse({
+          refreshed: false,
+          portfolioIds,
+        });
+      }
+
+      if (!refreshed.ok) {
+        return buildReconnectResponse("Parqet-Verbindung muss erneuert werden.");
       }
 
       accessToken = refreshed.accessToken;
@@ -405,23 +497,13 @@ export async function GET(req: Request) {
           ...result,
         });
 
-        response.cookies.set("parqet_access_token", accessToken, {
-          httpOnly: true,
-          sameSite: "lax",
-          path: "/",
+        setParqetTokenCookies(response, {
+          accessToken,
+          refreshToken: refreshed.newRefreshToken,
+          accessTokenExpiresInSeconds: refreshed.accessTokenExpiresInSeconds ?? null,
+          refreshTokenExpiresInSeconds:
+            refreshed.refreshTokenExpiresInSeconds ?? null,
         });
-
-        if (refreshed.newRefreshToken) {
-          response.cookies.set(
-            "parqet_refresh_token",
-            refreshed.newRefreshToken,
-            {
-              httpOnly: true,
-              sameSite: "lax",
-              path: "/",
-            },
-          );
-        }
 
         return response;
       } catch (retryError) {

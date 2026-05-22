@@ -45,6 +45,7 @@ export type ActivitySortDirection = "asc" | "desc";
 export type ActivityFilters = {
   portfolioIds: string[];
   query: string;
+  exactIsin?: string;
   types: AuditActivityType[];
   dateFrom: string;
   dateTo: string;
@@ -101,6 +102,10 @@ export type SelectLocalActivitiesTimelineSourceOutput = {
   items: ActivitiesAuditItem[];
   selection: ActivitiesTimelinePrmFeatureFlagSelection;
 };
+
+export function normalizeExactIsin(value: string | null | undefined): string {
+  return normalizeIsin(value ?? "") ?? "";
+}
 
 function resolveActivitiesTimelinePrmFeatureFlagEnabled(): boolean {
   const rawValue = process.env.NEXT_PUBLIC_ACTIVITIES_TIMELINE_PRM_FEATURE_FLAG;
@@ -765,6 +770,7 @@ export function filterActivities(
   filters: ActivityFilters,
 ): ActivitiesAuditItem[] {
   const query = filters.query.trim().toLowerCase();
+  const exactIsin = normalizeExactIsin(filters.exactIsin ?? "");
   const portfolioIdSet = new Set(filters.portfolioIds);
   const typeSet = new Set(filters.types);
   const fromTime = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`).getTime() : null;
@@ -781,6 +787,8 @@ export function filterActivities(
       [item.name, item.isin, item.symbol, item.wkn, item.portfolioName]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
+    const matchesExactIsin =
+      exactIsin.length === 0 || normalizeExactIsin(item.isin) === exactIsin;
     const matchesFrom = fromTime === null || (!Number.isNaN(itemTime) && itemTime >= fromTime);
     const matchesTo = toTime === null || (!Number.isNaN(itemTime) && itemTime <= toTime);
     const matchesWarnings = !filters.warningsOnly || (item.warningMessages ?? []).length > 0;
@@ -790,6 +798,7 @@ export function filterActivities(
       matchesPortfolio &&
       matchesType &&
       matchesQuery &&
+      matchesExactIsin &&
       matchesFrom &&
       matchesTo &&
       matchesWarnings &&

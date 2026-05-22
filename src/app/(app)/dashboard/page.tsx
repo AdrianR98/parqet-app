@@ -1,173 +1,197 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import CollapsibleAssetTableSection from "../../../components/dashboard/CollapsibleAssetTableSection";
 import DataWarningsPanel from "../../../components/dashboard/DataWarningsPanel";
-import HeroSection from "../../../components/dashboard/HeroSection";
-import StatsGrid from "../../../components/dashboard/StatsGrid";
+import HeroSection, { type AllocationSegment } from "../../../components/dashboard/HeroSection";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
+import { getAssetDisplayName, getAssetSubtitle } from "../../../lib/asset-display";
+import type { AssetSummary } from "../../../lib/types";
 
-/**
- * ============================================================
- * PAGE: DASHBOARD
- * ============================================================
- *
- * Verantwortlichkeiten:
- * - Seite orchestriert Daten + Panels
- * - Hero, Stats und Sections bleiben getrennte UI-Bausteine
- * - globale Layout-Utilities kommen aus globals.css
- *
- * Typische Erweiterungspunkte:
- * - persistente Filterzustände
- * - weitere Section-Typen
- * - zusätzliche Drawer / Sidepanels
- */
+const CLOSED_POSITION_EPSILON = 1e-8;
+
+function getAssetTypeLabel(asset: AssetSummary): "Kryptowährungen" | "Wertpapiere" | "Sonstige" {
+    const typeCandidate = [asset.metadata?.assetType, asset.externalMetadata?.assetType, asset.assetMeta?.assetType]
+        .find((value) => typeof value === "string")
+        ?.toLowerCase() ?? "";
+
+    if (typeCandidate.includes("crypto") || typeCandidate.includes("coin") || typeCandidate.includes("token")) {
+        return "Kryptowährungen";
+    }
+
+    if (typeCandidate.length > 0) {
+        return "Wertpapiere";
+    }
+
+    return "Sonstige";
+}
+
+function isCryptoAsset(asset: AssetSummary): boolean {
+    return getAssetTypeLabel(asset) === "Kryptowährungen";
+}
+
+function scopeAssetToSelection(asset: AssetSummary, selectedPortfolioIds: string[]): AssetSummary | null {
+    const selectedSet = new Set(selectedPortfolioIds);
+    const breakdown = asset.portfolioBreakdown.filter((entry) => selectedSet.has(entry.portfolioId));
+
+    if (breakdown.length === 0) {
+        return null;
+    }
+
+    const hasPositionValue = breakdown.some((entry) => entry.positionValue != null);
+    const hasUnrealizedPnL = breakdown.some((entry) => entry.unrealizedPnL != null);
+    const netShares = breakdown.reduce((sum, entry) => sum + entry.netShares, 0);
+    const remainingCostBasis = breakdown.reduce((sum, entry) => sum + entry.remainingCostBasis, 0);
+    const totalDividendNet = breakdown.reduce((sum, entry) => sum + entry.totalDividendNet, 0);
+    const positionValue = breakdown.reduce((sum, entry) => sum + (entry.positionValue ?? 0), 0);
+    const unrealizedPnL = breakdown.reduce((sum, entry) => sum + (entry.unrealizedPnL ?? 0), 0);
+
+    return {
+        ...asset,
+        portfolioBreakdown: breakdown,
+        portfolioIds: breakdown.map((entry) => entry.portfolioId),
+        portfolioNames: breakdown.map((entry) => entry.portfolioName),
+        netShares,
+        remainingCostBasis,
+        avgBuyPrice: netShares > 0 ? remainingCostBasis / netShares : null,
+        positionValue: hasPositionValue ? positionValue : null,
+        unrealizedPnL: hasUnrealizedPnL ? unrealizedPnL : null,
+        totalDividendNet,
+    };
+}
+
+function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
+    const MAX_INDIVIDUAL_SEGMENTS = 15;
+    const validAssets = assets
+        .map((asset) => ({ label: getAssetDisplayName(asset), value: asset.positionValue ?? 0 }))
+        .filter((asset) => asset.value > 0)
+        .sort((left, right) => right.value - left.value);
+
+    if (validAssets.length === 0) {
+        return [];
+    }
+
+    const palette = [
+        "#2c5f98", "#3f79bf", "#3b93c4", "#317f9d", "#506dc4",
+        "#6c8fd8", "#2f8e8d", "#4f7ca6", "#5f63b9", "#3f8fb0",
+        "#7b80c2", "#4aa4b7", "#6986ac", "#5f9aa2", "#8699bf",
+    ];
+    const topAssets = validAssets.slice(0, MAX_INDIVIDUAL_SEGMENTS);
+    const remainder = validAssets
+        .slice(MAX_INDIVIDUAL_SEGMENTS)
+        .reduce((sum, asset) => sum + asset.value, 0);
+    const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
+        label: asset.label,
+        value: asset.value,
+        color: palette[index] ?? palette[palette.length - 1],
+    }));
+
+    if (remainder > 0) {
+        segments.push({ label: "Weitere", value: remainder, color: "#bccbda" });
+    }
+
+    return segments;
+}
+
+function matchesSearch(asset: AssetSummary, query: string): boolean {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+        return true;
+    }
+
+    const haystack = [
+        getAssetDisplayName(asset),
+        getAssetSubtitle(asset),
+        asset.isin,
+        asset.symbol,
+        asset.ticker,
+        asset.tickerSymbol,
+        asset.portfolioNames.join(" "),
+    ]
+        .filter((entry): entry is string => Boolean(entry))
+        .join(" ")
+        .toLowerCase();
+
+    return haystack.includes(normalizedQuery);
+}
+
 export default function DashboardPage() {
     const {
-        portfolios,
-        selectedPortfolioIds,
-        draftPortfolioIds,
-        selectedPortfolioCount,
-        loadedPortfolioCount,
-        isPortfolioDropdownOpen,
-        showWarningsPanel,
-        portfolioDropdownRef,
-
-        assetCount,
-        consistencyReport,
-        reconciliationWarnings,
-        lastUpdatedAt,
-        hasPendingPortfolioSelection,
-        missingPortfolioScopeIds,
-        usedPortfolioScopeFallback,
-
-        loadingPortfolios,
-        loadingAssets,
-        refreshingAssets,
-        hasCachedData,
-        errorMessage,
-        authRequired,
-        startReconnect,
-
-        stats,
-        showStaleWarning,
-
-        sortedActiveAssets,
-        sortedClosedAssets,
-
-        setIsPortfolioDropdownOpen,
+        selectedPortfolioIds, showWarningsPanel,
+        consistencyReport, reconciliationWarnings, selectedPortfoliosMissingInLocalLoad,
+        hasEmptyManualScopeIntersection,
+        loadingAssets, refreshingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
+        sortedActiveAssets, sortedClosedAssets,
         setShowWarningsPanel,
-
-        toggleDraftPortfolio,
-        applyPortfolioFilter,
-        resetPortfolioFilter,
-        loadAssets,
     } = useDashboardData();
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const scopedAssets = useMemo(() => {
+        const allAssets = [...sortedActiveAssets, ...sortedClosedAssets];
+        return allAssets
+            .map((asset) => scopeAssetToSelection(asset, selectedPortfolioIds))
+            .filter((asset): asset is AssetSummary => asset != null);
+    }, [selectedPortfolioIds, sortedActiveAssets, sortedClosedAssets]);
+
+    const activeAssets = useMemo(
+        () => scopedAssets
+            .filter((asset) => asset.netShares > CLOSED_POSITION_EPSILON)
+            .sort((left, right) => (right.positionValue ?? 0) - (left.positionValue ?? 0)),
+        [scopedAssets],
+    );
+    const closedAssets = useMemo(
+        () => scopedAssets
+            .filter((asset) => asset.netShares <= CLOSED_POSITION_EPSILON)
+            .sort((left, right) => (right.positionValue ?? 0) - (left.positionValue ?? 0)),
+        [scopedAssets],
+    );
+    const activeSecurities = useMemo(() => activeAssets.filter((asset) => !isCryptoAsset(asset)), [activeAssets]);
+    const activeCrypto = useMemo(() => activeAssets.filter((asset) => isCryptoAsset(asset)), [activeAssets]);
+    const soldSecurities = useMemo(() => closedAssets.filter((asset) => !isCryptoAsset(asset)), [closedAssets]);
+    const soldCrypto = useMemo(() => closedAssets.filter((asset) => isCryptoAsset(asset)), [closedAssets]);
+    const allocationSegments = useMemo(() => buildAllocationSegments(activeSecurities), [activeSecurities]);
+    const scopedTotals = useMemo(() => ({
+        totalPositionValue: scopedAssets.reduce((sum, asset) => sum + (asset.positionValue ?? 0), 0),
+        totalUnrealizedPnL: scopedAssets.reduce((sum, asset) => sum + (asset.unrealizedPnL ?? 0), 0),
+        totalDividendNet: scopedAssets.reduce((sum, asset) => sum + (asset.totalDividendNet ?? 0), 0),
+    }), [scopedAssets]);
+
+    const filteredActiveSecurities = useMemo(() => activeSecurities.filter((asset) => matchesSearch(asset, searchQuery)), [activeSecurities, searchQuery]);
+    const filteredActiveCrypto = useMemo(() => activeCrypto.filter((asset) => matchesSearch(asset, searchQuery)), [activeCrypto, searchQuery]);
+    const filteredSoldSecurities = useMemo(() => soldSecurities.filter((asset) => matchesSearch(asset, searchQuery)), [soldSecurities, searchQuery]);
+    const filteredSoldCrypto = useMemo(() => soldCrypto.filter((asset) => matchesSearch(asset, searchQuery)), [soldCrypto, searchQuery]);
 
     return (
         <>
-            <div className="app-content" ref={portfolioDropdownRef}>
+            <div className="app-content">
                 <div className="app-stack">
                     <HeroSection
-                        portfolios={portfolios}
-                        selectedPortfolioIds={selectedPortfolioIds}
-                        draftPortfolioIds={draftPortfolioIds}
-                        selectedPortfolioCount={selectedPortfolioCount}
-                        loadedPortfolioCount={loadedPortfolioCount}
-                        assetCount={assetCount}
-                        loadingAssets={loadingAssets}
-                        refreshingAssets={refreshingAssets}
-                        hasCachedData={hasCachedData}
-                        hasPendingPortfolioSelection={hasPendingPortfolioSelection}
-                        isPortfolioDropdownOpen={isPortfolioDropdownOpen}
-                        onToggleOpen={() =>
-                            setIsPortfolioDropdownOpen((current) => !current)
-                        }
-                        onToggleDraftPortfolio={toggleDraftPortfolio}
-                        onApply={applyPortfolioFilter}
-                        onReset={resetPortfolioFilter}
-                        onLoadAssets={loadAssets}
-                        totalPositionValue={stats.totalPositionValue}
-                        totalUnrealizedPnL={stats.totalUnrealizedPnL}
-                        totalDividendNet={stats.totalDividendNet}
-                        consistencyWarningCount={consistencyReport?.warningCount ?? 0}
-                        reconciliationWarningCount={reconciliationWarnings.length}
-                        lastUpdatedAt={lastUpdatedAt}
-                        showStaleWarning={showStaleWarning}
-                        showWarningsPanel={showWarningsPanel}
-                        onToggleWarningsPanel={() =>
-                            setShowWarningsPanel((current) => !current)
-                        }
+                        searchQuery={searchQuery}
+                        onSearchQueryChange={setSearchQuery}
+                        totalPositionValue={scopedTotals.totalPositionValue}
+                        totalUnrealizedPnL={scopedTotals.totalUnrealizedPnL}
+                        totalDividendNet={scopedTotals.totalDividendNet}
+                        allocationSegments={allocationSegments}
                     />
 
-                    {loadingPortfolios ? (
+                    {refreshingAssets ? <div className="ui-banner ui-banner-info">Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar.</div> : null}
+                    {hasCachedData && selectedPortfoliosMissingInLocalLoad.length > 0 ? (
                         <div className="ui-banner ui-banner-info">
-                            Portfolios werden geladen. Die Asset-Liste startet erst nach deiner expliziten Ladeaktion.
+                            Auswahl enthält noch nicht lokal geladene Portfolios.
                         </div>
                     ) : null}
-
-                    {missingPortfolioScopeIds.length > 0 || usedPortfolioScopeFallback ? (
+                    {hasCachedData && hasEmptyManualScopeIntersection ? (
                         <div className="ui-banner ui-banner-info">
-                            Einige gespeicherte Portfolios sind nicht mehr lokal verfügbar oder nicht mehr autorisiert. AssetTrace nutzt sicher die verfügbaren Portfolios; prüfe den globalen Scope in den Einstellungen.
+                            Für die ausgewählten Portfolios liegen lokal keine Daten vor.
                         </div>
                     ) : null}
-
-                    {hasPendingPortfolioSelection ? (
-                        <div className="ui-banner ui-banner-info">
-                            Die Portfolio-Auswahl wurde geändert. Die Ansicht zeigt weiterhin den letzten geladenen Stand. Klicke auf „Manuell aktualisieren“, um Daten für die neue Auswahl zu laden.
-                        </div>
-                    ) : null}
-
-                    {refreshingAssets ? (
-                        <div className="ui-banner ui-banner-info">
-                            Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar, bis neue Daten bereitstehen.
-                        </div>
-                    ) : null}
-
-                    {errorMessage ? (
-                        <div className="ui-banner ui-banner-error">
-                            <strong>
-                                {authRequired
-                                    ? "Parqet-Verbindung abgelaufen"
-                                    : "Fehler"}
-                            </strong>
-                            <div>{errorMessage}</div>
-
-                            {authRequired ? (
-                                <div className="ui-banner-actions">
-                                    <button
-                                        type="button"
-                                        className="ui-btn ui-btn-secondary"
-                                        onClick={startReconnect}
-                                    >
-                                        Erneut verbinden
-                                    </button>
-                                </div>
-                            ) : null}
-                        </div>
-                    ) : null}
-
-                    <StatsGrid stats={stats} />
+                    {errorMessage ? <div className="ui-banner ui-banner-error"><strong>{authRequired ? "Parqet-Verbindung abgelaufen" : "Fehler"}</strong><div>{errorMessage}</div>{authRequired ? <div className="ui-banner-actions"><button type="button" className="ui-btn ui-btn-secondary" onClick={startReconnect}>Erneut verbinden</button></div> : null}</div> : null}
 
                     <div className="app-section-stack">
-                        <CollapsibleAssetTableSection
-                            title="Wertpapiere"
-                            subtitle="Offene Positionen aus dem zuletzt geladenen Stand. Suche, Sortierung und Spaltenauswahl bleiben lokal."
-                            assets={sortedActiveAssets}
-                            loading={loadingAssets && !hasCachedData}
-                            emptyTitle="Noch keine Wertpapiere geladen"
-                            emptyDescription="Wähle Portfolios aus und lade Assets explizit, um den aktuellen Parqet-Stand in AssetTrace zu betrachten."
-                            defaultExpanded={true}
-                        />
-
-                        <CollapsibleAssetTableSection
-                            title="Geschlossene Wertpapiere"
-                            subtitle="Positionen ohne aktuellen Bestand aus dem geladenen Stand"
-                            assets={sortedClosedAssets}
-                            loading={loadingAssets && !hasCachedData}
-                            emptyTitle="Keine geschlossenen Positionen im geladenen Stand"
-                            emptyDescription="Wenn Parqet geschlossene Positionen für die Auswahl liefert, erscheinen sie nach einer manuellen Aktualisierung hier."
-                            defaultExpanded={false}
-                        />
+                        <CollapsibleAssetTableSection title="Wertpapiere" assets={filteredActiveSecurities} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
+                        <CollapsibleAssetTableSection title="Kryptowährungen" assets={filteredActiveCrypto} loading={loadingAssets && !hasCachedData} defaultExpanded={true} />
+                        <CollapsibleAssetTableSection title="Verkaufte Wertpapiere" subtitle="Geschlossene Positionen" assets={filteredSoldSecurities} loading={loadingAssets && !hasCachedData} defaultExpanded={false} />
+                        <CollapsibleAssetTableSection title="Verkaufte Kryptowährungen" subtitle="Geschlossene Positionen" assets={filteredSoldCrypto} loading={loadingAssets && !hasCachedData} defaultExpanded={false} />
                     </div>
                 </div>
             </div>

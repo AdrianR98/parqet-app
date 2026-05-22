@@ -2,21 +2,40 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
+
+function normalizeIds(ids: string[]): string[] {
+    return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
+}
+
+function haveSameSelection(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+        return false;
+    }
+
+    const sortedLeft = [...left].sort();
+    const sortedRight = [...right].sort();
+
+    return sortedLeft.every((value, index) => value === sortedRight[index]);
+}
 
 type UsePortfolioFilterResult = {
     selectedPortfolioIds: string[];
-    draftPortfolioIds: string[];
+    visiblePortfolioIds: string[];
     isPortfolioDropdownOpen: boolean;
     portfolioDropdownRef: RefObject<HTMLDivElement | null>;
     setSelectedPortfolioIds: Dispatch<SetStateAction<string[]>>;
-    setDraftPortfolioIds: Dispatch<SetStateAction<string[]>>;
+    setVisiblePortfolioIds: Dispatch<SetStateAction<string[]>>;
     setIsPortfolioDropdownOpen: Dispatch<SetStateAction<boolean>>;
-    toggleDraftPortfolio: (portfolioId: string) => void;
-    applyPortfolioFilter: () => void;
-    resetPortfolioFilter: (allPortfolioIds: string[]) => void;
+    togglePortfolio: (portfolioId: string) => void;
+    resetPortfolioSelection: (allPortfolioIds: string[]) => void;
     hydratePortfolioSelection: (ids: string[]) => void;
+    // Legacy aliases while older callsites are being cleaned up.
+    draftPortfolioIds: string[];
+    setDraftPortfolioIds: Dispatch<SetStateAction<string[]>>;
+    toggleDraftPortfolio: (portfolioId: string) => void;
+    resetPortfolioFilter: (allPortfolioIds: string[]) => void;
 };
 
 /**
@@ -24,9 +43,7 @@ type UsePortfolioFilterResult = {
  *
  * Verantwortlichkeiten:
  * - aktive Auswahl
- * - temporaere Draft-Auswahl im Dropdown
  * - Open/Close-State
- * - Outside-Click-Handling
  *
  * Wichtig:
  * Die oeffentlichen Handler werden mit useCallback stabil gehalten,
@@ -34,29 +51,8 @@ type UsePortfolioFilterResult = {
  */
 export function usePortfolioFilter(): UsePortfolioFilterResult {
     const [selectedPortfolioIds, setSelectedPortfolioIds] = useState<string[]>([]);
-    const [draftPortfolioIds, setDraftPortfolioIds] = useState<string[]>([]);
     const [isPortfolioDropdownOpen, setIsPortfolioDropdownOpen] = useState(false);
     const portfolioDropdownRef = useRef<HTMLDivElement | null>(null);
-
-    /**
-     * Schliesst das Portfolio-Dropdown, wenn ausserhalb geklickt wird.
-     */
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (
-                portfolioDropdownRef.current &&
-                !portfolioDropdownRef.current.contains(event.target as Node)
-            ) {
-                setIsPortfolioDropdownOpen(false);
-            }
-        }
-
-        document.addEventListener("mousedown", handleClickOutside);
-
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, []);
 
     /**
      * Setzt aktive und temporaere Auswahl gleichzeitig.
@@ -66,52 +62,54 @@ export function usePortfolioFilter(): UsePortfolioFilterResult {
      * nicht bei jedem Render erneut ausgelöst werden.
      */
     const hydratePortfolioSelection = useCallback((ids: string[]) => {
-        setSelectedPortfolioIds(ids);
-        setDraftPortfolioIds(ids);
+        const nextIds = normalizeIds(ids);
+        setSelectedPortfolioIds((current) => (
+            haveSameSelection(current, nextIds) ? current : nextIds
+        ));
     }, []);
 
     /**
-     * Fuegt ein Portfolio aus der temporaeren Auswahl hinzu oder entfernt es.
-     *
-     * Die Aenderung wird zunaechst nur in draftPortfolioIds gehalten und
-     * erst mit "Anwenden" aktiv uebernommen.
+     * Fuegt ein Portfolio direkt in der aktiven Auswahl hinzu oder entfernt es.
      */
-    const toggleDraftPortfolio = useCallback((portfolioId: string) => {
-        setDraftPortfolioIds((current) => {
-            if (current.includes(portfolioId)) {
-                return current.filter((id) => id !== portfolioId);
+    const togglePortfolio = useCallback((portfolioId: string) => {
+        setSelectedPortfolioIds((current) => {
+            const nextIds = current.includes(portfolioId)
+                ? current.filter((id) => id !== portfolioId)
+                : [...current, portfolioId];
+            const normalizedNextIds = normalizeIds(nextIds);
+
+            if (haveSameSelection(current, normalizedNextIds)) {
+                return current;
             }
 
-            return [...current, portfolioId];
+            return normalizedNextIds;
         });
     }, []);
 
     /**
-     * Uebernimmt die temporaere Portfolio-Auswahl als aktive Filtermenge.
+     * Setzt die aktive Auswahl auf alle verfuegbaren Portfolios zurueck.
      */
-    const applyPortfolioFilter = useCallback(() => {
-        setSelectedPortfolioIds(draftPortfolioIds);
-        setIsPortfolioDropdownOpen(false);
-    }, [draftPortfolioIds]);
-
-    /**
-     * Setzt die temporaere Auswahl auf alle verfuegbaren Portfolios zurueck.
-     */
-    const resetPortfolioFilter = useCallback((allPortfolioIds: string[]) => {
-        setDraftPortfolioIds(allPortfolioIds);
+    const resetPortfolioSelection = useCallback((allPortfolioIds: string[]) => {
+        const normalizedAllIds = normalizeIds(allPortfolioIds);
+        setSelectedPortfolioIds((current) => (
+            haveSameSelection(current, normalizedAllIds) ? current : normalizedAllIds
+        ));
     }, []);
 
     return {
         selectedPortfolioIds,
-        draftPortfolioIds,
+        visiblePortfolioIds: selectedPortfolioIds,
         isPortfolioDropdownOpen,
         portfolioDropdownRef,
         setSelectedPortfolioIds,
-        setDraftPortfolioIds,
+        setVisiblePortfolioIds: setSelectedPortfolioIds,
         setIsPortfolioDropdownOpen,
-        toggleDraftPortfolio,
-        applyPortfolioFilter,
-        resetPortfolioFilter,
+        togglePortfolio,
+        resetPortfolioSelection,
         hydratePortfolioSelection,
+        draftPortfolioIds: selectedPortfolioIds,
+        setDraftPortfolioIds: setSelectedPortfolioIds,
+        toggleDraftPortfolio: togglePortfolio,
+        resetPortfolioFilter: resetPortfolioSelection,
     };
 }

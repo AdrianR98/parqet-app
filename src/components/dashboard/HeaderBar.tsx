@@ -1,50 +1,43 @@
-import type { AppNavItemKey } from "../layout/AppSidebar";
-import { useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import {
-    getFreshnessStatusLabel,
-    getLoadedScopeIndicatorLabel,
-    getScopeIndicatorLabel,
-    loadLocalActivityReadModel,
-} from "../../lib/local-activity-read-model";
+import type { TopNavKey } from "../../app/(app)/layout";
+import { getFreshnessStatusLabel, loadLocalActivityReadModel } from "../../lib/local-activity-read-model";
 import { loadDashboardCache } from "../../lib/dashboard-cache";
 import { getConnectionStatusView } from "../../lib/connection-status";
+import {
+    loadKnownPortfolios,
+    loadPortfolioScope,
+    resolvePortfolioScope,
+    savePortfolioScope,
+    subscribeToLocalSettings,
+    type PortfolioScope,
+} from "../../lib/app-settings";
+import PortfolioFilter from "./PortfolioFilter";
 import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
     theme: "light" | "dark";
     appearanceMode: "system" | "light" | "dark";
-    activeView: AppNavItemKey;
+    activeView: TopNavKey;
     onToggleThemeAction: () => void;
 };
 
-const VIEW_LABELS: Record<AppNavItemKey, string> = {
-    dashboard: "Dashboard",
-    activities: "Aktivitäten",
-    timeline: "Timeline",
-    reports: "Reports",
-    settings: "Einstellungen",
-};
+const NAV_ITEMS: Array<{ key: TopNavKey; label: string; href: string }> = [
+    { key: "overview", label: "Übersicht", href: "/dashboard" },
+    { key: "activities", label: "Aktivitäten", href: "/activities" },
+    { key: "settings", label: "Einstellungen", href: "/settings" },
+];
 
 const INITIAL_CONNECTION_STATUS = getConnectionStatusView(null);
-
-const INITIAL_SCOPE_LABEL = "Auswahl: unbekannt";
-const INITIAL_LOADED_SCOPE_LABEL = "Geladen: kein Stand";
-const INITIAL_FRESHNESS_LABEL = "Nicht geladen / Datenstand unbekannt";
-
 const STATUS_SEPARATOR = "\u001f";
 
 function serializeHeaderStatus(
     connectionStatus = INITIAL_CONNECTION_STATUS,
-    scopeLabel = INITIAL_SCOPE_LABEL,
-    loadedScopeLabel = INITIAL_LOADED_SCOPE_LABEL,
-    freshnessLabel = INITIAL_FRESHNESS_LABEL,
+    freshnessLabel = "Nicht geladen / Datenstand unbekannt",
 ): string {
     return [
         connectionStatus.kind,
         connectionStatus.label,
-        scopeLabel,
-        loadedScopeLabel,
         freshnessLabel,
     ].join(STATUS_SEPARATOR);
 }
@@ -55,28 +48,28 @@ function getHeaderStatusSnapshot(): string {
 
     return serializeHeaderStatus(
         connectionStatus,
-        getScopeIndicatorLabel(localStatus),
-        getLoadedScopeIndicatorLabel(localStatus),
         getFreshnessStatusLabel(localStatus),
     );
 }
 
-function getHeaderStatusServerSnapshot(): string {
-    return serializeHeaderStatus();
-}
-
 function subscribeToHeaderStatus(onStoreChange: () => void) {
-    if (typeof window === "undefined") {
-        return () => {};
-    }
-
-    window.addEventListener("storage", onStoreChange);
+    if (typeof window === "undefined") return () => {};
+    const unsubscribe = subscribeToLocalSettings(onStoreChange);
     window.addEventListener("assettrace:appearance-change", onStoreChange);
 
     return () => {
-        window.removeEventListener("storage", onStoreChange);
+        unsubscribe();
         window.removeEventListener("assettrace:appearance-change", onStoreChange);
     };
+}
+
+function getPortfolioFilterSnapshot(): string {
+    const portfolios = loadKnownPortfolios();
+    const resolvedScope = resolvePortfolioScope(loadPortfolioScope(), portfolios);
+    return JSON.stringify({
+        portfolios,
+        selectedPortfolioIds: resolvedScope.selectedPortfolioIds,
+    });
 }
 
 export default function HeaderBar({
@@ -85,63 +78,75 @@ export default function HeaderBar({
     activeView,
     onToggleThemeAction,
 }: HeaderBarProps) {
+    const [isPortfolioFilterOpen, setIsPortfolioFilterOpen] = useState(false);
     const headerStatus = useSyncExternalStore(
         subscribeToHeaderStatus,
         getHeaderStatusSnapshot,
-        getHeaderStatusServerSnapshot,
+        () => serializeHeaderStatus(),
     );
-    const [
-        connectionKind,
-        connectionLabel,
-        scopeLabel,
-        loadedScopeLabel,
-        freshnessLabel,
-    ] = headerStatus.split(STATUS_SEPARATOR);
+    const portfolioSnapshot = useSyncExternalStore(
+        subscribeToLocalSettings,
+        getPortfolioFilterSnapshot,
+        () => JSON.stringify({ portfolios: [], selectedPortfolioIds: [] }),
+    );
+    const [connectionKind, connectionLabel, freshnessLabel] = headerStatus.split(STATUS_SEPARATOR);
+    const { portfolios, selectedPortfolioIds } = useMemo(() => {
+        const parsed = JSON.parse(portfolioSnapshot) as {
+            portfolios: Array<{ id: string; name: string; currency: string; createdAt: string; distinctBrokers: string[] }>;
+            selectedPortfolioIds: string[];
+        };
+        return parsed;
+    }, [portfolioSnapshot]);
+
+    function handleTogglePortfolio(portfolioId: string) {
+        const hasSelection = selectedPortfolioIds.includes(portfolioId);
+        const nextSelected = hasSelection
+            ? selectedPortfolioIds.filter((id) => id !== portfolioId)
+            : [...selectedPortfolioIds, portfolioId];
+        const allPortfolioIds = portfolios.map((portfolio) => portfolio.id);
+        const nextScope: PortfolioScope =
+            nextSelected.length === allPortfolioIds.length
+                ? { mode: "all", selectedPortfolioIds: [] }
+                : { mode: "manual", selectedPortfolioIds: nextSelected };
+
+        savePortfolioScope(nextScope);
+    }
+
+    function handleResetPortfolioFilter() {
+        savePortfolioScope({ mode: "all", selectedPortfolioIds: [] });
+    }
 
     return (
         <header className={styles.header}>
-            <div className={styles.left}>
-                <div className={styles.brandMark}>AT</div>
-
-                <div className={styles.brandText}>
-                    <div className={styles.brandTitle}>AssetTrace</div>
-                    <div className={styles.brandSubtitle}>
-                        Analyse- und Transparenzschicht für Parqet-Daten
-                    </div>
-                </div>
-            </div>
-
-            <div className={styles.center} aria-label="Aktueller App-Status">
-                <span className={styles.scopePill}>Bereich: {VIEW_LABELS[activeView]}</span>
-                <span
-                    className={`${styles.statusPill} ${styles[`connection_${connectionKind}`]}`}
-                >
-                    {connectionLabel}
-                </span>
-                <span className={styles.statusPill}>{scopeLabel}</span>
-                <span className={styles.statusPill}>{loadedScopeLabel}</span>
-                <span className={styles.statusPill}>{freshnessLabel}</span>
-                <Link
-                    href="/dashboard"
-                    className={styles.refreshPill}
-                    title="Explizite Aktualisierung im Dashboard öffnen"
-                >
-                    Refresh im Dashboard
-                </Link>
-            </div>
-
-            <div className={styles.right}>
-                <button
-                    type="button"
-                    className="ui-btn ui-btn-ghost"
-                    onClick={onToggleThemeAction}
-                    aria-label="Darstellung wechseln"
-                >
-                    {appearanceMode === "system"
-                        ? `System (${theme === "dark" ? "Dunkel" : "Hell"})`
-                        : theme === "dark"
-                            ? "Dunkel"
-                            : "Hell"}
+            <div className={styles.brand}>AssetTrace</div>
+            <nav className={styles.nav} aria-label="Top Navigation">
+                {NAV_ITEMS.map((item) => (
+                    <Link
+                        key={item.key}
+                        href={item.href}
+                        className={`${styles.navItem} ${item.key === activeView ? styles.navItemActive : ""}`}
+                        aria-current={item.key === activeView ? "page" : undefined}
+                    >
+                        {item.label}
+                    </Link>
+                ))}
+            </nav>
+            <div className={styles.statusRow}>
+                {portfolios.length > 0 ? (
+                    <PortfolioFilter
+                        portfolios={portfolios}
+                        selectedPortfolioIds={selectedPortfolioIds}
+                        visiblePortfolioIds={selectedPortfolioIds}
+                        isOpen={isPortfolioFilterOpen}
+                        onToggleOpen={() => setIsPortfolioFilterOpen((current) => !current)}
+                        onTogglePortfolio={handleTogglePortfolio}
+                        onResetSelection={handleResetPortfolioFilter}
+                    />
+                ) : null}
+                <span className={`${styles.pill} ${styles[`connection_${connectionKind}`]}`}>{connectionLabel}</span>
+                <span className={styles.pill}>{freshnessLabel}</span>
+                <button type="button" className="ui-btn ui-btn-ghost" onClick={onToggleThemeAction}>
+                    {appearanceMode === "system" ? `System (${theme === "dark" ? "Dunkel" : "Hell"})` : theme === "dark" ? "Dunkel" : "Hell"}
                 </button>
             </div>
         </header>

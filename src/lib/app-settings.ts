@@ -6,6 +6,7 @@ export const PORTFOLIO_SCOPE_STORAGE_KEY = "assettrace-portfolio-scope-v1";
 export const KNOWN_PORTFOLIOS_STORAGE_KEY = "assettrace-known-portfolios-v1";
 export const REVEAL_BLOCK_SIZE_STORAGE_KEY = "assettrace-reveal-block-size-v1";
 export const ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY = "assettrace-asset-table-visible-columns-v1";
+export const ASSET_DETAIL_TIME_RANGE_STORAGE_KEY = "assettrace-asset-detail-time-range-v1";
 export const LOCAL_SETTINGS_CHANGE_EVENT = "assettrace:settings-local-state-change";
 
 export const REVEAL_BLOCK_SIZE_OPTIONS = [20, 50, 100] as const;
@@ -14,6 +15,7 @@ export const DEFAULT_REVEAL_BLOCK_SIZE = 50;
 export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 export type RevealBlockSize = (typeof REVEAL_BLOCK_SIZE_OPTIONS)[number];
+export type AssetDetailTimeRange = "1y" | "3y" | "5y" | "10y" | "max";
 
 export type PortfolioScope = {
     mode: "all" | "manual";
@@ -25,6 +27,7 @@ export type PortfolioScopeResolution = {
     selectedPortfolioIds: string[];
     missingPortfolioIds: string[];
     usedFallback: boolean;
+    hasEmptyManualIntersection: boolean;
 };
 
 const DEFAULT_PORTFOLIO_SCOPE: PortfolioScope = {
@@ -38,6 +41,21 @@ function isBrowser(): boolean {
 
 function uniqueIds(ids: string[]): string[] {
     return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
+}
+
+function haveSameIdSelection(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+        return false;
+    }
+
+    const sortedLeft = [...left].sort();
+    const sortedRight = [...right].sort();
+
+    return sortedLeft.every((value, index) => value === sortedRight[index]);
+}
+
+export function haveSamePortfolioScope(left: PortfolioScope, right: PortfolioScope): boolean {
+    return left.mode === right.mode && haveSameIdSelection(left.selectedPortfolioIds, right.selectedPortfolioIds);
 }
 
 export function notifyLocalSettingsChanged(): void {
@@ -203,6 +221,46 @@ export function saveAssetTableVisibleColumns(columns: string[]): void {
     }
 }
 
+export function parseAssetDetailTimeRange(value: unknown): AssetDetailTimeRange {
+    if (value === "1y" || value === "3y" || value === "5y" || value === "10y" || value === "max") {
+        return value;
+    }
+
+    return "1y";
+}
+
+export function loadAssetDetailTimeRange(): AssetDetailTimeRange {
+    if (!isBrowser()) {
+        return "1y";
+    }
+
+    try {
+        return parseAssetDetailTimeRange(window.localStorage.getItem(ASSET_DETAIL_TIME_RANGE_STORAGE_KEY));
+    } catch {
+        return "1y";
+    }
+}
+
+export function saveAssetDetailTimeRange(value: AssetDetailTimeRange): void {
+    if (!isBrowser()) {
+        return;
+    }
+
+    try {
+        const nextValue = parseAssetDetailTimeRange(value);
+        const currentValue = loadAssetDetailTimeRange();
+
+        if (currentValue === nextValue) {
+            return;
+        }
+
+        window.localStorage.setItem(ASSET_DETAIL_TIME_RANGE_STORAGE_KEY, nextValue);
+        notifyLocalSettingsChanged();
+    } catch {
+        // localStorage-Probleme bewusst ignorieren.
+    }
+}
+
 export function resolveAppearanceMode(mode: AppearanceMode): ResolvedTheme {
     if (mode === "light" || mode === "dark") {
         return mode;
@@ -256,7 +314,15 @@ export function savePortfolioScope(scope: PortfolioScope): void {
     }
 
     try {
-        window.localStorage.setItem(PORTFOLIO_SCOPE_STORAGE_KEY, JSON.stringify(parsePortfolioScope(scope)));
+        const nextScope = parsePortfolioScope(scope);
+        const currentScope = loadPortfolioScope();
+
+        if (haveSamePortfolioScope(currentScope, nextScope)) {
+            return;
+        }
+
+        window.localStorage.setItem(PORTFOLIO_SCOPE_STORAGE_KEY, JSON.stringify(nextScope));
+        notifyLocalSettingsChanged();
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }
@@ -272,18 +338,22 @@ export function resolvePortfolioScope(scope: PortfolioScope, portfolios: Pick<Po
             selectedPortfolioIds: availableIds,
             missingPortfolioIds: [],
             usedFallback: false,
+            hasEmptyManualIntersection: false,
         };
     }
 
     const selectedPortfolioIds = uniqueIds(scope.selectedPortfolioIds).filter((id) => availableIdSet.has(id));
     const missingPortfolioIds = uniqueIds(scope.selectedPortfolioIds).filter((id) => !availableIdSet.has(id));
-    const usedFallback = selectedPortfolioIds.length === 0 && availableIds.length > 0;
+    const hasEmptyManualIntersection =
+        uniqueIds(scope.selectedPortfolioIds).length > 0 &&
+        selectedPortfolioIds.length === 0;
 
     return {
-        scope: usedFallback ? DEFAULT_PORTFOLIO_SCOPE : { mode: "manual", selectedPortfolioIds },
-        selectedPortfolioIds: usedFallback ? availableIds : selectedPortfolioIds,
+        scope: { mode: "manual", selectedPortfolioIds },
+        selectedPortfolioIds,
         missingPortfolioIds,
-        usedFallback,
+        usedFallback: false,
+        hasEmptyManualIntersection,
     };
 }
 
@@ -324,7 +394,29 @@ export function saveKnownPortfolios(portfolios: Portfolio[]): void {
     }
 
     try {
-        window.localStorage.setItem(KNOWN_PORTFOLIOS_STORAGE_KEY, JSON.stringify(portfolios));
+        const normalized = portfolios
+            .filter((portfolio) => (
+                typeof portfolio?.id === "string" &&
+                typeof portfolio?.name === "string"
+            ))
+            .map((portfolio) => ({
+                id: portfolio.id,
+                name: portfolio.name,
+                currency: portfolio.currency,
+                createdAt: portfolio.createdAt,
+                distinctBrokers: Array.isArray(portfolio.distinctBrokers)
+                    ? portfolio.distinctBrokers
+                    : [],
+            }));
+        const nextRaw = JSON.stringify(normalized);
+        const currentRaw = window.localStorage.getItem(KNOWN_PORTFOLIOS_STORAGE_KEY);
+
+        if (currentRaw === nextRaw) {
+            return;
+        }
+
+        window.localStorage.setItem(KNOWN_PORTFOLIOS_STORAGE_KEY, nextRaw);
+        notifyLocalSettingsChanged();
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }
@@ -342,6 +434,7 @@ export function clearLocalAssetTraceState(): void {
         window.localStorage.removeItem(KNOWN_PORTFOLIOS_STORAGE_KEY);
         window.localStorage.removeItem(REVEAL_BLOCK_SIZE_STORAGE_KEY);
         window.localStorage.removeItem(ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY);
+        window.localStorage.removeItem(ASSET_DETAIL_TIME_RANGE_STORAGE_KEY);
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }

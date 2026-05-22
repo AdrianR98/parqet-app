@@ -729,7 +729,7 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
     await expect(page.getByText("Autorisiert: 2 Portfolios.")).toBeVisible();
     await expect(page.getByText("36 lokale", { exact: false })).toBeVisible();
 
-    await page.getByRole("button", { name: "Hell" }).click();
+    await page.getByRole("button", { name: "Hell", exact: true }).click();
     await expect(page.getByText("Aktiv: Hell.")).toBeVisible();
     await page.getByRole("button", { name: "Manuelle Auswahl" }).click();
     await expect(
@@ -767,8 +767,8 @@ test.describe("V1 canonical global asset safe-field smoke", () => {
     const providerMonitor = createProviderRouteMonitor(page);
 
     await visitSmokeRoute(page, "/dashboard");
-    await expect(page.getByText("Synthetic Guarded Product One")).toBeVisible();
-    await expect(page.getByText("Synthetic Guarded Product Two")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Synthetic Guarded Product One" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Synthetic Guarded Product Two" })).toBeVisible();
     await expect(page.getByText("4.248,00", { exact: false })).toBeVisible();
 
     await page.goto("/reports", { waitUntil: "domcontentloaded" });
