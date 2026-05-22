@@ -2,15 +2,59 @@
 
 import CollapsibleAssetTableSection from "../../../components/dashboard/CollapsibleAssetTableSection";
 import DataWarningsPanel from "../../../components/dashboard/DataWarningsPanel";
-import HeroSection from "../../../components/dashboard/HeroSection";
+import HeroSection, { type AllocationSegment } from "../../../components/dashboard/HeroSection";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
 import type { AssetSummary } from "../../../lib/types";
 
-function isCryptoAsset(asset: AssetSummary): boolean {
+function getAssetTypeLabel(asset: AssetSummary): "Kryptowährungen" | "Wertpapiere" | "Sonstige" {
     const typeCandidate = [asset.metadata?.assetType, asset.externalMetadata?.assetType, asset.assetMeta?.assetType]
         .find((value) => typeof value === "string")
         ?.toLowerCase() ?? "";
-    return typeCandidate.includes("crypto") || typeCandidate.includes("coin") || typeCandidate.includes("token");
+
+    if (typeCandidate.includes("crypto") || typeCandidate.includes("coin") || typeCandidate.includes("token")) {
+        return "Kryptowährungen";
+    }
+
+    if (typeCandidate.length > 0) {
+        return "Wertpapiere";
+    }
+
+    return "Sonstige";
+}
+
+function isCryptoAsset(asset: AssetSummary): boolean {
+    return getAssetTypeLabel(asset) === "Kryptowährungen";
+}
+
+function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
+    const groups: Record<string, number> = {
+        Wertpapiere: 0,
+        Kryptowährungen: 0,
+        Sonstige: 0,
+    };
+
+    for (const asset of assets) {
+        const positionValue = asset.positionValue ?? 0;
+
+        if (positionValue <= 0) {
+            continue;
+        }
+
+        const key = getAssetTypeLabel(asset);
+        groups[key] += positionValue;
+    }
+
+    const total = Object.values(groups).reduce((sum, value) => sum + value, 0);
+
+    if (total <= 0) {
+        return [];
+    }
+
+    return [
+        { label: "Wertpapiere", value: groups.Wertpapiere, color: "#78a7da" },
+        { label: "Kryptowährungen", value: groups.Kryptowährungen, color: "#9dc0e4" },
+        { label: "Sonstige", value: groups.Sonstige, color: "#bfd5eb" },
+    ].filter((segment) => segment.value > 0);
 }
 
 export default function DashboardPage() {
@@ -27,6 +71,7 @@ export default function DashboardPage() {
     const activeCrypto = sortedActiveAssets.filter((asset) => isCryptoAsset(asset));
     const soldSecurities = sortedClosedAssets.filter((asset) => !isCryptoAsset(asset));
     const soldCrypto = sortedClosedAssets.filter((asset) => isCryptoAsset(asset));
+    const allocationSegments = buildAllocationSegments(sortedActiveAssets);
 
     return (
         <>
@@ -52,6 +97,7 @@ export default function DashboardPage() {
                         totalPositionValue={stats.totalPositionValue}
                         totalUnrealizedPnL={stats.totalUnrealizedPnL}
                         totalDividendNet={stats.totalDividendNet}
+                        allocationSegments={allocationSegments}
                     />
 
                     {refreshingAssets ? <div className="ui-banner ui-banner-info">Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar.</div> : null}
