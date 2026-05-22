@@ -61,6 +61,7 @@ function scopeAssetToSelection(asset: AssetSummary, selectedPortfolioIds: string
 }
 
 function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
+    const MAX_INDIVIDUAL_SEGMENTS = 15;
     const validAssets = assets
         .map((asset) => ({ label: getAssetDisplayName(asset), value: asset.positionValue ?? 0 }))
         .filter((asset) => asset.value > 0)
@@ -70,9 +71,15 @@ function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
         return [];
     }
 
-    const palette = ["#3f80c7", "#57a0d9", "#6fb9c4", "#5f95db", "#7aa0cf"];
-    const topAssets = validAssets.slice(0, 5);
-    const remainder = validAssets.slice(5).reduce((sum, asset) => sum + asset.value, 0);
+    const palette = [
+        "#2c5f98", "#3f79bf", "#3b93c4", "#317f9d", "#506dc4",
+        "#6c8fd8", "#2f8e8d", "#4f7ca6", "#5f63b9", "#3f8fb0",
+        "#7b80c2", "#4aa4b7", "#6986ac", "#5f9aa2", "#8699bf",
+    ];
+    const topAssets = validAssets.slice(0, MAX_INDIVIDUAL_SEGMENTS);
+    const remainder = validAssets
+        .slice(MAX_INDIVIDUAL_SEGMENTS)
+        .reduce((sum, asset) => sum + asset.value, 0);
     const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
         label: asset.label,
         value: asset.value,
@@ -110,12 +117,11 @@ function matchesSearch(asset: AssetSummary, query: string): boolean {
 
 export default function DashboardPage() {
     const {
-        portfolios, selectedPortfolioIds, draftPortfolioIds, isPortfolioDropdownOpen, showWarningsPanel, portfolioDropdownRef,
+        selectedPortfolioIds, showWarningsPanel,
         consistencyReport, reconciliationWarnings, selectedPortfoliosMissingInLocalLoad,
         loadingAssets, refreshingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
         sortedActiveAssets, sortedClosedAssets,
-        setIsPortfolioDropdownOpen, setShowWarningsPanel,
-        toggleDraftPortfolio, resetPortfolioFilter,
+        setShowWarningsPanel,
     } = useDashboardData();
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -159,14 +165,6 @@ export default function DashboardPage() {
             <div className="app-content">
                 <div className="app-stack">
                     <HeroSection
-                        portfolios={portfolios}
-                        selectedPortfolioIds={selectedPortfolioIds}
-                        draftPortfolioIds={draftPortfolioIds}
-                        isPortfolioDropdownOpen={isPortfolioDropdownOpen}
-                        onToggleOpen={() => setIsPortfolioDropdownOpen((current) => !current)}
-                        onToggleDraftPortfolio={toggleDraftPortfolio}
-                        onReset={resetPortfolioFilter}
-                        portfolioDropdownRef={portfolioDropdownRef}
                         searchQuery={searchQuery}
                         onSearchQueryChange={setSearchQuery}
                         totalPositionValue={scopedTotals.totalPositionValue}

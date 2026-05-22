@@ -8,6 +8,7 @@ import {
   resolvePortfolioScope,
   saveKnownPortfolios,
   savePortfolioScope,
+  subscribeToLocalSettings,
   type PortfolioScope,
 } from "../lib/app-settings";
 import {
@@ -37,12 +38,9 @@ import { usePortfolioFilter } from "./use-portfolio-filter";
 type UseDashboardDataResult = {
   portfolios: Portfolio[];
   selectedPortfolioIds: string[];
-  draftPortfolioIds: string[];
   selectedPortfolioCount: number;
   loadedPortfolioCount: number;
-  isPortfolioDropdownOpen: boolean;
   showWarningsPanel: boolean;
-  portfolioDropdownRef: React.RefObject<HTMLDivElement | null>;
 
   activeAssets: AssetSummary[];
   closedAssets: AssetSummary[];
@@ -73,12 +71,10 @@ type UseDashboardDataResult = {
   stats: DashboardStats;
   showStaleWarning: boolean;
 
-  setIsPortfolioDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setShowWarningsPanel: React.Dispatch<React.SetStateAction<boolean>>;
 
-  toggleDraftPortfolio: (portfolioId: string) => void;
-  applyPortfolioFilter: () => void;
-  resetPortfolioFilter: () => void;
+  togglePortfolio: (portfolioId: string) => void;
+  resetPortfolioSelection: () => void;
   loadAssets: () => Promise<void>;
   startReconnect: () => void;
 };
@@ -163,13 +159,8 @@ export function useDashboardData(): UseDashboardDataResult {
 
   const {
     selectedPortfolioIds,
-    draftPortfolioIds,
-    isPortfolioDropdownOpen,
-    portfolioDropdownRef,
-    setIsPortfolioDropdownOpen,
-    toggleDraftPortfolio,
-    applyPortfolioFilter,
-    resetPortfolioFilter: resetPortfolioFilterInternal,
+    togglePortfolio,
+    resetPortfolioSelection,
     hydratePortfolioSelection,
   } = usePortfolioFilter();
 
@@ -400,13 +391,9 @@ export function useDashboardData(): UseDashboardDataResult {
     }
   }
 
-  function applyPortfolioFilterCompat() {
-    applyPortfolioFilter();
-  }
-
-  function resetPortfolioFilter() {
+  function resetPortfolioSelectionToAll() {
     const allIds = portfolios.map((portfolio) => portfolio.id);
-    resetPortfolioFilterInternal(allIds);
+    resetPortfolioSelection(allIds);
   }
 
   useEffect(() => {
@@ -427,6 +414,23 @@ export function useDashboardData(): UseDashboardDataResult {
     setMissingPortfolioScopeIds([]);
     setUsedPortfolioScopeFallback(false);
   }, [portfolios, selectedPortfolioIds]);
+
+  useEffect(() => {
+    if (portfolios.length === 0) {
+      return;
+    }
+
+    function syncSelectionFromScope() {
+      const resolvedScope = resolvePortfolioScope(loadPortfolioScope(), portfolios);
+      hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
+      setPortfolioScope(resolvedScope.scope);
+      setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
+      setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
+    }
+
+    syncSelectionFromScope();
+    return subscribeToLocalSettings(syncSelectionFromScope);
+  }, [portfolios, hydratePortfolioSelection]);
 
   const selectedPortfolioCount = useMemo(() => {
     return portfolios.filter((portfolio) =>
@@ -499,12 +503,9 @@ export function useDashboardData(): UseDashboardDataResult {
   return {
     portfolios,
     selectedPortfolioIds,
-    draftPortfolioIds,
     selectedPortfolioCount,
     loadedPortfolioCount,
-    isPortfolioDropdownOpen,
     showWarningsPanel,
-    portfolioDropdownRef,
 
     activeAssets,
     closedAssets,
@@ -535,12 +536,10 @@ export function useDashboardData(): UseDashboardDataResult {
     stats,
     showStaleWarning,
 
-    setIsPortfolioDropdownOpen,
     setShowWarningsPanel,
 
-    toggleDraftPortfolio,
-    applyPortfolioFilter: applyPortfolioFilterCompat,
-    resetPortfolioFilter,
+    togglePortfolio,
+    resetPortfolioSelection: resetPortfolioSelectionToAll,
     loadAssets,
     startReconnect,
   };

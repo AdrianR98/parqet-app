@@ -61,6 +61,10 @@
     gap: 8px;
 }
 
+.statusRow :global(.ui-filter-btn) {
+    min-height: 38px;
+}
+
 .pill {
     padding: 6px 10px;
     border: 1px solid var(--panel-border);

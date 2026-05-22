@@ -1,9 +1,19 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import type { TopNavKey } from "../../app/(app)/layout";
 import { getFreshnessStatusLabel, loadLocalActivityReadModel } from "../../lib/local-activity-read-model";
 import { loadDashboardCache } from "../../lib/dashboard-cache";
 import { getConnectionStatusView } from "../../lib/connection-status";
+import {
+    loadKnownPortfolios,
+    loadPortfolioScope,
+    notifyLocalSettingsChanged,
+    resolvePortfolioScope,
+    savePortfolioScope,
+    subscribeToLocalSettings,
+    type PortfolioScope,
+} from "../../lib/app-settings";
+import PortfolioFilter from "./PortfolioFilter";
 import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
@@ -44,17 +54,23 @@ function getHeaderStatusSnapshot(): string {
 }
 
 function subscribeToHeaderStatus(onStoreChange: () => void) {
-    if (typeof window === "undefined") {
-        return () => {};
-    }
-
-    window.addEventListener("storage", onStoreChange);
+    if (typeof window === "undefined") return () => {};
+    const unsubscribe = subscribeToLocalSettings(onStoreChange);
     window.addEventListener("assettrace:appearance-change", onStoreChange);
 
     return () => {
-        window.removeEventListener("storage", onStoreChange);
+        unsubscribe();
         window.removeEventListener("assettrace:appearance-change", onStoreChange);
     };
+}
+
+function getPortfolioFilterSnapshot(): string {
+    const portfolios = loadKnownPortfolios();
+    const resolvedScope = resolvePortfolioScope(loadPortfolioScope(), portfolios);
+    return JSON.stringify({
+        portfolios,
+        selectedPortfolioIds: resolvedScope.selectedPortfolioIds,
+    });
 }
 
 export default function HeaderBar({
@@ -63,12 +79,45 @@ export default function HeaderBar({
     activeView,
     onToggleThemeAction,
 }: HeaderBarProps) {
+    const [isPortfolioFilterOpen, setIsPortfolioFilterOpen] = useState(false);
     const headerStatus = useSyncExternalStore(
         subscribeToHeaderStatus,
         getHeaderStatusSnapshot,
         () => serializeHeaderStatus(),
     );
+    const portfolioSnapshot = useSyncExternalStore(
+        subscribeToLocalSettings,
+        getPortfolioFilterSnapshot,
+        () => JSON.stringify({ portfolios: [], selectedPortfolioIds: [] }),
+    );
     const [connectionKind, connectionLabel, freshnessLabel] = headerStatus.split(STATUS_SEPARATOR);
+    const { portfolios, selectedPortfolioIds } = useMemo(() => {
+        const parsed = JSON.parse(portfolioSnapshot) as {
+            portfolios: Array<{ id: string; name: string; currency: string; createdAt: string; distinctBrokers: string[] }>;
+            selectedPortfolioIds: string[];
+        };
+        return parsed;
+    }, [portfolioSnapshot]);
+
+    function handleTogglePortfolio(portfolioId: string) {
+        const hasSelection = selectedPortfolioIds.includes(portfolioId);
+        const nextSelected = hasSelection
+            ? selectedPortfolioIds.filter((id) => id !== portfolioId)
+            : [...selectedPortfolioIds, portfolioId];
+        const allPortfolioIds = portfolios.map((portfolio) => portfolio.id);
+        const nextScope: PortfolioScope =
+            nextSelected.length === allPortfolioIds.length
+                ? { mode: "all", selectedPortfolioIds: [] }
+                : { mode: "manual", selectedPortfolioIds: nextSelected };
+
+        savePortfolioScope(nextScope);
+        notifyLocalSettingsChanged();
+    }
+
+    function handleResetPortfolioFilter() {
+        savePortfolioScope({ mode: "all", selectedPortfolioIds: [] });
+        notifyLocalSettingsChanged();
+    }
 
     return (
         <header className={styles.header}>
@@ -86,6 +135,17 @@ export default function HeaderBar({
                 ))}
             </nav>
             <div className={styles.statusRow}>
+                {portfolios.length > 0 ? (
+                    <PortfolioFilter
+                        portfolios={portfolios}
+                        selectedPortfolioIds={selectedPortfolioIds}
+                        visiblePortfolioIds={selectedPortfolioIds}
+                        isOpen={isPortfolioFilterOpen}
+                        onToggleOpen={() => setIsPortfolioFilterOpen((current) => !current)}
+                        onTogglePortfolio={handleTogglePortfolio}
+                        onResetSelection={handleResetPortfolioFilter}
+                    />
+                ) : null}
                 <span className={`${styles.pill} ${styles[`connection_${connectionKind}`]}`}>{connectionLabel}</span>
                 <span className={styles.pill}>{freshnessLabel}</span>
                 <button type="button" className="ui-btn ui-btn-ghost" onClick={onToggleThemeAction}>

@@ -10,6 +10,7 @@ import {
   getEmptyLocalActivityReadModel,
   getActivityTypeLabel,
   getFreshnessLabel,
+  normalizeExactIsin,
   getSourceLabel,
   groupProjectedActivities,
   loadLocalActivityReadModel,
@@ -211,7 +212,7 @@ function getDefaultActivityFilters(): ActivityFilters {
 
 export default function ActivitiesPage() {
   const searchParams = useSearchParams();
-  const initialIsinFilter = searchParams.get("isin")?.trim().toUpperCase() ?? "";
+  const initialIsinFilter = normalizeExactIsin(searchParams.get("isin"));
   const { value: readModel } = useHydrationSafeLocalSnapshot(
     loadLocalActivityReadModel,
     getEmptyLocalActivityReadModel,

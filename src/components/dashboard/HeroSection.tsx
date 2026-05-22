@@ -1,8 +1,5 @@
 import { useMemo, useState } from "react";
-import type { RefObject } from "react";
-import PortfolioFilter from "./PortfolioFilter";
 import styles from "./HeroSection.module.css";
-import type { Portfolio } from "../../lib/types";
 import { formatCurrency } from "../../lib/format";
 
 export type AllocationSegment = {
@@ -12,14 +9,6 @@ export type AllocationSegment = {
 };
 
 type HeroSectionProps = {
-    portfolios: Portfolio[];
-    selectedPortfolioIds: string[];
-    draftPortfolioIds: string[];
-    isPortfolioDropdownOpen: boolean;
-    onToggleOpen: () => void;
-    onToggleDraftPortfolio: (portfolioId: string) => void;
-    onReset: () => void;
-    portfolioDropdownRef: RefObject<HTMLDivElement | null>;
     searchQuery: string;
     onSearchQueryChange: (value: string) => void;
     totalPositionValue?: number;
@@ -31,11 +20,13 @@ type HeroSectionProps = {
 type DonutSegment = AllocationSegment & {
     ratio: number;
     dashLength: number;
+    visibleDashLength: number;
     dashOffset: number;
 };
 
 const DONUT_RADIUS = 38;
 const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS;
+const DONUT_SEGMENT_GAP = 1.4;
 
 function buildDonutSegments(segments: AllocationSegment[]): DonutSegment[] {
     const total = segments.reduce((sum, segment) => sum + segment.value, 0);
@@ -51,6 +42,7 @@ function buildDonutSegments(segments: AllocationSegment[]): DonutSegment[] {
             ...segment,
             ratio,
             dashLength,
+            visibleDashLength: Math.max(dashLength - DONUT_SEGMENT_GAP, 0),
             dashOffset: -offset,
         };
         offset += dashLength;
@@ -59,14 +51,6 @@ function buildDonutSegments(segments: AllocationSegment[]): DonutSegment[] {
 }
 
 export default function HeroSection({
-    portfolios,
-    selectedPortfolioIds,
-    draftPortfolioIds,
-    isPortfolioDropdownOpen,
-    onToggleOpen,
-    onToggleDraftPortfolio,
-    onReset,
-    portfolioDropdownRef,
     searchQuery,
     onSearchQueryChange,
     totalPositionValue,
@@ -85,17 +69,6 @@ export default function HeroSection({
     return (
         <section className={`ui-surface ${styles.hero}`}>
             <div className={styles.topRow}>
-                <PortfolioFilter
-                    portfolios={portfolios}
-                    selectedPortfolioIds={selectedPortfolioIds}
-                    draftPortfolioIds={draftPortfolioIds}
-                    isOpen={isPortfolioDropdownOpen}
-                    onToggleOpen={onToggleOpen}
-                    onToggleDraftPortfolio={onToggleDraftPortfolio}
-                    onReset={onReset}
-                    dropdownRef={portfolioDropdownRef}
-                />
-
                 <input
                     className={`ui-input ${styles.search}`}
                     type="search"
@@ -122,13 +95,14 @@ export default function HeroSection({
                                 {donutSegments.map((segment, index) => (
                                     <circle
                                         key={segment.label}
+                                        className={styles.donutSegment}
                                         cx="48"
                                         cy="48"
                                         r={DONUT_RADIUS}
                                         fill="none"
                                         stroke={segment.color}
                                         strokeWidth="14"
-                                        strokeDasharray={`${segment.dashLength} ${DONUT_CIRCUMFERENCE}`}
+                                        strokeDasharray={`${segment.visibleDashLength} ${DONUT_CIRCUMFERENCE}`}
                                         strokeDashoffset={segment.dashOffset}
                                         transform="rotate(-90 48 48)"
                                         strokeLinecap="butt"
@@ -146,10 +120,7 @@ export default function HeroSection({
                             </svg>
                             <div className={styles.donutCenter}>
                                 {hoveredSegment ? (
-                                    <>
-                                        <span>Positionswert</span>
-                                        <strong>{formatCurrency(hoveredSegment.value)}</strong>
-                                    </>
+                                    <strong className={styles.centerValue}>{formatCurrency(hoveredSegment.value)}</strong>
                                 ) : <i aria-hidden="true" className={styles.centerIdleDot} />}
                             </div>
                             {hoveredSegment ? (

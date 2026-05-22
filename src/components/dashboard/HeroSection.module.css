@@ -4,20 +4,17 @@
 }
 
 .topRow {
-    display: grid;
-    grid-template-columns: minmax(220px, 320px) 1fr;
-    gap: 12px;
-    align-items: center;
+    display: block;
 }
 
 .search {
-    min-width: 0;
+    width: 100%;
     padding-left: 14px;
 }
 
 .summary {
     display: grid;
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: 258px 1fr;
     gap: 18px;
     align-items: center;
     margin-top: 16px;
@@ -36,40 +33,60 @@
 
 .donutChart {
     position: relative;
-    width: 136px;
-    height: 136px;
+    width: 224px;
+    height: 224px;
     display: grid;
     place-items: center;
 }
 
 .donutSvg {
-    width: 136px;
-    height: 136px;
+    width: 224px;
+    height: 224px;
     filter: drop-shadow(0 8px 14px rgba(77, 107, 141, 0.14));
+}
+
+.donutSegment {
+    transition: opacity 140ms ease, stroke-width 140ms ease, filter 140ms ease;
+}
+
+.donutSegment:hover {
+    opacity: 0.96;
+}
+
+.donutSegment:focus {
+    outline: none;
+}
+
+.donutSegment:focus-visible {
+    stroke-width: 16;
+    filter: brightness(1.06);
 }
 
 .donutCenter {
     position: absolute;
-    inset: 38px;
+    inset: 69px;
     border-radius: 50%;
     background: rgba(245, 251, 255, 0.95);
     border: 1px solid rgba(84, 113, 145, 0.14);
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    padding: 8px;
-}
-
-.donutCenter span {
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    color: var(--text-soft);
-    text-transform: uppercase;
+    padding: 10px;
+    overflow: hidden;
 }
 
 .donutCenter strong {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-main);
+    line-height: 1.25;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.centerValue {
+    display: inline-block;
+    max-width: 100%;
 }
 
 .centerIdleDot {
@@ -108,8 +125,8 @@
 }
 
 .donutEmpty {
-    width: 108px;
-    height: 108px;
+    width: 176px;
+    height: 176px;
     border-radius: 50%;
     border: 1px dashed rgba(90, 120, 150, 0.35);
     color: var(--text-soft);
@@ -150,15 +167,11 @@
 .negative { color: var(--negative) !important; }
 
 @media (max-width: 1020px) {
-    .topRow {
-        grid-template-columns: 1fr;
-    }
-
     .summary {
         grid-template-columns: 1fr;
     }
 
     .donutWrap {
-        align-items: flex-start;
+        align-items: center;
     }
 }

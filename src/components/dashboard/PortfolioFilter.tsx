@@ -6,23 +6,30 @@ import type { Portfolio } from "../../lib/types";
 type PortfolioFilterProps = {
     portfolios: Portfolio[];
     selectedPortfolioIds: string[];
-    draftPortfolioIds: string[];
+    visiblePortfolioIds: string[];
     isOpen: boolean;
     onToggleOpen: () => void;
-    onToggleDraftPortfolio: (portfolioId: string) => void;
-    onReset: () => void;
+    onTogglePortfolio?: (portfolioId: string) => void;
+    onResetSelection?: () => void;
     dropdownRef?: RefObject<HTMLDivElement | null>;
+    // Legacy aliases for compatibility.
+    draftPortfolioIds?: string[];
+    onToggleDraftPortfolio?: (portfolioId: string) => void;
+    onReset?: () => void;
 };
 
 export default function PortfolioFilter({
     portfolios,
     selectedPortfolioIds,
-    draftPortfolioIds,
+    visiblePortfolioIds,
     isOpen,
     onToggleOpen,
+    onTogglePortfolio,
+    onResetSelection,
+    dropdownRef,
+    draftPortfolioIds,
     onToggleDraftPortfolio,
     onReset,
-    dropdownRef,
 }: PortfolioFilterProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const selectedCount = selectedPortfolioIds.length;
@@ -73,11 +80,21 @@ export default function PortfolioFilter({
     }, [isOpen, onToggleOpen]);
 
     function handleTogglePortfolio(portfolioId: string) {
-        onToggleDraftPortfolio(portfolioId);
+        if (onTogglePortfolio) {
+            onTogglePortfolio(portfolioId);
+            return;
+        }
+
+        onToggleDraftPortfolio?.(portfolioId);
     }
 
     function handleReset() {
-        onReset();
+        if (onResetSelection) {
+            onResetSelection();
+            return;
+        }
+
+        onReset?.();
     }
 
     return (
@@ -110,7 +127,7 @@ export default function PortfolioFilter({
 
                     <div className={styles.list}>
                         {portfolios.map((portfolio) => {
-                            const checked = draftPortfolioIds.includes(portfolio.id);
+                            const checked = (draftPortfolioIds ?? visiblePortfolioIds).includes(portfolio.id);
 
                             return (
                                 <label key={portfolio.id} className={styles.item}>
