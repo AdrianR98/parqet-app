@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadPortfolioScope, resolvePortfolioScope } from "../../../lib/app-settings";
 import { loadDashboardCache } from "../../../lib/dashboard-cache";
 import { findAssetByKey, getAssetDetailKey, getAssetDisplayName, getAssetInitials, getAssetLogoUrl, getAssetStatusLabel, getAssetWarnings, scopeAssetMetrics } from "../../../lib/asset-detail";
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
+import { getActivityTypeLabel } from "../../../lib/local-activity-read-model";
 import { formatCurrency, formatShares } from "../../../lib/format";
 import type { AssetSummary, PortfolioPosition } from "../../../lib/types";
 import styles from "./AssetDetailPage.module.css";
@@ -48,6 +48,7 @@ export default function AssetDetailPage() {
     const assetKey = searchParams.get("id")?.trim() ?? "";
     const canReadLocalState = useSyncExternalStore(subscribeToLocalAssetState, () => true, () => false);
     const [heatmapOpen, setHeatmapOpen] = useState(false);
+    const [logoFailed, setLogoFailed] = useState(false);
 
     const viewModel = useMemo(() => {
         if (!assetKey || !canReadLocalState) return null;
@@ -64,6 +65,8 @@ export default function AssetDetailPage() {
             metrics: scopeAssetMetrics(asset, selectedPortfolioIds),
             warnings: getAssetWarnings({ asset, consistencyReport: cache.consistencyReport ?? null, reconciliationWarnings: cache.reconciliationWarnings ?? [] }),
             lastUpdatedAt: cache.lastUpdatedAt ?? cache.generatedAt ?? null,
+            selectedPortfolioIds,
+            activityItems: cache.activityItems ?? [],
         };
     }, [assetKey, canReadLocalState]);
 
@@ -79,11 +82,17 @@ export default function AssetDetailPage() {
         );
     }
 
-    const { asset, metrics, warnings, lastUpdatedAt } = viewModel;
+    const { asset, metrics, warnings, lastUpdatedAt, selectedPortfolioIds, activityItems } = viewModel;
     const displayName = getAssetDisplayName(asset);
     const logoUrl = getAssetLogoUrl(asset);
     const statusLabel = getAssetStatusLabel(metrics);
     const hasDividends = (metrics.totalDividendNet ?? 0) > 0 || asset.dividendCount > 0;
+    const scopedIds = new Set(selectedPortfolioIds);
+    const recentActivities = activityItems
+        .filter((item) => item.isin === asset.isin)
+        .filter((item) => !item.portfolioId || scopedIds.size === 0 || scopedIds.has(item.portfolioId))
+        .sort((left, right) => right.datetime.localeCompare(left.datetime))
+        .slice(0, 5);
 
     return (
         <main className={styles.page}>
@@ -92,7 +101,19 @@ export default function AssetDetailPage() {
             </div>
 
             <section className={styles.headerCard}>
-                <div className={styles.assetMark}>{logoUrl ? <Image src={logoUrl} alt="" width={46} height={46} /> : <span>{getAssetInitials(asset)}</span>}</div>
+                <div className={styles.assetMark}>
+                    {logoUrl && !logoFailed ? (
+                        <img
+                            src={logoUrl}
+                            alt={`${displayName} Logo`}
+                            width={46}
+                            height={46}
+                            onError={() => setLogoFailed(true)}
+                            loading="lazy"
+                            decoding="async"
+                        />
+                    ) : <span>{getAssetInitials(asset)}</span>}
+                </div>
                 <div className={styles.headerText}>
                     <h1>{displayName}</h1>
                     <div className={styles.metaLine}>ISIN {asset.isin || getAssetDetailKey(asset)} · {statusLabel}</div>
@@ -151,7 +172,25 @@ export default function AssetDetailPage() {
 
             <article className={styles.card}>
                 <div className={styles.cardHead}><h2>Asset-spezifische Aktivitäten</h2></div>
-                <div className={styles.inlineEmpty}>Zu diesem Asset stehen lokale Aktivitäten im gewählten Portfolio-Scope bereit. Eine detaillierte Verlaufsauswertung folgt mit dem Marktpreis-Modul.</div>
+                {recentActivities.length > 0 ? (
+                    <div className={styles.breakdownList}>
+                        {recentActivities.map((activity) => (
+                            <div key={activity.id} className={`${styles.breakdownRow} ${styles.activityRow}`}>
+                                <span className={styles.breakdownName}>
+                                    {new Date(activity.datetime).toLocaleDateString("de-DE")} · {getActivityTypeLabel(activity.type)}
+                                </span>
+                                <span>{activity.portfolioName || "Portfolio unbekannt"}</span>
+                                <span>{formatShares(activity.shares)}</span>
+                                <span>{formatCurrency(activity.amountNet)}</span>
+                            </div>
+                        ))}
+                    </div>
+                ) : <div className={styles.inlineEmpty}>Keine lokalen Aktivitäten im aktuell ausgewählten Portfolio-Scope.</div>}
+                <div className={styles.metricNote}>
+                    <Link href={`/activities?isin=${encodeURIComponent(asset.isin)}`} className="ui-btn ui-btn-secondary">
+                        Mehr Aktivitäten anzeigen
+                    </Link>
+                </div>
             </article>
         </main>
     );

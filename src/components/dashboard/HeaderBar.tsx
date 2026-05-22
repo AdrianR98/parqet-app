@@ -1,12 +1,7 @@
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import type { TopNavKey } from "../../app/(app)/layout";
-import {
-    getFreshnessStatusLabel,
-    getLoadedScopeIndicatorLabel,
-    getScopeIndicatorLabel,
-    loadLocalActivityReadModel,
-} from "../../lib/local-activity-read-model";
+import { getFreshnessStatusLabel, loadLocalActivityReadModel } from "../../lib/local-activity-read-model";
 import { loadDashboardCache } from "../../lib/dashboard-cache";
 import { getConnectionStatusView } from "../../lib/connection-status";
 import styles from "./HeaderBar.module.css";
@@ -29,15 +24,11 @@ const STATUS_SEPARATOR = "\u001f";
 
 function serializeHeaderStatus(
     connectionStatus = INITIAL_CONNECTION_STATUS,
-    scopeLabel = "Auswahl: unbekannt",
-    loadedScopeLabel = "Geladen: kein Stand",
     freshnessLabel = "Nicht geladen / Datenstand unbekannt",
 ): string {
     return [
         connectionStatus.kind,
         connectionStatus.label,
-        scopeLabel,
-        loadedScopeLabel,
         freshnessLabel,
     ].join(STATUS_SEPARATOR);
 }
@@ -48,8 +39,6 @@ function getHeaderStatusSnapshot(): string {
 
     return serializeHeaderStatus(
         connectionStatus,
-        getScopeIndicatorLabel(localStatus),
-        getLoadedScopeIndicatorLabel(localStatus),
         getFreshnessStatusLabel(localStatus),
     );
 }
@@ -79,8 +68,7 @@ export default function HeaderBar({
         getHeaderStatusSnapshot,
         () => serializeHeaderStatus(),
     );
-    const [connectionKind, connectionLabel, scopeLabel, loadedScopeLabel, freshnessLabel] =
-        headerStatus.split(STATUS_SEPARATOR);
+    const [connectionKind, connectionLabel, freshnessLabel] = headerStatus.split(STATUS_SEPARATOR);
 
     return (
         <header className={styles.header}>
@@ -99,8 +87,6 @@ export default function HeaderBar({
             </nav>
             <div className={styles.statusRow}>
                 <span className={`${styles.pill} ${styles[`connection_${connectionKind}`]}`}>{connectionLabel}</span>
-                <span className={styles.pill}>{scopeLabel}</span>
-                <span className={styles.pill}>{loadedScopeLabel}</span>
                 <span className={styles.pill}>{freshnessLabel}</span>
                 <button type="button" className="ui-btn ui-btn-ghost" onClick={onToggleThemeAction}>
                     {appearanceMode === "system" ? `System (${theme === "dark" ? "Dunkel" : "Hell"})` : theme === "dark" ? "Dunkel" : "Hell"}

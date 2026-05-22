@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import styles from "./ActivitiesPage.module.css";
 import {
   ALL_ACTIVITY_TYPES,
@@ -208,11 +209,16 @@ function getDefaultActivityFilters(): ActivityFilters {
 }
 
 export default function ActivitiesPage() {
+  const searchParams = useSearchParams();
+  const initialIsinFilter = searchParams.get("isin")?.trim() ?? "";
   const { value: readModel } = useHydrationSafeLocalSnapshot(
     loadLocalActivityReadModel,
     getEmptyLocalActivityReadModel,
   );
-  const [filters, setFilters] = useState<ActivityFilters>(() => getDefaultActivityFilters());
+  const [filters, setFilters] = useState<ActivityFilters>(() => ({
+    ...getDefaultActivityFilters(),
+    query: initialIsinFilter,
+  }));
   const [useHydratedPortfolioScope, setUseHydratedPortfolioScope] = useState(true);
   const [sort, setSort] = useState<ActivitySort>({ key: "date", direction: "desc" });
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);

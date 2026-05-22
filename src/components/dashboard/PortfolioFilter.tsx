@@ -24,6 +24,7 @@ export default function PortfolioFilter({
     onReset,
 }: PortfolioFilterProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
+    const shouldApplyRef = useRef(false);
     const selectedCount = selectedPortfolioIds.length;
     const totalCount = portfolios.length;
 
@@ -41,16 +42,34 @@ export default function PortfolioFilter({
             return;
         }
 
+        if (shouldApplyRef.current) {
+            shouldApplyRef.current = false;
+            onApply();
+            setTimeout(() => {
+                onToggleOpen();
+            }, 0);
+        }
+    }, [draftPortfolioIds, isOpen, onApply, onToggleOpen]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        function closeMenu() {
+            onToggleOpen();
+        }
+
         function handlePointerDown(event: MouseEvent) {
             const target = event.target as Node;
             if (!wrapperRef.current?.contains(target)) {
-                onToggleOpen();
+                closeMenu();
             }
         }
 
         function handleEscape(event: KeyboardEvent) {
             if (event.key === "Escape") {
-                onToggleOpen();
+                closeMenu();
             }
         }
 
@@ -64,23 +83,13 @@ export default function PortfolioFilter({
     }, [isOpen, onToggleOpen]);
 
     function handleTogglePortfolio(portfolioId: string) {
+        shouldApplyRef.current = true;
         onToggleDraftPortfolio(portfolioId);
-        setTimeout(() => {
-            onApply();
-            setTimeout(() => {
-                onToggleOpen();
-            }, 0);
-        }, 0);
     }
 
     function handleReset() {
+        shouldApplyRef.current = true;
         onReset();
-        setTimeout(() => {
-            onApply();
-            setTimeout(() => {
-                onToggleOpen();
-            }, 0);
-        }, 0);
     }
 
     return (
@@ -92,7 +101,7 @@ export default function PortfolioFilter({
                 aria-expanded={isOpen}
             >
                 <span className={styles.label}>Portfolios</span>
-                <span className={styles.value}>{triggerLabel}</span>
+                <span className={styles.value}>{selectedCount > 0 ? `${selectedCount} ausgewählt` : triggerLabel}</span>
                 <span className={styles.chevron}>▾</span>
             </button>
 

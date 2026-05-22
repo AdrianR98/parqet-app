@@ -26,6 +26,8 @@ type HeroSectionProps = {
     onApply: () => void;
     onReset: () => void;
     onLoadAssets: () => void;
+    searchQuery: string;
+    onSearchQueryChange: (value: string) => void;
     totalPositionValue?: number;
     totalUnrealizedPnL?: number;
     totalDividendNet?: number;
@@ -67,6 +69,8 @@ export default function HeroSection({
     onApply,
     onReset,
     onLoadAssets,
+    searchQuery,
+    onSearchQueryChange,
     totalPositionValue,
     totalUnrealizedPnL,
     totalDividendNet,
@@ -89,7 +93,14 @@ export default function HeroSection({
                     onReset={onReset}
                 />
 
-                <input className={`ui-input ${styles.search}`} type="search" placeholder="Suche" aria-label="Globale Suche" readOnly />
+                <input
+                    className={`ui-input ${styles.search}`}
+                    type="search"
+                    placeholder="Suche nach Wertpapieren, ETFs, Kryptowährungen …"
+                    aria-label="Globale Suche"
+                    value={searchQuery}
+                    onChange={(event) => onSearchQueryChange(event.target.value)}
+                />
 
                 <button type="button" className="ui-btn ui-btn-secondary" onClick={onLoadAssets} disabled={loadingAssets || refreshingAssets}>
                     {loadingAssets ? "Lädt..." : refreshingAssets && hasCachedData ? "Lädt neu..." : "Daten neu laden"}
@@ -122,7 +133,7 @@ export default function HeroSection({
                 </div>
             </div>
 
-            <div className={styles.meta}>{selectedPortfolioCount} ausgewählt · {loadedPortfolioCount} geladen · {assetCount} Assets{hasPendingPortfolioSelection ? " · Auswahl noch nicht geladen" : ""}</div>
+            <div className={styles.meta}>Lokale Daten vorhanden · {assetCount} Assets{hasPendingPortfolioSelection ? " · Auswahl noch nicht geladen" : " · Aktuell"}</div>
         </section>
     );
 }
