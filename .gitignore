@@ -43,6 +43,7 @@ yarn-error.log*
 
 # private local references and generated notes
 .local/
+.market-data/
 
 # env files
 .env

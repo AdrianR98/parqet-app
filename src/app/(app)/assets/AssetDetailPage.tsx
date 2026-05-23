@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import {
     loadAssetDetailTimeRange,
@@ -24,6 +24,7 @@ import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
 import { getActivityTypeLabel, normalizeExactIsin } from "../../../lib/local-activity-read-model";
 import { formatCurrency, formatShares } from "../../../lib/format";
 import { getAssetInitials, getAssetResolvedLogoUrl } from "../../../lib/asset-display";
+import type { MarketDataAction, MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../../../lib/market-data/types";
 import type { ActivitiesAuditItem, AssetSummary, PortfolioPosition } from "../../../lib/types";
 import styles from "./AssetDetailPage.module.css";
 
@@ -39,6 +40,150 @@ const DETAIL_RANGE_OPTIONS = [
 ] as const;
 
 type DetailRangeKey = (typeof DETAIL_RANGE_OPTIONS)[number]["key"];
+type MarketDataLoadMode = "initial" | "refresh";
+type MarketReturnMode = "price_only" | "price_plus_dividends";
+type ActivePriceTooltip = {
+    index: number;
+};
+
+const MARKET_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+});
+const MARKET_PRICE_FORMATTER = new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+const MARKET_PERCENT_FORMATTER = new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
+function parseMarketDataResponse(payload: unknown): MarketDataResponse | null {
+    if (!payload || typeof payload !== "object") {
+        return null;
+    }
+
+    const candidate = payload as Partial<MarketDataResponse>;
+    if (typeof candidate.ok !== "boolean" || typeof candidate.status !== "string") {
+        return null;
+    }
+
+    return candidate as MarketDataResponse;
+}
+
+function rangeMonthsFor(selectedRange: DetailRangeKey): number | null {
+    return DETAIL_RANGE_OPTIONS.find((option) => option.key === selectedRange)?.months ?? null;
+}
+
+function filterMarketPointsByRange(points: MarketDataPoint[], selectedRange: DetailRangeKey): MarketDataPoint[] {
+    if (points.length <= 1) {
+        return points;
+    }
+
+    const months = rangeMonthsFor(selectedRange);
+    if (!months) {
+        return points;
+    }
+
+    const latestPoint = points[points.length - 1];
+    const latestDate = new Date(latestPoint.date);
+    if (Number.isNaN(latestDate.getTime())) {
+        return points;
+    }
+
+    const rangeStart = new Date(latestDate);
+    rangeStart.setMonth(rangeStart.getMonth() - months);
+    const filtered = points.filter((point) => {
+        const date = new Date(point.date);
+        if (Number.isNaN(date.getTime())) {
+            return false;
+        }
+        return date >= rangeStart;
+    });
+
+    return filtered.length > 0 ? filtered : points;
+}
+
+function shouldShowCoverageNote(points: MarketDataPoint[], selectedRange: DetailRangeKey): boolean {
+    if (points.length < 2) {
+        return selectedRange !== "1y";
+    }
+
+    const months = rangeMonthsFor(selectedRange);
+    if (!months) {
+        return false;
+    }
+
+    const start = new Date(points[0].date);
+    const end = new Date(points[points.length - 1].date);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return true;
+    }
+
+    const spanMonths = Math.max(
+        0,
+        (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()),
+    );
+
+    return spanMonths + 1 < months;
+}
+
+function computeVisibleCumulativeDividends(points: MarketDataPoint[], actions: MarketDataAction[]): number[] {
+    if (points.length === 0) {
+        return [];
+    }
+
+    const sortedDividendActions = actions
+        .filter((action) => action.actionType === "dividend" && Number.isFinite(action.amount))
+        .slice()
+        .sort((left, right) => left.date.localeCompare(right.date));
+
+    const rangeStart = points[0].date;
+    let actionIndex = 0;
+    let runningTotal = 0;
+    const result: number[] = [];
+
+    for (const point of points) {
+        while (actionIndex < sortedDividendActions.length) {
+            const action = sortedDividendActions[actionIndex];
+            if (action.date < rangeStart) {
+                actionIndex += 1;
+                continue;
+            }
+            if (action.date > point.date) {
+                break;
+            }
+            runningTotal += action.amount;
+            actionIndex += 1;
+        }
+        result.push(runningTotal);
+    }
+
+    return result;
+}
+
+function marketDataMessageForStatus(status: MarketDataStatus, message?: string): string {
+    if (message && message.trim().length > 0) {
+        return message;
+    }
+
+    if (status === "cache_miss") {
+        return "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
+    }
+    if (status === "missing_symbol") {
+        return "Für dieses Asset ist noch kein Marktdaten-Symbol hinterlegt.";
+    }
+    if (status === "missing_api_key") {
+        return "Alpha-Vantage-API-Key ist serverseitig nicht konfiguriert.";
+    }
+    if (status === "rate_limited") {
+        return "Alpha-Vantage-Tageslimit erreicht. Es wurden keine neuen Kursdaten abgefragt.";
+    }
+
+    return "Kursdaten konnten nicht geladen werden.";
+}
 
 function uniqueIds(ids: string[]): string[] {
     return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
@@ -557,6 +702,199 @@ function getActivityTypeTone(type: string): string {
     return styles.activityNeutral;
 }
 
+function MarketPriceChart({
+    points,
+    actions,
+    selectedRange,
+    showCoverageNote,
+    returnMode,
+}: {
+    points: MarketDataPoint[];
+    actions: MarketDataAction[];
+    selectedRange: DetailRangeKey;
+    showCoverageNote: boolean;
+    returnMode: MarketReturnMode;
+}) {
+    const [activeTooltip, setActiveTooltip] = useState<ActivePriceTooltip | null>(null);
+
+    const filteredPoints = useMemo(() => filterMarketPointsByRange(points, selectedRange), [points, selectedRange]);
+    const visibleCumulativeDividends = useMemo(
+        () => computeVisibleCumulativeDividends(filteredPoints, actions),
+        [filteredPoints, actions],
+    );
+    const seriesValues = filteredPoints.map((point, index) => (
+        returnMode === "price_plus_dividends"
+            ? point.close + (visibleCumulativeDividends[index] ?? 0)
+            : point.close
+    ));
+    const yValues = seriesValues;
+    const min = Math.min(...yValues);
+    const max = Math.max(...yValues);
+    const ySpan = Math.max(0.0001, max - min);
+    const leftPad = 48;
+    const rightPad = 12;
+    const topPad = 14;
+    const bottomPad = 28;
+    const width = 1000;
+    const height = 280;
+    const plotWidth = width - leftPad - rightPad;
+    const plotHeight = height - topPad - bottomPad;
+
+    const plottedPoints = filteredPoints.map((point, index) => {
+        const xRatio = filteredPoints.length <= 1 ? 0 : index / (filteredPoints.length - 1);
+        const value = seriesValues[index] ?? point.close;
+        const yRatio = (value - min) / ySpan;
+        return {
+            ...point,
+            x: leftPad + xRatio * plotWidth,
+            y: topPad + (1 - yRatio) * plotHeight,
+            value,
+            cumulativeDividends: visibleCumulativeDividends[index] ?? 0,
+        };
+    });
+
+    const path = plottedPoints
+        .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+        .join(" ");
+    const areaPath = plottedPoints.length > 1
+        ? `${path} L${plottedPoints[plottedPoints.length - 1].x.toFixed(2)} ${(height - bottomPad).toFixed(2)} L${plottedPoints[0].x.toFixed(2)} ${(height - bottomPad).toFixed(2)} Z`
+        : "";
+
+    const latestPoint = filteredPoints[filteredPoints.length - 1];
+    const firstPoint = filteredPoints[0];
+    const startValue = seriesValues[0] ?? firstPoint.close;
+    const endValue = seriesValues[seriesValues.length - 1] ?? latestPoint.close;
+    const changeAbsolute = endValue - startValue;
+    const changePercent = startValue !== 0 ? (changeAbsolute / startValue) * 100 : 0;
+
+    const activePoint = activeTooltip ? plottedPoints[activeTooltip.index] : null;
+    const xLabelIndices = filteredPoints.length <= 1
+        ? [0]
+        : Array.from(new Set([0, Math.floor((filteredPoints.length - 1) / 3), Math.floor((filteredPoints.length - 1) * 2 / 3), filteredPoints.length - 1]));
+    const yTicks = [0, 1, 2, 3, 4].map((step) => min + (ySpan * step) / 4);
+    const changeClass = changeAbsolute >= 0 ? styles.positive : styles.negative;
+    const xAxisY = height - bottomPad;
+
+    function resolveNearestIndex(clientX: number, svgRectLeft: number, svgRectWidth: number): number {
+        if (filteredPoints.length <= 1) {
+            return 0;
+        }
+        const normalizedX = Math.max(0, Math.min(1, (clientX - svgRectLeft) / svgRectWidth));
+        return Math.max(0, Math.min(filteredPoints.length - 1, Math.round(normalizedX * (filteredPoints.length - 1))));
+    }
+
+    return (
+        <div className={styles.marketChartWrap}>
+            <div className={styles.marketKpiRow}>
+                <div className={styles.marketKpiItem}>
+                    <span>Letzter Schlusskurs</span>
+                    <strong>{MARKET_PRICE_FORMATTER.format(latestPoint.close)}</strong>
+                    <small>{MARKET_DATE_FORMATTER.format(new Date(latestPoint.date))}</small>
+                </div>
+                <div className={styles.marketKpiItem}>
+                    <span>{returnMode === "price_plus_dividends" ? "Gesamtertrag" : "Kursänderung"}</span>
+                    <strong className={changeClass}>
+                        {changeAbsolute >= 0 ? "+" : ""}{MARKET_PRICE_FORMATTER.format(changeAbsolute)} ({changePercent >= 0 ? "+" : ""}{MARKET_PERCENT_FORMATTER.format(changePercent)} %)
+                    </strong>
+                    <small>{returnMode === "price_plus_dividends" ? "Schlusskurs + Dividenden, ohne Reinvestition" : "Schlusskurs, ohne Dividenden"}</small>
+                </div>
+            </div>
+
+            <div className={styles.marketChartFrame}>
+                <svg viewBox={`0 0 ${width} ${height}`} className={styles.marketChartSvg} role="img" aria-label="Schlusskurs-Verlauf">
+                    {yTicks.map((tick) => {
+                        const ratio = (tick - min) / ySpan;
+                        const y = topPad + (1 - ratio) * plotHeight;
+                        return (
+                            <g key={`tick-${tick}`}>
+                                <line x1={leftPad} x2={width - rightPad} y1={y} y2={y} className={styles.marketGridLine} />
+                                <text x={leftPad - 8} y={y + 4} className={styles.marketYAxisLabel} textAnchor="end">
+                                    {MARKET_PRICE_FORMATTER.format(tick)}
+                                </text>
+                            </g>
+                        );
+                    })}
+
+                    <line x1={leftPad} x2={width - rightPad} y1={xAxisY} y2={xAxisY} className={styles.marketAxisLine} />
+                    {xLabelIndices.map((index) => {
+                        const point = plottedPoints[index];
+                        return (
+                            <text key={`x-${point.date}-${index}`} x={point.x} y={height - 8} className={styles.marketXAxisLabel} textAnchor="middle">
+                                {new Date(point.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                            </text>
+                        );
+                    })}
+
+                    {areaPath ? <path d={areaPath} className={styles.marketAreaPath} /> : null}
+                    <path d={path} className={styles.marketLinePath} />
+                    {activePoint ? (
+                        <>
+                            <line
+                                x1={activePoint.x}
+                                x2={activePoint.x}
+                                y1={topPad}
+                                y2={xAxisY}
+                                className={styles.marketCrosshairLine}
+                            />
+                            <circle cx={activePoint.x} cy={activePoint.y} r={4} className={styles.marketPointDot} />
+                        </>
+                    ) : null}
+
+                    <rect
+                        x={leftPad}
+                        y={topPad}
+                        width={plotWidth}
+                        height={plotHeight}
+                        className={styles.marketHoverOverlay}
+                        onMouseMove={(event) => {
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            const index = resolveNearestIndex(event.clientX, rect.left, rect.width);
+                            setActiveTooltip({ index });
+                        }}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                        onFocus={(event) => {
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            const index = resolveNearestIndex(rect.left + rect.width / 2, rect.left, rect.width);
+                            setActiveTooltip({ index });
+                        }}
+                        onBlur={() => setActiveTooltip(null)}
+                        tabIndex={0}
+                        aria-label="Marktpreis-Interaktion"
+                    />
+                </svg>
+
+                {activePoint ? (
+                    <div
+                        className={styles.marketTooltip}
+                        style={{
+                            left: `${(activePoint.x / width) * 100}%`,
+                            top: `${(activePoint.y / height) * 100}%`,
+                        }}
+                    >
+                        <strong>{MARKET_DATE_FORMATTER.format(new Date(activePoint.date))}</strong>
+                        <span>Schlusskurs: {MARKET_PRICE_FORMATTER.format(activePoint.close)}</span>
+                        {returnMode === "price_plus_dividends" ? (
+                            <>
+                                <span>Kumulierte Dividenden: {MARKET_PRICE_FORMATTER.format(activePoint.cumulativeDividends)}</span>
+                                <span>Serienwert: {MARKET_PRICE_FORMATTER.format(activePoint.value)}</span>
+                            </>
+                        ) : null}
+                        {typeof activePoint.open === "number" ? <span>Open: {MARKET_PRICE_FORMATTER.format(activePoint.open)}</span> : null}
+                        {typeof activePoint.high === "number" ? <span>High: {MARKET_PRICE_FORMATTER.format(activePoint.high)}</span> : null}
+                        {typeof activePoint.low === "number" ? <span>Low: {MARKET_PRICE_FORMATTER.format(activePoint.low)}</span> : null}
+                    </div>
+                ) : null}
+            </div>
+
+            {showCoverageNote ? (
+                <div className={styles.marketCoverageNote}>
+                    Für den gewählten Zeitraum sind nur die letzten {points.length} Handelstage verfügbar.
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
 export default function AssetDetailPage() {
     const searchParams = useSearchParams();
     const assetKey = searchParams.get("id")?.trim() ?? "";
@@ -578,6 +916,12 @@ export default function AssetDetailPage() {
         () => loadAssetDetailTimeRange(),
         () => "1y",
     );
+    const [marketDataResponse, setMarketDataResponse] = useState<MarketDataResponse | null>(null);
+    const [marketDataLoading, setMarketDataLoading] = useState(false);
+    const [marketDataRefreshing, setMarketDataRefreshing] = useState(false);
+    const [marketDataNetworkError, setMarketDataNetworkError] = useState<string | null>(null);
+    const [marketReturnMode, setMarketReturnMode] = useState<MarketReturnMode>("price_only");
+    const marketRequestSequence = useRef(0);
 
     const viewModel = useMemo(() => {
         void localStateSnapshot;
@@ -625,6 +969,85 @@ export default function AssetDetailPage() {
         ? `${viewModel.asset.isin}|${getAssetResolvedLogoUrl(viewModel.asset) ?? ""}`
         : "";
     const logoFailed = Boolean(logoResetIdentity && failedLogoIdentities[logoResetIdentity]);
+    const currentIsin = viewModel?.asset?.isin?.trim() ?? "";
+
+    const loadMarketData = useCallback(async (mode: MarketDataLoadMode, signal?: AbortSignal) => {
+        if (!currentIsin) {
+            setMarketDataResponse({
+                ok: false,
+                status: "invalid_request",
+                message: "Ungültige ISIN.",
+            });
+            return;
+        }
+
+        const requestId = marketRequestSequence.current + 1;
+        marketRequestSequence.current = requestId;
+        setMarketDataNetworkError(null);
+
+        if (mode === "refresh") {
+            setMarketDataRefreshing(true);
+        } else {
+            setMarketDataLoading(true);
+        }
+
+        try {
+            const query = mode === "refresh"
+                ? `/api/market-data/history?isin=${encodeURIComponent(currentIsin)}&refresh=1`
+                : `/api/market-data/history?isin=${encodeURIComponent(currentIsin)}`;
+            const response = await fetch(query, { method: "GET", signal });
+            const payload = parseMarketDataResponse(await response.json());
+
+            if (signal?.aborted || requestId !== marketRequestSequence.current) {
+                return;
+            }
+
+            if (!payload) {
+                setMarketDataResponse({
+                    ok: false,
+                    status: "provider_error",
+                    message: "Kursdaten konnten nicht geladen werden.",
+                });
+                return;
+            }
+
+            setMarketDataResponse(payload);
+        } catch (error) {
+            if (signal?.aborted || requestId !== marketRequestSequence.current) {
+                return;
+            }
+
+            setMarketDataNetworkError(error instanceof Error ? error.message : "Unbekannter Fehler");
+            setMarketDataResponse({
+                ok: false,
+                status: "provider_error",
+                message: "Kursdaten konnten nicht geladen werden.",
+            });
+        } finally {
+            if (signal?.aborted || requestId !== marketRequestSequence.current) {
+                return;
+            }
+
+            if (mode === "refresh") {
+                setMarketDataRefreshing(false);
+            } else {
+                setMarketDataLoading(false);
+            }
+        }
+    }, [currentIsin]);
+
+    useEffect(() => {
+        if (!currentIsin) {
+            return;
+        }
+
+        const controller = new AbortController();
+        void loadMarketData("initial", controller.signal);
+
+        return () => {
+            controller.abort();
+        };
+    }, [currentIsin, loadMarketData]);
 
     if (!clientReady) {
         return (
@@ -676,6 +1099,41 @@ export default function AssetDetailPage() {
     const hasScopedPosition = metrics.portfolioBreakdown.length > 0;
     const recentActivities = scopedAssetActivities.slice(0, 5);
     const noScopedAssetMessage = "Dieses Asset ist in den ausgewählten Portfolios nicht enthalten.";
+    const marketStatus = marketDataResponse?.status ?? null;
+    const marketDataPoints = marketDataResponse?.data?.points ?? [];
+    const marketDataActions = marketDataResponse?.data?.actions ?? [];
+    const hasMarketSeries = marketDataResponse?.ok && marketDataPoints.length > 0;
+    const marketMessage = marketDataResponse
+        ? marketDataMessageForStatus(marketDataResponse.status, marketDataResponse.message)
+        : "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
+    const showManualRefreshButton = marketStatus !== "missing_symbol";
+    const quotaInfo = marketDataResponse?.quota;
+    const refreshedAt = marketDataResponse?.data?.refreshedAt ?? marketDataResponse?.cache?.refreshedAt ?? null;
+    const sourceLabel = marketDataResponse?.data?.provider === "alphavantage"
+        ? "Alpha Vantage"
+        : marketDataResponse?.data?.provider === "yfinance"
+            ? "yfinance"
+            : "Marktdaten";
+    const cacheStateLabel = marketDataResponse?.cache
+        ? (marketDataResponse.cache.isFresh ? "frisch" : "stale")
+        : null;
+    const hasMarketWarningWithData =
+        hasMarketSeries &&
+        marketStatus !== "cache_hit" &&
+        marketStatus !== "refreshed" &&
+        marketStatus !== "db_hit";
+    const isDbBackedSeries = marketDataResponse?.data?.source === "postgres";
+    const compactLimitedSource = typeof marketDataResponse?.data?.source === "string"
+        && marketDataResponse.data.source.includes("compact");
+    const showCoverageNote = shouldShowCoverageNote(marketDataPoints, selectedRange);
+    const showLongHistoryHint = !isDbBackedSeries && (compactLimitedSource || showCoverageNote);
+    const historyHint = `Historie verfügbar: ${Math.max(marketDataPoints.length, 0).toLocaleString("de-DE")} Handelstage`;
+    const showRefreshButton = showManualRefreshButton && !isDbBackedSeries;
+    const showAlphaBudgetHint = showRefreshButton;
+    const importUpdateHint = isDbBackedSeries ? "Aktualisierung erfolgt über den Kursdatenimport." : null;
+    const localizedSourceLabel = isDbBackedSeries
+        ? "eigene Kursdatenbank"
+        : sourceLabel;
 
     return (
         <main className={styles.page}>
@@ -725,22 +1183,99 @@ export default function AssetDetailPage() {
                 <article className={`${styles.card} ${styles.chartCard}`}>
                     <div className={styles.cardHead}>
                         <h2>Performance & Verlauf</h2>
-                        <div className={styles.rangeSelector} role="group" aria-label="Zeitraum auswählen">
-                            {DETAIL_RANGE_OPTIONS.map((option) => (
+                        <div className={styles.marketControlStack}>
+                            <div className={styles.rangeSelector} role="group" aria-label="Zeitraum auswählen">
+                                {DETAIL_RANGE_OPTIONS.map((option) => (
+                                    <button
+                                        key={option.key}
+                                        type="button"
+                                        className={`${styles.rangeButton} ${selectedRange === option.key ? styles.rangeButtonActive : ""}`}
+                                        onClick={() => saveAssetDetailTimeRange(option.key)}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className={styles.returnModeSelector} role="group" aria-label="Darstellung auswählen">
                                 <button
-                                    key={option.key}
                                     type="button"
-                                    className={`${styles.rangeButton} ${selectedRange === option.key ? styles.rangeButtonActive : ""}`}
-                                    onClick={() => saveAssetDetailTimeRange(option.key)}
+                                    className={`${styles.returnModeButton} ${marketReturnMode === "price_only" ? styles.returnModeButtonActive : ""}`}
+                                    onClick={() => setMarketReturnMode("price_only")}
                                 >
-                                    {option.label}
+                                    Kurs
                                 </button>
-                            ))}
+                                <button
+                                    type="button"
+                                    className={`${styles.returnModeButton} ${marketReturnMode === "price_plus_dividends" ? styles.returnModeButtonActive : ""}`}
+                                    onClick={() => setMarketReturnMode("price_plus_dividends")}
+                                >
+                                    Kurs + Dividenden
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div className={styles.chartMissing}>
-                        <strong>Historische Kursdaten fehlen</strong>
-                        <p>Für Kurs-, Positionswert- und Performance-Verläufe fehlen historische Marktdaten.</p>
+                    {marketDataLoading ? (
+                        <div className={styles.chartMissing}>
+                            <strong>Kursdaten werden geladen …</strong>
+                            <p>Es werden nur lokal verfügbare Kursdaten angezeigt.</p>
+                        </div>
+                    ) : hasMarketSeries ? (
+                        <div className={styles.marketChartSection}>
+                            <MarketPriceChart
+                                points={marketDataPoints}
+                                actions={marketDataActions}
+                                selectedRange={selectedRange}
+                                showCoverageNote={showCoverageNote}
+                                returnMode={marketReturnMode}
+                            />
+                            {hasMarketWarningWithData ? (
+                                <div className={styles.marketStatusWarning}>{marketMessage}</div>
+                            ) : null}
+                            <div className={styles.marketMetaRow}>
+                                <span>{historyHint}</span>
+                                <span>Quelle: {localizedSourceLabel} · Symbol: {marketDataResponse?.data?.symbol ?? "—"}</span>
+                                <span>Stand: {refreshedAt ? new Date(refreshedAt).toLocaleString("de-DE") : "unbekannt"}</span>
+                                {cacheStateLabel ? <span>Cache: {cacheStateLabel}</span> : null}
+                            </div>
+                            {showLongHistoryHint ? (
+                                <div className={styles.marketHintLine}>
+                                    Für längere historische Verläufe ist später eine zusätzliche Datenquelle nötig.
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : (
+                        <div className={styles.chartMissing}>
+                            <strong>{marketStatus === "missing_symbol" ? "Marktdaten-Symbol fehlt" : "Historische Kursdaten fehlen"}</strong>
+                            <p>{marketMessage}</p>
+                            {marketStatus === "missing_symbol" ? (
+                                <p className={styles.marketMappingHint}>Lege zuerst ein Symbol-Mapping an. Mapping: <code>src/data/market-symbol-overrides.json</code></p>
+                            ) : null}
+                        </div>
+                    )}
+                    <div className={styles.marketActionRow}>
+                        {showRefreshButton ? (
+                            <button
+                                type="button"
+                                className="ui-btn ui-btn-secondary"
+                                onClick={() => {
+                                    if (marketDataRefreshing) {
+                                        return;
+                                    }
+                                    void loadMarketData("refresh");
+                                }}
+                                disabled={marketDataRefreshing || !currentIsin}
+                            >
+                                {marketDataRefreshing ? "Kursdaten werden aktualisiert …" : "Kursdaten aktualisieren"}
+                            </button>
+                        ) : null}
+                        {showAlphaBudgetHint ? <span className={styles.marketBudgetHint}>Verbraucht einen Alpha-Vantage-Request.</span> : null}
+                        {importUpdateHint ? <span className={styles.marketBudgetHint}>{importUpdateHint}</span> : null}
+                        {quotaInfo ? (
+                            <span className={styles.marketBudgetQuota}>
+                                Heute verbleibend: {quotaInfo.remainingToday} von {quotaInfo.dailyLimit}
+                            </span>
+                        ) : null}
+                        {marketDataNetworkError ? <span className={styles.marketBudgetError}>Netzwerkhinweis: {marketDataNetworkError}</span> : null}
                     </div>
                 </article>
 
