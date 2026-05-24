@@ -14,10 +14,10 @@ import type { GuardedSourceSelection } from "./parqet/global-assets/product-surf
  * Zentraler localStorage-Key fuer den Dashboard-Cache.
  *
  * WICHTIG:
- * Version auf v2 erhoeht, weil sich die Asset-Struktur geaendert hat
- * und nun portfolioBreakdown erwartet wird.
+ * Version auf v3 erhoeht, weil instrumentMetadataStatus fuer
+ * ISIN-basierte Assets verpflichtend geworden ist.
  */
-export const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v2";
+export const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v3";
 
 /**
  * Ab wann der Datenstand als veraltet markiert werden soll.
@@ -77,7 +77,8 @@ function isCacheAssetCompatible(asset: unknown): asset is AssetSummary {
     typeof candidate.isin === "string" &&
     Array.isArray(candidate.portfolioIds) &&
     Array.isArray(candidate.portfolioNames) &&
-    Array.isArray(candidate.portfolioBreakdown)
+    Array.isArray(candidate.portfolioBreakdown) &&
+    typeof candidate.instrumentMetadataStatus === "string"
   );
 }
 

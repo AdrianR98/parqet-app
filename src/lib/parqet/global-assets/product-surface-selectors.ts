@@ -339,6 +339,31 @@ function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
   fallback?: AssetSummary;
 }): AssetSummary {
   const { row, fallback } = input;
+  const compatibilityIsin = row.identity.compatibilityIsin?.trim().toUpperCase() ?? null;
+  const rowDisplayName = row.display.displayName.trim();
+  const inferredMissingName =
+    Boolean(compatibilityIsin) &&
+    rowDisplayName.toUpperCase() === compatibilityIsin;
+  const inferredStatus: AssetSummary["instrumentMetadataStatus"] = inferredMissingName
+    ? "missing_name"
+    : "ok";
+  const inferredError = compatibilityIsin
+    ? `Instrumentenname fehlt in market_instruments für ISIN ${compatibilityIsin}`
+    : null;
+  const authoritativeStatus = fallback?.instrumentMetadataStatus ?? inferredStatus;
+  const authoritativeError =
+    fallback?.instrumentMetadataError ??
+    (authoritativeStatus === "ok" ? null : inferredError);
+  const authoritativeDisplayName =
+    authoritativeStatus === "ok"
+      ? (
+          fallback?.instrumentDisplayName ??
+          fallback?.displayName ??
+          fallback?.name ??
+          row.display.displayName
+        )
+      : "Stammdaten fehlen";
+  const authoritativeWkn = fallback?.wkn ?? row.display.wkn ?? null;
   const isin =
     row.identity.compatibilityIsin ??
     fallback?.isin ??
@@ -374,16 +399,26 @@ function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
     unrealizedPnL,
     totalDividendNet: fallback?.totalDividendNet ?? 0,
     latestActivityAt: row.latestActivityAt ?? fallback?.latestActivityAt ?? null,
-    name: row.display.displayName,
-    assetName: row.display.displayName,
-    displayName: row.display.displayName,
-    title: row.display.displayName,
+    name: authoritativeDisplayName,
+    assetName: authoritativeDisplayName,
+    displayName: authoritativeDisplayName,
+    title: authoritativeDisplayName,
+    instrumentDisplayName: authoritativeDisplayName,
+    instrumentName: fallback?.instrumentName ?? fallback?.name ?? null,
+    instrumentMetadataStatus: authoritativeStatus,
+    instrumentMetadataError: authoritativeError,
     symbol: row.display.symbol ?? fallback?.symbol ?? null,
     ticker: fallback?.ticker ?? null,
     tickerSymbol: fallback?.tickerSymbol ?? null,
-    wkn: row.display.wkn ?? fallback?.wkn ?? null,
+    wkn: authoritativeWkn,
     metadata: fallback?.metadata ?? null,
-    externalMetadata: fallback?.externalMetadata ?? null,
+    externalMetadata: {
+      ...(fallback?.externalMetadata ?? {}),
+      displayName: authoritativeDisplayName,
+      wkn: authoritativeWkn,
+      instrumentMetadataStatus: authoritativeStatus,
+      instrumentMetadataError: authoritativeError,
+    },
     assetMeta: fallback?.assetMeta ?? null,
   };
 }

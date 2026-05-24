@@ -4,6 +4,7 @@ import type {
     PortfolioPosition,
     ReconciliationWarning,
 } from "./types";
+import { getAssetDisplayName as resolveAssetDisplayName } from "./asset-display";
 
 export type AssetDetailWarning = {
     label: "Hinweis" | "Prüfen" | "Eingeschränkt";
@@ -44,17 +45,7 @@ export function getAssetDetailKey(asset: Pick<AssetSummary, "isin">): string {
 }
 
 export function getAssetDisplayName(asset: AssetSummary): string {
-    return (
-        asset.name ??
-        asset.assetName ??
-        asset.displayName ??
-        asset.title ??
-        asset.symbol ??
-        asset.ticker ??
-        asset.tickerSymbol ??
-        asset.wkn ??
-        asset.isin
-    );
+    return resolveAssetDisplayName(asset);
 }
 
 export function getAssetLogoUrl(asset: AssetSummary): string | null {

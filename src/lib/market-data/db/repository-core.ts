@@ -20,6 +20,8 @@ import type {
     PrimaryMappingForBackfill,
     EnrichMarketInstrumentsFromReferencesInput,
     EnrichMarketInstrumentsFromReferencesResult,
+    EnrichMarketInstrumentsFromTradingUniverseInput,
+    EnrichMarketInstrumentsFromTradingUniverseResult,
     DbMarketReferenceInstrument,
     DbMarketReferenceSource,
     DbXetraReferenceCandidate,
@@ -32,6 +34,8 @@ import type {
     UpsertInstrumentInput,
     UpsertMarketActionsInput,
     UpsertSymbolMappingInput,
+    TradingUniverseReferenceMatch,
+    ReferenceSourceCount,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -414,6 +418,37 @@ function isNameWeak(name: string | null, isin: string): boolean {
     return !normalized || normalized.toUpperCase() === isin.toUpperCase();
 }
 
+function hasLetters(value: string): boolean {
+    return /[a-zA-Z]/.test(value);
+}
+
+function isLikelyPlaceholderName(value: string): boolean {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "unknown" || normalized === "n/a" || normalized === "na" || normalized === "undefined" || normalized === "null";
+}
+
+function hasFundLikeTerms(value: string): boolean {
+    return /\b(etf|ucits|fund|fonds|index)\b/i.test(value);
+}
+
+export function compareInstrumentNameQuality(currentName: string | null, candidateName: string | null, isin: string): number {
+    const current = currentName?.trim() ?? "";
+    const candidate = candidateName?.trim() ?? "";
+    const normalizedIsin = isin.trim().toUpperCase();
+
+    if (!candidate || isLikelyPlaceholderName(candidate) || candidate.toUpperCase() === normalizedIsin) return -1000;
+    if (!current || isLikelyPlaceholderName(current) || current.toUpperCase() === normalizedIsin) return 1000;
+
+    if (hasFundLikeTerms(current) && !hasFundLikeTerms(candidate)) return -100;
+    if (!hasFundLikeTerms(current) && hasFundLikeTerms(candidate)) return 100;
+    if (hasLetters(candidate) && !hasLetters(current)) return 20;
+    if (!hasLetters(candidate) && hasLetters(current)) return -20;
+
+    const lengthDelta = Math.min(30, candidate.length - current.length);
+    const uppercasePenalty = /^[A-Z0-9 .&/-]+$/.test(candidate) && !/[a-z]/.test(candidate) ? -5 : 0;
+    return lengthDelta + uppercasePenalty;
+}
+
 export async function upsertReferenceSource(input: UpsertReferenceSourceInput): Promise<DbMarketReferenceSource> {
     try {
         const sourceKey = normalizeSourceKey(input.sourceKey);
@@ -432,6 +467,23 @@ export async function upsertReferenceSource(input: UpsertReferenceSourceInput): 
             [sourceKey, input.displayName.trim(), input.sourceType.trim(), input.fileName ?? null, input.rowCount ?? null, input.notes ?? null],
         );
         return mapReferenceSourceRow(result.rows[0]);
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listReferenceSourceCounts(): Promise<ReferenceSourceCount[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select source_key, count(*)::int as row_count
+             from market_reference_instruments
+             group by source_key
+             order by source_key asc`,
+        );
+        return result.rows.map((row) => ({
+            sourceKey: String(row.source_key),
+            rowCount: Number(row.row_count ?? 0),
+        }));
     } catch (error) {
         handleRepositoryError(error);
     }
@@ -711,6 +763,168 @@ export async function enrichMarketInstrumentsFromReferences(
             wknUpdates,
             currencyUpdates,
             assetTypeUpdates,
+        };
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+function isMeaningfulTradingUniverseName(value: string | null, isin: string): boolean {
+    if (!value) return false;
+    const normalized = value.trim();
+    if (!normalized) return false;
+    if (isLikelyPlaceholderName(normalized)) return false;
+    if (normalized.toUpperCase() === isin.toUpperCase()) return false;
+    return hasLetters(normalized);
+}
+
+export async function listTradingUniverseReferenceMatches(input: {
+    sourceKey?: string;
+    isin?: string;
+    limit?: number;
+    setDisplayName?: boolean;
+    forceName?: boolean;
+    forceDisplayName?: boolean;
+} = {}): Promise<TradingUniverseReferenceMatch[]> {
+    try {
+        const sourceKey = normalizeSourceKey(input.sourceKey ?? "trading_universe");
+        const normalizedIsin = input.isin ? assertIsin(input.isin) : null;
+        const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 10000;
+        const setDisplayName = Boolean(input.setDisplayName);
+        const forceName = Boolean(input.forceName);
+        const forceDisplayName = Boolean(input.forceDisplayName);
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select i.isin,
+                    i.name as current_name,
+                    i.display_name as current_display_name,
+                    r.name as reference_name
+             from market_instruments i
+             join lateral (
+                select rr.name
+                from market_reference_instruments rr
+                where rr.source_key = $1
+                  and rr.isin = i.isin
+                order by rr.imported_at desc, rr.id desc
+                limit 1
+             ) r on true
+             where ($2::text is null or i.isin = $2)
+             order by i.isin asc
+             limit $3`,
+            [sourceKey, normalizedIsin, limit],
+        );
+
+        return result.rows.map((row) => {
+            const isin = String(row.isin);
+            const currentName = row.current_name === null ? null : String(row.current_name);
+            const currentDisplayName = row.current_display_name === null ? null : String(row.current_display_name);
+            const referenceName = row.reference_name === null ? null : String(row.reference_name);
+            const meaningfulRef = isMeaningfulTradingUniverseName(referenceName, isin);
+            const nameQuality = compareInstrumentNameQuality(currentName, referenceName, isin);
+            const displayQuality = compareInstrumentNameQuality(currentDisplayName, referenceName, isin);
+            const currentNameWeak = !currentName || isNameWeak(currentName, isin);
+            const currentDisplayNameWeak = !currentDisplayName || isNameWeak(currentDisplayName, isin);
+
+            const plannedNameUpdate = meaningfulRef && (forceName || currentNameWeak || nameQuality > 0);
+            const plannedDisplayNameUpdate =
+                setDisplayName &&
+                meaningfulRef &&
+                (forceDisplayName || currentDisplayNameWeak || displayQuality > 0);
+            const existingBetter =
+                meaningfulRef &&
+                !forceName &&
+                !currentNameWeak &&
+                nameQuality <= 0 &&
+                (!setDisplayName || forceDisplayName || !currentDisplayNameWeak);
+
+            return {
+                isin,
+                currentName,
+                currentDisplayName,
+                referenceName,
+                plannedNameUpdate,
+                plannedDisplayNameUpdate,
+                existingBetter,
+            };
+        });
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function enrichMarketInstrumentsFromTradingUniverse(
+    input: EnrichMarketInstrumentsFromTradingUniverseInput = {},
+): Promise<EnrichMarketInstrumentsFromTradingUniverseResult> {
+    try {
+        const sourceKey = normalizeSourceKey(input.sourceKey ?? "trading_universe");
+        const matches = await listTradingUniverseReferenceMatches({
+            sourceKey,
+            isin: input.isin,
+            limit: input.limit,
+            setDisplayName: input.setDisplayName,
+            forceName: input.forceName,
+            forceDisplayName: input.forceDisplayName,
+        });
+
+        let updated = 0;
+        let nameUpdates = 0;
+        let displayNameUpdates = 0;
+        let skippedExistingBetter = 0;
+
+        await withPostgresClient(async (client) => {
+            await client.query("begin");
+            try {
+                for (const match of matches) {
+                    if (!match.plannedNameUpdate && !match.plannedDisplayNameUpdate) {
+                        if (match.existingBetter) skippedExistingBetter += 1;
+                        continue;
+                    }
+
+                    const updates: string[] = [];
+                    const params: Array<string> = [];
+
+                    if (match.plannedNameUpdate) {
+                        params.push(String(match.referenceName));
+                        updates.push(`name = $${params.length}`);
+                        params.push(sourceKey);
+                        updates.push(`name_source = $${params.length}`);
+                        nameUpdates += 1;
+                    }
+
+                    if (match.plannedDisplayNameUpdate) {
+                        params.push(String(match.referenceName));
+                        updates.push(`display_name = $${params.length}`);
+                        params.push(sourceKey);
+                        updates.push(`display_name_source = $${params.length}`);
+                        updates.push(`display_metadata_updated_at = now()`);
+                        displayNameUpdates += 1;
+                    }
+
+                    params.push(match.isin);
+                    await client.query(
+                        `update market_instruments
+                         set ${updates.join(", ")},
+                             updated_at = now()
+                         where isin = $${params.length}`,
+                        params,
+                    );
+                    updated += 1;
+                }
+
+                await client.query("commit");
+            } catch (error) {
+                await client.query("rollback");
+                throw error;
+            }
+        });
+
+        return {
+            matched: matches.length,
+            updated,
+            nameUpdates,
+            displayNameUpdates,
+            skippedNoMatch: 0,
+            skippedExistingBetter,
         };
     } catch (error) {
         handleRepositoryError(error);

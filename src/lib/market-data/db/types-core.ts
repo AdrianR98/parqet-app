@@ -156,6 +156,39 @@ export type EnrichMarketInstrumentsFromReferencesResult = {
     assetTypeUpdates: number;
 };
 
+export type EnrichMarketInstrumentsFromTradingUniverseInput = {
+    sourceKey?: string;
+    isin?: string;
+    limit?: number;
+    forceName?: boolean;
+    setDisplayName?: boolean;
+    forceDisplayName?: boolean;
+};
+
+export type EnrichMarketInstrumentsFromTradingUniverseResult = {
+    matched: number;
+    updated: number;
+    nameUpdates: number;
+    displayNameUpdates: number;
+    skippedNoMatch: number;
+    skippedExistingBetter: number;
+};
+
+export type TradingUniverseReferenceMatch = {
+    isin: string;
+    currentName: string | null;
+    currentDisplayName: string | null;
+    referenceName: string | null;
+    plannedNameUpdate: boolean;
+    plannedDisplayNameUpdate: boolean;
+    existingBetter: boolean;
+};
+
+export type ReferenceSourceCount = {
+    sourceKey: string;
+    rowCount: number;
+};
+
 export type ListXetraReferenceCandidatesInput = {
     sourceKey?: string;
     isin?: string;
