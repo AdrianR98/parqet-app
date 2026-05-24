@@ -7,6 +7,9 @@ export type DbMarketInstrument = {
     name: string | null;
     assetType: string | null;
     currency: string | null;
+    wkn: string | null;
+    metadataSource: string | null;
+    metadataUpdatedAt: string | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -56,6 +59,115 @@ export type UpsertInstrumentInput = {
     name?: string | null;
     assetType?: string | null;
     currency?: string | null;
+    wkn?: string | null;
+    metadataSource?: string | null;
+};
+
+export type UpsertReferenceSourceInput = {
+    sourceKey: string;
+    displayName: string;
+    sourceType: string;
+    fileName?: string | null;
+    rowCount?: number | null;
+    notes?: string | null;
+};
+
+export type DbMarketReferenceSource = {
+    id: string;
+    sourceKey: string;
+    displayName: string;
+    sourceType: string;
+    fileName: string | null;
+    rowCount: number | null;
+    importedAt: string;
+    notes: string | null;
+};
+
+export type UpsertReferenceInstrumentInput = {
+    sourceKey: string;
+    isin: string;
+    wkn?: string | null;
+    name?: string | null;
+    symbol?: string | null;
+    mnemonic?: string | null;
+    exchange?: string | null;
+    micCode?: string | null;
+    primaryMarketMicCode?: string | null;
+    currency?: string | null;
+    instrumentType?: string | null;
+    productCategory?: string | null;
+    marketSegment?: string | null;
+    rawPayload?: Record<string, unknown> | null;
+};
+
+export type DbMarketReferenceInstrument = {
+    id: string;
+    sourceKey: string;
+    isin: string | null;
+    wkn: string | null;
+    name: string | null;
+    symbol: string | null;
+    mnemonic: string | null;
+    exchange: string | null;
+    micCode: string | null;
+    primaryMarketMicCode: string | null;
+    currency: string | null;
+    instrumentType: string | null;
+    productCategory: string | null;
+    marketSegment: string | null;
+    rawPayload: Record<string, unknown> | null;
+    importedAt: string;
+};
+
+export type EnrichMarketInstrumentsFromReferencesInput = {
+    sourceKey: string;
+    isin?: string;
+    limit?: number;
+    forceName?: boolean;
+};
+
+export type EnrichMarketInstrumentsFromReferencesResult = {
+    matched: number;
+    updated: number;
+    nameUpdates: number;
+    wknUpdates: number;
+    currencyUpdates: number;
+    assetTypeUpdates: number;
+};
+
+export type ListXetraReferenceCandidatesInput = {
+    sourceKey?: string;
+    isin?: string;
+    limit?: number;
+    excludeIsins?: string[];
+    instrumentTypes?: string[];
+    preferEtfs?: boolean;
+};
+
+export type DbXetraReferenceCandidate = {
+    instrumentId: string;
+    isin: string;
+    name: string | null;
+    candidateSymbol: string;
+    mnemonic: string;
+    currency: string | null;
+    instrumentType: string | null;
+    marketSegment: string | null;
+    micCode: string | null;
+    primaryMarketMicCode: string | null;
+    hasVerifiedPrimary: boolean;
+    hasVerifiedYfinance: boolean;
+    hasAnyPrimary: boolean;
+    hasExistingCandidate: boolean;
+};
+
+export type InsertSymbolMappingCandidateInput = {
+    instrumentId: string;
+    provider: string;
+    symbol: string;
+    exchange?: string | null;
+    currency?: string | null;
+    notes?: string | null;
 };
 
 export type UpsertSymbolMappingInput = {

@@ -17,6 +17,15 @@ import type {
     MarketDataStatusSummary,
     VerifiedMappingForPromotion,
     PrimaryMappingForBackfill,
+    EnrichMarketInstrumentsFromReferencesInput,
+    EnrichMarketInstrumentsFromReferencesResult,
+    DbMarketReferenceInstrument,
+    DbMarketReferenceSource,
+    DbXetraReferenceCandidate,
+    InsertSymbolMappingCandidateInput,
+    ListXetraReferenceCandidatesInput,
+    UpsertReferenceInstrumentInput,
+    UpsertReferenceSourceInput,
     UpdateSymbolMappingValidationInput,
     UpsertDailyPricesInput,
     UpsertInstrumentInput,
@@ -70,8 +79,64 @@ function mapInstrumentRow(row: Record<string, unknown>): DbMarketInstrument {
         name: row.name === null ? null : String(row.name),
         assetType: row.asset_type === null ? null : String(row.asset_type),
         currency: row.currency === null ? null : String(row.currency),
+        wkn: row.wkn === null ? null : String(row.wkn),
+        metadataSource: row.metadata_source === null ? null : String(row.metadata_source),
+        metadataUpdatedAt: row.metadata_updated_at === null ? null : String(row.metadata_updated_at),
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
+    };
+}
+
+function mapReferenceSourceRow(row: Record<string, unknown>): DbMarketReferenceSource {
+    return {
+        id: String(row.id),
+        sourceKey: String(row.source_key),
+        displayName: String(row.display_name),
+        sourceType: String(row.source_type),
+        fileName: row.file_name === null ? null : String(row.file_name),
+        rowCount: row.row_count === null ? null : Number(row.row_count),
+        importedAt: String(row.imported_at),
+        notes: row.notes === null ? null : String(row.notes),
+    };
+}
+
+function mapReferenceInstrumentRow(row: Record<string, unknown>): DbMarketReferenceInstrument {
+    return {
+        id: String(row.id),
+        sourceKey: String(row.source_key),
+        isin: row.isin === null ? null : String(row.isin),
+        wkn: row.wkn === null ? null : String(row.wkn),
+        name: row.name === null ? null : String(row.name),
+        symbol: row.symbol === null ? null : String(row.symbol),
+        mnemonic: row.mnemonic === null ? null : String(row.mnemonic),
+        exchange: row.exchange === null ? null : String(row.exchange),
+        micCode: row.mic_code === null ? null : String(row.mic_code),
+        primaryMarketMicCode: row.primary_market_mic_code === null ? null : String(row.primary_market_mic_code),
+        currency: row.currency === null ? null : String(row.currency),
+        instrumentType: row.instrument_type === null ? null : String(row.instrument_type),
+        productCategory: row.product_category === null ? null : String(row.product_category),
+        marketSegment: row.market_segment === null ? null : String(row.market_segment),
+        rawPayload: row.raw_payload && typeof row.raw_payload === "object" ? (row.raw_payload as Record<string, unknown>) : null,
+        importedAt: String(row.imported_at),
+    };
+}
+
+function mapXetraReferenceCandidateRow(row: Record<string, unknown>): DbXetraReferenceCandidate {
+    return {
+        instrumentId: String(row.instrument_id),
+        isin: String(row.isin),
+        name: row.name === null ? null : String(row.name),
+        candidateSymbol: String(row.candidate_symbol),
+        mnemonic: String(row.mnemonic),
+        currency: row.currency === null ? null : String(row.currency),
+        instrumentType: row.instrument_type === null ? null : String(row.instrument_type),
+        marketSegment: row.market_segment === null ? null : String(row.market_segment),
+        micCode: row.mic_code === null ? null : String(row.mic_code),
+        primaryMarketMicCode: row.primary_market_mic_code === null ? null : String(row.primary_market_mic_code),
+        hasVerifiedPrimary: Boolean(row.has_verified_primary),
+        hasVerifiedYfinance: Boolean(row.has_verified_yfinance),
+        hasAnyPrimary: Boolean(row.has_any_primary),
+        hasExistingCandidate: Boolean(row.has_existing_candidate),
     };
 }
 
@@ -150,7 +215,7 @@ export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrum
     try {
         const normalizedIsin = assertIsin(isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `select id, isin, name, asset_type, currency, created_at, updated_at
+            `select id, isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at, created_at, updated_at
              from market_instruments
              where isin = $1
              limit 1`,
@@ -167,16 +232,19 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into market_instruments (isin, name, asset_type, currency)
-             values ($1, $2, $3, $4)
+            `insert into market_instruments (isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at)
+             values ($1, $2, $3, $4, $5, $6, case when $6::text is null then null else now() end)
              on conflict (isin)
              do update set
                name = excluded.name,
                asset_type = excluded.asset_type,
                currency = excluded.currency,
+               wkn = excluded.wkn,
+               metadata_source = excluded.metadata_source,
+               metadata_updated_at = case when excluded.metadata_source is null then market_instruments.metadata_updated_at else now() end,
                updated_at = now()
-             returning id, isin, name, asset_type, currency, created_at, updated_at`,
-            [normalizedIsin, input.name ?? null, input.assetType ?? null, input.currency ?? null],
+             returning id, isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at, created_at, updated_at`,
+            [normalizedIsin, input.name ?? null, input.assetType ?? null, input.currency ?? null, input.wkn ?? null, input.metadataSource ?? null],
         );
         return mapInstrumentRow(result.rows[0]);
     } catch (error) {
@@ -188,13 +256,353 @@ export async function listMarketInstruments(input: ListMarketInstrumentsInput = 
     try {
         const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 5000;
         const result = await queryPostgres<Record<string, unknown>>(
-            `select id, isin, name, asset_type, currency, created_at, updated_at
+            `select id, isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at, created_at, updated_at
              from market_instruments
              order by isin asc
              limit $1`,
             [limit],
         );
         return result.rows.map((row) => mapInstrumentRow(row));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+function normalizeOptionalUpper(value?: string | null): string | null {
+    if (typeof value !== "string") return null;
+    const normalized = value.trim().toUpperCase();
+    return normalized || null;
+}
+
+function normalizeSourceKey(value: string): string {
+    const normalized = value.trim();
+    if (!normalized) {
+        throw new MarketDataRepositoryError("invalid_input", "source_key fehlt.");
+    }
+    return normalized;
+}
+
+function toAssetTypeHint(referenceType: string | null): string | null {
+    const normalized = referenceType?.trim().toLowerCase() ?? "";
+    if (!normalized) return null;
+    if (normalized.includes("etf")) return "etf";
+    if (normalized.includes("fund")) return "fund";
+    if (normalized.includes("bond")) return "bond";
+    if (normalized.includes("note")) return "bond";
+    if (normalized.includes("share") || normalized.includes("stock") || normalized.includes("equity")) return "stock";
+    return null;
+}
+
+function isAssetTypeWeak(assetType: string | null): boolean {
+    if (!assetType) return true;
+    const normalized = assetType.trim().toLowerCase();
+    return !normalized || normalized === "unknown" || normalized === "other" || normalized === "n/a";
+}
+
+function isNameWeak(name: string | null, isin: string): boolean {
+    if (!name) return true;
+    const normalized = name.trim();
+    return !normalized || normalized.toUpperCase() === isin.toUpperCase();
+}
+
+export async function upsertReferenceSource(input: UpsertReferenceSourceInput): Promise<DbMarketReferenceSource> {
+    try {
+        const sourceKey = normalizeSourceKey(input.sourceKey);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `insert into market_reference_sources (source_key, display_name, source_type, file_name, row_count, imported_at, notes)
+             values ($1, $2, $3, $4, $5, now(), $6)
+             on conflict (source_key)
+             do update set
+               display_name = excluded.display_name,
+               source_type = excluded.source_type,
+               file_name = excluded.file_name,
+               row_count = excluded.row_count,
+               notes = excluded.notes,
+               imported_at = now()
+             returning id, source_key, display_name, source_type, file_name, row_count, imported_at, notes`,
+            [sourceKey, input.displayName.trim(), input.sourceType.trim(), input.fileName ?? null, input.rowCount ?? null, input.notes ?? null],
+        );
+        return mapReferenceSourceRow(result.rows[0]);
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function upsertReferenceInstrument(input: UpsertReferenceInstrumentInput): Promise<DbMarketReferenceInstrument> {
+    try {
+        const sourceKey = normalizeSourceKey(input.sourceKey);
+        const isin = input.isin ? assertIsin(input.isin) : null;
+        const symbol = normalizeOptionalUpper(input.symbol);
+        const mnemonic = normalizeOptionalUpper(input.mnemonic);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `insert into market_reference_instruments
+                (source_key, isin, wkn, name, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, instrument_type, product_category, market_segment, raw_payload, imported_at)
+             values
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, now())
+             on conflict (source_key, isin, coalesce(symbol, ''), coalesce(mnemonic, ''))
+             do update set
+                wkn = excluded.wkn,
+                name = excluded.name,
+                exchange = excluded.exchange,
+                mic_code = excluded.mic_code,
+                primary_market_mic_code = excluded.primary_market_mic_code,
+                currency = excluded.currency,
+                instrument_type = excluded.instrument_type,
+                product_category = excluded.product_category,
+                market_segment = excluded.market_segment,
+                raw_payload = excluded.raw_payload,
+                imported_at = now()
+             returning id, source_key, isin, wkn, name, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, instrument_type, product_category, market_segment, raw_payload, imported_at`,
+            [
+                sourceKey,
+                isin,
+                normalizeOptionalUpper(input.wkn),
+                input.name?.trim() || null,
+                symbol,
+                mnemonic,
+                input.exchange?.trim() || null,
+                input.micCode?.trim() || null,
+                input.primaryMarketMicCode?.trim() || null,
+                normalizeOptionalUpper(input.currency),
+                input.instrumentType?.trim() || null,
+                input.productCategory?.trim() || null,
+                input.marketSegment?.trim() || null,
+                input.rawPayload ? JSON.stringify(input.rawPayload) : null,
+            ],
+        );
+
+        return mapReferenceInstrumentRow(result.rows[0]);
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listReferenceInstrumentsByIsin(isin: string, sourceKey?: string): Promise<DbMarketReferenceInstrument[]> {
+    try {
+        const normalizedIsin = assertIsin(isin);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select id, source_key, isin, wkn, name, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, instrument_type, product_category, market_segment, raw_payload, imported_at
+             from market_reference_instruments
+             where isin = $1
+               and ($2::text is null or source_key = $2)
+             order by imported_at desc, id asc`,
+            [normalizedIsin, sourceKey ? normalizeSourceKey(sourceKey) : null],
+        );
+        return result.rows.map((row) => mapReferenceInstrumentRow(row));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listXetraReferenceCandidates(
+    input: ListXetraReferenceCandidatesInput = {},
+): Promise<DbXetraReferenceCandidate[]> {
+    try {
+        const sourceKey = normalizeSourceKey(input.sourceKey ?? "xetra_all_tradable_instruments");
+        const normalizedIsin = input.isin ? assertIsin(input.isin) : null;
+        const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 10000;
+        const excludeIsins = (input.excludeIsins ?? []).map((isin) => assertIsin(isin));
+        const instrumentTypes = (input.instrumentTypes ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean);
+        const preferEtfs = Boolean(input.preferEtfs);
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select
+                i.id as instrument_id,
+                i.isin,
+                i.name,
+                (r.mnemonic || '.DE') as candidate_symbol,
+                r.mnemonic,
+                r.currency,
+                r.instrument_type,
+                r.market_segment,
+                r.mic_code,
+                r.primary_market_mic_code,
+                exists (
+                    select 1
+                    from market_symbol_mappings mvp
+                    where mvp.instrument_id = i.id
+                      and mvp.is_primary = true
+                      and mvp.verified_at is not null
+                ) as has_verified_primary,
+                exists (
+                    select 1
+                    from market_symbol_mappings mvy
+                    where mvy.instrument_id = i.id
+                      and mvy.provider = 'yfinance'
+                      and mvy.verified_at is not null
+                ) as has_verified_yfinance,
+                exists (
+                    select 1
+                    from market_symbol_mappings map
+                    where map.instrument_id = i.id
+                      and map.is_primary = true
+                ) as has_any_primary,
+                exists (
+                    select 1
+                    from market_symbol_mappings mc
+                    where mc.instrument_id = i.id
+                      and mc.provider = 'yfinance'
+                      and mc.symbol = (r.mnemonic || '.DE')
+                ) as has_existing_candidate
+             from market_reference_instruments r
+             join market_instruments i on i.isin = r.isin
+             where r.source_key = $1
+               and r.isin is not null
+               and r.mnemonic is not null
+               and btrim(r.mnemonic) <> ''
+               and ($2::text is null or r.isin = $2)
+               and (cardinality($3::text[]) = 0 or r.isin <> all($3::text[]))
+               and (cardinality($4::text[]) = 0 or lower(coalesce(r.instrument_type, '')) = any($4::text[]))
+               and (
+                    not $5::boolean
+                    or lower(coalesce(r.instrument_type, '')) like '%etf%'
+                    or lower(coalesce(r.instrument_type, '')) like '%fund%'
+                    or lower(coalesce(r.market_segment, '')) like '%etf%'
+                    or lower(coalesce(r.market_segment, '')) like '%fund%'
+               )
+             order by r.imported_at desc, i.isin asc
+             limit $6`,
+            [sourceKey, normalizedIsin, excludeIsins, instrumentTypes, preferEtfs, limit],
+        );
+        return result.rows.map((row) => mapXetraReferenceCandidateRow(row));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function insertSymbolMappingCandidate(input: InsertSymbolMappingCandidateInput): Promise<boolean> {
+    try {
+        const provider = input.provider.trim().toLowerCase();
+        const symbol = input.symbol.trim().toUpperCase();
+        if (!provider || !symbol) {
+            throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
+        }
+
+        const result = await queryPostgres<{ id: string }>(
+            `insert into market_symbol_mappings
+                (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
+             values
+                ($1, $2, $3, $4, $5, false, true, null, $6)
+             on conflict do nothing
+             returning id`,
+            [input.instrumentId, provider, symbol, input.exchange ?? null, input.currency ?? null, input.notes ?? null],
+        );
+        return result.rows.length > 0;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function enrichMarketInstrumentsFromReferences(
+    input: EnrichMarketInstrumentsFromReferencesInput,
+): Promise<EnrichMarketInstrumentsFromReferencesResult> {
+    try {
+        const sourceKey = normalizeSourceKey(input.sourceKey);
+        const normalizedIsin = input.isin ? assertIsin(input.isin) : null;
+        const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 100000;
+        const forceName = Boolean(input.forceName);
+
+        const candidatesResult = await queryPostgres<Record<string, unknown>>(
+            `select distinct on (i.id)
+                i.id as instrument_id,
+                i.isin,
+                i.name as instrument_name,
+                i.asset_type as instrument_asset_type,
+                i.currency as instrument_currency,
+                i.wkn as instrument_wkn,
+                r.name as reference_name,
+                r.instrument_type as reference_type,
+                r.currency as reference_currency,
+                r.wkn as reference_wkn
+             from market_instruments i
+             join market_reference_instruments r on r.isin = i.isin
+             where r.source_key = $1
+               and ($2::text is null or i.isin = $2)
+             order by i.id, r.imported_at desc
+             limit $3`,
+            [sourceKey, normalizedIsin, limit],
+        );
+
+        let updated = 0;
+        let nameUpdates = 0;
+        let wknUpdates = 0;
+        let currencyUpdates = 0;
+        let assetTypeUpdates = 0;
+
+        await withPostgresClient(async (client) => {
+            await client.query("begin");
+            try {
+                for (const row of candidatesResult.rows) {
+                    const updates: string[] = [];
+                    const params: Array<string | null> = [];
+
+                    const currentIsin = String(row.isin);
+                    const currentName = row.instrument_name === null ? null : String(row.instrument_name);
+                    const currentAssetType = row.instrument_asset_type === null ? null : String(row.instrument_asset_type);
+                    const currentCurrency = row.instrument_currency === null ? null : String(row.instrument_currency);
+                    const currentWkn = row.instrument_wkn === null ? null : String(row.instrument_wkn);
+                    const referenceName = row.reference_name === null ? null : String(row.reference_name).trim();
+                    const referenceWkn = row.reference_wkn === null ? null : String(row.reference_wkn).trim().toUpperCase();
+                    const referenceCurrency = row.reference_currency === null ? null : String(row.reference_currency).trim().toUpperCase();
+                    const assetTypeHint = toAssetTypeHint(row.reference_type === null ? null : String(row.reference_type));
+
+                    if (!currentWkn && referenceWkn) {
+                        params.push(referenceWkn);
+                        updates.push(`wkn = $${params.length}`);
+                        wknUpdates += 1;
+                    }
+
+                    if (!currentCurrency && referenceCurrency) {
+                        params.push(referenceCurrency);
+                        updates.push(`currency = $${params.length}`);
+                        currencyUpdates += 1;
+                    }
+
+                    if (assetTypeHint && isAssetTypeWeak(currentAssetType)) {
+                        params.push(assetTypeHint);
+                        updates.push(`asset_type = $${params.length}`);
+                        assetTypeUpdates += 1;
+                    }
+
+                    if (referenceName && (forceName || isNameWeak(currentName, currentIsin))) {
+                        params.push(referenceName);
+                        updates.push(`name = $${params.length}`);
+                        nameUpdates += 1;
+                    }
+
+                    if (updates.length === 0) {
+                        continue;
+                    }
+
+                    params.push(sourceKey);
+                    params.push(String(row.instrument_id));
+                    await client.query(
+                        `update market_instruments
+                         set ${updates.join(", ")},
+                             metadata_source = $${params.length - 1},
+                             metadata_updated_at = now(),
+                             updated_at = now()
+                         where id = $${params.length}`,
+                        params,
+                    );
+                    updated += 1;
+                }
+
+                await client.query("commit");
+            } catch (error) {
+                await client.query("rollback");
+                throw error;
+            }
+        });
+
+        return {
+            matched: candidatesResult.rows.length,
+            updated,
+            nameUpdates,
+            wknUpdates,
+            currencyUpdates,
+            assetTypeUpdates,
+        };
     } catch (error) {
         handleRepositoryError(error);
     }
