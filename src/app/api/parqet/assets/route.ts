@@ -43,6 +43,13 @@ import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistenc
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 import { resolveAssetDisplay } from "../../../../lib/metadata-utils";
 import { buildGlobalAssetProductReadModelFromActivityContext } from "../../../../lib/parqet/global-assets/coexistence";
+import {
+  chooseCuratedDisplayName,
+  getMarketInstrumentMetadataByIsins,
+  isMeaningfulInstrumentName,
+  MarketDataRepositoryError,
+} from "../../../../lib/market-data/db/repository";
+import type { DbMarketInstrumentMetadata } from "../../../../lib/market-data/db/types-core";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
 const ASSETS_API_BUDGET = buildActivityScanBudgetInfo({
@@ -137,11 +144,17 @@ function getMonthLabel(value: string): string {
 
 function buildActivityItems(
   activityContext: Awaited<ReturnType<typeof buildActivityContext>>,
+  marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata> = {},
 ): ActivitiesAuditItem[] {
   return activityContext.correctedActivities
     .map((activity) => {
       const datetime = activity.datetime ?? "";
       const isin = (activity.isin ?? "").trim().toUpperCase();
+      const marketMetadata = marketMetadataByIsin[isin];
+      const curatedName = marketMetadata
+        ? chooseCuratedDisplayName(marketMetadata, activity.name ?? null)
+        : null;
+      const curatedWkn = marketMetadata?.wkn?.trim() || null;
 
       return {
         id: activity.id,
@@ -155,9 +168,10 @@ function buildActivityItems(
             activity.portfolioId)
           : "Unknown Portfolio",
         isin,
-        name: activity.name ?? activity.symbol ?? activity.wkn ?? isin,
+        name:
+          isMeaningfulInstrumentName(curatedName, isin) ? curatedName : activity.name ?? activity.symbol ?? activity.wkn ?? isin,
         symbol: activity.symbol ?? null,
-        wkn: activity.wkn ?? null,
+        wkn: activity.wkn ?? curatedWkn ?? null,
         type: activity.type ?? "unknown",
         rawType: activity.rawType ?? activity.type ?? "unknown",
         shares: toNumber(activity.shares),
@@ -173,6 +187,92 @@ function buildActivityItems(
       };
     })
     .sort((a, b) => b.datetime.localeCompare(a.datetime));
+}
+
+function normalizeWeakText(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return normalized;
+}
+
+function isWeakAssetType(value: string | null | undefined): boolean {
+  const normalized = normalizeWeakText(value)?.toLowerCase() ?? "";
+  return !normalized || normalized === "unknown" || normalized === "other" || normalized === "n/a";
+}
+
+function isWeakCurrency(value: string | null | undefined): boolean {
+  const normalized = normalizeWeakText(value)?.toUpperCase() ?? "";
+  return !normalized || normalized === "UNKNOWN" || normalized === "N/A";
+}
+
+function applyMarketInstrumentMetadataOverlay(
+  asset: AssetSummary,
+  marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>,
+): AssetSummary {
+  const marketMetadata = marketMetadataByIsin[asset.isin];
+
+  if (!marketMetadata) {
+    return asset;
+  }
+
+  const curatedDisplayName = normalizeWeakText(marketMetadata.displayName);
+  const curatedName = chooseCuratedDisplayName(
+    marketMetadata,
+    asset.displayName ?? asset.name ?? null,
+  );
+  const curatedWkn = normalizeWeakText(marketMetadata.wkn);
+  const curatedAssetType = normalizeWeakText(marketMetadata.assetType);
+  const curatedCurrency = normalizeWeakText(marketMetadata.currency)?.toUpperCase() ?? null;
+  const metadataSource = normalizeWeakText(marketMetadata.metadataSource);
+  const metadataUpdatedAt = normalizeWeakText(marketMetadata.metadataUpdatedAt);
+  const nameSource = normalizeWeakText(marketMetadata.nameSource);
+  const displayNameSource = normalizeWeakText(marketMetadata.displayNameSource);
+
+  const currentAssetType =
+    normalizeWeakText(asset.externalMetadata?.assetType) ??
+    normalizeWeakText(asset.metadata?.assetType) ??
+    normalizeWeakText(asset.assetMeta?.assetType);
+  const currentCurrency =
+    normalizeWeakText(asset.externalMetadata?.currency) ??
+    normalizeWeakText(asset.metadata?.currency) ??
+    normalizeWeakText(asset.assetMeta?.currency);
+
+  const shouldApplyName = isMeaningfulInstrumentName(curatedName, asset.isin);
+  const shouldApplyAssetType = Boolean(curatedAssetType) && isWeakAssetType(currentAssetType);
+  const shouldApplyCurrency = Boolean(curatedCurrency) && isWeakCurrency(currentCurrency);
+
+  const existingWkn = normalizeWeakText(asset.wkn);
+
+  return {
+    ...asset,
+    name: shouldApplyName ? curatedName : asset.name,
+    assetName: shouldApplyName ? curatedName : asset.assetName,
+    displayName: shouldApplyName ? (curatedDisplayName ?? curatedName) : asset.displayName,
+    title: shouldApplyName ? curatedName : asset.title,
+    curatedName: shouldApplyName ? curatedName : asset.curatedName ?? null,
+    wkn: existingWkn ?? curatedWkn ?? asset.wkn,
+    metadataSource: metadataSource ?? asset.metadataSource ?? null,
+    nameSource: nameSource ?? asset.nameSource ?? null,
+    displayNameSource: displayNameSource ?? asset.displayNameSource ?? null,
+    metadataUpdatedAt: metadataUpdatedAt ?? asset.metadataUpdatedAt ?? null,
+    externalMetadata: {
+      ...(asset.externalMetadata ?? {}),
+      curatedName: shouldApplyName ? curatedName : asset.externalMetadata?.curatedName ?? null,
+      name: shouldApplyName ? curatedName : asset.externalMetadata?.name ?? asset.name ?? null,
+      displayName: shouldApplyName ? (curatedDisplayName ?? curatedName) : asset.externalMetadata?.displayName ?? asset.displayName ?? null,
+      assetName: shouldApplyName ? curatedName : asset.externalMetadata?.assetName ?? asset.assetName ?? null,
+      title: shouldApplyName ? curatedName : asset.externalMetadata?.title ?? asset.title ?? null,
+      wkn: existingWkn ?? curatedWkn ?? asset.externalMetadata?.wkn ?? null,
+      assetType: shouldApplyAssetType ? curatedAssetType : asset.externalMetadata?.assetType ?? null,
+      currency: shouldApplyCurrency ? curatedCurrency : asset.externalMetadata?.currency ?? null,
+      metadataSource: metadataSource ?? asset.externalMetadata?.metadataSource ?? null,
+      nameSource: nameSource ?? asset.externalMetadata?.nameSource ?? null,
+      displayNameSource:
+        displayNameSource ?? asset.externalMetadata?.displayNameSource ?? null,
+      metadataUpdatedAt: metadataUpdatedAt ?? asset.externalMetadata?.metadataUpdatedAt ?? null,
+    },
+  };
 }
 
 function getStatusForDiagnostic(diagnostic: ParqetApiDiagnostic): number {
@@ -319,6 +419,24 @@ export async function GET(req: Request) {
         correctedAssets.map((asset: AssetSummary) => asset.isin),
       );
 
+      let marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata> = {};
+      try {
+        marketMetadataByIsin = await getMarketInstrumentMetadataByIsins(
+          correctedAssets.map((asset: AssetSummary) => asset.isin),
+        );
+      } catch (error) {
+        if (error instanceof MarketDataRepositoryError) {
+          console.warn(
+            "[parqet-assets] market_instruments metadata overlay unavailable:",
+            error.code,
+          );
+        } else {
+          console.warn(
+            "[parqet-assets] market_instruments metadata overlay failed",
+          );
+        }
+      }
+
       const enrichedAssets: AssetSummary[] = correctedAssets.map(
         (asset: AssetSummary) => {
           const metadata = metadataByIsin[asset.isin];
@@ -351,15 +469,19 @@ export async function GET(req: Request) {
         },
       );
 
-      const activeAssets = enrichedAssets.filter(
+      const assetsWithMarketMetadata: AssetSummary[] = enrichedAssets.map((asset) =>
+        applyMarketInstrumentMetadataOverlay(asset, marketMetadataByIsin),
+      );
+
+      const activeAssets = assetsWithMarketMetadata.filter(
         (asset: AssetSummary) => asset.netShares > CLOSED_POSITION_EPSILON,
       );
 
-      const closedAssets = enrichedAssets.filter(
+      const closedAssets = assetsWithMarketMetadata.filter(
         (asset: AssetSummary) => asset.netShares <= CLOSED_POSITION_EPSILON,
       );
 
-      const consistencyReport = buildConsistencyReport(enrichedAssets);
+      const consistencyReport = buildConsistencyReport(assetsWithMarketMetadata);
       const generatedAt = new Date().toISOString();
       const globalAssetProductReadModel =
         buildGlobalAssetProductReadModelFromActivityContext({
@@ -371,7 +493,7 @@ export async function GET(req: Request) {
       return {
         rawActivityCount: activityContext.rawActivityCount,
         filteredActivityCount: activityContext.filteredActivities.length,
-        assetCount: enrichedAssets.length,
+        assetCount: assetsWithMarketMetadata.length,
         activeAssetCount: activeAssets.length,
         closedAssetCount: closedAssets.length,
         activeAssets,
@@ -380,7 +502,7 @@ export async function GET(req: Request) {
         reconciliationWarnings: activityContext.reconciliationWarnings,
         generatedAt,
         freshness: activityContext.freshness,
-        activityItems: buildActivityItems(activityContext),
+        activityItems: buildActivityItems(activityContext, marketMetadataByIsin),
         globalAssetProductReadModel,
         apiBudget: ASSETS_API_BUDGET,
       };

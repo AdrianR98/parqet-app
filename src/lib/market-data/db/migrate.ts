@@ -38,5 +38,6 @@ export async function runMarketDataMigration002(): Promise<void> {
 export async function runMarketDataMigrations(): Promise<void> {
     await runMarketDataMigration001();
     await runMarketDataMigration002();
+    await runMarketDataMigrationFile("003_market_instrument_display_metadata.sql");
 }
 

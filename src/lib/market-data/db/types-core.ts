@@ -5,13 +5,31 @@ export type DbMarketInstrument = {
     id: string;
     isin: string;
     name: string | null;
+    displayName: string | null;
     assetType: string | null;
     currency: string | null;
     wkn: string | null;
     metadataSource: string | null;
     metadataUpdatedAt: string | null;
+    nameSource: string | null;
+    displayNameSource: string | null;
+    displayMetadataUpdatedAt: string | null;
     createdAt: string;
     updatedAt: string;
+};
+
+export type DbMarketInstrumentMetadata = {
+    isin: string;
+    name: string | null;
+    displayName: string | null;
+    wkn: string | null;
+    assetType: string | null;
+    currency: string | null;
+    metadataSource: string | null;
+    metadataUpdatedAt: string | null;
+    nameSource: string | null;
+    displayNameSource: string | null;
+    displayMetadataUpdatedAt: string | null;
 };
 
 export type DbMarketSymbolMapping = {
@@ -57,10 +75,13 @@ export type DbMarketAction = {
 export type UpsertInstrumentInput = {
     isin: string;
     name?: string | null;
+    displayName?: string | null;
     assetType?: string | null;
     currency?: string | null;
     wkn?: string | null;
     metadataSource?: string | null;
+    nameSource?: string | null;
+    displayNameSource?: string | null;
 };
 
 export type UpsertReferenceSourceInput = {

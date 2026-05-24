@@ -42,6 +42,11 @@ export type AssetMetadata = {
   tickerSymbol?: string | null;
 
   wkn?: string | null;
+  curatedName?: string | null;
+  metadataSource?: string | null;
+  nameSource?: string | null;
+  displayNameSource?: string | null;
+  metadataUpdatedAt?: string | null;
 
   marketPrice?: number | null;
   marketPriceAt?: string | null;
@@ -135,6 +140,11 @@ export type AssetSummary = {
   tickerSymbol?: string | null;
 
   wkn?: string | null;
+  curatedName?: string | null;
+  metadataSource?: string | null;
+  nameSource?: string | null;
+  displayNameSource?: string | null;
+  metadataUpdatedAt?: string | null;
 
   metadata?: Partial<AssetMetadata> | null;
   externalMetadata?: Partial<AssetMetadata> | null;
