@@ -18,6 +18,9 @@ import type {
     MarketDataStatusSummary,
     VerifiedMappingForPromotion,
     PrimaryMappingForBackfill,
+    MarketDataInstrumentStatus,
+    MarketInstrumentStatusSummaryRow,
+    UpdateMarketInstrumentStatusInput,
     EnrichMarketInstrumentsFromReferencesInput,
     EnrichMarketInstrumentsFromReferencesResult,
     EnrichMarketInstrumentsFromTradingUniverseInput,
@@ -91,6 +94,12 @@ function mapInstrumentRow(row: Record<string, unknown>): DbMarketInstrument {
         nameSource: row.name_source === null ? null : String(row.name_source),
         displayNameSource: row.display_name_source === null ? null : String(row.display_name_source),
         displayMetadataUpdatedAt: row.display_metadata_updated_at === null ? null : String(row.display_metadata_updated_at),
+        marketDataStatus:
+            row.market_data_status === null ? null : (String(row.market_data_status).toLowerCase() as MarketDataInstrumentStatus),
+        marketDataStatusReason: row.market_data_status_reason === null ? null : String(row.market_data_status_reason),
+        marketDataSuccessorIsin: row.market_data_successor_isin === null ? null : String(row.market_data_successor_isin),
+        marketDataSuccessorSymbol: row.market_data_successor_symbol === null ? null : String(row.market_data_successor_symbol),
+        marketDataStatusUpdatedAt: row.market_data_status_updated_at === null ? null : String(row.market_data_status_updated_at),
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
     };
@@ -220,12 +229,27 @@ function handleRepositoryError(error: unknown): never {
     throw new MarketDataRepositoryError("db_error", "Marktdaten-DB ist derzeit nicht verfügbar.");
 }
 
+function normalizeInstrumentStatus(status: string): MarketDataInstrumentStatus {
+    const normalized = status.trim().toLowerCase();
+    if (
+        normalized !== "active" &&
+        normalized !== "excluded" &&
+        normalized !== "legacy" &&
+        normalized !== "derivative" &&
+        normalized !== "unknown"
+    ) {
+        throw new MarketDataRepositoryError("invalid_input", "Ungültiger market_data_status.");
+    }
+    return normalized as MarketDataInstrumentStatus;
+}
+
 export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrument | null> {
     try {
         const normalizedIsin = assertIsin(isin);
         const result = await queryPostgres<Record<string, unknown>>(
             `select id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
-                    name_source, display_name_source, display_metadata_updated_at, created_at, updated_at
+                    name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
+                    market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at
              from market_instruments
              where isin = $1
              limit 1`,
@@ -260,7 +284,8 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
                display_metadata_updated_at = case when excluded.display_name_source is null then market_instruments.display_metadata_updated_at else now() end,
                updated_at = now()
              returning id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
-                       name_source, display_name_source, display_metadata_updated_at, created_at, updated_at`,
+                       name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
+                       market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at`,
             [
                 normalizedIsin,
                 input.name ?? null,
@@ -284,7 +309,8 @@ export async function listMarketInstruments(input: ListMarketInstrumentsInput = 
         const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 5000;
         const result = await queryPostgres<Record<string, unknown>>(
             `select id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
-                    name_source, display_name_source, display_metadata_updated_at, created_at, updated_at
+                    name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
+                    market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at
              from market_instruments
              order by isin asc
              limit $1`,
@@ -351,7 +377,8 @@ export async function getMarketInstrumentMetadataByIsins(isins: string[]): Promi
 
         const result = await queryPostgres<Record<string, unknown>>(
             `select i.isin, i.name, i.display_name, i.wkn, i.asset_type, i.currency, i.metadata_source, i.metadata_updated_at,
-                    i.name_source, i.display_name_source, i.display_metadata_updated_at
+                    i.name_source, i.display_name_source, i.display_metadata_updated_at, i.market_data_status, i.market_data_status_reason,
+                    i.market_data_successor_isin, i.market_data_successor_symbol, i.market_data_status_updated_at
              from market_instruments i
              where i.isin = any($1::text[])`,
             [normalizedIsins],
@@ -372,6 +399,12 @@ export async function getMarketInstrumentMetadataByIsins(isins: string[]): Promi
                 nameSource: row.name_source === null ? null : String(row.name_source),
                 displayNameSource: row.display_name_source === null ? null : String(row.display_name_source),
                 displayMetadataUpdatedAt: row.display_metadata_updated_at === null ? null : String(row.display_metadata_updated_at),
+                marketDataStatus:
+                    row.market_data_status === null ? null : (String(row.market_data_status).toLowerCase() as MarketDataInstrumentStatus),
+                marketDataStatusReason: row.market_data_status_reason === null ? null : String(row.market_data_status_reason),
+                marketDataSuccessorIsin: row.market_data_successor_isin === null ? null : String(row.market_data_successor_isin),
+                marketDataSuccessorSymbol: row.market_data_successor_symbol === null ? null : String(row.market_data_successor_symbol),
+                marketDataStatusUpdatedAt: row.market_data_status_updated_at === null ? null : String(row.market_data_status_updated_at),
             };
         }
 
@@ -1111,6 +1144,18 @@ export async function getMarketDataStatusSummary(): Promise<MarketDataStatusSumm
                     from market_symbol_mappings
                     where provider = 'yfinance'
                       and notes ilike '%validated:yfinance; status=failed%'
+                ),
+                instruments_status_excluded as (
+                    select count(*)::int as value from market_instruments where market_data_status = 'excluded'
+                ),
+                instruments_status_legacy as (
+                    select count(*)::int as value from market_instruments where market_data_status = 'legacy'
+                ),
+                instruments_status_derivative as (
+                    select count(*)::int as value from market_instruments where market_data_status = 'derivative'
+                ),
+                instruments_status_unknown as (
+                    select count(*)::int as value from market_instruments where market_data_status = 'unknown'
                 )
              select
                 (select value from instruments_total) as instruments_total,
@@ -1126,7 +1171,11 @@ export async function getMarketDataStatusSummary(): Promise<MarketDataStatusSumm
                 (select value from instruments_with_daily_prices) as instruments_with_daily_prices,
                 (select value from instruments_with_actions) as instruments_with_actions,
                 (select value from instruments_with_primary_but_no_prices) as instruments_with_primary_but_no_prices,
-                (select value from failed_validation_candidates) as failed_validation_candidates`,
+                (select value from failed_validation_candidates) as failed_validation_candidates,
+                (select value from instruments_status_excluded) as instruments_status_excluded,
+                (select value from instruments_status_legacy) as instruments_status_legacy,
+                (select value from instruments_status_derivative) as instruments_status_derivative,
+                (select value from instruments_status_unknown) as instruments_status_unknown`,
         );
 
         const row = result.rows[0];
@@ -1145,7 +1194,66 @@ export async function getMarketDataStatusSummary(): Promise<MarketDataStatusSumm
             instrumentsWithActions: Number(row.instruments_with_actions ?? 0),
             instrumentsWithPrimaryButNoPrices: Number(row.instruments_with_primary_but_no_prices ?? 0),
             failedValidationCandidates: Number(row.failed_validation_candidates ?? 0),
+            instrumentsStatusExcluded: Number(row.instruments_status_excluded ?? 0),
+            instrumentsStatusLegacy: Number(row.instruments_status_legacy ?? 0),
+            instrumentsStatusDerivative: Number(row.instruments_status_derivative ?? 0),
+            instrumentsStatusUnknown: Number(row.instruments_status_unknown ?? 0),
         };
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function getMarketInstrumentStatusByIsin(isin: string): Promise<DbMarketInstrument | null> {
+    return getInstrumentByIsin(isin);
+}
+
+export async function updateMarketInstrumentStatus(input: UpdateMarketInstrumentStatusInput): Promise<DbMarketInstrument | null> {
+    try {
+        const normalizedIsin = assertIsin(input.isin);
+        const normalizedStatus = normalizeInstrumentStatus(input.status);
+        const successorIsin = normalizedStatus === "active" ? null : input.successorIsin ? assertIsin(input.successorIsin) : null;
+        const successorSymbol = normalizedStatus === "active" ? null : normalizeOptionalUpper(input.successorSymbol ?? null);
+        const reason = typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : null;
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `update market_instruments
+             set market_data_status = $2,
+                 market_data_status_reason = $3,
+                 market_data_successor_isin = $4,
+                 market_data_successor_symbol = $5,
+                 market_data_status_updated_at = now(),
+                 updated_at = now()
+             where isin = $1
+             returning id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
+                       name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
+                       market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at`,
+            [normalizedIsin, normalizedStatus, reason, successorIsin, successorSymbol],
+        );
+
+        const row = result.rows[0];
+        return row ? mapInstrumentRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listMarketInstrumentStatusSummary(): Promise<MarketInstrumentStatusSummaryRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select market_data_status as status, count(*)::int as count
+             from market_instruments
+             group by market_data_status
+             order by market_data_status nulls first`,
+        );
+
+        return result.rows.map((row) => ({
+            status:
+                row.status === null
+                    ? null
+                    : normalizeInstrumentStatus(String(row.status)),
+            count: Number(row.count ?? 0),
+        }));
     } catch (error) {
         handleRepositoryError(error);
     }
