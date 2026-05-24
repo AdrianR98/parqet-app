@@ -44,6 +44,10 @@ async function run() {
     console.log(`- instruments with market actions: ${summary.instrumentsWithActions}`);
     console.log(`- instruments with primary mapping but no price data: ${summary.instrumentsWithPrimaryButNoPrices}`);
     console.log(`- failed validation candidates: ${summary.failedValidationCandidates}`);
+    console.log(`- instruments with WKN: ${allInstruments.filter((item) => item.wkn && item.wkn.trim()).length}`);
+    console.log(`- instruments with display_name: ${allInstruments.filter((item) => item.displayName && item.displayName.trim()).length}`);
+    console.log(`- instruments with name_source: ${allInstruments.filter((item) => item.nameSource && item.nameSource.trim()).length}`);
+    console.log(`- instruments with display_name_source: ${allInstruments.filter((item) => item.displayNameSource && item.displayNameSource.trim()).length}`);
 
     const withoutVerified = allInstruments
         .filter((item) => !verifiedIsins.has(item.isin))

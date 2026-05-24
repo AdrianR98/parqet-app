@@ -184,6 +184,7 @@ export function getAssetDisplayName(asset: AssetSummary): string {
     for (const metadata of getMetadataCandidates(asset)) {
         const metadataName = pickFirstNonIdentifierName(
             asset,
+            metadata.curatedName,
             metadata.displayName,
             metadata.name,
             metadata.assetName,
@@ -197,6 +198,7 @@ export function getAssetDisplayName(asset: AssetSummary): string {
 
     const directName = pickFirstNonIdentifierName(
         asset,
+        asset.curatedName,
         asset.displayName,
         asset.name,
         asset.assetName,

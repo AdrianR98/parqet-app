@@ -5,6 +5,7 @@ import type {
     CreateMarketDataRunInput,
     DbMarketAction,
     DbMarketInstrument,
+    DbMarketInstrumentMetadata,
     DbMarketPricePoint,
     DbMarketSymbolMapping,
     FinishMarketDataRunInput,
@@ -77,11 +78,15 @@ function mapInstrumentRow(row: Record<string, unknown>): DbMarketInstrument {
         id: String(row.id),
         isin: String(row.isin),
         name: row.name === null ? null : String(row.name),
+        displayName: row.display_name === null ? null : String(row.display_name),
         assetType: row.asset_type === null ? null : String(row.asset_type),
         currency: row.currency === null ? null : String(row.currency),
         wkn: row.wkn === null ? null : String(row.wkn),
         metadataSource: row.metadata_source === null ? null : String(row.metadata_source),
         metadataUpdatedAt: row.metadata_updated_at === null ? null : String(row.metadata_updated_at),
+        nameSource: row.name_source === null ? null : String(row.name_source),
+        displayNameSource: row.display_name_source === null ? null : String(row.display_name_source),
+        displayMetadataUpdatedAt: row.display_metadata_updated_at === null ? null : String(row.display_metadata_updated_at),
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
     };
@@ -215,7 +220,8 @@ export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrum
     try {
         const normalizedIsin = assertIsin(isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `select id, isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at, created_at, updated_at
+            `select id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
+                    name_source, display_name_source, display_metadata_updated_at, created_at, updated_at
              from market_instruments
              where isin = $1
              limit 1`,
@@ -232,19 +238,36 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into market_instruments (isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at)
-             values ($1, $2, $3, $4, $5, $6, case when $6::text is null then null else now() end)
+            `insert into market_instruments
+                (isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at, name_source, display_name_source, display_metadata_updated_at)
+             values
+                ($1, $2, $3, $4, $5, $6, $7, case when $7::text is null then null else now() end, $8, $9, case when $9::text is null then null else now() end)
              on conflict (isin)
              do update set
                name = excluded.name,
+               display_name = excluded.display_name,
                asset_type = excluded.asset_type,
                currency = excluded.currency,
                wkn = excluded.wkn,
                metadata_source = excluded.metadata_source,
                metadata_updated_at = case when excluded.metadata_source is null then market_instruments.metadata_updated_at else now() end,
+               name_source = excluded.name_source,
+               display_name_source = excluded.display_name_source,
+               display_metadata_updated_at = case when excluded.display_name_source is null then market_instruments.display_metadata_updated_at else now() end,
                updated_at = now()
-             returning id, isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at, created_at, updated_at`,
-            [normalizedIsin, input.name ?? null, input.assetType ?? null, input.currency ?? null, input.wkn ?? null, input.metadataSource ?? null],
+             returning id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
+                       name_source, display_name_source, display_metadata_updated_at, created_at, updated_at`,
+            [
+                normalizedIsin,
+                input.name ?? null,
+                input.displayName ?? null,
+                input.assetType ?? null,
+                input.currency ?? null,
+                input.wkn ?? null,
+                input.metadataSource ?? null,
+                input.nameSource ?? null,
+                input.displayNameSource ?? null,
+            ],
         );
         return mapInstrumentRow(result.rows[0]);
     } catch (error) {
@@ -256,13 +279,99 @@ export async function listMarketInstruments(input: ListMarketInstrumentsInput = 
     try {
         const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 5000;
         const result = await queryPostgres<Record<string, unknown>>(
-            `select id, isin, name, asset_type, currency, wkn, metadata_source, metadata_updated_at, created_at, updated_at
+            `select id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
+                    name_source, display_name_source, display_metadata_updated_at, created_at, updated_at
              from market_instruments
              order by isin asc
              limit $1`,
             [limit],
         );
         return result.rows.map((row) => mapInstrumentRow(row));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+function normalizeMeaningfulInstrumentName(value: string | null | undefined): string | null {
+    if (typeof value !== "string") return null;
+    const normalized = value.trim();
+    if (!normalized) return null;
+    const lowered = normalized.toLowerCase();
+    if (lowered === "unknown" || lowered === "n/a" || lowered === "undefined" || lowered === "null") {
+        return null;
+    }
+    return normalized;
+}
+
+export function isMeaningfulInstrumentName(value: string | null | undefined, isin: string): boolean {
+    const normalized = normalizeMeaningfulInstrumentName(value);
+    if (!normalized) return false;
+    return normalized.toUpperCase() !== isin.trim().toUpperCase();
+}
+
+export function chooseCuratedDisplayName(
+    dbMetadata: Pick<DbMarketInstrumentMetadata, "displayName" | "name" | "isin">,
+    existingName: string | null | undefined,
+): string | null {
+    if (isMeaningfulInstrumentName(dbMetadata.displayName, dbMetadata.isin)) {
+        return normalizeMeaningfulInstrumentName(dbMetadata.displayName);
+    }
+    if (isMeaningfulInstrumentName(dbMetadata.name, dbMetadata.isin)) {
+        return normalizeMeaningfulInstrumentName(dbMetadata.name);
+    }
+    if (isMeaningfulInstrumentName(existingName, dbMetadata.isin)) {
+        return normalizeMeaningfulInstrumentName(existingName);
+    }
+    return null;
+}
+
+export async function getMarketInstrumentMetadataByIsins(isins: string[]): Promise<Record<string, DbMarketInstrumentMetadata>> {
+    try {
+        const normalizedIsins = Array.from(
+            new Set(
+                isins
+                    .map((isin) => {
+                        try {
+                            return assertIsin(isin);
+                        } catch {
+                            return null;
+                        }
+                    })
+                    .filter((isin): isin is string => Boolean(isin)),
+            ),
+        );
+
+        if (normalizedIsins.length === 0) {
+            return {};
+        }
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select i.isin, i.name, i.display_name, i.wkn, i.asset_type, i.currency, i.metadata_source, i.metadata_updated_at,
+                    i.name_source, i.display_name_source, i.display_metadata_updated_at
+             from market_instruments i
+             where i.isin = any($1::text[])`,
+            [normalizedIsins],
+        );
+
+        const metadataByIsin: Record<string, DbMarketInstrumentMetadata> = {};
+        for (const row of result.rows) {
+            const isin = String(row.isin);
+            metadataByIsin[isin] = {
+                isin,
+                name: row.name === null ? null : String(row.name),
+                displayName: row.display_name === null ? null : String(row.display_name),
+                wkn: row.wkn === null ? null : String(row.wkn),
+                assetType: row.asset_type === null ? null : String(row.asset_type),
+                currency: row.currency === null ? null : String(row.currency),
+                metadataSource: row.metadata_source === null ? null : String(row.metadata_source),
+                metadataUpdatedAt: row.metadata_updated_at === null ? null : String(row.metadata_updated_at),
+                nameSource: row.name_source === null ? null : String(row.name_source),
+                displayNameSource: row.display_name_source === null ? null : String(row.display_name_source),
+                displayMetadataUpdatedAt: row.display_metadata_updated_at === null ? null : String(row.display_metadata_updated_at),
+            };
+        }
+
+        return metadataByIsin;
     } catch (error) {
         handleRepositoryError(error);
     }

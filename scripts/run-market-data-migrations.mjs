@@ -90,7 +90,11 @@ async function main() {
     const normalizedConnectionString = normalizePostgresConnectionString(connectionString);
 
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-    const migrationFiles = ["001_market_data.sql", "002_market_reference_instruments.sql"];
+    const migrationFiles = [
+        "001_market_data.sql",
+        "002_market_reference_instruments.sql",
+        "003_market_instrument_display_metadata.sql",
+    ];
 
     const pool = new Pool({
         connectionString: normalizedConnectionString,

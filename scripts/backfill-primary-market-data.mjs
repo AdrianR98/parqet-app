@@ -10,10 +10,6 @@ function normalizeIsin(value) {
     return String(value ?? "").replace(/\s+/g, "").toUpperCase();
 }
 
-function normalizeSymbol(value) {
-    return String(value ?? "").trim().toUpperCase();
-}
-
 function parsePositiveInt(raw, fallback) {
     if (raw == null || raw === "") return fallback;
     const parsed = Number(raw);
