@@ -90,24 +90,29 @@ async function main() {
     const normalizedConnectionString = normalizePostgresConnectionString(connectionString);
 
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-    const migrationPath = path.join(scriptDir, "..", "src", "lib", "market-data", "db", "migrations", "001_market_data.sql");
-    const sql = await readFile(migrationPath, "utf8");
+    const migrationFiles = ["001_market_data.sql", "002_market_reference_instruments.sql"];
 
     const pool = new Pool({
         connectionString: normalizedConnectionString,
         ssl: resolvePostgresSsl(normalizedConnectionString),
     });
 
-    console.log("Running market data migration 001...");
     const client = await pool.connect();
     try {
-        await client.query("begin");
-        await client.query(sql);
-        await client.query("commit");
+        for (const migrationFile of migrationFiles) {
+            const migrationPath = path.join(scriptDir, "..", "src", "lib", "market-data", "db", "migrations", migrationFile);
+            const sql = await readFile(migrationPath, "utf8");
+            console.log(`Running market data migration ${migrationFile}...`);
+            await client.query("begin");
+            try {
+                await client.query(sql);
+                await client.query("commit");
+            } catch (error) {
+                await client.query("rollback");
+                throw error;
+            }
+        }
         console.log("Market data migration completed.");
-    } catch (error) {
-        await client.query("rollback");
-        throw error;
     } finally {
         client.release();
         await pool.end();

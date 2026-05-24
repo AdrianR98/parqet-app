@@ -4,8 +4,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { PostgresConfigError, withPostgresClient } from "../../db/postgres";
 
-export async function runMarketDataMigration001(): Promise<void> {
-    const migrationPath = path.join(process.cwd(), "src", "lib", "market-data", "db", "migrations", "001_market_data.sql");
+async function runMarketDataMigrationFile(fileName: string): Promise<void> {
+    const migrationPath = path.join(process.cwd(), "src", "lib", "market-data", "db", "migrations", fileName);
     const sql = await fs.readFile(migrationPath, "utf8");
 
     try {
@@ -25,5 +25,18 @@ export async function runMarketDataMigration001(): Promise<void> {
         }
         throw error;
     }
+}
+
+export async function runMarketDataMigration001(): Promise<void> {
+    await runMarketDataMigrationFile("001_market_data.sql");
+}
+
+export async function runMarketDataMigration002(): Promise<void> {
+    await runMarketDataMigrationFile("002_market_reference_instruments.sql");
+}
+
+export async function runMarketDataMigrations(): Promise<void> {
+    await runMarketDataMigration001();
+    await runMarketDataMigration002();
 }
 
