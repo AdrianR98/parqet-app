@@ -354,21 +354,17 @@ function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
   const authoritativeError =
     fallback?.instrumentMetadataError ??
     (authoritativeStatus === "ok" ? null : inferredError);
-  const authoritativeDisplayName =
-    authoritativeStatus === "ok"
-      ? (
-          fallback?.instrumentDisplayName ??
-          fallback?.displayName ??
-          fallback?.name ??
-          row.display.displayName
-        )
-      : "Stammdaten fehlen";
-  const authoritativeWkn = fallback?.wkn ?? row.display.wkn ?? null;
   const isin =
     row.identity.compatibilityIsin ??
     fallback?.isin ??
     row.identity.stableKey ??
     row.display.displayName;
+  const productDisplayName = row.display.displayName?.trim() || fallback?.displayName || fallback?.name || isin;
+  const authoritativeDisplayName =
+    authoritativeStatus === "ok"
+      ? productDisplayName
+      : "Stammdaten fehlen";
+  const authoritativeWkn = fallback?.wkn ?? row.display.wkn ?? null;
   const netShares = fallback?.netShares ?? 0;
   const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
   const avgBuyPrice = fallback?.avgBuyPrice ?? null;
@@ -404,17 +400,26 @@ function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
     displayName: authoritativeDisplayName,
     title: authoritativeDisplayName,
     instrumentDisplayName: authoritativeDisplayName,
-    instrumentName: fallback?.instrumentName ?? fallback?.name ?? null,
+    instrumentName: fallback?.instrumentName ?? fallback?.name ?? productDisplayName,
     instrumentMetadataStatus: authoritativeStatus,
     instrumentMetadataError: authoritativeError,
     symbol: row.display.symbol ?? fallback?.symbol ?? null,
     ticker: fallback?.ticker ?? null,
     tickerSymbol: fallback?.tickerSymbol ?? null,
     wkn: authoritativeWkn,
-    metadata: fallback?.metadata ?? null,
+    metadata: {
+      ...(fallback?.metadata ?? {}),
+      curatedName: authoritativeDisplayName,
+      displayName: authoritativeDisplayName,
+      instrumentDisplayName: authoritativeDisplayName,
+      instrumentMetadataStatus: authoritativeStatus,
+      instrumentMetadataError: authoritativeError,
+    },
     externalMetadata: {
       ...(fallback?.externalMetadata ?? {}),
+      curatedName: authoritativeDisplayName,
       displayName: authoritativeDisplayName,
+      instrumentDisplayName: authoritativeDisplayName,
       wkn: authoritativeWkn,
       instrumentMetadataStatus: authoritativeStatus,
       instrumentMetadataError: authoritativeError,

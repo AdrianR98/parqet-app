@@ -46,6 +46,10 @@ async function run() {
     console.log(`- instruments with market actions: ${summary.instrumentsWithActions}`);
     console.log(`- instruments with primary mapping but no price data: ${summary.instrumentsWithPrimaryButNoPrices}`);
     console.log(`- failed validation candidates: ${summary.failedValidationCandidates}`);
+    console.log(`- instruments with market_data_status=excluded: ${summary.instrumentsStatusExcluded}`);
+    console.log(`- instruments with market_data_status=legacy: ${summary.instrumentsStatusLegacy}`);
+    console.log(`- instruments with market_data_status=derivative: ${summary.instrumentsStatusDerivative}`);
+    console.log(`- instruments with market_data_status=unknown: ${summary.instrumentsStatusUnknown}`);
     console.log(`- instruments with WKN: ${allInstruments.filter((item) => item.wkn && item.wkn.trim()).length}`);
     console.log(`- instruments with display_name: ${allInstruments.filter((item) => item.displayName && item.displayName.trim()).length}`);
     console.log(`- instruments with name_source: ${allInstruments.filter((item) => item.nameSource && item.nameSource.trim()).length}`);
@@ -77,6 +81,8 @@ async function run() {
             console.log(`- ${row.isin} | ${row.symbol} | ${row.exchange ?? "-"} | ${row.currency ?? "-"}`);
         }
     }
+
+    console.log("Hint: Run `npm run db:market:unmapped` for a detailed open mapping report.");
 }
 
 run()

@@ -14,6 +14,11 @@ export type DbMarketInstrument = {
     nameSource: string | null;
     displayNameSource: string | null;
     displayMetadataUpdatedAt: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    marketDataStatusReason: string | null;
+    marketDataSuccessorIsin: string | null;
+    marketDataSuccessorSymbol: string | null;
+    marketDataStatusUpdatedAt: string | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -30,6 +35,21 @@ export type DbMarketInstrumentMetadata = {
     nameSource: string | null;
     displayNameSource: string | null;
     displayMetadataUpdatedAt: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    marketDataStatusReason: string | null;
+    marketDataSuccessorIsin: string | null;
+    marketDataSuccessorSymbol: string | null;
+    marketDataStatusUpdatedAt: string | null;
+};
+
+export type MarketDataInstrumentStatus = "active" | "excluded" | "legacy" | "derivative" | "unknown";
+
+export type UpdateMarketInstrumentStatusInput = {
+    isin: string;
+    status: MarketDataInstrumentStatus;
+    reason?: string | null;
+    successorIsin?: string | null;
+    successorSymbol?: string | null;
 };
 
 export type DbMarketSymbolMapping = {
@@ -359,6 +379,15 @@ export type MarketDataStatusSummary = {
     instrumentsWithActions: number;
     instrumentsWithPrimaryButNoPrices: number;
     failedValidationCandidates: number;
+    instrumentsStatusExcluded: number;
+    instrumentsStatusLegacy: number;
+    instrumentsStatusDerivative: number;
+    instrumentsStatusUnknown: number;
+};
+
+export type MarketInstrumentStatusSummaryRow = {
+    status: MarketDataInstrumentStatus | null;
+    count: number;
 };
 
 export type VerifiedMappingForPromotion = {
