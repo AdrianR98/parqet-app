@@ -19,11 +19,13 @@ async function run() {
     const {
         getMarketDataStatusSummary,
         listMarketInstruments,
+        listReferenceSourceCounts,
         listVerifiedMappingsForPromotion,
     } = await import("../src/lib/market-data/db/repository-core.ts");
 
     const summary = await getMarketDataStatusSummary();
     const allInstruments = await listMarketInstruments({ limit: 50000 });
+    const sourceCounts = await listReferenceSourceCounts();
     const verifiedMappings = await listVerifiedMappingsForPromotion("yfinance");
 
     const verifiedIsins = new Set(verifiedMappings.map((item) => item.isin));
@@ -48,6 +50,15 @@ async function run() {
     console.log(`- instruments with display_name: ${allInstruments.filter((item) => item.displayName && item.displayName.trim()).length}`);
     console.log(`- instruments with name_source: ${allInstruments.filter((item) => item.nameSource && item.nameSource.trim()).length}`);
     console.log(`- instruments with display_name_source: ${allInstruments.filter((item) => item.displayNameSource && item.displayNameSource.trim()).length}`);
+    console.log(`- instruments with name_source=trading_universe: ${allInstruments.filter((item) => item.nameSource === "trading_universe").length}`);
+    console.log(`- instruments with display_name_source=trading_universe: ${allInstruments.filter((item) => item.displayNameSource === "trading_universe").length}`);
+
+    if (sourceCounts.length > 0) {
+        console.log("- reference source counts:");
+        for (const item of sourceCounts) {
+            console.log(`  - ${item.sourceKey}: ${item.rowCount}`);
+        }
+    }
 
     const withoutVerified = allInstruments
         .filter((item) => !verifiedIsins.has(item.isin))

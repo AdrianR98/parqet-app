@@ -38,10 +38,8 @@ import {
   getActivitySnapshotFreshness,
   markActivitySnapshotRefreshFailed,
 } from "../../../../lib/parqet-assets/activity-snapshot";
-import { loadAssetMetadataByIsin } from "../../../../lib/parqet-assets/metadata";
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
-import { resolveAssetDisplay } from "../../../../lib/metadata-utils";
 import { buildGlobalAssetProductReadModelFromActivityContext } from "../../../../lib/parqet/global-assets/coexistence";
 import {
   chooseCuratedDisplayName,
@@ -52,6 +50,8 @@ import {
 import type { DbMarketInstrumentMetadata } from "../../../../lib/market-data/db/types-core";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
+const INSTRUMENT_METADATA_MISSING_TITLE = "Stammdaten fehlen";
+const INSTRUMENT_DB_UNAVAILABLE_MESSAGE = "Instrumenten-Stammdaten konnten nicht aus der Datenbank geladen werden";
 const ASSETS_API_BUDGET = buildActivityScanBudgetInfo({
   activityFetchScope: "selected_portfolios",
   responseFlagsReduceProviderCalls: false,
@@ -145,16 +145,20 @@ function getMonthLabel(value: string): string {
 function buildActivityItems(
   activityContext: Awaited<ReturnType<typeof buildActivityContext>>,
   marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata> = {},
+  marketMetadataDbAvailable = true,
 ): ActivitiesAuditItem[] {
   return activityContext.correctedActivities
     .map((activity) => {
       const datetime = activity.datetime ?? "";
-      const isin = (activity.isin ?? "").trim().toUpperCase();
-      const marketMetadata = marketMetadataByIsin[isin];
-      const curatedName = marketMetadata
-        ? chooseCuratedDisplayName(marketMetadata, activity.name ?? null)
-        : null;
-      const curatedWkn = marketMetadata?.wkn?.trim() || null;
+      const isin = normalizeLookupIsin(activity.isin ?? "");
+      const resolution = resolveInstrumentMetadataForIsin({
+        isin,
+        marketMetadataByIsin,
+        marketMetadataDbAvailable,
+      });
+      const instrumentMetadataStatus: ActivitiesAuditItem["instrumentMetadataStatus"] =
+        resolution.status;
+      const instrumentMetadataError = resolution.error;
 
       return {
         id: activity.id,
@@ -169,9 +173,13 @@ function buildActivityItems(
           : "Unknown Portfolio",
         isin,
         name:
-          isMeaningfulInstrumentName(curatedName, isin) ? curatedName : activity.name ?? activity.symbol ?? activity.wkn ?? isin,
+          instrumentMetadataStatus === "ok"
+            ? resolution.instrumentDisplayName
+            : INSTRUMENT_METADATA_MISSING_TITLE,
         symbol: activity.symbol ?? null,
-        wkn: activity.wkn ?? curatedWkn ?? null,
+        wkn: activity.wkn ?? resolution.wkn ?? null,
+        instrumentMetadataStatus,
+        instrumentMetadataError,
         type: activity.type ?? "unknown",
         rawType: activity.rawType ?? activity.type ?? "unknown",
         shares: toNumber(activity.shares),
@@ -196,6 +204,190 @@ function normalizeWeakText(value: string | null | undefined): string | null {
   return normalized;
 }
 
+function normalizeLookupIsin(value: string | null | undefined): string {
+  return (value ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+function getMarketMetadataForIsin(
+  isin: string,
+  marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>,
+): DbMarketInstrumentMetadata | null {
+  const normalized = normalizeLookupIsin(isin);
+  if (!normalized) return null;
+  return marketMetadataByIsin[normalized] ?? null;
+}
+
+function buildInstrumentSubtitle(input: {
+  isin: string;
+  wkn?: string | null;
+  error?: string | null;
+}): string {
+  const parts = [`ISIN ${input.isin}`];
+  if (input.wkn && input.wkn.trim()) {
+    parts.push(`WKN ${input.wkn.trim()}`);
+  }
+  if (input.error && input.error.trim()) {
+    parts.push(input.error.trim());
+  }
+  return parts.join(" • ");
+}
+
+type InstrumentMetadataResolution = {
+  status: AssetSummary["instrumentMetadataStatus"];
+  error: string | null;
+  instrumentDisplayName: string | null;
+  instrumentName: string | null;
+  wkn: string | null;
+  assetType: string | null;
+  currency: string | null;
+  metadataSource: string | null;
+  metadataUpdatedAt: string | null;
+  nameSource: string | null;
+  displayNameSource: string | null;
+};
+
+function resolveInstrumentMetadataForIsin(input: {
+  isin: string;
+  marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>;
+  marketMetadataDbAvailable: boolean;
+}): InstrumentMetadataResolution {
+  const normalizedIsin = normalizeLookupIsin(input.isin);
+  if (!normalizedIsin) {
+    return {
+      status: "ok",
+      error: null,
+      instrumentDisplayName: null,
+      instrumentName: null,
+      wkn: null,
+      assetType: null,
+      currency: null,
+      metadataSource: null,
+      metadataUpdatedAt: null,
+      nameSource: null,
+      displayNameSource: null,
+    };
+  }
+
+  if (!input.marketMetadataDbAvailable) {
+    return {
+      status: "db_unavailable",
+      error: INSTRUMENT_DB_UNAVAILABLE_MESSAGE,
+      instrumentDisplayName: null,
+      instrumentName: null,
+      wkn: null,
+      assetType: null,
+      currency: null,
+      metadataSource: null,
+      metadataUpdatedAt: null,
+      nameSource: null,
+      displayNameSource: null,
+    };
+  }
+
+  const marketMetadata = getMarketMetadataForIsin(
+    normalizedIsin,
+    input.marketMetadataByIsin,
+  );
+  if (!marketMetadata) {
+    return {
+      status: "missing",
+      error: `Keine Stammdaten in market_instruments für ISIN ${normalizedIsin}`,
+      instrumentDisplayName: null,
+      instrumentName: null,
+      wkn: null,
+      assetType: null,
+      currency: null,
+      metadataSource: null,
+      metadataUpdatedAt: null,
+      nameSource: null,
+      displayNameSource: null,
+    };
+  }
+
+  const curatedDisplayName = normalizeWeakText(marketMetadata.displayName);
+  const curatedName = chooseCuratedDisplayName(marketMetadata, null);
+  const finalDisplayName = isMeaningfulInstrumentName(curatedName, normalizedIsin)
+    ? (curatedDisplayName ?? curatedName)
+    : null;
+  const finalName = isMeaningfulInstrumentName(curatedName, normalizedIsin)
+    ? curatedName
+    : null;
+  const status: AssetSummary["instrumentMetadataStatus"] =
+    finalDisplayName && finalName ? "ok" : "missing_name";
+
+  return {
+    status,
+    error:
+      status === "ok"
+        ? null
+        : `Instrumentenname fehlt in market_instruments für ISIN ${normalizedIsin}`,
+    instrumentDisplayName: finalDisplayName,
+    instrumentName: finalName,
+    wkn: normalizeWeakText(marketMetadata.wkn),
+    assetType: normalizeWeakText(marketMetadata.assetType),
+    currency: normalizeWeakText(marketMetadata.currency)?.toUpperCase() ?? null,
+    metadataSource: normalizeWeakText(marketMetadata.metadataSource),
+    metadataUpdatedAt: normalizeWeakText(marketMetadata.metadataUpdatedAt),
+    nameSource: normalizeWeakText(marketMetadata.nameSource),
+    displayNameSource: normalizeWeakText(marketMetadata.displayNameSource),
+  };
+}
+
+function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
+  globalAssetProductReadModel: unknown;
+  marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>;
+  marketMetadataDbAvailable: boolean;
+}): unknown {
+  const model = input.globalAssetProductReadModel;
+  if (!model || typeof model !== "object") {
+    return model;
+  }
+
+  const assets = (model as { assets?: unknown[] }).assets;
+  if (!Array.isArray(assets)) {
+    return model;
+  }
+
+  const nextAssets = assets.map((asset) => {
+    if (!asset || typeof asset !== "object") {
+      return asset;
+    }
+
+    const identity = (asset as { identity?: { compatibilityIsin?: string | null } }).identity;
+    const compatibilityIsin = normalizeLookupIsin(identity?.compatibilityIsin ?? "");
+    if (!compatibilityIsin) {
+      return asset;
+    }
+    const resolution = resolveInstrumentMetadataForIsin({
+      isin: compatibilityIsin,
+      marketMetadataByIsin: input.marketMetadataByIsin,
+      marketMetadataDbAvailable: input.marketMetadataDbAvailable,
+    });
+
+    return {
+      ...asset,
+      display: {
+        ...((asset as { display?: Record<string, unknown> }).display ?? {}),
+        displayName:
+          resolution.status === "ok"
+            ? resolution.instrumentDisplayName
+            : INSTRUMENT_METADATA_MISSING_TITLE,
+        wkn: resolution.wkn ?? null,
+        subtitle: buildInstrumentSubtitle({
+          isin: compatibilityIsin,
+          wkn: resolution.wkn,
+          error: resolution.error,
+        }),
+      },
+    };
+  });
+
+  return {
+    ...(model as Record<string, unknown>),
+    assets: nextAssets,
+  };
+}
+
 function isWeakAssetType(value: string | null | undefined): boolean {
   const normalized = normalizeWeakText(value)?.toLowerCase() ?? "";
   return !normalized || normalized === "unknown" || normalized === "other" || normalized === "n/a";
@@ -209,25 +401,22 @@ function isWeakCurrency(value: string | null | undefined): boolean {
 function applyMarketInstrumentMetadataOverlay(
   asset: AssetSummary,
   marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>,
+  marketMetadataDbAvailable: boolean,
 ): AssetSummary {
-  const marketMetadata = marketMetadataByIsin[asset.isin];
-
-  if (!marketMetadata) {
-    return asset;
+  const normalizedIsin = normalizeLookupIsin(asset.isin);
+  if (!normalizedIsin) {
+    return {
+      ...asset,
+      instrumentMetadataStatus: "ok",
+      instrumentMetadataError: null,
+    };
   }
 
-  const curatedDisplayName = normalizeWeakText(marketMetadata.displayName);
-  const curatedName = chooseCuratedDisplayName(
-    marketMetadata,
-    asset.displayName ?? asset.name ?? null,
-  );
-  const curatedWkn = normalizeWeakText(marketMetadata.wkn);
-  const curatedAssetType = normalizeWeakText(marketMetadata.assetType);
-  const curatedCurrency = normalizeWeakText(marketMetadata.currency)?.toUpperCase() ?? null;
-  const metadataSource = normalizeWeakText(marketMetadata.metadataSource);
-  const metadataUpdatedAt = normalizeWeakText(marketMetadata.metadataUpdatedAt);
-  const nameSource = normalizeWeakText(marketMetadata.nameSource);
-  const displayNameSource = normalizeWeakText(marketMetadata.displayNameSource);
+  const resolution = resolveInstrumentMetadataForIsin({
+    isin: normalizedIsin,
+    marketMetadataByIsin,
+    marketMetadataDbAvailable,
+  });
 
   const currentAssetType =
     normalizeWeakText(asset.externalMetadata?.assetType) ??
@@ -238,39 +427,91 @@ function applyMarketInstrumentMetadataOverlay(
     normalizeWeakText(asset.metadata?.currency) ??
     normalizeWeakText(asset.assetMeta?.currency);
 
-  const shouldApplyName = isMeaningfulInstrumentName(curatedName, asset.isin);
-  const shouldApplyAssetType = Boolean(curatedAssetType) && isWeakAssetType(currentAssetType);
-  const shouldApplyCurrency = Boolean(curatedCurrency) && isWeakCurrency(currentCurrency);
+  const shouldApplyAssetType =
+    Boolean(resolution.assetType) && isWeakAssetType(currentAssetType);
+  const shouldApplyCurrency =
+    Boolean(resolution.currency) && isWeakCurrency(currentCurrency);
+  const finalDisplayName =
+    resolution.status === "ok" ? resolution.instrumentDisplayName : null;
+  const finalName =
+    resolution.status === "ok" ? resolution.instrumentName : null;
+  const status: AssetSummary["instrumentMetadataStatus"] = resolution.status;
+  const statusError = resolution.error;
 
   const existingWkn = normalizeWeakText(asset.wkn);
 
   return {
     ...asset,
-    name: shouldApplyName ? curatedName : asset.name,
-    assetName: shouldApplyName ? curatedName : asset.assetName,
-    displayName: shouldApplyName ? (curatedDisplayName ?? curatedName) : asset.displayName,
-    title: shouldApplyName ? curatedName : asset.title,
-    curatedName: shouldApplyName ? curatedName : asset.curatedName ?? null,
-    wkn: existingWkn ?? curatedWkn ?? asset.wkn,
-    metadataSource: metadataSource ?? asset.metadataSource ?? null,
-    nameSource: nameSource ?? asset.nameSource ?? null,
-    displayNameSource: displayNameSource ?? asset.displayNameSource ?? null,
-    metadataUpdatedAt: metadataUpdatedAt ?? asset.metadataUpdatedAt ?? null,
+    name: finalName ?? INSTRUMENT_METADATA_MISSING_TITLE,
+    assetName: finalName ?? INSTRUMENT_METADATA_MISSING_TITLE,
+    displayName: finalDisplayName ?? INSTRUMENT_METADATA_MISSING_TITLE,
+    title: finalDisplayName ?? finalName ?? INSTRUMENT_METADATA_MISSING_TITLE,
+    curatedName: finalDisplayName ?? finalName,
+    instrumentDisplayName: finalDisplayName ?? null,
+    instrumentName: finalName ?? null,
+    instrumentMetadataStatus: status,
+    instrumentMetadataError: statusError,
+    wkn: resolution.wkn ?? existingWkn ?? asset.wkn,
+    metadataSource: resolution.metadataSource ?? asset.metadataSource ?? null,
+    nameSource: resolution.nameSource ?? asset.nameSource ?? null,
+    displayNameSource:
+      resolution.displayNameSource ?? asset.displayNameSource ?? null,
+    metadataUpdatedAt:
+      resolution.metadataUpdatedAt ?? asset.metadataUpdatedAt ?? null,
+    metadata: {
+      ...(asset.metadata ?? {}),
+      curatedName: finalDisplayName ?? finalName ?? null,
+      displayName: finalDisplayName ?? finalName ?? null,
+      name: finalName ?? null,
+      wkn: resolution.wkn ?? existingWkn ?? asset.wkn ?? null,
+      metadataSource: resolution.metadataSource ?? asset.metadata?.metadataSource ?? null,
+      nameSource: resolution.nameSource ?? asset.metadata?.nameSource ?? null,
+      displayNameSource:
+        resolution.displayNameSource ?? asset.metadata?.displayNameSource ?? null,
+      metadataUpdatedAt:
+        resolution.metadataUpdatedAt ?? asset.metadata?.metadataUpdatedAt ?? null,
+      instrumentDisplayName: finalDisplayName ?? null,
+      instrumentName: finalName ?? null,
+      instrumentMetadataStatus: status,
+      instrumentMetadataError: statusError,
+      assetType:
+        shouldApplyAssetType
+          ? resolution.assetType
+          : asset.metadata?.assetType ?? null,
+      currency:
+        shouldApplyCurrency
+          ? resolution.currency
+          : asset.metadata?.currency ?? null,
+    },
     externalMetadata: {
       ...(asset.externalMetadata ?? {}),
-      curatedName: shouldApplyName ? curatedName : asset.externalMetadata?.curatedName ?? null,
-      name: shouldApplyName ? curatedName : asset.externalMetadata?.name ?? asset.name ?? null,
-      displayName: shouldApplyName ? (curatedDisplayName ?? curatedName) : asset.externalMetadata?.displayName ?? asset.displayName ?? null,
-      assetName: shouldApplyName ? curatedName : asset.externalMetadata?.assetName ?? asset.assetName ?? null,
-      title: shouldApplyName ? curatedName : asset.externalMetadata?.title ?? asset.title ?? null,
-      wkn: existingWkn ?? curatedWkn ?? asset.externalMetadata?.wkn ?? null,
-      assetType: shouldApplyAssetType ? curatedAssetType : asset.externalMetadata?.assetType ?? null,
-      currency: shouldApplyCurrency ? curatedCurrency : asset.externalMetadata?.currency ?? null,
-      metadataSource: metadataSource ?? asset.externalMetadata?.metadataSource ?? null,
-      nameSource: nameSource ?? asset.externalMetadata?.nameSource ?? null,
+      curatedName: finalDisplayName ?? finalName ?? null,
+      name: finalName ?? null,
+      displayName: finalDisplayName ?? null,
+      assetName: finalName ?? null,
+      title: finalDisplayName ?? finalName ?? null,
+      wkn: resolution.wkn ?? existingWkn ?? asset.externalMetadata?.wkn ?? null,
+      assetType:
+        shouldApplyAssetType
+          ? resolution.assetType
+          : asset.externalMetadata?.assetType ?? null,
+      currency:
+        shouldApplyCurrency
+          ? resolution.currency
+          : asset.externalMetadata?.currency ?? null,
+      metadataSource:
+        resolution.metadataSource ?? asset.externalMetadata?.metadataSource ?? null,
+      nameSource: resolution.nameSource ?? asset.externalMetadata?.nameSource ?? null,
       displayNameSource:
-        displayNameSource ?? asset.externalMetadata?.displayNameSource ?? null,
-      metadataUpdatedAt: metadataUpdatedAt ?? asset.externalMetadata?.metadataUpdatedAt ?? null,
+        resolution.displayNameSource ??
+        asset.externalMetadata?.displayNameSource ??
+        null,
+      metadataUpdatedAt:
+        resolution.metadataUpdatedAt ??
+        asset.externalMetadata?.metadataUpdatedAt ??
+        null,
+      instrumentMetadataStatus: status,
+      instrumentMetadataError: statusError,
     },
   };
 }
@@ -415,16 +656,14 @@ export async function GET(req: Request) {
       // CSV-Metadata -> Activity-Name -> Fallback
       // ====================================================
 
-      const metadataByIsin = await loadAssetMetadataByIsin(
-        correctedAssets.map((asset: AssetSummary) => asset.isin),
-      );
-
       let marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata> = {};
+      let marketMetadataDbAvailable = true;
       try {
         marketMetadataByIsin = await getMarketInstrumentMetadataByIsins(
           correctedAssets.map((asset: AssetSummary) => asset.isin),
         );
       } catch (error) {
+        marketMetadataDbAvailable = false;
         if (error instanceof MarketDataRepositoryError) {
           console.warn(
             "[parqet-assets] market_instruments metadata overlay unavailable:",
@@ -439,38 +678,15 @@ export async function GET(req: Request) {
 
       const enrichedAssets: AssetSummary[] = correctedAssets.map(
         (asset: AssetSummary) => {
-          const metadata = metadataByIsin[asset.isin];
-          const resolvedDisplay = resolveAssetDisplay({
-            isin: asset.isin,
-            metadata,
-            activity: asset,
-          });
-
           return {
             ...asset,
-            name: resolvedDisplay.name,
-
-            assetName: asset.assetName ?? metadata?.name ?? null,
-            displayName: asset.displayName ?? metadata?.name ?? null,
-            title: asset.title ?? metadata?.name ?? null,
-
-            symbol: resolvedDisplay.symbol,
-            ticker: resolvedDisplay.ticker,
-            tickerSymbol: resolvedDisplay.tickerSymbol,
-            wkn: resolvedDisplay.wkn,
-
-            externalMetadata: {
-              ...(asset.externalMetadata ?? {}),
-              ...(metadata ?? {}),
-              metadataSource: resolvedDisplay.source,
-              subtitle: resolvedDisplay.subtitle,
-            },
+            externalMetadata: { ...(asset.externalMetadata ?? {}) },
           };
         },
       );
 
       const assetsWithMarketMetadata: AssetSummary[] = enrichedAssets.map((asset) =>
-        applyMarketInstrumentMetadataOverlay(asset, marketMetadataByIsin),
+        applyMarketInstrumentMetadataOverlay(asset, marketMetadataByIsin, marketMetadataDbAvailable),
       );
 
       const activeAssets = assetsWithMarketMetadata.filter(
@@ -482,12 +698,41 @@ export async function GET(req: Request) {
       );
 
       const consistencyReport = buildConsistencyReport(assetsWithMarketMetadata);
+      const instrumentMetadataSummary = assetsWithMarketMetadata.reduce(
+        (summary, asset) => {
+          switch (asset.instrumentMetadataStatus) {
+            case "ok":
+              summary.ok += 1;
+              break;
+            case "missing":
+              summary.missing += 1;
+              break;
+            case "missing_name":
+              summary.missingName += 1;
+              break;
+            case "db_unavailable":
+              summary.dbUnavailable += 1;
+              break;
+            default:
+              summary.missing += 1;
+              break;
+          }
+          return summary;
+        },
+        { ok: 0, missing: 0, missingName: 0, dbUnavailable: 0 },
+      );
       const generatedAt = new Date().toISOString();
-      const globalAssetProductReadModel =
+      const globalAssetProductReadModelRaw =
         buildGlobalAssetProductReadModelFromActivityContext({
           activityContext,
           requestedPortfolioIds: portfolioIds,
           generatedAt,
+        });
+      const globalAssetProductReadModel =
+        overlayGlobalAssetProductDisplayFromMarketMetadata({
+          globalAssetProductReadModel: globalAssetProductReadModelRaw,
+          marketMetadataByIsin,
+          marketMetadataDbAvailable,
         });
 
       return {
@@ -500,9 +745,10 @@ export async function GET(req: Request) {
         closedAssets,
         consistencyReport,
         reconciliationWarnings: activityContext.reconciliationWarnings,
+        instrumentMetadataSummary,
         generatedAt,
         freshness: activityContext.freshness,
-        activityItems: buildActivityItems(activityContext, marketMetadataByIsin),
+        activityItems: buildActivityItems(activityContext, marketMetadataByIsin, marketMetadataDbAvailable),
         globalAssetProductReadModel,
         apiBudget: ASSETS_API_BUDGET,
       };

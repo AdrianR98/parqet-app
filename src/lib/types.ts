@@ -43,10 +43,14 @@ export type AssetMetadata = {
 
   wkn?: string | null;
   curatedName?: string | null;
+  instrumentDisplayName?: string | null;
+  instrumentName?: string | null;
   metadataSource?: string | null;
   nameSource?: string | null;
   displayNameSource?: string | null;
   metadataUpdatedAt?: string | null;
+  instrumentMetadataStatus?: "ok" | "missing" | "db_unavailable" | "missing_name";
+  instrumentMetadataError?: string | null;
 
   marketPrice?: number | null;
   marketPriceAt?: string | null;
@@ -145,6 +149,10 @@ export type AssetSummary = {
   nameSource?: string | null;
   displayNameSource?: string | null;
   metadataUpdatedAt?: string | null;
+  instrumentDisplayName?: string | null;
+  instrumentName?: string | null;
+  instrumentMetadataStatus?: "ok" | "missing" | "db_unavailable" | "missing_name";
+  instrumentMetadataError?: string | null;
 
   metadata?: Partial<AssetMetadata> | null;
   externalMetadata?: Partial<AssetMetadata> | null;
@@ -268,6 +276,12 @@ export type AssetsApiResponse = {
   generatedAt?: string;
   freshness?: SnapshotFreshness;
   activityItems?: ActivitiesAuditItem[];
+  instrumentMetadataSummary?: {
+    ok: number;
+    missing: number;
+    missingName: number;
+    dbUnavailable: number;
+  };
   consistencyReport?: ConsistencyReport | null;
   reconciliationWarnings?: ReconciliationWarning[];
 
@@ -400,6 +414,8 @@ export type ActivitiesAuditItem = {
   name: string | null;
   symbol: string | null;
   wkn: string | null;
+  instrumentMetadataStatus?: "ok" | "missing" | "db_unavailable" | "missing_name";
+  instrumentMetadataError?: string | null;
 
   type: AuditActivityType;
   rawType: string;

@@ -606,6 +606,10 @@ function hydrateActivityMetadata(items: ActivitiesAuditItem[]): ActivitiesAuditI
   const metadataCache = getMergedAssetMetadataCache();
 
   return items.map((item) => {
+    if (item.instrumentMetadataStatus === "ok") {
+      return item;
+    }
+
     const normalizedIsin = normalizeIsin(item.isin);
     const metadata = normalizedIsin ? metadataCache[normalizedIsin] : undefined;
 
@@ -615,7 +619,7 @@ function hydrateActivityMetadata(items: ActivitiesAuditItem[]): ActivitiesAuditI
 
     return {
       ...item,
-      name: metadata.name ?? metadata.displayName ?? metadata.assetName ?? metadata.title ?? item.name,
+      name: item.name,
       symbol: item.symbol ?? metadata.symbol ?? metadata.ticker ?? metadata.tickerSymbol ?? null,
       wkn: item.wkn ?? metadata.wkn ?? null,
     };

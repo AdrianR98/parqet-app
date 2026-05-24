@@ -14,7 +14,6 @@ import { CSV_ASSET_METADATA } from "./generated/csv-asset-metadata";
 import {
     normalizeIsin,
     normalizeMetadata,
-    resolvePreferredAssetName,
 } from "./metadata-utils";
 
 const METADATA_STORAGE_KEY = "parqet-asset-metadata-cache-v1";
@@ -36,6 +35,33 @@ type AssetMetadataCache = Record<string, AssetMetadata>;
 
 function isBrowser(): boolean {
     return typeof window !== "undefined";
+}
+
+function isMeaningfulDisplayName(value: string | null | undefined, isin: string | null | undefined): value is string {
+    if (typeof value !== "string") {
+        return false;
+    }
+    const normalized = value.trim();
+    if (!normalized) {
+        return false;
+    }
+    if (normalized.toUpperCase() === String(isin ?? "").trim().toUpperCase()) {
+        return false;
+    }
+    const lowered = normalized.toLowerCase();
+    return lowered !== "unknown" && lowered !== "n/a" && lowered !== "undefined" && lowered !== "null";
+}
+
+function pickFirstMeaningfulName(
+    isin: string | null | undefined,
+    ...candidates: Array<string | null | undefined>
+): string | null {
+    for (const candidate of candidates) {
+        if (isMeaningfulDisplayName(candidate, isin)) {
+            return candidate.trim();
+        }
+    }
+    return null;
 }
 
 function getStaticMetadata(): AssetMetadataCache {
@@ -168,33 +194,36 @@ export function enrichAssetsWithMetadata(assets: AssetSummary[]): AssetSummary[]
         const normalized = normalizeIsin(asset.isin);
 
         const csvMetadata = normalized ? CSV_ASSET_METADATA[normalized] : undefined;
-        const localSeedMetadata = normalized ? LOCAL_METADATA_SEED[normalized] : undefined;
         const cachedMetadata = normalized ? mergedCache[normalized] : undefined;
-
-        const resolved = resolvePreferredAssetName({
-            csvName: csvMetadata?.name ?? null,
-            localSeedName: localSeedMetadata?.name ?? null,
-            activityName:
-                asset.name ??
-                asset.assetName ??
-                asset.displayName ??
-                asset.title ??
-                null,
-            cachedName: cachedMetadata?.name ?? null,
-            symbol: asset.symbol ?? cachedMetadata?.symbol ?? null,
-            ticker: asset.ticker ?? cachedMetadata?.ticker ?? null,
-            tickerSymbol: asset.tickerSymbol ?? cachedMetadata?.tickerSymbol ?? null,
-            wkn: asset.wkn ?? cachedMetadata?.wkn ?? null,
-            isin: asset.isin ?? null,
-        });
+        const authoritativeDisplayName = pickFirstMeaningfulName(
+            asset.isin,
+            asset.instrumentDisplayName ?? null,
+            typeof asset.externalMetadata?.curatedName === "string" ? asset.externalMetadata.curatedName : null,
+            typeof asset.externalMetadata?.displayName === "string" ? asset.externalMetadata.displayName : null,
+            asset.curatedName ?? null,
+            asset.displayName ?? null,
+            asset.name ?? null,
+        );
+        const metadataError =
+            asset.instrumentMetadataError ??
+            (asset.instrumentMetadataStatus === "missing"
+                ? `Keine Stammdaten in market_instruments für ISIN ${asset.isin}`
+                : asset.instrumentMetadataStatus === "missing_name"
+                    ? `Instrumentenname fehlt in market_instruments für ISIN ${asset.isin}`
+                    : asset.instrumentMetadataStatus === "db_unavailable"
+                        ? "Instrumenten-Stammdaten konnten nicht aus der Datenbank geladen werden"
+                        : null);
 
         return {
             ...asset,
-            name: resolved.name ?? null,
+            name: authoritativeDisplayName ?? (asset.instrumentMetadataStatus === "ok" ? null : "Stammdaten fehlen"),
 
-            assetName: asset.assetName ?? csvMetadata?.name ?? cachedMetadata?.assetName ?? null,
-            displayName: asset.displayName ?? csvMetadata?.name ?? cachedMetadata?.displayName ?? null,
-            title: asset.title ?? csvMetadata?.name ?? cachedMetadata?.title ?? null,
+            assetName: authoritativeDisplayName ?? (asset.instrumentMetadataStatus === "ok" ? null : "Stammdaten fehlen"),
+            displayName: authoritativeDisplayName ?? (asset.instrumentMetadataStatus === "ok" ? null : "Stammdaten fehlen"),
+            title: authoritativeDisplayName ?? (asset.instrumentMetadataStatus === "ok" ? null : "Stammdaten fehlen"),
+            curatedName: authoritativeDisplayName ?? null,
+            instrumentDisplayName: authoritativeDisplayName ?? null,
+            instrumentMetadataError: metadataError,
 
             symbol: asset.symbol ?? cachedMetadata?.symbol ?? cachedMetadata?.ticker ?? null,
             ticker: asset.ticker ?? cachedMetadata?.ticker ?? null,
@@ -209,7 +238,9 @@ export function enrichAssetsWithMetadata(assets: AssetSummary[]): AssetSummary[]
                 ...(asset.externalMetadata ?? {}),
                 ...(cachedMetadata ?? {}),
                 csvName: csvMetadata?.name ?? null,
-                metadataSource: resolved.source,
+                metadataSource: asset.metadataSource ?? null,
+                instrumentMetadataStatus: asset.instrumentMetadataStatus ?? undefined,
+                instrumentMetadataError: metadataError,
             },
         };
     });

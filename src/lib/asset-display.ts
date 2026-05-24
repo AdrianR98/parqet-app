@@ -42,6 +42,13 @@ function normalizeIdentifier(value: unknown): string | null {
     return value.trim().toUpperCase();
 }
 
+function isIsinLike(value: unknown): value is string {
+    if (!isNonEmptyDisplayString(value)) {
+        return false;
+    }
+    return /^[A-Z0-9]{12}$/.test(value.trim().toUpperCase());
+}
+
 /**
  * Sammelt optionale Metadaten-Container in einer festen Reihenfolge.
  */
@@ -181,6 +188,20 @@ export function getAssetWkn(asset: AssetSummary): string | null {
  * 5. ISIN
  */
 export function getAssetDisplayName(asset: AssetSummary): string {
+    if (isIsinLike(asset.isin) && asset.instrumentMetadataStatus !== "ok") {
+        return "Stammdaten fehlen";
+    }
+
+    const instrumentDisplayName = pickFirstDisplayString(
+        asset.instrumentDisplayName,
+        asset.curatedName,
+        asset.displayName,
+        asset.name
+    );
+    if (instrumentDisplayName) {
+        return instrumentDisplayName;
+    }
+
     for (const metadata of getMetadataCandidates(asset)) {
         const metadataName = pickFirstNonIdentifierName(
             asset,
@@ -221,7 +242,7 @@ export function getAssetDisplayName(asset: AssetSummary): string {
         return wkn;
     }
 
-    return asset.isin;
+    return "Stammdaten fehlen";
 }
 
 /**
@@ -234,22 +255,24 @@ export function getAssetDisplayName(asset: AssetSummary): string {
  * werden beide kombiniert.
  */
 export function getAssetSubtitle(asset: AssetSummary): string {
+    if (isIsinLike(asset.isin) && asset.instrumentMetadataStatus !== "ok") {
+        const base = `ISIN ${asset.isin}`;
+        if (asset.instrumentMetadataError) {
+            return `${base} • ${asset.instrumentMetadataError}`;
+        }
+        return `${base} • Instrumenten-Stammdaten fehlen`;
+    }
+
     const symbol = getAssetSymbol(asset);
     const wkn = getAssetWkn(asset);
 
-    if (symbol && wkn && symbol !== wkn) {
-        return `${symbol} • ${wkn}`;
-    }
-
-    if (symbol) {
-        return symbol;
-    }
-
     if (wkn) {
-        return wkn;
+        return `ISIN ${asset.isin} • WKN ${wkn}`;
     }
-
-    return asset.isin;
+    if (symbol) {
+        return `ISIN ${asset.isin} • ${symbol}`;
+    }
+    return `ISIN ${asset.isin}`;
 }
 
 /**
