@@ -218,12 +218,8 @@ function applyResolvedAppearanceMode(theme: ResolvedTheme): void {
 }
 
 export function useTheme() {
-    const [appearanceMode, setAppearanceModeState] = useState<AppearanceMode>(() => (
-        typeof window === "undefined" ? "system" : loadAppearanceMode()
-    ));
-    const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() => (
-        typeof window === "undefined" ? getSystemThemeServerSnapshot() : getSystemThemeSnapshot()
-    ));
+    const [appearanceMode, setAppearanceModeState] = useState<AppearanceMode>("system");
+    const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemThemeServerSnapshot);
 
     useEffect(() => {
         const syncAppearanceModeFromStorage = () => {
