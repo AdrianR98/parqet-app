@@ -42,6 +42,10 @@ import type {
     UpsertSymbolMappingInput,
     TradingUniverseReferenceMatch,
     ReferenceSourceCount,
+    AdminOpenUnmappedMarketDataRow,
+    AdminMarketInstrumentOverviewRow,
+    AdminMarketSymbolMappingOverviewRow,
+    AdminMarketDataRunOverviewRow,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -1492,6 +1496,305 @@ export async function listMarketInstrumentStatusSummary(): Promise<MarketInstrum
                     ? null
                     : normalizeInstrumentStatus(String(row.status)),
             count: Number(row.count ?? 0),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminOpenUnmappedMarketDataRows(): Promise<AdminOpenUnmappedMarketDataRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with mapping as (
+                select
+                    i.id as instrument_id,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true) as has_any_mapping,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.is_primary = true) as has_primary_mapping,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.verified_at is not null) as has_verified_mapping,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.is_primary = true and m.verified_at is not null) as has_verified_primary,
+                    bool_or(m.provider = 'yfinance' and m.notes ilike '%validated:yfinance; status=failed%') as has_failed_validation,
+                    array_remove(array_agg(distinct case when m.provider = 'yfinance' then m.symbol end), null) as candidate_symbols,
+                    max(case when m.provider = 'yfinance' and m.is_primary = true then m.symbol end) as primary_symbol
+                from market_instruments i
+                left join market_symbol_mappings m on m.instrument_id = i.id
+                group by i.id
+            ),
+            price_flags as (
+                select instrument_id, true as has_prices
+                from market_prices_daily
+                group by instrument_id
+            ),
+            action_flags as (
+                select instrument_id, true as has_actions
+                from market_actions
+                group by instrument_id
+            )
+            select
+                i.isin,
+                i.display_name,
+                i.asset_type,
+                i.currency,
+                i.wkn,
+                i.market_data_status,
+                i.market_data_status_reason,
+                coalesce(m.has_any_mapping, false) as has_any_mapping,
+                coalesce(m.has_primary_mapping, false) as has_primary_mapping,
+                coalesce(m.has_verified_mapping, false) as has_verified_mapping,
+                coalesce(m.has_verified_primary, false) as has_verified_primary,
+                coalesce(m.has_failed_validation, false) as has_failed_validation,
+                coalesce(p.has_prices, false) as has_price_data,
+                coalesce(a.has_actions, false) as has_market_actions,
+                m.primary_symbol,
+                coalesce(m.candidate_symbols, '{}'::text[]) as candidate_symbols
+            from market_instruments i
+            left join mapping m on m.instrument_id = i.id
+            left join price_flags p on p.instrument_id = i.id
+            left join action_flags a on a.instrument_id = i.id
+            where (
+                coalesce(m.has_verified_primary, false) = false
+                or coalesce(m.has_primary_mapping, false) = false
+                or coalesce(m.has_failed_validation, false) = true
+                or (coalesce(m.has_primary_mapping, false) = true and coalesce(p.has_prices, false) = false)
+                or coalesce(i.market_data_status, '') in ('excluded', 'legacy', 'derivative', 'unknown')
+            )
+            order by i.isin asc`,
+        );
+
+        return result.rows.map((row) => ({
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            assetType: row.asset_type === null ? null : String(row.asset_type),
+            currency: row.currency === null ? null : String(row.currency),
+            wkn: row.wkn === null ? null : String(row.wkn),
+            marketDataStatus: row.market_data_status === null ? null : normalizeInstrumentStatus(String(row.market_data_status)),
+            marketDataStatusReason: row.market_data_status_reason === null ? null : String(row.market_data_status_reason),
+            hasAnyMapping: Boolean(row.has_any_mapping),
+            hasPrimaryMapping: Boolean(row.has_primary_mapping),
+            hasVerifiedMapping: Boolean(row.has_verified_mapping),
+            hasVerifiedPrimary: Boolean(row.has_verified_primary),
+            hasFailedValidation: Boolean(row.has_failed_validation),
+            hasPriceData: Boolean(row.has_price_data),
+            hasMarketActions: Boolean(row.has_market_actions),
+            primarySymbol: row.primary_symbol === null ? null : String(row.primary_symbol),
+            candidateSymbols: Array.isArray(row.candidate_symbols)
+                ? row.candidate_symbols.filter((value): value is string => typeof value === "string")
+                : [],
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminMarketInstrumentOverviewRows(): Promise<AdminMarketInstrumentOverviewRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with mapping as (
+                select
+                    i.id as instrument_id,
+                    count(*) filter (where m.provider = 'yfinance' and m.is_active = true and m.verified_at is not null)::int as verified_mapping_count,
+                    count(*) filter (where m.provider = 'yfinance' and m.is_active = true and m.verified_at is null)::int as candidate_mapping_count,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.is_primary = true) as has_primary_mapping,
+                    max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.symbol end) as primary_symbol,
+                    max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.exchange end) as primary_exchange,
+                    max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.currency end) as primary_currency
+                from market_instruments i
+                left join market_symbol_mappings m on m.instrument_id = i.id
+                group by i.id
+            ),
+            prices as (
+                select
+                    p.instrument_id,
+                    true as has_prices,
+                    min(p.date)::date as first_price_date,
+                    max(p.date)::date as last_price_date
+                from market_prices_daily p
+                group by p.instrument_id
+            ),
+            latest_prices as (
+                select distinct on (p.instrument_id)
+                    p.instrument_id,
+                    p.close as latest_close
+                from market_prices_daily p
+                order by p.instrument_id, p.date desc
+            ),
+            actions as (
+                select a.instrument_id, true as has_actions
+                from market_actions a
+                group by a.instrument_id
+            )
+            select
+                i.isin,
+                i.display_name,
+                i.name,
+                i.asset_type,
+                i.currency,
+                i.wkn,
+                i.metadata_source,
+                i.market_data_status,
+                i.market_data_status_reason,
+                m.primary_symbol,
+                m.primary_exchange,
+                m.primary_currency,
+                coalesce(m.verified_mapping_count, 0) as verified_mapping_count,
+                coalesce(m.candidate_mapping_count, 0) as candidate_mapping_count,
+                coalesce(m.has_primary_mapping, false) as has_primary_mapping,
+                coalesce(p.has_prices, false) as has_price_data,
+                coalesce(ac.has_actions, false) as has_market_actions,
+                p.first_price_date,
+                p.last_price_date,
+                lp.latest_close
+            from market_instruments i
+            left join mapping m on m.instrument_id = i.id
+            left join prices p on p.instrument_id = i.id
+            left join latest_prices lp on lp.instrument_id = i.id
+            left join actions ac on ac.instrument_id = i.id
+            order by i.isin asc`,
+        );
+
+        return result.rows.map((row) => ({
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            name: row.name === null ? null : String(row.name),
+            assetType: row.asset_type === null ? null : String(row.asset_type),
+            currency: row.currency === null ? null : String(row.currency),
+            wkn: row.wkn === null ? null : String(row.wkn),
+            metadataSource: row.metadata_source === null ? null : String(row.metadata_source),
+            marketDataStatus: row.market_data_status === null ? null : normalizeInstrumentStatus(String(row.market_data_status)),
+            marketDataStatusReason: row.market_data_status_reason === null ? null : String(row.market_data_status_reason),
+            primarySymbol: row.primary_symbol === null ? null : String(row.primary_symbol),
+            primaryExchange: row.primary_exchange === null ? null : String(row.primary_exchange),
+            primaryCurrency: row.primary_currency === null ? null : String(row.primary_currency),
+            verifiedMappingCount: Number(row.verified_mapping_count ?? 0),
+            candidateMappingCount: Number(row.candidate_mapping_count ?? 0),
+            hasPrimaryMapping: Boolean(row.has_primary_mapping),
+            hasPriceData: Boolean(row.has_price_data),
+            hasMarketActions: Boolean(row.has_market_actions),
+            firstPriceDate: row.first_price_date === null ? null : normalizeDbDateValue(row.first_price_date),
+            lastPriceDate: row.last_price_date === null ? null : normalizeDbDateValue(row.last_price_date),
+            latestClose: toNullableNumber(row.latest_close),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminMarketSymbolMappingsOverviewRows(): Promise<AdminMarketSymbolMappingOverviewRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with latest_price as (
+                select distinct on (p.instrument_id, p.provider, p.symbol)
+                    p.instrument_id,
+                    p.provider,
+                    p.symbol,
+                    p.date as latest_price_date,
+                    p.close as latest_close
+                from market_prices_daily p
+                order by p.instrument_id, p.provider, p.symbol, p.date desc
+            )
+            select
+                m.id,
+                i.isin,
+                i.display_name,
+                m.provider,
+                m.symbol,
+                m.exchange,
+                m.currency,
+                m.notes,
+                m.is_primary,
+                m.is_active,
+                m.verified_at,
+                (lp.latest_price_date is not null) as has_price_data,
+                lp.latest_price_date,
+                lp.latest_close
+            from market_symbol_mappings m
+            join market_instruments i on i.id = m.instrument_id
+            left join latest_price lp
+              on lp.instrument_id = m.instrument_id
+             and lp.provider = m.provider
+             and lp.symbol = m.symbol
+            order by i.isin asc, m.provider asc, m.symbol asc`,
+        );
+
+        return result.rows.map((row) => ({
+            id: String(row.id),
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            provider: String(row.provider),
+            symbol: String(row.symbol),
+            exchange: row.exchange === null ? null : String(row.exchange),
+            currency: row.currency === null ? null : String(row.currency),
+            notes: row.notes === null ? null : String(row.notes),
+            isPrimary: Boolean(row.is_primary),
+            isActive: Boolean(row.is_active),
+            verifiedAt: row.verified_at === null ? null : String(row.verified_at),
+            hasPriceData: Boolean(row.has_price_data),
+            latestPriceDate: row.latest_price_date === null ? null : normalizeDbDateValue(row.latest_price_date),
+            latestClose: toNullableNumber(row.latest_close),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminMarketDataRunOverviewRows(): Promise<AdminMarketDataRunOverviewRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with run_item_counts as (
+                select
+                    ri.run_id,
+                    count(*)::int as total_items,
+                    count(*) filter (where lower(ri.status) in ('success', 'ok', 'completed'))::int as succeeded_items,
+                    count(*) filter (where lower(ri.status) in ('failed', 'error'))::int as failed_items,
+                    count(*) filter (where lower(ri.status) = 'skipped')::int as skipped_items,
+                    count(*) filter (where ri.error_message is not null and btrim(ri.error_message) <> '')::int as error_count
+                from market_data_run_items ri
+                group by ri.run_id
+            ),
+            latest_item_error as (
+                select distinct on (ri.run_id)
+                    ri.run_id,
+                    ri.error_message
+                from market_data_run_items ri
+                where ri.error_message is not null and btrim(ri.error_message) <> ''
+                order by ri.run_id, ri.id desc
+            )
+            select
+                r.id,
+                r.run_type,
+                r.status,
+                r.provider,
+                r.started_at,
+                r.finished_at,
+                case
+                    when r.finished_at is null then null
+                    else greatest(0, (extract(epoch from (r.finished_at - r.started_at)) * 1000)::bigint)
+                end as duration_ms,
+                coalesce(c.total_items, 0) as total_items,
+                coalesce(c.succeeded_items, 0) as succeeded_items,
+                coalesce(c.failed_items, 0) as failed_items,
+                coalesce(c.skipped_items, 0) as skipped_items,
+                coalesce(c.error_count, 0) as error_count,
+                coalesce(e.error_message, r.error_message) as latest_error_message
+            from market_data_runs r
+            left join run_item_counts c on c.run_id = r.id
+            left join latest_item_error e on e.run_id = r.id
+            order by r.started_at desc nulls last, r.id desc`,
+        );
+
+        return result.rows.map((row) => ({
+            id: String(row.id),
+            runType: String(row.run_type),
+            status: String(row.status),
+            provider: row.provider === null ? null : String(row.provider),
+            startedAt: row.started_at === null ? null : String(row.started_at),
+            finishedAt: row.finished_at === null ? null : String(row.finished_at),
+            durationMs: toNullableNumber(row.duration_ms),
+            totalItems: Number(row.total_items ?? 0),
+            succeededItems: Number(row.succeeded_items ?? 0),
+            failedItems: Number(row.failed_items ?? 0),
+            skippedItems: Number(row.skipped_items ?? 0),
+            errorCount: Number(row.error_count ?? 0),
+            latestErrorMessage: row.latest_error_message === null ? null : String(row.latest_error_message),
         }));
     } catch (error) {
         handleRepositoryError(error);

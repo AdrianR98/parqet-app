@@ -431,6 +431,81 @@ export type MarketInstrumentStatusSummaryRow = {
     count: number;
 };
 
+export type AdminOpenUnmappedMarketDataRow = {
+    isin: string;
+    displayName: string | null;
+    assetType: string | null;
+    currency: string | null;
+    wkn: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    marketDataStatusReason: string | null;
+    hasAnyMapping: boolean;
+    hasPrimaryMapping: boolean;
+    hasVerifiedMapping: boolean;
+    hasVerifiedPrimary: boolean;
+    hasFailedValidation: boolean;
+    hasPriceData: boolean;
+    hasMarketActions: boolean;
+    primarySymbol: string | null;
+    candidateSymbols: string[];
+};
+
+export type AdminMarketInstrumentOverviewRow = {
+    isin: string;
+    displayName: string | null;
+    name: string | null;
+    assetType: string | null;
+    currency: string | null;
+    wkn: string | null;
+    metadataSource: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    marketDataStatusReason: string | null;
+    primarySymbol: string | null;
+    primaryExchange: string | null;
+    primaryCurrency: string | null;
+    verifiedMappingCount: number;
+    candidateMappingCount: number;
+    hasPrimaryMapping: boolean;
+    hasPriceData: boolean;
+    hasMarketActions: boolean;
+    firstPriceDate: string | null;
+    lastPriceDate: string | null;
+    latestClose: number | null;
+};
+
+export type AdminMarketSymbolMappingOverviewRow = {
+    id: string;
+    isin: string;
+    displayName: string | null;
+    provider: string;
+    symbol: string;
+    exchange: string | null;
+    currency: string | null;
+    notes: string | null;
+    isPrimary: boolean;
+    isActive: boolean;
+    verifiedAt: string | null;
+    hasPriceData: boolean;
+    latestPriceDate: string | null;
+    latestClose: number | null;
+};
+
+export type AdminMarketDataRunOverviewRow = {
+    id: string;
+    runType: string;
+    status: string;
+    provider: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    durationMs: number | null;
+    totalItems: number;
+    succeededItems: number;
+    failedItems: number;
+    skippedItems: number;
+    errorCount: number;
+    latestErrorMessage: string | null;
+};
+
 export type VerifiedMappingForPromotion = {
     isin: string;
     name: string | null;
