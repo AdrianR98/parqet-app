@@ -316,6 +316,12 @@
     gap: 8px;
 }
 
+.breakdownScrollArea {
+    max-height: 172px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
 .breakdownRow {
     display: grid;
     grid-template-columns: 1.5fr 1fr 1fr 0.85fr;
@@ -344,8 +350,9 @@
 
 .portfolioNameBadge {
     --portfolio-color: transparent;
-    display: inline-flex;
-    align-items: center;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     min-height: 22px;
     max-width: 100%;
     padding: 2px 8px;
@@ -354,9 +361,12 @@
     background: color-mix(in srgb, var(--portfolio-color) 24%, transparent);
     color: var(--text-main);
     line-height: 1.2;
-    white-space: nowrap;
+    white-space: normal;
     overflow: hidden;
     text-overflow: ellipsis;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
 }
 
 .breakdownNumberCell {

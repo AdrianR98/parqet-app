@@ -94,6 +94,8 @@ async function copyIdentifierToClipboard(value: string): Promise<boolean> {
 }
 const DIVIDEND_CAGR_OPTIONS = [2, 3, 5, 7, 10, 15] as const;
 const DIVIDEND_KPI_SETTINGS_KEY = "assettrace-dividend-kpi-settings-v1";
+const PORTFOLIO_BREAKDOWN_SHARE_EPSILON = 0.00005;
+const PORTFOLIO_BREAKDOWN_VALUE_EPSILON = 0.005;
 const PORTFOLIO_CHART_PALETTE = [
     "var(--chart-series-1)",
     "var(--chart-series-2)",
@@ -331,7 +333,8 @@ function PortfolioBreakdown({
 
     const totalShares = entries.reduce((sum, entry) => {
         const shares = Number(entry.netShares);
-        if (!Number.isFinite(shares) || shares <= 0) {
+        const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
+        if (!hasDisplayableShares || shares <= 0) {
             return sum;
         }
         return sum + shares;
@@ -346,9 +349,11 @@ function PortfolioBreakdown({
         <div className={styles.breakdownList}>
             {entries.map((entry) => {
                 const shares = Number(entry.netShares);
-                const hasPositiveShares = Number.isFinite(shares) && shares > 0;
+                const value = Number(entry.positionValue);
+                const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
+                const hasDisplayableValue = Number.isFinite(value) && Math.abs(value) >= PORTFOLIO_BREAKDOWN_VALUE_EPSILON;
                 const sharePercent =
-                    hasPositiveShares && Number.isFinite(totalShares) && totalShares > 0
+                    hasDisplayableShares && shares > 0 && Number.isFinite(totalShares) && totalShares > 0
                         ? (shares / totalShares) * 100
                         : null;
                 const color = portfolioColors[entry.portfolioId];
@@ -363,10 +368,10 @@ function PortfolioBreakdown({
                                 {entry.portfolioName}
                             </span>
                         </span>
-                        <span className={styles.breakdownNumberCell}>{hasPositiveShares ? formatShares(entry.netShares) : "—"}</span>
-                        <span className={styles.breakdownNumberCell}>{hasPositiveShares ? formatCurrency(entry.positionValue) : "—"}</span>
+                        <span className={styles.breakdownNumberCell}>{hasDisplayableShares ? formatShares(entry.netShares) : "—"}</span>
+                        <span className={styles.breakdownNumberCell}>{hasDisplayableShares && hasDisplayableValue ? formatCurrency(entry.positionValue) : "—"}</span>
                         <span className={styles.breakdownNumberCell}>
-                            {!hasPositiveShares || sharePercent == null ? "—" : `${sharePercentFormatter.format(sharePercent)} %`}
+                            {!hasDisplayableShares || sharePercent == null ? "—" : `${sharePercentFormatter.format(sharePercent)} %`}
                         </span>
                     </div>
                 );
@@ -1445,7 +1450,9 @@ export default function AssetDetailPage() {
                                     <span className={styles.breakdownHeaderNumeric}>Wert</span>
                                     <span className={styles.breakdownHeaderNumeric}>Anteil</span>
                                 </div>
-                                <PortfolioBreakdown entries={metrics.portfolioBreakdown} portfolioColors={dividendPortfolioColorById} />
+                                <div className={styles.breakdownScrollArea}>
+                                    <PortfolioBreakdown entries={metrics.portfolioBreakdown} portfolioColors={dividendPortfolioColorById} />
+                                </div>
                             </>
                         )}
                     </div>
