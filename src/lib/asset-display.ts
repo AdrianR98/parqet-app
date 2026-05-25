@@ -334,8 +334,23 @@ export function getAssetSubtitle(asset: AssetSummary): string {
 /**
  * Parqet-Asset-Logo anhand der ISIN.
  */
-export function getAssetLogoUrl(asset: AssetSummary): string {
-    return `https://assets.parqet.com/logos/isin/${asset.isin}?format=png`;
+export function getAssetLogoUrl(asset: AssetSummary): string | null {
+    const isin = normalizeIdentifier(asset.isin);
+    if (isin && isIsinLike(isin)) {
+        return `https://api.elbstream.com/logos/isin/${encodeURIComponent(isin)}?format=webp`;
+    }
+
+    const wkn = normalizeIdentifier(getAssetWkn(asset));
+    if (wkn) {
+        return `https://api.elbstream.com/logos/wkn/${encodeURIComponent(wkn)}?format=webp`;
+    }
+
+    const symbol = normalizeIdentifier(getAssetSymbol(asset));
+    if (symbol) {
+        return `https://api.elbstream.com/logos/symbol/${encodeURIComponent(symbol)}?format=webp`;
+    }
+
+    return null;
 }
 
 /**
@@ -350,11 +365,13 @@ export function getAssetResolvedLogoUrl(asset: AssetSummary): string | null {
         }
     }
 
-    if (!isNonEmptyDisplayString(asset.isin)) {
+    const generatedLogoUrl = getAssetLogoUrl(asset);
+
+    if (!isNonEmptyDisplayString(generatedLogoUrl)) {
         return null;
     }
 
-    return getAssetLogoUrl(asset);
+    return generatedLogoUrl;
 }
 
 /**
