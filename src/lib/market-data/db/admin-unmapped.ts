@@ -2,26 +2,32 @@ import "server-only";
 
 import { listAdminOpenUnmappedMarketDataRows } from "./repository";
 import type { MarketDataInstrumentStatus } from "./types-core";
+import { classifyUnmappedTriage, type MappingStatus } from "./unmapped-triage";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const ACTION_VALUES = new Set([
     "inspect_instrument",
-    "manual_mapping_required",
-    "validate_existing_candidate",
-    "search_home_market_symbol",
-    "exclude_or_archive",
+    "add_candidates",
+    "validate_candidates",
+    "import_manual_mapping",
+    "review_derivative_or_exclude",
+    "review_legacy_or_successor",
+    "review_failed_validation",
+    "backfill_primary",
+    "ready",
 ]);
 const CATEGORY_VALUES = new Set([
     "failed_or_excluded",
-    "missing_primary_mapping",
-    "primary_without_prices",
-    "mapping_unverified",
+    "mapping_candidate_needed",
+    "derivative_or_warrant",
+    "legacy_or_corporate_action",
+    "no_mapping",
     "manual_review",
+    "unverified_mapping",
+    "ready",
 ]);
 const STATUS_VALUES = new Set(["active", "excluded", "legacy", "derivative", "unknown"]);
-
-type MappingStatus = "failed_validation" | "no_mapping" | "primary_without_prices" | "unverified_mapping";
 
 type AdminUnmappedFilters = {
     category: string | null;
@@ -43,6 +49,8 @@ export type AdminUnmappedItem = {
     category: string;
     suggestedAction: string;
     statusReason: string | null;
+    triageHint: string | null;
+    triageReason: string | null;
     hasPriceData: boolean;
     hasMarketActions: boolean;
 };
@@ -93,62 +101,6 @@ export function sanitizeUnmappedFilters(input: {
     return { category, action, status };
 }
 
-function classifyMappingStatus(row: {
-    hasFailedValidation: boolean;
-    hasAnyMapping: boolean;
-    hasPrimaryMapping: boolean;
-    hasVerifiedMapping: boolean;
-    hasPriceData: boolean;
-}): MappingStatus {
-    if (row.hasFailedValidation) return "failed_validation";
-    if (!row.hasAnyMapping || !row.hasPrimaryMapping) return "no_mapping";
-    if (!row.hasPriceData) return "primary_without_prices";
-    if (!row.hasVerifiedMapping) return "unverified_mapping";
-    return "unverified_mapping";
-}
-
-function classifyCategory(row: {
-    mappingStatus: MappingStatus;
-    marketDataStatus: MarketDataInstrumentStatus | null;
-}): { category: string; suggestedAction: string } {
-    if (row.marketDataStatus && row.marketDataStatus !== "active") {
-        return { category: "failed_or_excluded", suggestedAction: "inspect_instrument" };
-    }
-
-    if (row.mappingStatus === "failed_validation") {
-        return { category: "failed_or_excluded", suggestedAction: "inspect_instrument" };
-    }
-
-    if (row.mappingStatus === "no_mapping") {
-        return { category: "missing_primary_mapping", suggestedAction: "manual_mapping_required" };
-    }
-
-    if (row.mappingStatus === "primary_without_prices") {
-        return { category: "primary_without_prices", suggestedAction: "validate_existing_candidate" };
-    }
-
-    return { category: "mapping_unverified", suggestedAction: "validate_existing_candidate" };
-}
-
-function computePriority(row: {
-    mappingStatus: MappingStatus;
-    marketDataStatus: MarketDataInstrumentStatus | null;
-    hasPriceData: boolean;
-    candidateSymbols: string[];
-}): number {
-    let priority = 10;
-
-    if (row.mappingStatus === "failed_validation") priority += 50;
-    if (row.mappingStatus === "no_mapping") priority += 40;
-    if (row.mappingStatus === "primary_without_prices") priority += 35;
-    if (row.mappingStatus === "unverified_mapping") priority += 25;
-    if (row.marketDataStatus && row.marketDataStatus !== "active") priority += 15;
-    if (!row.hasPriceData) priority += 10;
-    if (row.candidateSymbols.length === 0) priority += 5;
-
-    return priority;
-}
-
 export async function getAdminUnmappedMarketData(input: {
     limit?: string | null;
     category?: string | null;
@@ -161,35 +113,29 @@ export async function getAdminUnmappedMarketData(input: {
 
     const mapped = rows
         .map((row): AdminUnmappedItem => {
-            const mappingStatus = classifyMappingStatus(row);
-            const classification = classifyCategory({
-                mappingStatus,
-                marketDataStatus: row.marketDataStatus,
-            });
+            const classification = classifyUnmappedTriage(row);
 
             return {
-                priority: computePriority({
-                    mappingStatus,
-                    marketDataStatus: row.marketDataStatus,
-                    hasPriceData: row.hasPriceData,
-                    candidateSymbols: row.candidateSymbols,
-                }),
+                priority: classification.priority,
                 isin: row.isin,
                 displayName: row.displayName,
                 assetType: row.assetType,
                 currency: row.currency,
                 wkn: row.wkn,
                 marketDataStatus: row.marketDataStatus,
-                mappingStatus,
+                mappingStatus: classification.mappingStatus as MappingStatus,
                 primarySymbol: row.primarySymbol,
                 candidateSymbols: row.candidateSymbols,
                 category: classification.category,
                 suggestedAction: classification.suggestedAction,
                 statusReason: row.marketDataStatusReason,
+                triageHint: classification.triageHint,
+                triageReason: classification.triageReason,
                 hasPriceData: row.hasPriceData,
                 hasMarketActions: row.hasMarketActions,
             };
         })
+        .filter((row) => row.mappingStatus !== "ready")
         .sort((a, b) => b.priority - a.priority || a.isin.localeCompare(b.isin));
 
     const filtered = mapped.filter((item) => {
