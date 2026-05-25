@@ -6,11 +6,10 @@ import HeaderBar from "../../components/dashboard/HeaderBar";
 import AppFooter from "../../components/layout/AppFooter";
 import { useTheme } from "../../hooks/use-theme";
 import {
-    LAST_ROUTE_KEY,
-    SETTINGS_ADMIN_RETURN_RELOADED_KEY,
-    VISITED_ADMIN_ROUTE_KEY,
-    shouldReloadSettingsAfterAdminReturn,
-} from "../../lib/settings-restore-guard";
+    ADMIN_RETURN_PENDING_KEY,
+    ADMIN_RETURN_RELOADED_FOR_KEY,
+    shouldReloadAfterAdminReturn,
+} from "../../lib/admin-return-restore-guard";
 import styles from "./layout.module.css";
 
 export type TopNavKey = "overview" | "activities" | "settings";
@@ -36,55 +35,30 @@ export default function AppLayout({
             return;
         }
 
-        const lastRoute = window.sessionStorage.getItem(LAST_ROUTE_KEY);
-        const visitedAdmin = window.sessionStorage.getItem(VISITED_ADMIN_ROUTE_KEY);
-        const alreadyReloaded = window.sessionStorage.getItem(
-            SETTINGS_ADMIN_RETURN_RELOADED_KEY,
-        );
+        const evaluateAdminReturnBoundary = () => {
+            const currentPath = window.location.pathname;
+            const pending = window.sessionStorage.getItem(ADMIN_RETURN_PENDING_KEY);
+            const reloadedFor = window.sessionStorage.getItem(ADMIN_RETURN_RELOADED_FOR_KEY);
+            const decision = shouldReloadAfterAdminReturn({
+                pathname: currentPath,
+                pending,
+                reloadedFor,
+            });
 
-        if (
-            shouldReloadSettingsAfterAdminReturn({
-                pathname,
-                lastRoute,
-                visitedAdmin,
-                alreadyReloaded,
-            })
-        ) {
-            window.sessionStorage.setItem(SETTINGS_ADMIN_RETURN_RELOADED_KEY, "1");
-            window.sessionStorage.setItem(LAST_ROUTE_KEY, pathname);
-            window.sessionStorage.removeItem(VISITED_ADMIN_ROUTE_KEY);
-            window.location.reload();
-            return;
-        }
-
-        if (pathname.startsWith("/settings")) {
-            if (alreadyReloaded === "1") {
-                window.sessionStorage.removeItem(SETTINGS_ADMIN_RETURN_RELOADED_KEY);
-            }
-            window.sessionStorage.removeItem(VISITED_ADMIN_ROUTE_KEY);
-        } else {
-            window.sessionStorage.removeItem(SETTINGS_ADMIN_RETURN_RELOADED_KEY);
-        }
-
-        window.sessionStorage.setItem(LAST_ROUTE_KEY, pathname);
-
-        const handlePageShow = () => {
-            if (
-                shouldReloadSettingsAfterAdminReturn({
-                    pathname,
-                    lastRoute: window.sessionStorage.getItem(LAST_ROUTE_KEY),
-                    visitedAdmin: window.sessionStorage.getItem(VISITED_ADMIN_ROUTE_KEY),
-                    alreadyReloaded: window.sessionStorage.getItem(
-                        SETTINGS_ADMIN_RETURN_RELOADED_KEY,
-                    ),
-                })
-            ) {
-                window.sessionStorage.setItem(SETTINGS_ADMIN_RETURN_RELOADED_KEY, "1");
-                window.sessionStorage.setItem(LAST_ROUTE_KEY, pathname);
-                window.sessionStorage.removeItem(VISITED_ADMIN_ROUTE_KEY);
+            if (decision.shouldReload) {
+                window.sessionStorage.setItem(ADMIN_RETURN_RELOADED_FOR_KEY, currentPath);
                 window.location.reload();
+                return;
+            }
+
+            if (decision.shouldClearMarker) {
+                window.sessionStorage.removeItem(ADMIN_RETURN_PENDING_KEY);
+                window.sessionStorage.removeItem(ADMIN_RETURN_RELOADED_FOR_KEY);
             }
         };
+
+        evaluateAdminReturnBoundary();
+        const handlePageShow = () => evaluateAdminReturnBoundary();
 
         window.addEventListener("pageshow", handlePageShow);
         return () => window.removeEventListener("pageshow", handlePageShow);
