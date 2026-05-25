@@ -8,7 +8,6 @@ import styles from "./page.module.css";
 
 const PLACEHOLDER_RESOURCES = [
     "Market Data Status",
-    "Mappings",
     "Runs",
 ] as const;
 
@@ -92,6 +91,38 @@ type MarketInstrumentsPayload = {
     }>;
 };
 
+type MarketMappingsPayload = {
+    total: number;
+    shown: number;
+    limit: number;
+    filters: {
+        q: string | null;
+        provider: string | null;
+        verified: boolean | null;
+        primary: boolean | null;
+        active: boolean | null;
+        hasPrices: boolean | null;
+    };
+    items: Array<{
+        id: string;
+        isin: string;
+        displayName: string | null;
+        provider: string;
+        symbol: string;
+        exchange: string | null;
+        currency: string | null;
+        score: number | null;
+        isPrimary: boolean;
+        isActive: boolean;
+        verifiedAt: string | null;
+        source: string | null;
+        statusReason: string | null;
+        hasPriceData: boolean;
+        latestPriceDate: string | null;
+        latestClose: number | null;
+    }>;
+};
+
 function SessionBadge({ state }: { state: "enabled" | "disabled" | "loading" }) {
     if (state === "loading") {
         return <span className={`${styles.badge} ${styles.badgeMuted}`}>Checking session</span>;
@@ -120,6 +151,8 @@ function AdminPanel() {
     const [unmappedError, setUnmappedError] = useState<string | null>(null);
     const [instrumentsData, setInstrumentsData] = useState<MarketInstrumentsPayload | null>(null);
     const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
+    const [mappingsData, setMappingsData] = useState<MarketMappingsPayload | null>(null);
+    const [mappingsError, setMappingsError] = useState<string | null>(null);
 
     useEffect(() => {
         if (sessionState !== "enabled") return;
@@ -145,6 +178,35 @@ function AdminPanel() {
                 if (error instanceof Error && error.name === "AbortError") return;
                 setStatusData(null);
                 setStatusError("Market data status is currently unavailable.");
+            });
+
+        return () => controller.abort();
+    }, [sessionState]);
+
+    useEffect(() => {
+        if (sessionState !== "enabled") return;
+
+        const controller = new AbortController();
+
+        fetch("/api/admin/market-data/mappings?limit=50", {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error("mappings-fetch-failed");
+                }
+                return (await response.json()) as MarketMappingsPayload;
+            })
+            .then((payload) => {
+                setMappingsData(payload);
+                setMappingsError(null);
+            })
+            .catch((error: unknown) => {
+                if (error instanceof Error && error.name === "AbortError") return;
+                setMappingsData(null);
+                setMappingsError("Market symbol mappings overview is currently unavailable.");
             });
 
         return () => controller.abort();
@@ -419,6 +481,63 @@ function AdminPanel() {
                     </>
                 ) : (
                     <p className={styles.subtle}>No instrument data available.</p>
+                )}
+            </section>
+
+            <section className={styles.surface}>
+                <h2>Market Symbol Mappings</h2>
+                <p className={styles.note}>Read-only mapping and latest price status overview.</p>
+                {sessionState !== "enabled" ? (
+                    <p className={styles.subtle}>List is unavailable while admin is disabled or unauthorized.</p>
+                ) : !mappingsData && !mappingsError ? (
+                    <p className={styles.subtle}>Loading market symbol mappings...</p>
+                ) : mappingsError ? (
+                    <p className={styles.errorText}>{mappingsError}</p>
+                ) : mappingsData && mappingsData.items.length === 0 ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {mappingsData.shown.toLocaleString()} of {mappingsData.total.toLocaleString()} mappings.
+                        </p>
+                        <p className={styles.subtle}>No market symbol mappings for the current filter.</p>
+                    </>
+                ) : mappingsData ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {mappingsData.shown.toLocaleString()} of {mappingsData.total.toLocaleString()} mappings.
+                        </p>
+                        <div className={styles.tableWrap}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>ISIN</th>
+                                        <th>Provider</th>
+                                        <th>Symbol</th>
+                                        <th>Primary</th>
+                                        <th>Active</th>
+                                        <th>Verified</th>
+                                        <th>Has prices</th>
+                                        <th>Latest price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {mappingsData.items.map((item) => (
+                                        <tr key={item.id}>
+                                            <td>{item.isin}</td>
+                                            <td>{item.provider}</td>
+                                            <td>{item.symbol}</td>
+                                            <td>{item.isPrimary ? "yes" : "no"}</td>
+                                            <td>{item.isActive ? "yes" : "no"}</td>
+                                            <td>{item.verifiedAt ? "yes" : "no"}</td>
+                                            <td>{item.hasPriceData ? "yes" : "no"}</td>
+                                            <td>{item.latestPriceDate ?? "—"}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : (
+                    <p className={styles.subtle}>No mapping data available.</p>
                 )}
             </section>
 

@@ -44,6 +44,7 @@ import type {
     ReferenceSourceCount,
     AdminOpenUnmappedMarketDataRow,
     AdminMarketInstrumentOverviewRow,
+    AdminMarketSymbolMappingOverviewRow,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -1669,6 +1670,64 @@ export async function listAdminMarketInstrumentOverviewRows(): Promise<AdminMark
             hasMarketActions: Boolean(row.has_market_actions),
             firstPriceDate: row.first_price_date === null ? null : normalizeDbDateValue(row.first_price_date),
             lastPriceDate: row.last_price_date === null ? null : normalizeDbDateValue(row.last_price_date),
+            latestClose: toNullableNumber(row.latest_close),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminMarketSymbolMappingsOverviewRows(): Promise<AdminMarketSymbolMappingOverviewRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with latest_price as (
+                select distinct on (p.instrument_id, p.provider, p.symbol)
+                    p.instrument_id,
+                    p.provider,
+                    p.symbol,
+                    p.date as latest_price_date,
+                    p.close as latest_close
+                from market_prices_daily p
+                order by p.instrument_id, p.provider, p.symbol, p.date desc
+            )
+            select
+                m.id,
+                i.isin,
+                i.display_name,
+                m.provider,
+                m.symbol,
+                m.exchange,
+                m.currency,
+                m.notes,
+                m.is_primary,
+                m.is_active,
+                m.verified_at,
+                (lp.latest_price_date is not null) as has_price_data,
+                lp.latest_price_date,
+                lp.latest_close
+            from market_symbol_mappings m
+            join market_instruments i on i.id = m.instrument_id
+            left join latest_price lp
+              on lp.instrument_id = m.instrument_id
+             and lp.provider = m.provider
+             and lp.symbol = m.symbol
+            order by i.isin asc, m.provider asc, m.symbol asc`,
+        );
+
+        return result.rows.map((row) => ({
+            id: String(row.id),
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            provider: String(row.provider),
+            symbol: String(row.symbol),
+            exchange: row.exchange === null ? null : String(row.exchange),
+            currency: row.currency === null ? null : String(row.currency),
+            notes: row.notes === null ? null : String(row.notes),
+            isPrimary: Boolean(row.is_primary),
+            isActive: Boolean(row.is_active),
+            verifiedAt: row.verified_at === null ? null : String(row.verified_at),
+            hasPriceData: Boolean(row.has_price_data),
+            latestPriceDate: row.latest_price_date === null ? null : normalizeDbDateValue(row.latest_price_date),
             latestClose: toNullableNumber(row.latest_close),
         }));
     } catch (error) {

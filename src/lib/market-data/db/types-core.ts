@@ -473,6 +473,23 @@ export type AdminMarketInstrumentOverviewRow = {
     latestClose: number | null;
 };
 
+export type AdminMarketSymbolMappingOverviewRow = {
+    id: string;
+    isin: string;
+    displayName: string | null;
+    provider: string;
+    symbol: string;
+    exchange: string | null;
+    currency: string | null;
+    notes: string | null;
+    isPrimary: boolean;
+    isActive: boolean;
+    verifiedAt: string | null;
+    hasPriceData: boolean;
+    latestPriceDate: string | null;
+    latestClose: number | null;
+};
+
 export type VerifiedMappingForPromotion = {
     isin: string;
     name: string | null;
