@@ -7,7 +7,7 @@ import { adminAccessControlProvider, adminAuthProvider } from "@/lib/admin/refin
 import styles from "./page.module.css";
 
 type Sort = { key: string; direction: "asc" | "desc" };
-type OpenState = { guard: boolean; status: boolean; unmapped: boolean; instruments: boolean; mappings: boolean; runs: boolean };
+type OpenState = { guard: boolean; status: boolean; unmapped: boolean; requests: boolean; instruments: boolean; mappings: boolean; runs: boolean };
 type AnyRow = Record<string, unknown>;
 
 type StatusPayload = {
@@ -31,6 +31,7 @@ type UnmappedRow = { priority: number; isin: string; displayName: string | null;
 type InstrumentRow = { isin: string; displayName: string | null; name: string | null; assetType: string | null; wkn: string | null; marketDataStatus: string | null; primarySymbol: string | null; verifiedMappingCount: number; candidateMappingCount: number; hasPriceData: boolean; firstPriceDate: string | null; lastPriceDate: string | null };
 type MappingRow = { id: string; isin: string; displayName: string | null; provider: string; symbol: string; exchange: string | null; isPrimary: boolean; isActive: boolean; verifiedAt: string | null; hasPriceData: boolean; latestPriceDate: string | null; statusReason: string | null };
 type RunsRow = { id: string; runType: string; status: string; provider: string | null; startedAt: string | null; finishedAt: string | null; totalItems: number; succeededItems: number; failedItems: number; latestErrorMessage: string | null };
+type RequestRow = { isin: string; displayName: string | null; name: string | null; assetType: string | null; currency: string | null; wkn: string | null; status: string; source: string; firstSeenAt: string; lastSeenAt: string; seenCount: number; notes: string | null };
 
 function normalize(value: unknown) {
     if (value === null || value === undefined) return "";
@@ -112,15 +113,18 @@ function AdminPanel() {
     const [mappingsError, setMappingsError] = useState<string | null>(null);
     const [runs, setRuns] = useState<{ total: number; items: RunsRow[] } | null>(null);
     const [runsError, setRunsError] = useState<string | null>(null);
+    const [requests, setRequests] = useState<{ total: number; items: RequestRow[] } | null>(null);
+    const [requestsError, setRequestsError] = useState<string | null>(null);
 
     const [search, setSearch] = useState("");
     const q = search.trim().toLowerCase();
-    const [open, setOpen] = useState<OpenState>({ guard: false, status: true, unmapped: true, instruments: false, mappings: false, runs: false });
+    const [open, setOpen] = useState<OpenState>({ guard: false, status: true, unmapped: true, requests: true, instruments: false, mappings: false, runs: false });
 
     const [unmappedSort, setUnmappedSort] = useState<Sort>({ key: "priority", direction: "asc" });
     const [instrumentSort, setInstrumentSort] = useState<Sort>({ key: "isin", direction: "asc" });
     const [mappingSort, setMappingSort] = useState<Sort>({ key: "isin", direction: "asc" });
     const [runSort, setRunSort] = useState<Sort>({ key: "startedAt", direction: "desc" });
+    const [requestSort, setRequestSort] = useState<Sort>({ key: "lastSeenAt", direction: "desc" });
 
     const toggleSort = (cur: Sort, set: (s: Sort) => void, key: string) => set(cur.key === key ? { key, direction: cur.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" });
 
@@ -131,6 +135,7 @@ function AdminPanel() {
             const endpoints = [
                 ["/api/admin/market-data/status", setStatus, setStatusError, "Market data status is currently unavailable."],
                 ["/api/admin/market-data/unmapped?limit=50", setUnmapped, setUnmappedError, "Open/unmapped market-data assets are currently unavailable."],
+                ["/api/admin/market-data/requests?limit=50", setRequests, setRequestsError, "Market data requests are currently unavailable."],
                 ["/api/admin/market-data/instruments?limit=50", setInstruments, setInstrumentsError, "Market instruments overview is currently unavailable."],
                 ["/api/admin/market-data/mappings?limit=50", setMappings, setMappingsError, "Market symbol mappings overview is currently unavailable."],
                 ["/api/admin/market-data/runs?limit=25", setRuns, setRunsError, "Market data runs overview is currently unavailable."],
@@ -162,17 +167,19 @@ function AdminPanel() {
     const instrumentRows = useMemo(() => sortRows((instruments?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.name, r.primarySymbol, r.marketDataStatus, r.assetType])), instrumentSort), [instruments, q, instrumentSort]);
     const mappingRows = useMemo(() => sortRows((mappings?.items ?? []).filter((r) => hit(q, [r.isin, r.displayName, r.provider, r.symbol, r.exchange, r.statusReason])), mappingSort), [mappings, q, mappingSort]);
     const runRows = useMemo(() => sortRows((runs?.items ?? []).filter((r) => hit(q, [r.runType, r.status, r.provider, r.latestErrorMessage])), runSort), [runs, q, runSort]);
+    const requestRows = useMemo(() => sortRows((requests?.items ?? []).filter((r) => hit(q, [r.isin, r.displayName, r.name, r.status, r.source, r.currency, r.wkn])), requestSort), [requests, q, requestSort]);
 
     useEffect(() => {
         if (!q) return;
-        setOpen((prev) => ({ ...prev, unmapped: prev.unmapped || unmappedRows.length > 0, instruments: prev.instruments || instrumentRows.length > 0, mappings: prev.mappings || mappingRows.length > 0, runs: prev.runs || runRows.length > 0 }));
-    }, [q, unmappedRows.length, instrumentRows.length, mappingRows.length, runRows.length]);
+        setOpen((prev) => ({ ...prev, unmapped: prev.unmapped || unmappedRows.length > 0, requests: prev.requests || requestRows.length > 0, instruments: prev.instruments || instrumentRows.length > 0, mappings: prev.mappings || mappingRows.length > 0, runs: prev.runs || runRows.length > 0 }));
+    }, [q, unmappedRows.length, requestRows.length, instrumentRows.length, mappingRows.length, runRows.length]);
 
     const statusSummary = session !== "enabled" ? "disabled" : statusError ? "error" : !status ? "loading" : `${status.instrumentsTotal.toLocaleString()} instruments`;
     const unmappedSummary = session !== "enabled" ? "disabled" : unmappedError ? "error" : !unmapped ? "loading" : `${unmappedRows.length.toLocaleString()} shown`;
     const instrumentsSummary = session !== "enabled" ? "disabled" : instrumentsError ? "error" : !instruments ? "loading" : `${instrumentRows.length.toLocaleString()} shown`;
     const mappingsSummary = session !== "enabled" ? "disabled" : mappingsError ? "error" : !mappings ? "loading" : `${mappingRows.length.toLocaleString()} shown`;
     const runsSummary = session !== "enabled" ? "disabled" : runsError ? "error" : !runs ? "loading" : `${runRows.length.toLocaleString()} shown`;
+    const requestsSummary = session !== "enabled" ? "disabled" : requestsError ? "error" : !requests ? "loading" : `${requestRows.length.toLocaleString()} shown`;
 
     return (
         <main className={styles.root}>
@@ -216,6 +223,18 @@ function AdminPanel() {
                 {unmapped && unmappedRows.length > 0 ? (
                     <Table head={<tr><th><HeaderSort labelText="Prio" keyName="priority" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="ISIN" keyName="isin" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Name" keyName="displayName" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Category" keyName="category" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Action" keyName="suggestedAction" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Status" keyName="mappingStatus" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th></tr>}
                         rows={unmappedRows.map((r) => <tr key={r.isin}><td>{r.priority}</td><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? "—"}</td><td>{label(r.category)}</td><td>{label(r.suggestedAction)}</td><td><span className={styles.badgeTiny}>{label(r.mappingStatus)}</span></td></tr>)} />
+                ) : null}
+            </Section>
+
+            <Section title="Market Data Requests / Unknown Asset Queue" summary={requestsSummary} open={open.requests} toggle={() => setOpen((p) => ({ ...p, requests: !p.requests }))}>
+                {session === "enabled" && !requests && !requestsError ? <p className={styles.subtle}>Loading market data requests...</p> : null}
+                {requestsError ? <p className={styles.errorText}>{requestsError}</p> : null}
+                {requests ? <p className={styles.subtle}>Showing {requestRows.length.toLocaleString()} of {requests.total.toLocaleString()} requests.</p> : null}
+                <p className={styles.subtle}>Resolution remains CLI/admin workflow only.</p>
+                {requests && requestRows.length === 0 ? <p className={styles.subtle}>No market data requests for the current filter.</p> : null}
+                {requests && requestRows.length > 0 ? (
+                    <Table head={<tr><th><HeaderSort labelText="ISIN" keyName="isin" sort={requestSort} onToggle={(k) => toggleSort(requestSort, setRequestSort, k)} /></th><th><HeaderSort labelText="Name" keyName="displayName" sort={requestSort} onToggle={(k) => toggleSort(requestSort, setRequestSort, k)} /></th><th><HeaderSort labelText="Status" keyName="status" sort={requestSort} onToggle={(k) => toggleSort(requestSort, setRequestSort, k)} /></th><th><HeaderSort labelText="Source" keyName="source" sort={requestSort} onToggle={(k) => toggleSort(requestSort, setRequestSort, k)} /></th><th><HeaderSort labelText="Seen" keyName="seenCount" sort={requestSort} onToggle={(k) => toggleSort(requestSort, setRequestSort, k)} /></th><th><HeaderSort labelText="First seen" keyName="firstSeenAt" sort={requestSort} onToggle={(k) => toggleSort(requestSort, setRequestSort, k)} /></th><th><HeaderSort labelText="Last seen" keyName="lastSeenAt" sort={requestSort} onToggle={(k) => toggleSort(requestSort, setRequestSort, k)} /></th></tr>}
+                        rows={requestRows.map((r) => <tr key={r.isin}><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? r.name ?? "—"}</td><td><span className={styles.badgeTiny}>{label(r.status)}</span></td><td>{label(r.source)}</td><td>{r.seenCount}</td><td>{formatDate(r.firstSeenAt)}</td><td>{formatDate(r.lastSeenAt)}</td></tr>)} />
                 ) : null}
             </Section>
 

@@ -12,8 +12,19 @@ Runtime behavior is DB-only for market history reads:
 - `src/app/api/market-data/history/route.ts` validates request params and delegates to service code.
 - `src/lib/market-data/service.ts` reads instrument/mapping/price/action data from Postgres repositories and returns response payloads.
 - Runtime route/service do not call yfinance, OpenFIGI, or other providers.
+- Runtime asset aggregation may record unknown ISIN sightings into `market_data_requests` for later admin/CLI resolution (public instrument metadata only).
 
 Admin/CLI workflow is the only place where provider calls are allowed. This keeps normal app requests deterministic, cheaper, and safer for API budget and rate limits.
+
+## Unknown Asset Discovery Queue
+
+- Runtime path `GET /api/parqet/assets` detects unknown valid ISINs while building asset summaries.
+- Unknowns are written best-effort into `market_data_requests` (idempotent upsert, no provider calls).
+- Repeated sightings increment `seen_count` and update `last_seen_at`.
+- Runtime write failures must not fail the user response.
+- The queue is exposed read-only in Admin Console (`/api/admin/market-data/requests` and `/admin` section).
+- Resolution/import/validation/promotion stays CLI/admin workflow only.
+- Queue rows never include portfolio IDs, depot IDs, user IDs, tokens, cookies, OAuth data, or provider payloads.
 
 ## Intended End-To-End Sequence
 
@@ -67,7 +78,7 @@ Legend:
 
 | Script | Command | Purpose | Mode | Inputs | Outputs | DB | Provider | Generated files |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `db:market:migrate` | `npm run db:market:migrate` | Run market-data SQL migrations (`001`-`004`) | write | DB env | migrated schema | write | none | none |
+| `db:market:migrate` | `npm run db:market:migrate` | Run market-data SQL migrations (`001`-`005`) | write | DB env | migrated schema | write | none | none |
 | `db:market:sync:instruments` | `npm run db:market:sync:instruments -- [path]` | Sync local assets into `market_instruments` | dry-run | local assets JSON (default `.market-data/local-assets.json`) | console summary; optional DB upserts with `--write` | read (dry), write (`--write`) | none | none |
 | `db:market:match:symbols` | `npm run db:market:match:symbols -- .market-data/companies.json` | Score and stage yfinance symbol candidates per ISIN | dry-run | `companies.json` + DB instruments | candidate preview; optional candidate writes with `--write` | read (dry), write (`--write`) | none | none |
 | `db:market:export:candidates` | `npm run db:market:export:candidates -- ...` | Export unverified candidates for manual/provider validation | file-write | DB candidates | JSON candidate list | read | none | default `.market-data/symbol-candidates.json` |
@@ -105,6 +116,7 @@ Legend:
 - Keep manual mapping imports local-only (recommended input path: `.market-data/manual-symbol-mappings.json`).
 - Never commit DB URLs, provider payloads, tokens, cookies, OAuth values, or secrets.
 - Never add yfinance/OpenFIGI/provider calls to runtime API/UI routes.
+- Runtime unknown-asset queue writes are DB-only and must not trigger provider calls.
 - Validation/export files (`symbol-candidates`, `symbol-validation-results`, backfill JSONs, ad-hoc reports) are local-only.
 - ETF/fund/manual mappings require explicit human review before promotion.
 - ADR/legacy/corporate-action cases (including Gazprom/ADR/old-ISIN/successor cases) require explicit manual review.
