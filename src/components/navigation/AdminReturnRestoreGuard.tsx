@@ -17,6 +17,15 @@ function evaluateAdminReturnBoundary() {
         reloadedFor,
     });
 
+    if (process.env.NODE_ENV !== "production") {
+        console.debug("[admin-return-restore] check", {
+            pathname: currentPath,
+            pending,
+            reloadedFor,
+            shouldReload: decision.shouldReload,
+        });
+    }
+
     if (decision.shouldReload) {
         window.sessionStorage.setItem(ADMIN_RETURN_RELOADED_FOR_KEY, currentPath);
         window.location.reload();
@@ -33,6 +42,10 @@ export default function AdminReturnRestoreGuard() {
     useEffect(() => {
         if (typeof window === "undefined") {
             return;
+        }
+
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("[admin-return-restore] mounted");
         }
 
         evaluateAdminReturnBoundary();

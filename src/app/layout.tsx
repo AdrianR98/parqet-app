@@ -19,6 +19,23 @@ export const metadata: Metadata = {
   description: "Analyse- und Transparenzschicht für Parqet-Daten",
 };
 
+const PRE_HYDRATION_THEME_SCRIPT = `
+(() => {
+  try {
+    const key = "assettrace-appearance-mode-v1";
+    const raw = window.localStorage.getItem(key);
+    const appearance = raw === "light" || raw === "dark" || raw === "system" ? raw : "system";
+    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const resolvedTheme = appearance === "system" ? (prefersDark ? "dark" : "light") : appearance;
+    const root = document.documentElement;
+    root.dataset.theme = resolvedTheme;
+    root.dataset.assettraceTheme = resolvedTheme;
+    root.dataset.appearance = appearance;
+    root.style.colorScheme = resolvedTheme;
+  } catch (_error) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,10 +46,12 @@ export default function RootLayout({
       lang="de"
       data-theme="dark"
       data-assettrace-theme="dark"
+      data-appearance="system"
       style={{ colorScheme: "dark" }}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <script dangerouslySetInnerHTML={{ __html: PRE_HYDRATION_THEME_SCRIPT }} />
         <ThemeDocumentSync />
         <AdminReturnRestoreGuard />
         {children}
