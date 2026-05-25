@@ -43,6 +43,14 @@ export type DbMarketInstrumentMetadata = {
 };
 
 export type MarketDataInstrumentStatus = "active" | "excluded" | "legacy" | "derivative" | "unknown";
+export type MarketDataRequestStatus =
+    | "pending"
+    | "known_instrument"
+    | "mapping_missing"
+    | "import_ready"
+    | "imported"
+    | "failed"
+    | "ignored";
 
 export type UpdateMarketInstrumentStatusInput = {
     isin: string;
@@ -504,6 +512,46 @@ export type AdminMarketDataRunOverviewRow = {
     skippedItems: number;
     errorCount: number;
     latestErrorMessage: string | null;
+};
+
+export type RecordMarketDataRequestInput = {
+    isin: string;
+    name?: string | null;
+    displayName?: string | null;
+    assetType?: string | null;
+    currency?: string | null;
+    wkn?: string | null;
+    source?: string | null;
+};
+
+export type DbMarketDataRequest = {
+    id: string;
+    isin: string;
+    name: string | null;
+    displayName: string | null;
+    assetType: string | null;
+    currency: string | null;
+    wkn: string | null;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    seenCount: number;
+    status: MarketDataRequestStatus;
+    source: string;
+    notes: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type ListMarketDataRequestsInput = {
+    limit?: number;
+    status?: string | null;
+    source?: string | null;
+    q?: string | null;
+};
+
+export type ListMarketDataRequestsResult = {
+    total: number;
+    items: DbMarketDataRequest[];
 };
 
 export type VerifiedMappingForPromotion = {

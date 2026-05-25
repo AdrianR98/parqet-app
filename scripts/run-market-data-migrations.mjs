@@ -14,6 +14,7 @@ async function main() {
         "002_market_reference_instruments.sql",
         "003_market_instrument_display_metadata.sql",
         "004_market_instrument_status.sql",
+        "005_market_data_requests.sql",
     ];
 
     await withPostgresClient(async (client) => {

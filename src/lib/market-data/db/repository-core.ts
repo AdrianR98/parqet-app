@@ -46,6 +46,11 @@ import type {
     AdminMarketInstrumentOverviewRow,
     AdminMarketSymbolMappingOverviewRow,
     AdminMarketDataRunOverviewRow,
+    DbMarketDataRequest,
+    ListMarketDataRequestsInput,
+    ListMarketDataRequestsResult,
+    MarketDataRequestStatus,
+    RecordMarketDataRequestInput,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -276,6 +281,50 @@ function normalizeInstrumentStatus(status: string): MarketDataInstrumentStatus {
         throw new MarketDataRepositoryError("invalid_input", "Ungültiger market_data_status.");
     }
     return normalized as MarketDataInstrumentStatus;
+}
+
+const MARKET_DATA_REQUEST_STATUSES = new Set<MarketDataRequestStatus>([
+    "pending",
+    "known_instrument",
+    "mapping_missing",
+    "import_ready",
+    "imported",
+    "failed",
+    "ignored",
+]);
+
+function normalizeNonEmptyText(value: string | null | undefined): string | null {
+    if (typeof value !== "string") return null;
+    const normalized = value.trim();
+    return normalized ? normalized : null;
+}
+
+function normalizeMarketDataRequestStatus(status: string): MarketDataRequestStatus {
+    const normalized = status.trim().toLowerCase() as MarketDataRequestStatus;
+    if (!MARKET_DATA_REQUEST_STATUSES.has(normalized)) {
+        throw new MarketDataRepositoryError("invalid_input", "Ungültiger request status.");
+    }
+    return normalized;
+}
+
+function mapMarketDataRequestRow(row: Record<string, unknown>): DbMarketDataRequest {
+    return {
+        id: String(row.id),
+        isin: String(row.isin),
+        name: row.name === null ? null : String(row.name),
+        displayName: row.display_name === null ? null : String(row.display_name),
+        assetType: row.asset_type === null ? null : String(row.asset_type),
+        currency: row.currency === null ? null : String(row.currency),
+        wkn: row.wkn === null ? null : String(row.wkn),
+        firstSeenAt: String(row.first_seen_at),
+        lastSeenAt: String(row.last_seen_at),
+        seenCount: Number(row.seen_count ?? 0),
+        status: normalizeMarketDataRequestStatus(String(row.status)),
+        source: String(row.source),
+        notes: row.notes === null ? null : String(row.notes),
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
+    };
 }
 
 export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrument | null> {
@@ -1497,6 +1546,129 @@ export async function listMarketInstrumentStatusSummary(): Promise<MarketInstrum
                     : normalizeInstrumentStatus(String(row.status)),
             count: Number(row.count ?? 0),
         }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function recordMarketDataRequest(input: RecordMarketDataRequestInput): Promise<DbMarketDataRequest | null> {
+    try {
+        let normalizedIsin: string;
+        try {
+            normalizedIsin = assertIsin(input.isin);
+        } catch (error) {
+            if (error instanceof MarketDataRepositoryError && error.code === "invalid_input") {
+                return null;
+            }
+            throw error;
+        }
+
+        const metadata = {
+            name: normalizeNonEmptyText(input.name),
+            displayName: normalizeNonEmptyText(input.displayName),
+            assetType: normalizeNonEmptyText(input.assetType),
+            currency: normalizeNonEmptyText(input.currency)?.toUpperCase() ?? null,
+            wkn: normalizeNonEmptyText(input.wkn)?.toUpperCase() ?? null,
+            source: normalizeNonEmptyText(input.source)?.toLowerCase() ?? "runtime_asset_discovery",
+        };
+
+        return await withPostgresClient(async (client) => {
+            await client.query("begin");
+            try {
+                await client.query(
+                    `insert into market_instruments
+                        (isin, name, display_name, asset_type, currency, wkn, market_data_status)
+                     values
+                        ($1, $2, $3, $4, $5, $6, 'unknown')
+                     on conflict (isin)
+                     do update set
+                        name = coalesce(market_instruments.name, excluded.name),
+                        display_name = coalesce(market_instruments.display_name, excluded.display_name),
+                        asset_type = coalesce(market_instruments.asset_type, excluded.asset_type),
+                        currency = coalesce(market_instruments.currency, excluded.currency),
+                        wkn = coalesce(market_instruments.wkn, excluded.wkn),
+                        market_data_status = coalesce(market_instruments.market_data_status, 'unknown'),
+                        updated_at = now()`,
+                    [normalizedIsin, metadata.name, metadata.displayName, metadata.assetType, metadata.currency, metadata.wkn],
+                );
+
+                const result = await client.query<Record<string, unknown>>(
+                    `insert into market_data_requests
+                        (isin, name, display_name, asset_type, currency, wkn, source)
+                     values
+                        ($1, $2, $3, $4, $5, $6, $7)
+                     on conflict (isin)
+                     do update set
+                        seen_count = market_data_requests.seen_count + 1,
+                        last_seen_at = now(),
+                        name = coalesce(market_data_requests.name, excluded.name),
+                        display_name = coalesce(market_data_requests.display_name, excluded.display_name),
+                        asset_type = coalesce(market_data_requests.asset_type, excluded.asset_type),
+                        currency = coalesce(market_data_requests.currency, excluded.currency),
+                        wkn = coalesce(market_data_requests.wkn, excluded.wkn),
+                        source = coalesce(market_data_requests.source, excluded.source),
+                        status = case
+                            when market_data_requests.status in ('imported', 'ignored') then market_data_requests.status
+                            else market_data_requests.status
+                        end,
+                        updated_at = now()
+                     returning id, isin, name, display_name, asset_type, currency, wkn,
+                               first_seen_at, last_seen_at, seen_count, status, source, notes, created_at, updated_at`,
+                    [normalizedIsin, metadata.name, metadata.displayName, metadata.assetType, metadata.currency, metadata.wkn, metadata.source],
+                );
+
+                await client.query("commit");
+                return mapMarketDataRequestRow(result.rows[0]);
+            } catch (error) {
+                await client.query("rollback");
+                throw error;
+            }
+        });
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listMarketDataRequests(input: ListMarketDataRequestsInput = {}): Promise<ListMarketDataRequestsResult> {
+    try {
+        const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.min(Math.floor(input.limit as number), 200) : 50;
+        const status = normalizeNonEmptyText(input.status)?.toLowerCase() ?? null;
+        const source = normalizeNonEmptyText(input.source)?.toLowerCase() ?? null;
+        const qRaw = normalizeNonEmptyText(input.q);
+        const q = qRaw ? `%${qRaw.toLowerCase()}%` : null;
+
+        if (status && !MARKET_DATA_REQUEST_STATUSES.has(status as MarketDataRequestStatus)) {
+            throw new MarketDataRepositoryError("invalid_input", "Ungültiger request status.");
+        }
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with filtered as (
+                select id, isin, name, display_name, asset_type, currency, wkn,
+                       first_seen_at, last_seen_at, seen_count, status, source, notes, created_at, updated_at
+                from market_data_requests
+                where ($1::text is null or status = $1)
+                  and ($2::text is null or source = $2)
+                  and (
+                    $3::text is null
+                    or lower(isin) like $3
+                    or lower(coalesce(display_name, '')) like $3
+                    or lower(coalesce(name, '')) like $3
+                    or lower(coalesce(wkn, '')) like $3
+                  )
+            )
+            select
+                (select count(*)::int from filtered) as total,
+                f.id, f.isin, f.name, f.display_name, f.asset_type, f.currency, f.wkn,
+                f.first_seen_at, f.last_seen_at, f.seen_count, f.status, f.source, f.notes, f.created_at, f.updated_at
+            from filtered f
+            order by f.last_seen_at desc, f.isin asc
+            limit $4`,
+            [status, source, q, limit],
+        );
+
+        const total = Number(result.rows[0]?.total ?? 0);
+        const items = result.rows.map((row) => mapMarketDataRequestRow(row));
+        return { total, items };
     } catch (error) {
         handleRepositoryError(error);
     }

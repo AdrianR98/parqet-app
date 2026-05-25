@@ -48,6 +48,7 @@ import {
   isMeaningfulInstrumentName,
   MarketDataRepositoryError,
 } from "../../../../lib/market-data/db/repository";
+import { recordUnknownMarketDataRequestsFromAssets } from "../../../../lib/market-data/runtime-requests";
 import type {
   DbMarketInstrumentMetadata,
   DbMarketSymbolMapping,
@@ -781,6 +782,18 @@ export async function GET(req: Request) {
           marketMetadataDbAvailable,
         ),
       );
+      if (marketMetadataDbAvailable) {
+        try {
+          await recordUnknownMarketDataRequestsFromAssets({
+            assets: assetsWithMarketMetadata,
+            knownIsins: new Set(Object.keys(marketMetadataByIsin)),
+          });
+        } catch {
+          // Queue recording is best-effort; user runtime responses must remain stable.
+        }
+      } else {
+        // Skip runtime unknown-request recording when metadata lookup is unavailable.
+      }
 
       const activeAssets = assetsWithMarketMetadata.filter(
         (asset: AssetSummary) => asset.netShares > CLOSED_POSITION_EPSILON,
