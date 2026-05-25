@@ -8,7 +8,6 @@ import styles from "./page.module.css";
 
 const PLACEHOLDER_RESOURCES = [
     "Market Data Status",
-    "Instruments",
     "Mappings",
     "Runs",
 ] as const;
@@ -59,6 +58,40 @@ type UnmappedMarketDataPayload = {
     }>;
 };
 
+type MarketInstrumentsPayload = {
+    total: number;
+    shown: number;
+    limit: number;
+    filters: {
+        q: string | null;
+        status: string | null;
+        assetType: string | null;
+        hasPrimary: boolean | null;
+        hasPrices: boolean | null;
+    };
+    items: Array<{
+        isin: string;
+        displayName: string | null;
+        name: string | null;
+        assetType: string | null;
+        currency: string | null;
+        wkn: string | null;
+        metadataStatus: string | null;
+        marketDataStatus: string | null;
+        marketDataStatusReason: string | null;
+        primarySymbol: string | null;
+        primaryExchange: string | null;
+        primaryCurrency: string | null;
+        verifiedMappingCount: number;
+        candidateMappingCount: number;
+        hasPriceData: boolean;
+        hasMarketActions: boolean;
+        firstPriceDate: string | null;
+        lastPriceDate: string | null;
+        latestClose: number | null;
+    }>;
+};
+
 function SessionBadge({ state }: { state: "enabled" | "disabled" | "loading" }) {
     if (state === "loading") {
         return <span className={`${styles.badge} ${styles.badgeMuted}`}>Checking session</span>;
@@ -85,6 +118,8 @@ function AdminPanel() {
     const [statusError, setStatusError] = useState<string | null>(null);
     const [unmappedData, setUnmappedData] = useState<UnmappedMarketDataPayload | null>(null);
     const [unmappedError, setUnmappedError] = useState<string | null>(null);
+    const [instrumentsData, setInstrumentsData] = useState<MarketInstrumentsPayload | null>(null);
+    const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
 
     useEffect(() => {
         if (sessionState !== "enabled") return;
@@ -110,6 +145,35 @@ function AdminPanel() {
                 if (error instanceof Error && error.name === "AbortError") return;
                 setStatusData(null);
                 setStatusError("Market data status is currently unavailable.");
+            });
+
+        return () => controller.abort();
+    }, [sessionState]);
+
+    useEffect(() => {
+        if (sessionState !== "enabled") return;
+
+        const controller = new AbortController();
+
+        fetch("/api/admin/market-data/instruments?limit=50", {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error("instruments-fetch-failed");
+                }
+                return (await response.json()) as MarketInstrumentsPayload;
+            })
+            .then((payload) => {
+                setInstrumentsData(payload);
+                setInstrumentsError(null);
+            })
+            .catch((error: unknown) => {
+                if (error instanceof Error && error.name === "AbortError") return;
+                setInstrumentsData(null);
+                setInstrumentsError("Market instruments overview is currently unavailable.");
             });
 
         return () => controller.abort();
@@ -296,6 +360,65 @@ function AdminPanel() {
                     </>
                 ) : (
                     <p className={styles.subtle}>No unmapped/open data available.</p>
+                )}
+            </section>
+
+            <section className={styles.surface}>
+                <h2>Market Instruments</h2>
+                <p className={styles.note}>Read-only instrument/mapping/price status overview.</p>
+                {sessionState !== "enabled" ? (
+                    <p className={styles.subtle}>List is unavailable while admin is disabled or unauthorized.</p>
+                ) : !instrumentsData && !instrumentsError ? (
+                    <p className={styles.subtle}>Loading market instruments...</p>
+                ) : instrumentsError ? (
+                    <p className={styles.errorText}>{instrumentsError}</p>
+                ) : instrumentsData && instrumentsData.items.length === 0 ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {instrumentsData.shown.toLocaleString()} of {instrumentsData.total.toLocaleString()} instruments.
+                        </p>
+                        <p className={styles.subtle}>No market instruments for the current filter.</p>
+                    </>
+                ) : instrumentsData ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {instrumentsData.shown.toLocaleString()} of {instrumentsData.total.toLocaleString()} instruments.
+                        </p>
+                        <div className={styles.tableWrap}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>ISIN</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Primary</th>
+                                        <th>Verified</th>
+                                        <th>Candidates</th>
+                                        <th>Prices</th>
+                                        <th>Last price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {instrumentsData.items.map((item) => (
+                                        <tr key={item.isin}>
+                                            <td>{item.isin}</td>
+                                            <td>{item.displayName ?? item.name ?? "—"}</td>
+                                            <td>{item.assetType ?? "—"}</td>
+                                            <td>{item.marketDataStatus ?? "unset"}</td>
+                                            <td>{item.primarySymbol ?? "—"}</td>
+                                            <td>{item.verifiedMappingCount}</td>
+                                            <td>{item.candidateMappingCount}</td>
+                                            <td>{item.hasPriceData ? "yes" : "no"}</td>
+                                            <td>{item.lastPriceDate ?? "—"}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : (
+                    <p className={styles.subtle}>No instrument data available.</p>
                 )}
             </section>
 

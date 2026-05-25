@@ -43,6 +43,7 @@ import type {
     TradingUniverseReferenceMatch,
     ReferenceSourceCount,
     AdminOpenUnmappedMarketDataRow,
+    AdminMarketInstrumentOverviewRow,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -1576,6 +1577,99 @@ export async function listAdminOpenUnmappedMarketDataRows(): Promise<AdminOpenUn
             candidateSymbols: Array.isArray(row.candidate_symbols)
                 ? row.candidate_symbols.filter((value): value is string => typeof value === "string")
                 : [],
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminMarketInstrumentOverviewRows(): Promise<AdminMarketInstrumentOverviewRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with mapping as (
+                select
+                    i.id as instrument_id,
+                    count(*) filter (where m.provider = 'yfinance' and m.is_active = true and m.verified_at is not null)::int as verified_mapping_count,
+                    count(*) filter (where m.provider = 'yfinance' and m.is_active = true and m.verified_at is null)::int as candidate_mapping_count,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.is_primary = true) as has_primary_mapping,
+                    max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.symbol end) as primary_symbol,
+                    max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.exchange end) as primary_exchange,
+                    max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.currency end) as primary_currency
+                from market_instruments i
+                left join market_symbol_mappings m on m.instrument_id = i.id
+                group by i.id
+            ),
+            prices as (
+                select
+                    p.instrument_id,
+                    true as has_prices,
+                    min(p.date)::date as first_price_date,
+                    max(p.date)::date as last_price_date
+                from market_prices_daily p
+                group by p.instrument_id
+            ),
+            latest_prices as (
+                select distinct on (p.instrument_id)
+                    p.instrument_id,
+                    p.close as latest_close
+                from market_prices_daily p
+                order by p.instrument_id, p.date desc
+            ),
+            actions as (
+                select a.instrument_id, true as has_actions
+                from market_actions a
+                group by a.instrument_id
+            )
+            select
+                i.isin,
+                i.display_name,
+                i.name,
+                i.asset_type,
+                i.currency,
+                i.wkn,
+                i.metadata_source,
+                i.market_data_status,
+                i.market_data_status_reason,
+                m.primary_symbol,
+                m.primary_exchange,
+                m.primary_currency,
+                coalesce(m.verified_mapping_count, 0) as verified_mapping_count,
+                coalesce(m.candidate_mapping_count, 0) as candidate_mapping_count,
+                coalesce(m.has_primary_mapping, false) as has_primary_mapping,
+                coalesce(p.has_prices, false) as has_price_data,
+                coalesce(ac.has_actions, false) as has_market_actions,
+                p.first_price_date,
+                p.last_price_date,
+                lp.latest_close
+            from market_instruments i
+            left join mapping m on m.instrument_id = i.id
+            left join prices p on p.instrument_id = i.id
+            left join latest_prices lp on lp.instrument_id = i.id
+            left join actions ac on ac.instrument_id = i.id
+            order by i.isin asc`,
+        );
+
+        return result.rows.map((row) => ({
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            name: row.name === null ? null : String(row.name),
+            assetType: row.asset_type === null ? null : String(row.asset_type),
+            currency: row.currency === null ? null : String(row.currency),
+            wkn: row.wkn === null ? null : String(row.wkn),
+            metadataSource: row.metadata_source === null ? null : String(row.metadata_source),
+            marketDataStatus: row.market_data_status === null ? null : normalizeInstrumentStatus(String(row.market_data_status)),
+            marketDataStatusReason: row.market_data_status_reason === null ? null : String(row.market_data_status_reason),
+            primarySymbol: row.primary_symbol === null ? null : String(row.primary_symbol),
+            primaryExchange: row.primary_exchange === null ? null : String(row.primary_exchange),
+            primaryCurrency: row.primary_currency === null ? null : String(row.primary_currency),
+            verifiedMappingCount: Number(row.verified_mapping_count ?? 0),
+            candidateMappingCount: Number(row.candidate_mapping_count ?? 0),
+            hasPrimaryMapping: Boolean(row.has_primary_mapping),
+            hasPriceData: Boolean(row.has_price_data),
+            hasMarketActions: Boolean(row.has_market_actions),
+            firstPriceDate: row.first_price_date === null ? null : normalizeDbDateValue(row.first_price_date),
+            lastPriceDate: row.last_price_date === null ? null : normalizeDbDateValue(row.last_price_date),
+            latestClose: toNullableNumber(row.latest_close),
         }));
     } catch (error) {
         handleRepositoryError(error);

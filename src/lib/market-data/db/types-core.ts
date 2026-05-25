@@ -450,6 +450,29 @@ export type AdminOpenUnmappedMarketDataRow = {
     candidateSymbols: string[];
 };
 
+export type AdminMarketInstrumentOverviewRow = {
+    isin: string;
+    displayName: string | null;
+    name: string | null;
+    assetType: string | null;
+    currency: string | null;
+    wkn: string | null;
+    metadataSource: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    marketDataStatusReason: string | null;
+    primarySymbol: string | null;
+    primaryExchange: string | null;
+    primaryCurrency: string | null;
+    verifiedMappingCount: number;
+    candidateMappingCount: number;
+    hasPrimaryMapping: boolean;
+    hasPriceData: boolean;
+    hasMarketActions: boolean;
+    firstPriceDate: string | null;
+    lastPriceDate: string | null;
+    latestClose: number | null;
+};
+
 export type VerifiedMappingForPromotion = {
     isin: string;
     name: string | null;
