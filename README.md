@@ -1,16 +1,18 @@
 # Parqet App
 
-Parqet App is a Next.js application for working with authorized Parqet portfolio data. The repository has completed the Phase 0 / Phase 0.1 collaboration and governance baseline and is now working through Phase 1 UI foundation and Phase 2 pipeline-readiness decisions before further data-pipeline migration.
+Parqet App is a Next.js Parqet Integration for authorized portfolio data, local/cache-backed dashboard and activity views, DB-backed asset-detail market history, and explicit admin/CLI market-data operations.
 
 English is the source of truth for repository documentation. German translations may exist as placeholders until a later Translation-Agent PR provides full translations.
 
 ## Current Scope
 
-The app already contains Parqet OAuth routes, dashboard and activities views, Parqet API route handlers, local metadata enrichment concepts, reconciliation warnings and override-oriented audit workflows. Current cleanup and readiness work does not redesign or extend those product features.
+The app contains Parqet OAuth routes, dashboard and activity views, asset-detail analytics, and market-history charting backed by local database history. Runtime market-history reads are DB-only. Provider calls for market-history fetching, instrument metadata updates, symbol mapping, and unmapped reconciliation belong to explicit admin/CLI workflows documented in [docs/MARKET_DATA_PIPELINE.md](docs/MARKET_DATA_PIPELINE.md).
 
 Important guardrail: do not create a second activity or asset pipeline before Phase 1 explicitly decides otherwise. Work touching Parqet data must respect the existing pipeline direction and document architectural changes through ADRs.
 
 Pipeline-readiness planning is tracked through [#248](https://github.com/AdrianR98/parqet-app/issues/248). The completed inventory and replacement-gate evidence from [#249](https://github.com/AdrianR98/parqet-app/issues/249) lives in [docs/PIPELINE_INVENTORY.md](docs/PIPELINE_INVENTORY.md). Follow-up decision/planning issues [#251](https://github.com/AdrianR98/parqet-app/issues/251) through [#260](https://github.com/AdrianR98/parqet-app/issues/260) must resolve the remaining data-source, identity, normalization, transfer, valuation, warning, cache, read-model and validation questions before product route migration.
+
+Recent UI baseline updates include shared Elbstream-powered asset logos with failed-logo session caching, a structured footer with legal placeholders and attribution, and semantic token improvements for light/dark surface contrast.
 
 ## Workflow Overview
 
@@ -93,6 +95,8 @@ npm run build
 npm run start
 npm run generate:asset-metadata
 ```
+
+For market-data administration and provider-touching workflows, use the commands and sequence from [docs/MARKET_DATA_PIPELINE.md](docs/MARKET_DATA_PIPELINE.md) instead of ad-hoc runtime calls.
 
 Current CI runs `npm run lint` and `npm run build`. A general `npm run test` requirement is not part of the current baseline and must not be added without a focused issue.
 
