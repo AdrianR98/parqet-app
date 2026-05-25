@@ -9,7 +9,8 @@ import type { AssetSummary } from "../../lib/types";
 import { createAssetDetailHref } from "../../lib/asset-detail";
 import { formatCurrency } from "../../lib/format";
 import { getSafePortfolioBreakdown } from "./asset-table-config";
-import { buildInstrumentSubtitleParts, getAssetDisplayName, getAssetInitials, getAssetResolvedLogoUrl } from "../../lib/asset-display";
+import { buildInstrumentSubtitleParts, getAssetDisplayName } from "../../lib/asset-display";
+import AssetLogo from "../common/AssetLogo";
 
 export type AssetTableColumnKey = "name" | "remainingCostBasis" | "positionValue" | "unrealizedPnL" | "totalDividendNet" | "allocation" | "actions";
 
@@ -103,28 +104,6 @@ function AssetMetaLine({ asset }: { asset: AssetSummary }) {
     );
 }
 
-function AssetLogo({ asset, displayName }: { asset: AssetSummary; displayName: string }) {
-    const [imageFailed, setImageFailed] = useState(false);
-    const logoUrl = getAssetResolvedLogoUrl(asset);
-
-    if (!logoUrl || imageFailed) {
-        return <span className={styles.assetLogoFallback}>{getAssetInitials(asset)}</span>;
-    }
-
-    return (
-        <img
-            src={logoUrl}
-            alt={`${displayName} Logo`}
-            width={30}
-            height={30}
-            className={styles.assetLogoImage}
-            onError={() => setImageFailed(true)}
-            loading="lazy"
-            decoding="async"
-        />
-    );
-}
-
 export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: Dispatch<SetStateAction<string[]>>, totalPositionValue: number) {
     const expandedSet = new Set(expandedIsins);
 
@@ -142,7 +121,13 @@ export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: 
                 return (
                     <div className={styles.assetIdentity}>
                         <div className={styles.assetLogo}>
-                            <AssetLogo asset={asset} displayName={displayName} />
+                            <AssetLogo
+                                asset={asset}
+                                displayName={displayName}
+                                imageClassName={styles.assetLogoImage}
+                                fallbackClassName={styles.assetLogoFallback}
+                                loading="lazy"
+                            />
                         </div>
                         <div className={styles.assetIdentityText}>
                             {detailHref ? <Link href={detailHref} className={styles.assetNameLink} title={displayName}>{displayName}</Link> : <div className={styles.assetName} title={displayName}>{displayName}</div>}
