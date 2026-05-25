@@ -10,6 +10,7 @@ import {
 } from "../../src/lib/market-data/cache";
 import { classifyAlphaVantagePayload, parseDailySeries } from "../../src/lib/market-data/alpha-vantage-parser";
 import { buildCacheMissResponse } from "../../src/lib/market-data/service-core";
+import { downsampleHistoryPoints, isHistoryPeriod, isStrictIsoDate, resolveFromDateForPeriod } from "../../src/lib/market-data/history-utils";
 import { normalizeIsin } from "../../src/lib/market-data/symbol-mapping";
 
 describe("market-data symbol mapping", () => {
@@ -132,5 +133,48 @@ describe("market-data service cache-miss semantics", () => {
         expect(result.diagnostics?.providerStatusCategory).toBe("not_requested");
         expect(result.diagnostics?.detectedResponseShape).toBe("none");
         expect(after).toBe(before);
+    });
+});
+
+describe("market-data history helpers", () => {
+    it("validates supported period values", () => {
+        expect(isHistoryPeriod("1Y")).toBe(true);
+        expect(isHistoryPeriod("MAX")).toBe(true);
+        expect(isHistoryPeriod("BAD")).toBe(false);
+    });
+
+    it("validates strict YYYY-MM-DD dates", () => {
+        expect(isStrictIsoDate("2026-05-25")).toBe(true);
+        expect(isStrictIsoDate("2026-2-5")).toBe(false);
+        expect(isStrictIsoDate("2026-02-30")).toBe(false);
+    });
+
+    it("computes period start from latest available db date", () => {
+        expect(resolveFromDateForPeriod({ requestedPeriod: "1Y", latestPriceDate: "2026-05-25" })).toBe("2025-05-25");
+        expect(resolveFromDateForPeriod({ requestedPeriod: "MAX", latestPriceDate: "2026-05-25" })).toBeNull();
+    });
+
+    it("downsamples deterministically and preserves boundaries", () => {
+        const points = Array.from({ length: 2000 }, (_, idx) => ({
+            provider: "yfinance",
+            symbol: "AAPL",
+            date: `2020-01-${String((idx % 28) + 1).padStart(2, "0")}`,
+            open: null,
+            high: null,
+            low: null,
+            close: idx + 1,
+            adjClose: null,
+            volume: null,
+            currency: "USD",
+            source: "postgres",
+            importedAt: "2026-05-25T00:00:00.000Z",
+        }));
+
+        const result = downsampleHistoryPoints(points, 1200);
+        expect(result.downsampled).toBe(true);
+        expect(result.pointCountRaw).toBe(2000);
+        expect(result.pointCountReturned).toBe(1200);
+        expect(result.points[0]?.close).toBe(1);
+        expect(result.points[result.points.length - 1]?.close).toBe(2000);
     });
 });

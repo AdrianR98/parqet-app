@@ -9,6 +9,23 @@ import { getAssetDisplayName, getAssetSubtitle } from "../../../lib/asset-displa
 import type { AssetSummary } from "../../../lib/types";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
+const DASHBOARD_ALLOCATION_PALETTE = [
+    "var(--chart-series-1)",
+    "var(--chart-series-2)",
+    "var(--chart-series-3)",
+    "var(--chart-series-4)",
+    "var(--chart-series-5)",
+    "var(--chart-series-6)",
+    "var(--chart-series-7)",
+    "var(--chart-series-8)",
+    "var(--chart-series-9)",
+    "var(--chart-series-10)",
+    "var(--chart-series-11)",
+    "var(--chart-series-12)",
+    "var(--chart-series-13)",
+    "var(--chart-series-14)",
+    "var(--chart-series-15)",
+] as const;
 
 function getAssetTypeLabel(asset: AssetSummary): "Kryptowährungen" | "Wertpapiere" | "Sonstige" {
     const typeCandidate = [asset.metadata?.assetType, asset.externalMetadata?.assetType, asset.assetMeta?.assetType]
@@ -71,11 +88,6 @@ function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
         return [];
     }
 
-    const palette = [
-        "#2c5f98", "#3f79bf", "#3b93c4", "#317f9d", "#506dc4",
-        "#6c8fd8", "#2f8e8d", "#4f7ca6", "#5f63b9", "#3f8fb0",
-        "#7b80c2", "#4aa4b7", "#6986ac", "#5f9aa2", "#8699bf",
-    ];
     const topAssets = validAssets.slice(0, MAX_INDIVIDUAL_SEGMENTS);
     const remainder = validAssets
         .slice(MAX_INDIVIDUAL_SEGMENTS)
@@ -83,11 +95,11 @@ function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
     const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
         label: asset.label,
         value: asset.value,
-        color: palette[index] ?? palette[palette.length - 1],
+        color: DASHBOARD_ALLOCATION_PALETTE[index] ?? DASHBOARD_ALLOCATION_PALETTE[DASHBOARD_ALLOCATION_PALETTE.length - 1],
     }));
 
     if (remainder > 0) {
-        segments.push({ label: "Weitere", value: remainder, color: "#bccbda" });
+        segments.push({ label: "Weitere", value: remainder, color: "var(--chart-series-other)" });
     }
 
     return segments;

@@ -7,6 +7,7 @@ export const KNOWN_PORTFOLIOS_STORAGE_KEY = "assettrace-known-portfolios-v1";
 export const REVEAL_BLOCK_SIZE_STORAGE_KEY = "assettrace-reveal-block-size-v1";
 export const ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY = "assettrace-asset-table-visible-columns-v1";
 export const ASSET_DETAIL_TIME_RANGE_STORAGE_KEY = "assettrace-asset-detail-time-range-v1";
+export const ASSET_DETAIL_RANGE_SETTINGS_STORAGE_KEY = "assettrace-asset-detail-range-settings-v1";
 export const LOCAL_SETTINGS_CHANGE_EVENT = "assettrace:settings-local-state-change";
 
 export const REVEAL_BLOCK_SIZE_OPTIONS = [20, 50, 100] as const;
@@ -16,6 +17,12 @@ export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 export type RevealBlockSize = (typeof REVEAL_BLOCK_SIZE_OPTIONS)[number];
 export type AssetDetailTimeRange = "1y" | "3y" | "5y" | "10y" | "max";
+export type AssetDetailPricePeriod = "1m" | "3m" | "6m" | "1y" | "3y" | "5y" | "max";
+export type AssetDetailDividendPeriod = "ytd" | "12m" | "3y" | "5y" | "max";
+export type AssetDetailRangeSettings = {
+    pricePeriod: AssetDetailPricePeriod;
+    dividendPeriod: AssetDetailDividendPeriod;
+};
 
 export type PortfolioScope = {
     mode: "all" | "manual";
@@ -261,6 +268,94 @@ export function saveAssetDetailTimeRange(value: AssetDetailTimeRange): void {
     }
 }
 
+export function parseAssetDetailPricePeriod(value: unknown): AssetDetailPricePeriod {
+    if (value === "1m" || value === "3m" || value === "6m" || value === "1y" || value === "3y" || value === "5y" || value === "max") {
+        return value;
+    }
+
+    return "1y";
+}
+
+export function parseAssetDetailDividendPeriod(value: unknown): AssetDetailDividendPeriod {
+    if (value === "ytd" || value === "12m" || value === "3y" || value === "5y" || value === "max") {
+        return value;
+    }
+
+    return "12m";
+}
+
+export function parseAssetDetailRangeSettings(value: unknown): AssetDetailRangeSettings {
+    if (!value || typeof value !== "object") {
+        return {
+            pricePeriod: "1y",
+            dividendPeriod: "12m",
+        };
+    }
+
+    const candidate = value as Partial<AssetDetailRangeSettings>;
+    return {
+        pricePeriod: parseAssetDetailPricePeriod(candidate.pricePeriod),
+        dividendPeriod: parseAssetDetailDividendPeriod(candidate.dividendPeriod),
+    };
+}
+
+function mapLegacyRangeToPricePeriod(value: AssetDetailTimeRange): AssetDetailPricePeriod {
+    if (value === "10y" || value === "max") return "max";
+    if (value === "5y") return "5y";
+    if (value === "3y") return "3y";
+    return "1y";
+}
+
+export function loadAssetDetailRangeSettings(): AssetDetailRangeSettings {
+    if (!isBrowser()) {
+        return {
+            pricePeriod: "1y",
+            dividendPeriod: "12m",
+        };
+    }
+
+    try {
+        const raw = window.localStorage.getItem(ASSET_DETAIL_RANGE_SETTINGS_STORAGE_KEY);
+        if (raw) {
+            return parseAssetDetailRangeSettings(JSON.parse(raw) as unknown);
+        }
+
+        const legacy = parseAssetDetailTimeRange(window.localStorage.getItem(ASSET_DETAIL_TIME_RANGE_STORAGE_KEY));
+        return {
+            pricePeriod: mapLegacyRangeToPricePeriod(legacy),
+            dividendPeriod: "12m",
+        };
+    } catch {
+        return {
+            pricePeriod: "1y",
+            dividendPeriod: "12m",
+        };
+    }
+}
+
+export function saveAssetDetailRangeSettings(settings: AssetDetailRangeSettings): void {
+    if (!isBrowser()) {
+        return;
+    }
+
+    try {
+        const nextSettings = parseAssetDetailRangeSettings(settings);
+        const currentSettings = loadAssetDetailRangeSettings();
+
+        if (
+            currentSettings.pricePeriod === nextSettings.pricePeriod &&
+            currentSettings.dividendPeriod === nextSettings.dividendPeriod
+        ) {
+            return;
+        }
+
+        window.localStorage.setItem(ASSET_DETAIL_RANGE_SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
+        notifyLocalSettingsChanged();
+    } catch {
+        // localStorage-Probleme bewusst ignorieren.
+    }
+}
+
 export function resolveAppearanceMode(mode: AppearanceMode): ResolvedTheme {
     if (mode === "light" || mode === "dark") {
         return mode;
@@ -435,6 +530,7 @@ export function clearLocalAssetTraceState(): void {
         window.localStorage.removeItem(REVEAL_BLOCK_SIZE_STORAGE_KEY);
         window.localStorage.removeItem(ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY);
         window.localStorage.removeItem(ASSET_DETAIL_TIME_RANGE_STORAGE_KEY);
+        window.localStorage.removeItem(ASSET_DETAIL_RANGE_SETTINGS_STORAGE_KEY);
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }

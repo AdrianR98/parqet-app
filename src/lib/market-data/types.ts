@@ -1,4 +1,5 @@
 export type MarketDataProvider = "alphavantage" | "yfinance";
+export type MarketHistoryPeriod = "1M" | "3M" | "6M" | "1Y" | "3Y" | "5Y" | "MAX";
 
 export type MarketDataPoint = {
     date: string;
@@ -106,6 +107,12 @@ export type MarketDataResponse = {
         marketDataStatusReason: string | null;
         latestPriceDate: string | null;
         pointCount: number;
+        requestedPeriod?: MarketHistoryPeriod;
+        fromDate?: string | null;
+        toDate?: string | null;
+        pointCountRaw?: number;
+        pointCountReturned?: number;
+        downsampled?: boolean;
         stale: boolean;
     };
     cache?: MarketDataCacheMetadata;

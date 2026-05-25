@@ -79,8 +79,8 @@
 }
 
 .warningCard {
-    border: 1px solid rgba(255, 102, 122, 0.35);
-    background: rgba(255, 102, 122, 0.08);
+    border: 1px solid var(--danger-soft-border);
+    background: var(--danger-soft);
     border-radius: 12px;
     padding: 12px 14px;
     margin-bottom: 10px;
@@ -97,7 +97,7 @@
 }
 
 .warningSeverityWarning {
-    color: #d97706;
+    color: var(--warning);
 }
 
 .warningSeverityInfo {
@@ -215,8 +215,8 @@
 
 .inlineError {
     margin-top: 12px;
-    border: 1px solid rgba(255, 102, 122, 0.45);
-    background: rgba(255, 102, 122, 0.08);
+    border: 1px solid var(--danger-soft-border-strong);
+    background: var(--danger-soft);
     border-radius: 12px;
     padding: 10px 12px;
     color: var(--negative);

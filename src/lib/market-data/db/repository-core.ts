@@ -1562,6 +1562,27 @@ export async function getDailyPricesByIsin(input: GetDailyPricesInput): Promise<
     }
 }
 
+export async function getLatestDailyPriceDateByIsin(input: {
+    isin: string;
+    provider?: string;
+}): Promise<string | null> {
+    try {
+        const normalizedIsin = assertIsin(input.isin);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select max(p.date) as latest_date
+             from market_prices_daily p
+             join market_instruments i on i.id = p.instrument_id
+             where i.isin = $1
+               and ($2::text is null or p.provider = $2)`,
+            [normalizedIsin, input.provider ?? null],
+        );
+        const value = result.rows[0]?.latest_date;
+        return value == null ? null : normalizeDbDateValue(value);
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
 export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<{ upserted: number }> {
     try {
         if (input.points.length === 0) {
