@@ -113,9 +113,48 @@
     margin-top: 2px;
     font-size: 12px;
     color: var(--text-soft);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    min-height: 16px;
+}
+
+.metaSeparator {
+    opacity: 0.7;
+}
+
+.identifierPart {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.inlineCopyButton {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    font: inherit;
+    line-height: 1.2;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.inlineCopyButton:hover,
+.inlineCopyButton:focus-visible {
+    color: var(--text-main);
+    outline: none;
+}
+
+.inlineCopyButton:focus-visible {
+    box-shadow: 0 0 0 2px rgba(87, 133, 184, 0.28);
+}
+
+.inlineCopyButtonCopied {
+    background: rgba(126, 175, 230, 0.28);
+    box-shadow: 0 0 0 1px rgba(87, 133, 184, 0.26);
+    transition: background 140ms ease, box-shadow 140ms ease;
 }
 
 .positive {

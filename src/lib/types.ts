@@ -61,6 +61,32 @@ export type AssetMetadata = {
   exchange?: string | null;
 };
 
+export type AssetInstrumentPrimaryMapping = {
+  provider: string;
+  symbol: string;
+  exchange: string | null;
+  currency: string | null;
+  verifiedAt: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+};
+
+export type AssetInstrumentSnapshot = {
+  isin: string;
+  displayName: string | null;
+  name: string | null;
+  wkn: string | null;
+  assetType: string | null;
+  currency: string | null;
+  metadataStatus: "ok" | "missing" | "db_unavailable" | "missing_name";
+  metadataError: string | null;
+  marketDataStatus: "active" | "excluded" | "legacy" | "derivative" | "unknown" | null;
+  marketDataStatusReason: string | null;
+  marketDataSuccessorIsin: string | null;
+  marketDataSuccessorSymbol: string | null;
+  primaryMapping: AssetInstrumentPrimaryMapping | null;
+};
+
 /**
  * ============================================================
  * PORTFOLIO POSITIONEN INNERHALB EINES ASSETS
@@ -153,6 +179,7 @@ export type AssetSummary = {
   instrumentName?: string | null;
   instrumentMetadataStatus?: "ok" | "missing" | "db_unavailable" | "missing_name";
   instrumentMetadataError?: string | null;
+  instrument?: AssetInstrumentSnapshot | null;
 
   metadata?: Partial<AssetMetadata> | null;
   externalMetadata?: Partial<AssetMetadata> | null;

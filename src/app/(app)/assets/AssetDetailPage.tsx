@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-    loadAssetDetailTimeRange,
     loadKnownPortfolios,
     loadPortfolioScope,
     resolvePortfolioScope,
-    saveAssetDetailTimeRange,
     subscribeToLocalSettings,
 } from "../../../lib/app-settings";
 import { loadDashboardCache } from "../../../lib/dashboard-cache";
@@ -23,25 +21,32 @@ import {
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
 import { getActivityTypeLabel, normalizeExactIsin } from "../../../lib/local-activity-read-model";
 import { formatCurrency, formatShares } from "../../../lib/format";
-import { getAssetInitials, getAssetResolvedLogoUrl } from "../../../lib/asset-display";
-import type { MarketDataAction, MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../../../lib/market-data/types";
+import { getAssetInitials, getAssetResolvedLogoUrl, isMeaningfulSymbol } from "../../../lib/asset-display";
+import type { MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../../../lib/market-data/types";
 import type { ActivitiesAuditItem, AssetSummary, PortfolioPosition } from "../../../lib/types";
 import styles from "./AssetDetailPage.module.css";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", { month: "short", year: "2-digit" });
-const CHART_MONTHS = 12;
 const CHART_HEIGHT_PX = 230;
 const DETAIL_RANGE_OPTIONS = [
-    { key: "1y", label: "1 Jahr", months: 12 },
-    { key: "3y", label: "3 Jahre", months: 36 },
-    { key: "5y", label: "5 Jahre", months: 60 },
-    { key: "10y", label: "10 Jahre", months: 120 },
-    { key: "max", label: "Max", months: null },
+    { key: "1m", label: "1M", days: 31 },
+    { key: "3m", label: "3M", days: 92 },
+    { key: "6m", label: "6M", days: 183 },
+    { key: "1y", label: "1Y", days: 366 },
+    { key: "3y", label: "3Y", days: 365 * 3 + 2 },
+    { key: "5y", label: "5Y", days: 365 * 5 + 2 },
+    { key: "max", label: "MAX", days: null },
+] as const;
+const DIVIDEND_RANGE_OPTIONS = [
+    { key: "ytd", label: "YTD" },
+    { key: "12m", label: "12M" },
+    { key: "3y", label: "3Y" },
+    { key: "5y", label: "5Y" },
+    { key: "max", label: "MAX" },
 ] as const;
 
 type DetailRangeKey = (typeof DETAIL_RANGE_OPTIONS)[number]["key"];
-type MarketDataLoadMode = "initial" | "refresh";
-type MarketReturnMode = "price_only" | "price_plus_dividends";
+type DividendRangeKey = (typeof DIVIDEND_RANGE_OPTIONS)[number]["key"];
 type ActivePriceTooltip = {
     index: number;
 };
@@ -60,6 +65,34 @@ const MARKET_PERCENT_FORMATTER = new Intl.NumberFormat("de-DE", {
     maximumFractionDigits: 2,
 });
 
+async function copyIdentifierToClipboard(value: string): Promise<boolean> {
+    if (!value.trim()) {
+        return false;
+    }
+
+    try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.setAttribute("readonly", "true");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        return copied;
+    } catch {
+        return false;
+    }
+}
+const DIVIDEND_CAGR_OPTIONS = [2, 3, 5, 7, 10, 15] as const;
+const DIVIDEND_KPI_SETTINGS_KEY = "assettrace-dividend-kpi-settings-v1";
+
 function parseMarketDataResponse(payload: unknown): MarketDataResponse | null {
     if (!payload || typeof payload !== "object") {
         return null;
@@ -73,8 +106,55 @@ function parseMarketDataResponse(payload: unknown): MarketDataResponse | null {
     return candidate as MarketDataResponse;
 }
 
-function rangeMonthsFor(selectedRange: DetailRangeKey): number | null {
-    return DETAIL_RANGE_OPTIONS.find((option) => option.key === selectedRange)?.months ?? null;
+function rangeDaysFor(selectedRange: DetailRangeKey): number | null {
+    return DETAIL_RANGE_OPTIONS.find((option) => option.key === selectedRange)?.days ?? null;
+}
+
+function rangeIndex(selectedRange: DetailRangeKey): number {
+    const index = DETAIL_RANGE_OPTIONS.findIndex((option) => option.key === selectedRange);
+    return index >= 0 ? index : 0;
+}
+
+function dividendRangeIndex(selectedRange: DividendRangeKey): number {
+    const index = DIVIDEND_RANGE_OPTIONS.findIndex((option) => option.key === selectedRange);
+    return index >= 0 ? index : 0;
+}
+
+function normalizeDividendKpiSettings(value: unknown): { cagrPrimaryYears: number; cagrSecondaryYears: number } {
+    const parsed = typeof value === "object" && value !== null
+        ? (value as Partial<{ cagrPrimaryYears: unknown; cagrSecondaryYears: unknown }>)
+        : {};
+    const rawPrimary = typeof parsed.cagrPrimaryYears === "string" ? Number(parsed.cagrPrimaryYears) : parsed.cagrPrimaryYears;
+    const rawSecondary = typeof parsed.cagrSecondaryYears === "string" ? Number(parsed.cagrSecondaryYears) : parsed.cagrSecondaryYears;
+    return {
+        cagrPrimaryYears: sanitizeCagrYears(rawPrimary, 5),
+        cagrSecondaryYears: sanitizeCagrYears(rawSecondary, 10),
+    };
+}
+
+function loadDividendKpiSettings(): { cagrPrimaryYears: number; cagrSecondaryYears: number } {
+    if (typeof window === "undefined") {
+        return { cagrPrimaryYears: 5, cagrSecondaryYears: 10 };
+    }
+    try {
+        const raw = window.localStorage.getItem(DIVIDEND_KPI_SETTINGS_KEY);
+        if (!raw) {
+            return { cagrPrimaryYears: 5, cagrSecondaryYears: 10 };
+        }
+        return normalizeDividendKpiSettings(JSON.parse(raw));
+    } catch {
+        return { cagrPrimaryYears: 5, cagrSecondaryYears: 10 };
+    }
+}
+
+function saveDividendKpiSettings(settings: { cagrPrimaryYears: number; cagrSecondaryYears: number }) {
+    if (typeof window === "undefined") {
+        return;
+    }
+    window.localStorage.setItem(
+        DIVIDEND_KPI_SETTINGS_KEY,
+        JSON.stringify(normalizeDividendKpiSettings(settings)),
+    );
 }
 
 function filterMarketPointsByRange(points: MarketDataPoint[], selectedRange: DetailRangeKey): MarketDataPoint[] {
@@ -82,8 +162,8 @@ function filterMarketPointsByRange(points: MarketDataPoint[], selectedRange: Det
         return points;
     }
 
-    const months = rangeMonthsFor(selectedRange);
-    if (!months) {
+    const days = rangeDaysFor(selectedRange);
+    if (!days) {
         return points;
     }
 
@@ -94,7 +174,7 @@ function filterMarketPointsByRange(points: MarketDataPoint[], selectedRange: Det
     }
 
     const rangeStart = new Date(latestDate);
-    rangeStart.setMonth(rangeStart.getMonth() - months);
+    rangeStart.setDate(rangeStart.getDate() - days);
     const filtered = points.filter((point) => {
         const date = new Date(point.date);
         if (Number.isNaN(date.getTime())) {
@@ -106,62 +186,11 @@ function filterMarketPointsByRange(points: MarketDataPoint[], selectedRange: Det
     return filtered.length > 0 ? filtered : points;
 }
 
-function shouldShowCoverageNote(points: MarketDataPoint[], selectedRange: DetailRangeKey): boolean {
-    if (points.length < 2) {
-        return selectedRange !== "1y";
+function resolveMarketTone(changeAbsolute: number | null): "positive" | "negative" | "neutral" {
+    if (changeAbsolute == null || !Number.isFinite(changeAbsolute)) {
+        return "neutral";
     }
-
-    const months = rangeMonthsFor(selectedRange);
-    if (!months) {
-        return false;
-    }
-
-    const start = new Date(points[0].date);
-    const end = new Date(points[points.length - 1].date);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return true;
-    }
-
-    const spanMonths = Math.max(
-        0,
-        (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()),
-    );
-
-    return spanMonths + 1 < months;
-}
-
-function computeVisibleCumulativeDividends(points: MarketDataPoint[], actions: MarketDataAction[]): number[] {
-    if (points.length === 0) {
-        return [];
-    }
-
-    const sortedDividendActions = actions
-        .filter((action) => action.actionType === "dividend" && Number.isFinite(action.amount))
-        .slice()
-        .sort((left, right) => left.date.localeCompare(right.date));
-
-    const rangeStart = points[0].date;
-    let actionIndex = 0;
-    let runningTotal = 0;
-    const result: number[] = [];
-
-    for (const point of points) {
-        while (actionIndex < sortedDividendActions.length) {
-            const action = sortedDividendActions[actionIndex];
-            if (action.date < rangeStart) {
-                actionIndex += 1;
-                continue;
-            }
-            if (action.date > point.date) {
-                break;
-            }
-            runningTotal += action.amount;
-            actionIndex += 1;
-        }
-        result.push(runningTotal);
-    }
-
-    return result;
+    return changeAbsolute >= 0 ? "positive" : "negative";
 }
 
 function marketDataMessageForStatus(status: MarketDataStatus, message?: string): string {
@@ -169,17 +198,32 @@ function marketDataMessageForStatus(status: MarketDataStatus, message?: string):
         return message;
     }
 
-    if (status === "cache_miss") {
-        return "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
+    if (status === "missing_instrument") {
+        return "Keine Instrumenten-Stammdaten gefunden.";
     }
-    if (status === "missing_symbol") {
-        return "Für dieses Asset ist noch kein Marktdaten-Symbol hinterlegt.";
+    if (status === "missing_primary_mapping") {
+        return "Kein verifiziertes Kursdaten-Mapping vorhanden.";
     }
-    if (status === "missing_api_key") {
-        return "Alpha-Vantage-API-Key ist serverseitig nicht konfiguriert.";
+    if (status === "primary_without_prices" || status === "no_prices") {
+        return "Keine Kursdaten verfügbar.";
     }
-    if (status === "rate_limited") {
-        return "Alpha-Vantage-Tageslimit erreicht. Es wurden keine neuen Kursdaten abgefragt.";
+    if (status === "excluded") {
+        return "Dieses Instrument ist von der normalen Marktdatenverarbeitung ausgeschlossen.";
+    }
+    if (status === "legacy") {
+        return "Dieses Instrument ist als historisch/Legacy markiert.";
+    }
+    if (status === "derivative") {
+        return "Dieses Instrument ist als Derivat markiert und wird nicht wie ein normales Wertpapier ausgewertet.";
+    }
+    if (status === "unknown") {
+        return "Kursdaten müssen manuell geprüft werden.";
+    }
+    if (status === "db_unavailable") {
+        return "Kursdatenbank nicht verfügbar.";
+    }
+    if (status === "invalid_request") {
+        return "Ungültige Kursdaten-Anfrage.";
     }
 
     return "Kursdaten konnten nicht geladen werden.";
@@ -187,6 +231,10 @@ function marketDataMessageForStatus(status: MarketDataStatus, message?: string):
 
 function uniqueIds(ids: string[]): string[] {
     return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
+}
+
+function sanitizeCagrYears(candidate: unknown, fallback: number): number {
+    return DIVIDEND_CAGR_OPTIONS.includes(candidate as (typeof DIVIDEND_CAGR_OPTIONS)[number]) ? Number(candidate) : fallback;
 }
 
 type SelectedAssetScope = {
@@ -261,6 +309,40 @@ function PortfolioBreakdown({ entries }: { entries: PortfolioPosition[] }) {
     );
 }
 
+function CopyableHeaderIdentifier({
+    label,
+    value,
+}: {
+    label: "ISIN" | "WKN";
+    value: string;
+}) {
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <span className={styles.headerMetaPart}>
+            <span>{label} </span>
+            <button
+                type="button"
+                className={`${styles.inlineMetaCopyButton} ${copied ? styles.inlineMetaCopyButtonCopied : ""}`}
+                title={`${label} kopieren`}
+                aria-label={`${label} ${value} kopieren`}
+                onClick={async (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const ok = await copyIdentifierToClipboard(value);
+                    if (!ok) {
+                        return;
+                    }
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1000);
+                }}
+            >
+                {value}
+            </button>
+        </span>
+    );
+}
+
 type DividendMonthSegment = {
     portfolioId: string;
     portfolioName: string;
@@ -288,8 +370,7 @@ type DividendAnalysis = {
     total: number;
     paymentCount: number;
     ttmYield: number | null;
-    cagr5: number | null;
-    cagr10: number | null;
+    yearlySums: Map<number, number>;
     hasAnyScopedDividendRows: boolean;
     hasAnyValidScopedDividendRows: boolean;
     monthSlots: DividendMonthSlot[];
@@ -311,7 +392,7 @@ type ActiveDividendTooltip = {
 };
 
 type KpiHelpProps = {
-    label: string;
+    label: ReactNode;
     value: string;
     helpText: string;
 };
@@ -397,12 +478,16 @@ function computeCagr(yearlySums: Map<number, number>, years: number): number | n
     return Math.pow(end / start, 1 / years) - 1;
 }
 
+function calculateDividendCagr(yearlySums: Map<number, number>, years: number): number | null {
+    return computeCagr(yearlySums, years);
+}
+
 function monthDiffInclusive(start: Date, end: Date): number {
     return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
 }
 
-function resolveAxisMode(range: DetailRangeKey, spanMonths: number): "monthYear" | "year" {
-    if (range === "1y" || range === "3y") {
+function resolveAxisMode(range: DetailRangeKey | DividendRangeKey, spanMonths: number): "monthYear" | "year" {
+    if (range === "1m" || range === "3m" || range === "6m" || range === "1y" || range === "ytd" || range === "12m" || range === "3y") {
         return "monthYear";
     }
 
@@ -416,7 +501,7 @@ function resolveAxisMode(range: DetailRangeKey, spanMonths: number): "monthYear"
 function shouldShowMonthLabel(
     index: number,
     total: number,
-    range: DetailRangeKey,
+    range: DetailRangeKey | DividendRangeKey,
     date: Date,
     previousDate: Date | null,
     spanMonths: number,
@@ -425,7 +510,7 @@ function shouldShowMonthLabel(
         return true;
     }
 
-    if (range === "1y") {
+    if (range === "1m" || range === "3m" || range === "6m" || range === "1y" || range === "ytd" || range === "12m") {
         return true;
     }
 
@@ -435,10 +520,6 @@ function shouldShowMonthLabel(
     }
 
     if (range === "5y") {
-        return Boolean(previousDate && date.getFullYear() !== previousDate.getFullYear());
-    }
-
-    if (range === "10y") {
         return Boolean(previousDate && date.getFullYear() !== previousDate.getFullYear());
     }
 
@@ -489,7 +570,7 @@ function buildNiceTicks(maxValue: number): { maxRounded: number; ticks: number[]
 function buildDividendAnalysis(input: {
     dividendActivities: ActivitiesAuditItem[];
     scopedCostBasis: number | null;
-    selectedRange: DetailRangeKey;
+    selectedRange: DividendRangeKey;
 }): DividendAnalysis {
     const hasAnyScopedDividendRows = input.dividendActivities.length > 0;
     const validRows = input.dividendActivities
@@ -533,7 +614,15 @@ function buildDividendAnalysis(input: {
 
     if (!latestDate) {
         const nowMonth = monthStart(new Date());
-        const start = input.selectedRange === "max" ? nowMonth : addMonths(nowMonth, -((DETAIL_RANGE_OPTIONS.find((entry) => entry.key === input.selectedRange)?.months ?? CHART_MONTHS) - 1));
+        const start = input.selectedRange === "max"
+            ? nowMonth
+            : input.selectedRange === "ytd"
+                ? new Date(nowMonth.getFullYear(), 0, 1)
+                : input.selectedRange === "12m"
+                    ? addMonths(nowMonth, -11)
+                    : input.selectedRange === "3y"
+                        ? addMonths(nowMonth, -35)
+                        : addMonths(nowMonth, -59);
         const slots = monthDiffInclusive(start, nowMonth);
         const monthSlots = Array.from({ length: Math.max(1, slots) }, (_, idx) => {
             const date = addMonths(start, idx);
@@ -551,8 +640,7 @@ function buildDividendAnalysis(input: {
             total: 0,
             paymentCount: 0,
             ttmYield,
-            cagr5: computeCagr(yearlySums, 5),
-            cagr10: computeCagr(yearlySums, 10),
+            yearlySums,
             hasAnyScopedDividendRows,
             hasAnyValidScopedDividendRows,
             monthSlots,
@@ -567,11 +655,15 @@ function buildDividendAnalysis(input: {
         return row.date < earliest ? row.date : earliest;
     }, latestDate as Date | null);
     const endMonth = monthStart(latestDate);
-    const selectedRangeOption = DETAIL_RANGE_OPTIONS.find((entry) => entry.key === input.selectedRange);
-    const selectedMonths = selectedRangeOption?.months ?? CHART_MONTHS;
     const startMonth = input.selectedRange === "max"
         ? monthStart(earliestDate ?? latestDate)
-        : addMonths(endMonth, -((selectedMonths ?? CHART_MONTHS) - 1));
+        : input.selectedRange === "ytd"
+            ? new Date(endMonth.getFullYear(), 0, 1)
+            : input.selectedRange === "12m"
+                ? addMonths(endMonth, -11)
+                : input.selectedRange === "3y"
+                    ? addMonths(endMonth, -35)
+                    : addMonths(endMonth, -59);
     const monthsInRange = monthDiffInclusive(startMonth, endMonth);
     const rangeRows = validRows.filter((row) => {
         const slotMonth = monthStart(row.date);
@@ -660,7 +752,7 @@ function buildDividendAnalysis(input: {
         };
     });
     const shouldCompressEmptyMonths =
-        input.selectedRange === "3y" || input.selectedRange === "5y" || input.selectedRange === "10y" || input.selectedRange === "max";
+        input.selectedRange === "3y" || input.selectedRange === "5y" || input.selectedRange === "max";
     const monthSlots = shouldCompressEmptyMonths
         ? monthSlotsAll.filter((slot) => slot.total > 0)
         : monthSlotsAll;
@@ -672,8 +764,7 @@ function buildDividendAnalysis(input: {
         total,
         paymentCount,
         ttmYield,
-        cagr5: computeCagr(yearlySums, 5),
-        cagr10: computeCagr(yearlySums, 10),
+        yearlySums,
         hasAnyScopedDividendRows,
         hasAnyValidScopedDividendRows,
         monthSlots,
@@ -704,30 +795,17 @@ function getActivityTypeTone(type: string): string {
 
 function MarketPriceChart({
     points,
-    actions,
     selectedRange,
-    showCoverageNote,
-    returnMode,
+    currency,
 }: {
     points: MarketDataPoint[];
-    actions: MarketDataAction[];
     selectedRange: DetailRangeKey;
-    showCoverageNote: boolean;
-    returnMode: MarketReturnMode;
+    currency: string | null;
 }) {
     const [activeTooltip, setActiveTooltip] = useState<ActivePriceTooltip | null>(null);
 
     const filteredPoints = useMemo(() => filterMarketPointsByRange(points, selectedRange), [points, selectedRange]);
-    const visibleCumulativeDividends = useMemo(
-        () => computeVisibleCumulativeDividends(filteredPoints, actions),
-        [filteredPoints, actions],
-    );
-    const seriesValues = filteredPoints.map((point, index) => (
-        returnMode === "price_plus_dividends"
-            ? point.close + (visibleCumulativeDividends[index] ?? 0)
-            : point.close
-    ));
-    const yValues = seriesValues;
+    const yValues = filteredPoints.map((point) => point.close);
     const min = Math.min(...yValues);
     const max = Math.max(...yValues);
     const ySpan = Math.max(0.0001, max - min);
@@ -742,14 +820,11 @@ function MarketPriceChart({
 
     const plottedPoints = filteredPoints.map((point, index) => {
         const xRatio = filteredPoints.length <= 1 ? 0 : index / (filteredPoints.length - 1);
-        const value = seriesValues[index] ?? point.close;
-        const yRatio = (value - min) / ySpan;
+        const yRatio = (point.close - min) / ySpan;
         return {
             ...point,
             x: leftPad + xRatio * plotWidth,
             y: topPad + (1 - yRatio) * plotHeight,
-            value,
-            cumulativeDividends: visibleCumulativeDividends[index] ?? 0,
         };
     });
 
@@ -762,8 +837,8 @@ function MarketPriceChart({
 
     const latestPoint = filteredPoints[filteredPoints.length - 1];
     const firstPoint = filteredPoints[0];
-    const startValue = seriesValues[0] ?? firstPoint.close;
-    const endValue = seriesValues[seriesValues.length - 1] ?? latestPoint.close;
+    const startValue = firstPoint.close;
+    const endValue = latestPoint.close;
     const changeAbsolute = endValue - startValue;
     const changePercent = startValue !== 0 ? (changeAbsolute / startValue) * 100 : 0;
 
@@ -773,7 +848,17 @@ function MarketPriceChart({
         : Array.from(new Set([0, Math.floor((filteredPoints.length - 1) / 3), Math.floor((filteredPoints.length - 1) * 2 / 3), filteredPoints.length - 1]));
     const yTicks = [0, 1, 2, 3, 4].map((step) => min + (ySpan * step) / 4);
     const changeClass = changeAbsolute >= 0 ? styles.positive : styles.negative;
+    const marketTone = resolveMarketTone(changeAbsolute);
     const xAxisY = height - bottomPad;
+    const normalizedCurrencyRaw = (currency ?? "").trim();
+    const normalizedCurrency = normalizedCurrencyRaw === "GBp"
+        ? "GBp"
+        : normalizedCurrencyRaw.toUpperCase();
+    const currencyLabel = normalizedCurrency ? `Kurs in ${normalizedCurrency}` : "Kurs";
+    const priceWithCurrency = (value: number): string => {
+        const formatted = MARKET_PRICE_FORMATTER.format(value);
+        return normalizedCurrency ? `${formatted} ${normalizedCurrency}` : formatted;
+    };
 
     function resolveNearestIndex(clientX: number, svgRectLeft: number, svgRectWidth: number): number {
         if (filteredPoints.length <= 1) {
@@ -787,18 +872,19 @@ function MarketPriceChart({
         <div className={styles.marketChartWrap}>
             <div className={styles.marketKpiRow}>
                 <div className={styles.marketKpiItem}>
-                    <span>Letzter Schlusskurs</span>
-                    <strong>{MARKET_PRICE_FORMATTER.format(latestPoint.close)}</strong>
+                    <span>{currencyLabel}</span>
+                    <strong>{priceWithCurrency(latestPoint.close)}</strong>
                     <small>{MARKET_DATE_FORMATTER.format(new Date(latestPoint.date))}</small>
                 </div>
                 <div className={styles.marketKpiItem}>
-                    <span>{returnMode === "price_plus_dividends" ? "Gesamtertrag" : "Kursänderung"}</span>
+                    <span>Kursänderung</span>
                     <strong className={changeClass}>
-                        {changeAbsolute >= 0 ? "+" : ""}{MARKET_PRICE_FORMATTER.format(changeAbsolute)} ({changePercent >= 0 ? "+" : ""}{MARKET_PERCENT_FORMATTER.format(changePercent)} %)
+                        {changeAbsolute >= 0 ? "+" : ""}{priceWithCurrency(changeAbsolute)} ({changePercent >= 0 ? "+" : ""}{MARKET_PERCENT_FORMATTER.format(changePercent)} %)
                     </strong>
-                    <small>{returnMode === "price_plus_dividends" ? "Schlusskurs + Dividenden, ohne Reinvestition" : "Schlusskurs, ohne Dividenden"}</small>
+                    <small>Total Return inkl. Dividenden folgt separat.</small>
                 </div>
             </div>
+            <div className={styles.marketHintLine}>Aktuell in Börsenwährung. EUR-Ansicht folgt über FX-Umrechnung.</div>
 
             <div className={styles.marketChartFrame}>
                 <svg viewBox={`0 0 ${width} ${height}`} className={styles.marketChartSvg} role="img" aria-label="Schlusskurs-Verlauf">
@@ -825,8 +911,8 @@ function MarketPriceChart({
                         );
                     })}
 
-                    {areaPath ? <path d={areaPath} className={styles.marketAreaPath} /> : null}
-                    <path d={path} className={styles.marketLinePath} />
+                    {areaPath ? <path d={areaPath} className={`${styles.marketAreaPath} ${styles[`marketAreaPath_${marketTone}`]}`} /> : null}
+                    <path d={path} className={`${styles.marketLinePath} ${styles[`marketLinePath_${marketTone}`]}`} />
                     {activePoint ? (
                         <>
                             <line
@@ -836,7 +922,7 @@ function MarketPriceChart({
                                 y2={xAxisY}
                                 className={styles.marketCrosshairLine}
                             />
-                            <circle cx={activePoint.x} cy={activePoint.y} r={4} className={styles.marketPointDot} />
+                            <circle cx={activePoint.x} cy={activePoint.y} r={4} className={`${styles.marketPointDot} ${styles[`marketPointDot_${marketTone}`]}`} />
                         </>
                     ) : null}
 
@@ -872,25 +958,13 @@ function MarketPriceChart({
                         }}
                     >
                         <strong>{MARKET_DATE_FORMATTER.format(new Date(activePoint.date))}</strong>
-                        <span>Schlusskurs: {MARKET_PRICE_FORMATTER.format(activePoint.close)}</span>
-                        {returnMode === "price_plus_dividends" ? (
-                            <>
-                                <span>Kumulierte Dividenden: {MARKET_PRICE_FORMATTER.format(activePoint.cumulativeDividends)}</span>
-                                <span>Serienwert: {MARKET_PRICE_FORMATTER.format(activePoint.value)}</span>
-                            </>
-                        ) : null}
-                        {typeof activePoint.open === "number" ? <span>Open: {MARKET_PRICE_FORMATTER.format(activePoint.open)}</span> : null}
-                        {typeof activePoint.high === "number" ? <span>High: {MARKET_PRICE_FORMATTER.format(activePoint.high)}</span> : null}
-                        {typeof activePoint.low === "number" ? <span>Low: {MARKET_PRICE_FORMATTER.format(activePoint.low)}</span> : null}
+                        <span>Schlusskurs: {priceWithCurrency(activePoint.close)}</span>
+                        {typeof activePoint.open === "number" ? <span>Open: {priceWithCurrency(activePoint.open)}</span> : null}
+                        {typeof activePoint.high === "number" ? <span>High: {priceWithCurrency(activePoint.high)}</span> : null}
+                        {typeof activePoint.low === "number" ? <span>Low: {priceWithCurrency(activePoint.low)}</span> : null}
                     </div>
                 ) : null}
             </div>
-
-            {showCoverageNote ? (
-                <div className={styles.marketCoverageNote}>
-                    Für den gewählten Zeitraum sind nur die letzten {points.length} Handelstage verfügbar.
-                </div>
-            ) : null}
         </div>
     );
 }
@@ -911,16 +985,15 @@ export default function AssetDetailPage() {
     const [heatmapOpen, setHeatmapOpen] = useState(false);
     const [failedLogoIdentities, setFailedLogoIdentities] = useState<Record<string, true>>({});
     const [activeDividendTooltip, setActiveDividendTooltip] = useState<ActiveDividendTooltip | null>(null);
-    const selectedRange = useSyncExternalStore<DetailRangeKey>(
-        subscribeToLocalSettings,
-        () => loadAssetDetailTimeRange(),
-        () => "1y",
-    );
     const [marketDataResponse, setMarketDataResponse] = useState<MarketDataResponse | null>(null);
     const [marketDataLoading, setMarketDataLoading] = useState(false);
-    const [marketDataRefreshing, setMarketDataRefreshing] = useState(false);
     const [marketDataNetworkError, setMarketDataNetworkError] = useState<string | null>(null);
-    const [marketReturnMode, setMarketReturnMode] = useState<MarketReturnMode>("price_only");
+    const [selectedPricePeriod, setSelectedPricePeriod] = useState<DetailRangeKey>("1y");
+    const [selectedDividendPeriod, setSelectedDividendPeriod] = useState<DividendRangeKey>("12m");
+    const [cagrPrimaryYears, setCagrPrimaryYears] = useState(5);
+    const [cagrSecondaryYears, setCagrSecondaryYears] = useState(10);
+    const [activeCagrMenu, setActiveCagrMenu] = useState<"primary" | "secondary" | null>(null);
+    const [dividendKpiSettingsReady, setDividendKpiSettingsReady] = useState(false);
     const marketRequestSequence = useRef(0);
 
     const viewModel = useMemo(() => {
@@ -971,7 +1044,7 @@ export default function AssetDetailPage() {
     const logoFailed = Boolean(logoResetIdentity && failedLogoIdentities[logoResetIdentity]);
     const currentIsin = viewModel?.asset?.isin?.trim() ?? "";
 
-    const loadMarketData = useCallback(async (mode: MarketDataLoadMode, signal?: AbortSignal) => {
+    const loadMarketData = useCallback(async (signal?: AbortSignal) => {
         if (!currentIsin) {
             setMarketDataResponse({
                 ok: false,
@@ -985,16 +1058,10 @@ export default function AssetDetailPage() {
         marketRequestSequence.current = requestId;
         setMarketDataNetworkError(null);
 
-        if (mode === "refresh") {
-            setMarketDataRefreshing(true);
-        } else {
-            setMarketDataLoading(true);
-        }
+        setMarketDataLoading(true);
 
         try {
-            const query = mode === "refresh"
-                ? `/api/market-data/history?isin=${encodeURIComponent(currentIsin)}&refresh=1`
-                : `/api/market-data/history?isin=${encodeURIComponent(currentIsin)}`;
+            const query = `/api/market-data/history?isin=${encodeURIComponent(currentIsin)}`;
             const response = await fetch(query, { method: "GET", signal });
             const payload = parseMarketDataResponse(await response.json());
 
@@ -1005,7 +1072,7 @@ export default function AssetDetailPage() {
             if (!payload) {
                 setMarketDataResponse({
                     ok: false,
-                    status: "provider_error",
+                    status: "not_available",
                     message: "Kursdaten konnten nicht geladen werden.",
                 });
                 return;
@@ -1020,7 +1087,7 @@ export default function AssetDetailPage() {
             setMarketDataNetworkError(error instanceof Error ? error.message : "Unbekannter Fehler");
             setMarketDataResponse({
                 ok: false,
-                status: "provider_error",
+                status: "not_available",
                 message: "Kursdaten konnten nicht geladen werden.",
             });
         } finally {
@@ -1028,11 +1095,7 @@ export default function AssetDetailPage() {
                 return;
             }
 
-            if (mode === "refresh") {
-                setMarketDataRefreshing(false);
-            } else {
-                setMarketDataLoading(false);
-            }
+            setMarketDataLoading(false);
         }
     }, [currentIsin]);
 
@@ -1042,12 +1105,29 @@ export default function AssetDetailPage() {
         }
 
         const controller = new AbortController();
-        void loadMarketData("initial", controller.signal);
+        void loadMarketData(controller.signal);
 
         return () => {
             controller.abort();
         };
     }, [currentIsin, loadMarketData]);
+
+    useEffect(() => {
+        const settings = loadDividendKpiSettings();
+        setCagrPrimaryYears(settings.cagrPrimaryYears);
+        setCagrSecondaryYears(settings.cagrSecondaryYears);
+        setDividendKpiSettingsReady(true);
+    }, []);
+
+    useEffect(() => {
+        if (!dividendKpiSettingsReady) {
+            return;
+        }
+        saveDividendKpiSettings({
+            cagrPrimaryYears,
+            cagrSecondaryYears,
+        });
+    }, [cagrPrimaryYears, cagrSecondaryYears, dividendKpiSettingsReady]);
 
     if (!clientReady) {
         return (
@@ -1078,6 +1158,8 @@ export default function AssetDetailPage() {
     const normalizedAssetIsin = normalizeExactIsin(asset.isin);
     const statusLabel = getAssetStatusLabel(metrics);
     const scopedIds = new Set(selectedAssetPortfolioIds);
+    const headerIsin = String(asset.instrument?.isin ?? asset.isin ?? "").trim();
+    const headerWkn = String(asset.instrument?.wkn ?? asset.wkn ?? "").trim();
 
     const scopedAssetActivities = activityItems
         .filter((item) => normalizeExactIsin(item.isin) === normalizedAssetIsin)
@@ -1093,47 +1175,29 @@ export default function AssetDetailPage() {
     const dividendAnalysis = buildDividendAnalysis({
         dividendActivities: scopedDividendActivities,
         scopedCostBasis: metrics.remainingCostBasis,
-        selectedRange,
+        selectedRange: selectedDividendPeriod,
     });
+    const primaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrPrimaryYears);
+    const secondaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrSecondaryYears);
 
     const hasScopedPosition = metrics.portfolioBreakdown.length > 0;
     const recentActivities = scopedAssetActivities.slice(0, 5);
     const noScopedAssetMessage = "Dieses Asset ist in den ausgewählten Portfolios nicht enthalten.";
     const marketStatus = marketDataResponse?.status ?? null;
     const marketDataPoints = marketDataResponse?.data?.points ?? [];
-    const marketDataActions = marketDataResponse?.data?.actions ?? [];
     const hasMarketSeries = marketDataResponse?.ok && marketDataPoints.length > 0;
     const marketMessage = marketDataResponse
         ? marketDataMessageForStatus(marketDataResponse.status, marketDataResponse.message)
         : "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
-    const showManualRefreshButton = marketStatus !== "missing_symbol";
-    const quotaInfo = marketDataResponse?.quota;
-    const refreshedAt = marketDataResponse?.data?.refreshedAt ?? marketDataResponse?.cache?.refreshedAt ?? null;
-    const sourceLabel = marketDataResponse?.data?.provider === "alphavantage"
-        ? "Alpha Vantage"
-        : marketDataResponse?.data?.provider === "yfinance"
-            ? "yfinance"
-            : "Marktdaten";
-    const cacheStateLabel = marketDataResponse?.cache
-        ? (marketDataResponse.cache.isFresh ? "frisch" : "stale")
-        : null;
+    const mappingStatus = marketDataResponse?.metadata?.mappingStatus ?? null;
     const hasMarketWarningWithData =
         hasMarketSeries &&
-        marketStatus !== "cache_hit" &&
-        marketStatus !== "refreshed" &&
         marketStatus !== "db_hit";
-    const isDbBackedSeries = marketDataResponse?.data?.source === "postgres";
-    const compactLimitedSource = typeof marketDataResponse?.data?.source === "string"
-        && marketDataResponse.data.source.includes("compact");
-    const showCoverageNote = shouldShowCoverageNote(marketDataPoints, selectedRange);
-    const showLongHistoryHint = !isDbBackedSeries && (compactLimitedSource || showCoverageNote);
-    const historyHint = `Historie verfügbar: ${Math.max(marketDataPoints.length, 0).toLocaleString("de-DE")} Handelstage`;
-    const showRefreshButton = showManualRefreshButton && !isDbBackedSeries;
-    const showAlphaBudgetHint = showRefreshButton;
-    const importUpdateHint = isDbBackedSeries ? "Aktualisierung erfolgt über den Kursdatenimport." : null;
-    const localizedSourceLabel = isDbBackedSeries
-        ? "eigene Kursdatenbank"
-        : sourceLabel;
+    const headerTickerFromInstrument = String(asset.instrument?.primaryMapping?.symbol ?? "").trim();
+    const headerTickerFromHistory = String(marketDataResponse?.metadata?.symbol ?? marketDataResponse?.data?.symbol ?? "").trim();
+    const headerTickerRaw = headerTickerFromInstrument || headerTickerFromHistory;
+    const headerTicker = isMeaningfulSymbol(headerTickerRaw || null, headerIsin || asset.isin) ? headerTickerRaw : "";
+    const headerExchange = String(asset.instrument?.primaryMapping?.exchange ?? marketDataResponse?.metadata?.exchange ?? "").trim();
 
     return (
         <main className={styles.page}>
@@ -1172,7 +1236,30 @@ export default function AssetDetailPage() {
                 </div>
                 <div className={styles.headerText}>
                     <h1>{displayName}</h1>
-                    <div className={styles.metaLine}>ISIN {asset.isin || getAssetDetailKey(asset)} · {statusLabel}</div>
+                    <div className={styles.metaLine}>
+                        <span className={styles.headerMetaList}>
+                            {headerIsin ? <CopyableHeaderIdentifier label="ISIN" value={headerIsin} /> : <span className={styles.headerMetaPart}>ISIN {asset.isin || getAssetDetailKey(asset)}</span>}
+                            {headerWkn ? (
+                                <>
+                                    <span className={styles.headerMetaSeparator}>·</span>
+                                    <CopyableHeaderIdentifier label="WKN" value={headerWkn} />
+                                </>
+                            ) : null}
+                            {headerTicker ? (
+                                <>
+                                    <span className={styles.headerMetaSeparator}>·</span>
+                                    <span className={styles.headerMetaPart}>TICKER {headerTicker}</span>
+                                </>
+                            ) : null}
+                            {headerExchange ? (
+                                <>
+                                    <span className={styles.headerMetaSeparator}>·</span>
+                                    <span className={styles.headerMetaPart}>BÖRSE {headerExchange}</span>
+                                </>
+                            ) : null}
+                        </span>
+                    </div>
+                    <div className={styles.metaSubline}>{statusLabel}</div>
                     <div className={styles.metaSubline}>Stand: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("de-DE") : "unbekannt"}</div>
                 </div>
             </section>
@@ -1182,36 +1269,32 @@ export default function AssetDetailPage() {
             <section className={styles.analysisGrid}>
                 <article className={`${styles.card} ${styles.chartCard}`}>
                     <div className={styles.cardHead}>
-                        <h2>Performance & Verlauf</h2>
-                        <div className={styles.marketControlStack}>
-                            <div className={styles.rangeSelector} role="group" aria-label="Zeitraum auswählen">
+                        <h2>Kursentwicklung</h2>
+                        <div
+                            className={styles.marketRangeSelector}
+                            role="group"
+                            aria-label="Zeitraum auswählen"
+                            style={{ gridTemplateColumns: `repeat(${DETAIL_RANGE_OPTIONS.length}, minmax(0, 1fr))` }}
+                        >
+                            <span
+                                aria-hidden="true"
+                                className={styles.marketRangeIndicator}
+                                style={{
+                                    width: `calc((100% - 8px) / ${DETAIL_RANGE_OPTIONS.length})`,
+                                    transform: `translateX(${rangeIndex(selectedPricePeriod) * 100}%)`,
+                                }}
+                            />
                                 {DETAIL_RANGE_OPTIONS.map((option) => (
                                     <button
                                         key={option.key}
                                         type="button"
-                                        className={`${styles.rangeButton} ${selectedRange === option.key ? styles.rangeButtonActive : ""}`}
-                                        onClick={() => saveAssetDetailTimeRange(option.key)}
+                                        aria-pressed={selectedPricePeriod === option.key}
+                                        className={`${styles.marketRangeButton} ${selectedPricePeriod === option.key ? styles.marketRangeButtonActive : ""}`}
+                                        onClick={() => setSelectedPricePeriod(option.key)}
                                     >
                                         {option.label}
                                     </button>
                                 ))}
-                            </div>
-                            <div className={styles.returnModeSelector} role="group" aria-label="Darstellung auswählen">
-                                <button
-                                    type="button"
-                                    className={`${styles.returnModeButton} ${marketReturnMode === "price_only" ? styles.returnModeButtonActive : ""}`}
-                                    onClick={() => setMarketReturnMode("price_only")}
-                                >
-                                    Kurs
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`${styles.returnModeButton} ${marketReturnMode === "price_plus_dividends" ? styles.returnModeButtonActive : ""}`}
-                                    onClick={() => setMarketReturnMode("price_plus_dividends")}
-                                >
-                                    Kurs + Dividenden
-                                </button>
-                            </div>
                         </div>
                     </div>
                     {marketDataLoading ? (
@@ -1223,60 +1306,46 @@ export default function AssetDetailPage() {
                         <div className={styles.marketChartSection}>
                             <MarketPriceChart
                                 points={marketDataPoints}
-                                actions={marketDataActions}
-                                selectedRange={selectedRange}
-                                showCoverageNote={showCoverageNote}
-                                returnMode={marketReturnMode}
+                                selectedRange={selectedPricePeriod}
+                                currency={marketDataResponse?.metadata?.currency ?? null}
                             />
                             {hasMarketWarningWithData ? (
                                 <div className={styles.marketStatusWarning}>{marketMessage}</div>
                             ) : null}
-                            <div className={styles.marketMetaRow}>
-                                <span>{historyHint}</span>
-                                <span>Quelle: {localizedSourceLabel} · Symbol: {marketDataResponse?.data?.symbol ?? "—"}</span>
-                                <span>Stand: {refreshedAt ? new Date(refreshedAt).toLocaleString("de-DE") : "unbekannt"}</span>
-                                {cacheStateLabel ? <span>Cache: {cacheStateLabel}</span> : null}
-                            </div>
-                            {showLongHistoryHint ? (
-                                <div className={styles.marketHintLine}>
-                                    Für längere historische Verläufe ist später eine zusätzliche Datenquelle nötig.
-                                </div>
-                            ) : null}
                         </div>
                     ) : (
                         <div className={styles.chartMissing}>
-                            <strong>{marketStatus === "missing_symbol" ? "Marktdaten-Symbol fehlt" : "Historische Kursdaten fehlen"}</strong>
+                            <strong>
+                                {mappingStatus === "missing_instrument"
+                                    ? "Keine Instrumenten-Stammdaten gefunden"
+                                    : mappingStatus === "missing_primary_mapping"
+                                        ? "Kein verifiziertes Kursdaten-Mapping vorhanden"
+                                        : mappingStatus === "primary_without_prices" || mappingStatus === "no_prices"
+                                            ? "Keine Kursdaten verfügbar"
+                                            : mappingStatus === "excluded"
+                                                ? "Instrument ausgeschlossen"
+                                                : mappingStatus === "legacy"
+                                                    ? "Instrument als Legacy markiert"
+                                                    : mappingStatus === "derivative"
+                                                        ? "Instrument als Derivat markiert"
+                                                        : mappingStatus === "unknown"
+                                                            ? "Kursdaten müssen manuell geprüft werden"
+                                                            : mappingStatus === "db_unavailable"
+                                                                ? "Kursdatenbank nicht verfügbar"
+                                                                : marketStatus === "invalid_request"
+                                                                    ? "Ungültige Kursdaten-Anfrage"
+                                                                    : "Historische Kursdaten fehlen"}
+                            </strong>
                             <p>{marketMessage}</p>
-                            {marketStatus === "missing_symbol" ? (
-                                <p className={styles.marketMappingHint}>Lege zuerst ein Symbol-Mapping an. Mapping: <code>src/data/market-symbol-overrides.json</code></p>
+                            {mappingStatus === "excluded" || mappingStatus === "legacy" || mappingStatus === "derivative" || mappingStatus === "unknown" ? (
+                                <p className={styles.marketMappingHint}>
+                                    Status: <code>{marketDataResponse?.metadata?.marketDataStatus ?? "unknown"}</code>
+                                    {marketDataResponse?.metadata?.marketDataStatusReason ? ` · ${marketDataResponse.metadata.marketDataStatusReason}` : ""}
+                                </p>
                             ) : null}
                         </div>
                     )}
-                    <div className={styles.marketActionRow}>
-                        {showRefreshButton ? (
-                            <button
-                                type="button"
-                                className="ui-btn ui-btn-secondary"
-                                onClick={() => {
-                                    if (marketDataRefreshing) {
-                                        return;
-                                    }
-                                    void loadMarketData("refresh");
-                                }}
-                                disabled={marketDataRefreshing || !currentIsin}
-                            >
-                                {marketDataRefreshing ? "Kursdaten werden aktualisiert …" : "Kursdaten aktualisieren"}
-                            </button>
-                        ) : null}
-                        {showAlphaBudgetHint ? <span className={styles.marketBudgetHint}>Verbraucht einen Alpha-Vantage-Request.</span> : null}
-                        {importUpdateHint ? <span className={styles.marketBudgetHint}>{importUpdateHint}</span> : null}
-                        {quotaInfo ? (
-                            <span className={styles.marketBudgetQuota}>
-                                Heute verbleibend: {quotaInfo.remainingToday} von {quotaInfo.dailyLimit}
-                            </span>
-                        ) : null}
-                        {marketDataNetworkError ? <span className={styles.marketBudgetError}>Netzwerkhinweis: {marketDataNetworkError}</span> : null}
-                    </div>
+                    {marketDataNetworkError ? <div className={styles.marketStatusWarning}>Netzwerkhinweis: {marketDataNetworkError}</div> : null}
                 </article>
 
                 <article className={`${styles.card} ${styles.metricAnchor}`}>
@@ -1309,7 +1378,35 @@ export default function AssetDetailPage() {
             </section>
 
             <article className={`${styles.card} ${styles.prominentCard}`}>
-                <div className={styles.cardHead}><h2>Dividendenanalyse</h2></div>
+                <div className={styles.cardHead}>
+                    <h2>Dividendenanalyse</h2>
+                    <div
+                        className={styles.marketRangeSelector}
+                        role="group"
+                        aria-label="Dividenden-Zeitraum auswählen"
+                        style={{ gridTemplateColumns: `repeat(${DIVIDEND_RANGE_OPTIONS.length}, minmax(0, 1fr))` }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            className={styles.marketRangeIndicator}
+                            style={{
+                                width: `calc((100% - 8px) / ${DIVIDEND_RANGE_OPTIONS.length})`,
+                                transform: `translateX(${dividendRangeIndex(selectedDividendPeriod) * 100}%)`,
+                            }}
+                        />
+                        {DIVIDEND_RANGE_OPTIONS.map((option) => (
+                            <button
+                                key={option.key}
+                                type="button"
+                                aria-pressed={selectedDividendPeriod === option.key}
+                                className={`${styles.marketRangeButton} ${selectedDividendPeriod === option.key ? styles.marketRangeButtonActive : ""}`}
+                                onClick={() => setSelectedDividendPeriod(option.key)}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 <div className={styles.dividendSummary}>
                     <DividendKpiCard
                         label="Gesamtsumme im Zeitraum"
@@ -1327,14 +1424,82 @@ export default function AssetDetailPage() {
                         helpText="Netto-Dividenden der letzten 12 Monate geteilt durch den aktuellen Einstand im ausgewählten Portfolio-Scope. Der Wert ist unabhängig vom gewählten Chart-Zeitraum."
                     />
                     <DividendKpiCard
-                        label="CAGR 5 Jahre"
-                        value={formatPercent(dividendAnalysis.cagr5)}
-                        helpText="Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über 5 Jahre. Wird nur berechnet, wenn ausreichend gültige Jahresdaten vorhanden sind."
+                        label={(
+                            <span className={styles.kpiLabelWrap}>
+                                <button
+                                    type="button"
+                                    className={styles.kpiLabelButton}
+                                    aria-haspopup="menu"
+                                    aria-label={`CAGR-Zeitraum auswählen, aktuell ${cagrPrimaryYears} Jahre`}
+                                    onClick={() => setActiveCagrMenu((current) => current === "primary" ? null : "primary")}
+                                >
+                                    CAGR {cagrPrimaryYears} Jahre ▾
+                                </button>
+                                {activeCagrMenu === "primary" ? (
+                                    <span className={styles.kpiDropdownMenu} role="menu">
+                                        {DIVIDEND_CAGR_OPTIONS.map((years) => (
+                                            <button
+                                                key={`primary-${years}`}
+                                                type="button"
+                                                className={styles.kpiDropdownItem}
+                                                role="menuitem"
+                                                onClick={() => {
+                                                    setCagrPrimaryYears(years);
+                                                    saveDividendKpiSettings({
+                                                        cagrPrimaryYears: years,
+                                                        cagrSecondaryYears,
+                                                    });
+                                                    setActiveCagrMenu(null);
+                                                }}
+                                            >
+                                                {years} Jahre
+                                            </button>
+                                        ))}
+                                    </span>
+                                ) : null}
+                            </span>
+                        )}
+                        value={formatPercent(primaryCagr)}
+                        helpText={`Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über ${cagrPrimaryYears} Jahre. Bei unzureichenden Daten wird kein Wert angezeigt.`}
                     />
                     <DividendKpiCard
-                        label="CAGR 10 Jahre"
-                        value={formatPercent(dividendAnalysis.cagr10)}
-                        helpText="Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über 10 Jahre. Wird nur berechnet, wenn ausreichend gültige Jahresdaten vorhanden sind."
+                        label={(
+                            <span className={styles.kpiLabelWrap}>
+                                <button
+                                    type="button"
+                                    className={styles.kpiLabelButton}
+                                    aria-haspopup="menu"
+                                    aria-label={`CAGR-Zeitraum auswählen, aktuell ${cagrSecondaryYears} Jahre`}
+                                    onClick={() => setActiveCagrMenu((current) => current === "secondary" ? null : "secondary")}
+                                >
+                                    CAGR {cagrSecondaryYears} Jahre ▾
+                                </button>
+                                {activeCagrMenu === "secondary" ? (
+                                    <span className={styles.kpiDropdownMenu} role="menu">
+                                        {DIVIDEND_CAGR_OPTIONS.map((years) => (
+                                            <button
+                                                key={`secondary-${years}`}
+                                                type="button"
+                                                className={styles.kpiDropdownItem}
+                                                role="menuitem"
+                                                onClick={() => {
+                                                    setCagrSecondaryYears(years);
+                                                    saveDividendKpiSettings({
+                                                        cagrPrimaryYears,
+                                                        cagrSecondaryYears: years,
+                                                    });
+                                                    setActiveCagrMenu(null);
+                                                }}
+                                            >
+                                                {years} Jahre
+                                            </button>
+                                        ))}
+                                    </span>
+                                ) : null}
+                            </span>
+                        )}
+                        value={formatPercent(secondaryCagr)}
+                        helpText={`Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über ${cagrSecondaryYears} Jahre. Bei unzureichenden Daten wird kein Wert angezeigt.`}
                     />
                 </div>
 
@@ -1371,7 +1536,7 @@ export default function AssetDetailPage() {
                                         const spanMonths = dividendAnalysis.monthSlots.length > 1
                                             ? monthDiffInclusive(dividendAnalysis.monthSlots[0].monthStart, dividendAnalysis.monthSlots[dividendAnalysis.monthSlots.length - 1].monthStart)
                                             : 1;
-                                        const axisMode = resolveAxisMode(selectedRange, spanMonths);
+                                        const axisMode = resolveAxisMode(selectedDividendPeriod, spanMonths);
                                         return (
                                             <div key={slot.key} className={styles.dividendBarItem}>
                                                 <div className={styles.dividendBarTrack}>
@@ -1424,7 +1589,7 @@ export default function AssetDetailPage() {
                                                     {shouldShowMonthLabel(
                                                         monthIndex,
                                                         dividendAnalysis.monthSlots.length,
-                                                        selectedRange,
+                                                        selectedDividendPeriod,
                                                         slot.monthStart,
                                                         previousSlot?.monthStart ?? null,
                                                         spanMonths,

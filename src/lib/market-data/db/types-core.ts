@@ -67,6 +67,11 @@ export type DbMarketSymbolMapping = {
     updatedAt: string;
 };
 
+export type DbPrimarySymbolMappingByIsin = {
+    isin: string;
+    mapping: DbMarketSymbolMapping;
+};
+
 export type DbMarketPricePoint = {
     provider: string;
     symbol: string;

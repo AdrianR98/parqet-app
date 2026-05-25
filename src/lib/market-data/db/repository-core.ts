@@ -80,6 +80,34 @@ function toDateString(value: string): string {
     return date.toISOString().slice(0, 10);
 }
 
+function normalizeDbDateValue(value: unknown): string {
+    if (typeof value === "string") {
+        const normalized = value.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+            return normalized;
+        }
+
+        const parsed = new Date(normalized);
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString().slice(0, 10);
+        }
+
+        return normalized;
+    }
+
+    if (value instanceof Date) {
+        return value.toISOString().slice(0, 10);
+    }
+
+    const fallback = String(value ?? "");
+    const parsed = new Date(fallback);
+    if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().slice(0, 10);
+    }
+
+    return fallback;
+}
+
 function mapInstrumentRow(row: Record<string, unknown>): DbMarketInstrument {
     return {
         id: String(row.id),
@@ -194,7 +222,7 @@ function mapPriceRow(row: Record<string, unknown>): DbMarketPricePoint {
     return {
         provider: String(row.provider),
         symbol: String(row.symbol),
-        date: String(row.date),
+        date: normalizeDbDateValue(row.date),
         open: toNullableNumber(row.open),
         high: toNullableNumber(row.high),
         low: toNullableNumber(row.low),
@@ -210,7 +238,7 @@ function mapPriceRow(row: Record<string, unknown>): DbMarketPricePoint {
 function mapActionRow(row: Record<string, unknown>): DbMarketAction {
     return {
         actionType: String(row.action_type),
-        date: String(row.date),
+        date: normalizeDbDateValue(row.date),
         amount: toNullableNumber(row.amount),
         ratio: row.ratio === null ? null : String(row.ratio),
         currency: row.currency === null ? null : String(row.currency),
@@ -981,6 +1009,56 @@ export async function getPrimarySymbolMappingByIsin(isin: string, provider?: str
         );
         const row = result.rows[0];
         return row ? mapSymbolMappingRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function getPrimarySymbolMappingsByIsins(
+    isins: string[],
+    provider?: string,
+): Promise<Record<string, DbMarketSymbolMapping>> {
+    try {
+        const normalizedIsins = Array.from(
+            new Set(
+                isins
+                    .map((isin) => {
+                        try {
+                            return assertIsin(isin);
+                        } catch {
+                            return null;
+                        }
+                    })
+                    .filter((isin): isin is string => Boolean(isin)),
+            ),
+        );
+        const normalizedProvider = provider?.trim() ? provider.trim().toLowerCase() : null;
+
+        if (normalizedIsins.length === 0) {
+            return {};
+        }
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select distinct on (i.isin)
+                i.isin,
+                m.id, m.instrument_id, m.provider, m.symbol, m.exchange, m.currency, m.is_primary, m.is_active,
+                m.verified_at, m.notes, m.created_at, m.updated_at
+             from market_symbol_mappings m
+             join market_instruments i on i.id = m.instrument_id
+             where i.isin = any($1::text[])
+               and ($2::text is null or m.provider = $2)
+               and m.is_active = true
+             order by i.isin asc, m.is_primary desc, m.updated_at desc`,
+            [normalizedIsins, normalizedProvider],
+        );
+
+        const mapped: Record<string, DbMarketSymbolMapping> = {};
+        for (const row of result.rows) {
+            const isin = String(row.isin);
+            mapped[isin] = mapSymbolMappingRow(row);
+        }
+
+        return mapped;
     } catch (error) {
         handleRepositoryError(error);
     }

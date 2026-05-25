@@ -28,15 +28,18 @@ export type MarketDataSeries = {
 };
 
 export type MarketDataStatus =
-    | "db_hit"
     | "cache_miss"
-    | "cache_hit"
-    | "refreshed"
-    | "missing_symbol"
-    | "missing_api_key"
-    | "provider_error"
-    | "rate_limited"
-    | "not_found"
+    | "db_hit"
+    | "missing_instrument"
+    | "missing_primary_mapping"
+    | "primary_without_prices"
+    | "no_prices"
+    | "excluded"
+    | "legacy"
+    | "derivative"
+    | "unknown"
+    | "db_unavailable"
+    | "not_available"
     | "invalid_request";
 
 export type MarketDataCacheStatus =
@@ -82,6 +85,29 @@ export type MarketDataResponse = {
     data?: MarketDataSeries;
     status: MarketDataStatus;
     message?: string;
+    metadata?: {
+        isin: string;
+        provider: string | null;
+        symbol: string | null;
+        exchange: string | null;
+        currency: string | null;
+        mappingStatus:
+            | "ok"
+            | "missing_instrument"
+            | "missing_primary_mapping"
+            | "primary_without_prices"
+            | "no_prices"
+            | "excluded"
+            | "legacy"
+            | "derivative"
+            | "unknown"
+            | "db_unavailable";
+        marketDataStatus: "active" | "excluded" | "legacy" | "derivative" | "unknown" | null;
+        marketDataStatusReason: string | null;
+        latestPriceDate: string | null;
+        pointCount: number;
+        stale: boolean;
+    };
     cache?: MarketDataCacheMetadata;
     quota?: MarketDataQuotaInfo;
     diagnostics?: MarketDataDiagnostics;

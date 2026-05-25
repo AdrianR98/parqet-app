@@ -4,7 +4,7 @@ export function buildCacheMissResponse(input: { provider: MarketDataProvider; sy
     return {
         ok: false,
         status: "cache_miss",
-        message: "Keine lokalen Kursdaten vorhanden. Bitte Kursdaten manuell aktualisieren.",
+        message: "Für dieses Asset liegen keine historischen Kursdaten vor.",
         diagnostics: {
             provider: input.provider,
             symbol: input.symbol,

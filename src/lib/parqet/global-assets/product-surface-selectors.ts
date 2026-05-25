@@ -359,11 +359,31 @@ function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
     fallback?.isin ??
     row.identity.stableKey ??
     row.display.displayName;
-  const productDisplayName = row.display.displayName?.trim() || fallback?.displayName || fallback?.name || isin;
-  const authoritativeDisplayName =
-    authoritativeStatus === "ok"
-      ? productDisplayName
-      : "Stammdaten fehlen";
+  const authoritativeInstrument = fallback?.instrument ?? null;
+  const isIsinAsset = Boolean(compatibilityIsin) && /^[A-Z0-9]{12}$/.test(compatibilityIsin ?? "");
+  const hasDbInstrumentContext =
+    Boolean(authoritativeInstrument) || typeof fallback?.instrumentMetadataStatus === "string";
+  const dbDisplayName = authoritativeInstrument?.displayName ?? fallback?.instrumentDisplayName ?? null;
+  const dbName = authoritativeInstrument?.name ?? fallback?.instrumentName ?? null;
+  const productDisplayName =
+    dbDisplayName ??
+    dbName ??
+    row.display.displayName?.trim() ??
+    fallback?.displayName ??
+    fallback?.name ??
+    isin;
+  const authoritativeDisplayName = authoritativeStatus === "ok"
+    ? isIsinAsset
+      ? hasDbInstrumentContext
+        ? (dbDisplayName ?? dbName ?? "Stammdaten fehlen")
+        : productDisplayName
+      : productDisplayName
+    : "Stammdaten fehlen";
+  const authoritativeSymbol = isIsinAsset
+    ? hasDbInstrumentContext
+      ? (authoritativeInstrument?.primaryMapping?.symbol ?? null)
+      : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.symbol ?? null)
+    : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.symbol ?? null);
   const authoritativeWkn = fallback?.wkn ?? row.display.wkn ?? null;
   const netShares = fallback?.netShares ?? 0;
   const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
@@ -400,12 +420,21 @@ function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
     displayName: authoritativeDisplayName,
     title: authoritativeDisplayName,
     instrumentDisplayName: authoritativeDisplayName,
-    instrumentName: fallback?.instrumentName ?? fallback?.name ?? productDisplayName,
+    instrumentName: dbName ?? fallback?.name ?? productDisplayName,
     instrumentMetadataStatus: authoritativeStatus,
     instrumentMetadataError: authoritativeError,
-    symbol: row.display.symbol ?? fallback?.symbol ?? null,
-    ticker: fallback?.ticker ?? null,
-    tickerSymbol: fallback?.tickerSymbol ?? null,
+    instrument: authoritativeInstrument,
+    symbol: authoritativeSymbol,
+    ticker: isIsinAsset
+      ? hasDbInstrumentContext
+        ? (authoritativeInstrument?.primaryMapping?.symbol ?? null)
+        : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.ticker ?? null)
+      : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.ticker ?? null),
+    tickerSymbol: isIsinAsset
+      ? hasDbInstrumentContext
+        ? (authoritativeInstrument?.primaryMapping?.symbol ?? null)
+        : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.tickerSymbol ?? null)
+      : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.tickerSymbol ?? null),
     wkn: authoritativeWkn,
     metadata: {
       ...(fallback?.metadata ?? {}),
