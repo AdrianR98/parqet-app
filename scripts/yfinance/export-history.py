@@ -60,10 +60,12 @@ def parse_iso_date_or_none(value: str | None) -> str | None:
     return parsed.strftime("%Y-%m-%d")
 
 
-def is_on_or_after(date_str: str, threshold: str | None) -> bool:
-    if threshold is None:
-        return True
-    return date_str >= threshold
+def is_in_date_window(date_str: str, start_date: str | None, end_date: str | None) -> bool:
+    if start_date is not None and date_str < start_date:
+        return False
+    if end_date is not None and date_str > end_date:
+        return False
+    return True
 
 
 def main():
@@ -130,7 +132,7 @@ def main():
         if dividends is not None and not dividends.empty:
             for idx, value in dividends.items():
                 action_date = idx.strftime("%Y-%m-%d")
-                if is_on_or_after(action_date, start_date):
+                if is_in_date_window(action_date, start_date, end_date):
                     actions.append(
                         {
                             "actionType": "dividend",
@@ -147,7 +149,7 @@ def main():
         if splits is not None and not splits.empty:
             for idx, value in splits.items():
                 action_date = idx.strftime("%Y-%m-%d")
-                if is_on_or_after(action_date, start_date):
+                if is_in_date_window(action_date, start_date, end_date):
                     ratio = to_float_or_none(value)
                     actions.append(
                         {
