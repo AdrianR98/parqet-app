@@ -32,6 +32,7 @@ import {
  * ISIN-basierte Assets verpflichtend geworden ist.
  */
 export const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v3";
+export const DASHBOARD_CACHE_CHANGED_EVENT = "assettrace:dashboard-cache-changed";
 
 /**
  * Ab wann der Datenstand als veraltet markiert werden soll.
@@ -67,6 +68,18 @@ export type DashboardCache = {
  */
 function isBrowser(): boolean {
   return typeof window !== "undefined";
+}
+
+export function notifyDashboardCacheChanged(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  try {
+    window.dispatchEvent(new Event(DASHBOARD_CACHE_CHANGED_EVENT));
+  } catch {
+    // ignore browser event dispatch errors
+  }
 }
 
 /**
@@ -802,6 +815,7 @@ export function saveDashboardCache(cache: DashboardCache): void {
     }
 
     window.localStorage.setItem(DASHBOARD_CACHE_KEY, serialized);
+    notifyDashboardCacheChanged();
   } catch {
     // localStorage-Fehler bewusst ignorieren
   }
@@ -817,6 +831,7 @@ export function clearDashboardCache(): void {
 
   try {
     window.localStorage.removeItem(DASHBOARD_CACHE_KEY);
+    notifyDashboardCacheChanged();
   } catch {
     // localStorage-Fehler bewusst ignorieren
   }

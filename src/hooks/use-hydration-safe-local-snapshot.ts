@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
+import { DASHBOARD_CACHE_CHANGED_EVENT } from "../lib/dashboard-cache";
 
 const BROWSER_LOCAL_STATE_CHANGE_EVENT = "assettrace:browser-local-state-change";
 
@@ -20,10 +21,18 @@ function subscribeToBrowserLocalState(onStoreChange: () => void) {
 
   window.addEventListener("storage", onStoreChange);
   window.addEventListener(BROWSER_LOCAL_STATE_CHANGE_EVENT, onStoreChange);
+  window.addEventListener(DASHBOARD_CACHE_CHANGED_EVENT, onStoreChange);
+  window.addEventListener("pageshow", onStoreChange);
+  window.addEventListener("focus", onStoreChange);
+  document.addEventListener("visibilitychange", onStoreChange);
 
   return () => {
     window.removeEventListener("storage", onStoreChange);
     window.removeEventListener(BROWSER_LOCAL_STATE_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener(DASHBOARD_CACHE_CHANGED_EVENT, onStoreChange);
+    window.removeEventListener("pageshow", onStoreChange);
+    window.removeEventListener("focus", onStoreChange);
+    document.removeEventListener("visibilitychange", onStoreChange);
   };
 }
 

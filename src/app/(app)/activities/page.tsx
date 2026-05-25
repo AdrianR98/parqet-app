@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./ActivitiesPage.module.css";
@@ -25,6 +25,7 @@ import {
   notifyBrowserLocalStateChanged,
   useHydrationSafeLocalSnapshot,
 } from "../../../hooks/use-hydration-safe-local-snapshot";
+import { ensureParqetLocalBootstrap } from "../../../lib/parqet-local-bootstrap";
 
 const PAGE_SIZE = 30;
 
@@ -226,6 +227,7 @@ function ActivitiesPageContent() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [preparingLocalData, setPreparingLocalData] = useState(false);
 
   const scopedItems = useMemo(() => {
     const scopedIds = new Set(readModel.scopedPortfolioIds);
@@ -266,6 +268,29 @@ function ActivitiesPageContent() {
     readModel.scope.mode === "manual" &&
     readModel.scope.selectedPortfolioIds.length > 0 &&
     readModel.scopedPortfolioIds.length === 0;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrapIfMissing() {
+      if (hasLocalData || preparingLocalData) {
+        return;
+      }
+
+      setPreparingLocalData(true);
+      await ensureParqetLocalBootstrap();
+      if (!cancelled) {
+        notifyBrowserLocalStateChanged();
+        setPreparingLocalData(false);
+      }
+    }
+
+    void bootstrapIfMissing();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasLocalData, preparingLocalData]);
 
   function updateFilter(next: Partial<ActivityFilters>) {
     if ("portfolioIds" in next) {
@@ -452,10 +477,11 @@ function ActivitiesPageContent() {
       {!hasLocalData ? (
         <section className={`ui-surface ${styles.emptyState}`}>
           <p className={styles.eyebrow}>Keine lokalen Aktivitätsdaten</p>
-          <h2>Aktivitäten zuerst im Dashboard laden</h2>
+          <h2>{preparingLocalData ? "Lokale Aktivitäten werden vorbereitet" : "Lokaler Datenstand noch leer"}</h2>
           <p>
-            Diese Seite startet bewusst keine Parqet- oder Audit-Route. Lade oder aktualisiere die Daten explizit
-            im Dashboard; danach werden die lokalen Snapshot-/Read-Model-Daten hier angezeigt.
+            {preparingLocalData
+              ? "Die App lädt den lokalen Stand automatisch. Bitte kurz warten."
+              : "Noch keine lokalen Aktivitätsdaten verfügbar. Die App versucht automatisch, den lokalen Stand neu aufzubauen."}
           </p>
         </section>
       ) : filteredItems.length === 0 ? (
