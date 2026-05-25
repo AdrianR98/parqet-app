@@ -44,6 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="de"
+      suppressHydrationWarning
       data-theme="dark"
       data-assettrace-theme="dark"
       data-appearance="system"
