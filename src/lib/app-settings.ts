@@ -1,4 +1,10 @@
 import type { Portfolio } from "./types";
+import {
+    LOCAL_STORAGE_LIMITS,
+    parseJsonWithLimit,
+    safeStringArray,
+    safeTrimmedString,
+} from "./local-storage-guards";
 
 export const APPEARANCE_STORAGE_KEY = "assettrace-appearance-mode-v1";
 export const LEGACY_THEME_STORAGE_KEY = "parqet-theme-v1";
@@ -164,11 +170,11 @@ export function saveRevealBlockSize(size: RevealBlockSize): void {
 }
 
 function parseStringList(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-        return [];
-    }
-
-    return value.filter((item): item is string => typeof item === "string");
+    return safeStringArray(
+        value,
+        LOCAL_STORAGE_LIMITS.maxPortfolioIds,
+        LOCAL_STORAGE_LIMITS.maxIdLikeChars
+    );
 }
 
 export function loadAssetTableVisibleColumns(
@@ -378,7 +384,13 @@ export function parsePortfolioScope(value: unknown): PortfolioScope {
     if (candidate.mode === "manual") {
         return {
             mode: "manual",
-            selectedPortfolioIds: uniqueIds(candidate.selectedPortfolioIds ?? []),
+            selectedPortfolioIds: uniqueIds(
+                safeStringArray(
+                    candidate.selectedPortfolioIds,
+                    LOCAL_STORAGE_LIMITS.maxPortfolioIds,
+                    LOCAL_STORAGE_LIMITS.maxIdLikeChars
+                )
+            ),
         };
     }
 
@@ -397,7 +409,18 @@ export function loadPortfolioScope(): PortfolioScope {
             return DEFAULT_PORTFOLIO_SCOPE;
         }
 
-        return parsePortfolioScope(JSON.parse(raw) as unknown);
+        const parsed = parseJsonWithLimit(raw, LOCAL_STORAGE_LIMITS.maxRawPayloadChars);
+
+        if (!parsed) {
+            return DEFAULT_PORTFOLIO_SCOPE;
+        }
+
+        if (parsed.oversized) {
+            window.localStorage.removeItem(PORTFOLIO_SCOPE_STORAGE_KEY);
+            return DEFAULT_PORTFOLIO_SCOPE;
+        }
+
+        return parsePortfolioScope(parsed.value);
     } catch {
         return DEFAULT_PORTFOLIO_SCOPE;
     }
@@ -464,20 +487,49 @@ export function loadKnownPortfolios(): Portfolio[] {
             return [];
         }
 
-        const parsed = JSON.parse(raw) as unknown;
+        const parsedResult = parseJsonWithLimit(raw, LOCAL_STORAGE_LIMITS.maxRawPayloadChars);
+
+        if (!parsedResult) {
+            return [];
+        }
+
+        if (parsedResult.oversized) {
+            window.localStorage.removeItem(KNOWN_PORTFOLIOS_STORAGE_KEY);
+            return [];
+        }
+
+        const parsed = parsedResult.value;
 
         if (!Array.isArray(parsed)) {
             return [];
         }
 
-        return parsed.filter((item): item is Portfolio => {
-            return Boolean(
-                item &&
-                typeof item === "object" &&
-                typeof (item as Portfolio).id === "string" &&
-                typeof (item as Portfolio).name === "string"
-            );
-        });
+        const sanitized = parsed
+            .filter((item) => item && typeof item === "object")
+            .map((item) => {
+                const candidate = item as Portfolio;
+                const id = safeTrimmedString(candidate.id, LOCAL_STORAGE_LIMITS.maxIdLikeChars);
+                const name = safeTrimmedString(candidate.name, LOCAL_STORAGE_LIMITS.maxPortfolioNameChars);
+
+                if (!id || !name) {
+                    return null;
+                }
+
+                return {
+                    id,
+                    name,
+                    currency: safeTrimmedString(candidate.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? "",
+                    createdAt: safeTrimmedString(candidate.createdAt, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ?? "",
+                    distinctBrokers: safeStringArray(
+                        candidate.distinctBrokers,
+                        LOCAL_STORAGE_LIMITS.maxWarningListItems,
+                        LOCAL_STORAGE_LIMITS.maxDisplayTextChars
+                    ),
+                } as Portfolio;
+            })
+            .filter((item): item is Portfolio => item !== null);
+
+        return sanitized.slice(0, LOCAL_STORAGE_LIMITS.maxKnownPortfolios);
     } catch {
         return [];
     }
@@ -495,15 +547,26 @@ export function saveKnownPortfolios(portfolios: Portfolio[]): void {
                 typeof portfolio?.name === "string"
             ))
             .map((portfolio) => ({
-                id: portfolio.id,
-                name: portfolio.name,
-                currency: portfolio.currency,
-                createdAt: portfolio.createdAt,
+                id: safeTrimmedString(portfolio.id, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? "",
+                name: safeTrimmedString(portfolio.name, LOCAL_STORAGE_LIMITS.maxPortfolioNameChars) ?? "",
+                currency: safeTrimmedString(portfolio.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? "",
+                createdAt: safeTrimmedString(portfolio.createdAt, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ?? "",
                 distinctBrokers: Array.isArray(portfolio.distinctBrokers)
-                    ? portfolio.distinctBrokers
+                    ? safeStringArray(
+                        portfolio.distinctBrokers,
+                        LOCAL_STORAGE_LIMITS.maxWarningListItems,
+                        LOCAL_STORAGE_LIMITS.maxDisplayTextChars
+                    )
                     : [],
-            }));
+            }))
+            .filter((portfolio) => portfolio.id.length > 0 && portfolio.name.length > 0)
+            .slice(0, LOCAL_STORAGE_LIMITS.maxKnownPortfolios);
         const nextRaw = JSON.stringify(normalized);
+
+        if (nextRaw.length > LOCAL_STORAGE_LIMITS.maxRawPayloadChars) {
+            return;
+        }
+
         const currentRaw = window.localStorage.getItem(KNOWN_PORTFOLIOS_STORAGE_KEY);
 
         if (currentRaw === nextRaw) {
