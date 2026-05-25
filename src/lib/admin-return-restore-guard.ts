@@ -20,8 +20,21 @@ function isApiRoute(pathname: string): boolean {
   return pathname.startsWith("/api");
 }
 
-function isNormalAppRoute(pathname: string): boolean {
-  return !isAdminRoute(pathname) && !isApiRoute(pathname);
+function isInternalFrameworkRoute(pathname: string): boolean {
+  return pathname.startsWith("/_next");
+}
+
+function isStaticAssetLikeRoute(pathname: string): boolean {
+  return /\.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|avif|map|txt|xml)$/i.test(pathname);
+}
+
+export function isNormalAppRoute(pathname: string): boolean {
+  if (!pathname.startsWith("/")) return false;
+  if (isAdminRoute(pathname)) return false;
+  if (isApiRoute(pathname)) return false;
+  if (isInternalFrameworkRoute(pathname)) return false;
+  if (isStaticAssetLikeRoute(pathname)) return false;
+  return true;
 }
 
 export function shouldReloadAfterAdminReturn(

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import AdminReturnRestoreGuard from "../components/navigation/AdminReturnRestoreGuard";
 import ThemeDocumentSync from "../components/theme/ThemeDocumentSync";
 import "./globals.css";
 
@@ -33,6 +34,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ThemeDocumentSync />
+        <AdminReturnRestoreGuard />
         {children}
       </body>
     </html>
