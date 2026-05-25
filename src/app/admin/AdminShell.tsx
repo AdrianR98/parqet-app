@@ -6,12 +6,11 @@ import routerProvider from "@refinedev/nextjs-router";
 import { adminAccessControlProvider, adminAuthProvider } from "@/lib/admin/refine";
 import styles from "./page.module.css";
 
-type SortDirection = "asc" | "desc";
-type SortState = { key: string; direction: SortDirection };
-type SectionState = { status: boolean; unmapped: boolean; instruments: boolean; mappings: boolean; runs: boolean };
+type Sort = { key: string; direction: "asc" | "desc" };
+type OpenState = { guard: boolean; status: boolean; unmapped: boolean; instruments: boolean; mappings: boolean; runs: boolean };
 type AnyRow = Record<string, unknown>;
 
-type MarketDataStatusPayload = {
+type StatusPayload = {
     instrumentsTotal: number;
     mappingsTotal: number;
     yfinanceMappingsTotal: number;
@@ -28,409 +27,208 @@ type MarketDataStatusPayload = {
     marketDataStatusCounts: Record<string, number>;
     referenceSourceCounts: Array<{ sourceKey: string; rowCount: number }>;
 };
+type UnmappedRow = { priority: number; isin: string; displayName: string | null; wkn: string | null; mappingStatus: string; category: string; suggestedAction: string; primarySymbol: string | null; marketDataStatus: string | null };
+type InstrumentRow = { isin: string; displayName: string | null; name: string | null; assetType: string | null; wkn: string | null; marketDataStatus: string | null; primarySymbol: string | null; verifiedMappingCount: number; candidateMappingCount: number; hasPriceData: boolean; firstPriceDate: string | null; lastPriceDate: string | null };
+type MappingRow = { id: string; isin: string; displayName: string | null; provider: string; symbol: string; exchange: string | null; isPrimary: boolean; isActive: boolean; verifiedAt: string | null; hasPriceData: boolean; latestPriceDate: string | null; statusReason: string | null };
+type RunsRow = { id: string; runType: string; status: string; provider: string | null; startedAt: string | null; finishedAt: string | null; totalItems: number; succeededItems: number; failedItems: number; latestErrorMessage: string | null };
 
-type UnmappedRow = {
-    priority: number;
-    isin: string;
-    displayName: string | null;
-    wkn: string | null;
-    marketDataStatus: string | null;
-    mappingStatus: string;
-    primarySymbol: string | null;
-    category: string;
-    suggestedAction: string;
-};
-
-type InstrumentRow = {
-    isin: string;
-    displayName: string | null;
-    name: string | null;
-    assetType: string | null;
-    wkn: string | null;
-    marketDataStatus: string | null;
-    primarySymbol: string | null;
-    verifiedMappingCount: number;
-    candidateMappingCount: number;
-    hasPriceData: boolean;
-    lastPriceDate: string | null;
-};
-
-type MappingRow = {
-    id: string;
-    isin: string;
-    displayName: string | null;
-    provider: string;
-    symbol: string;
-    exchange: string | null;
-    isPrimary: boolean;
-    isActive: boolean;
-    verifiedAt: string | null;
-    hasPriceData: boolean;
-    latestPriceDate: string | null;
-    statusReason: string | null;
-};
-
-type RunsRow = {
-    id: string;
-    runType: string;
-    status: string;
-    provider: string | null;
-    startedAt: string | null;
-    finishedAt: string | null;
-    totalItems: number;
-    succeededItems: number;
-    failedItems: number;
-    latestErrorMessage: string | null;
-};
+function normalize(value: unknown) {
+    if (value === null || value === undefined) return "";
+    return String(value).toLowerCase();
+}
+function formatDate(value: string | null) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mm = String(date.getMinutes()).padStart(2, "0");
+    return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+function label(value: string | null) {
+    if (!value) return "Unset";
+    const map: Record<string, string> = {
+        failed_or_excluded: "Failed / excluded",
+        inspect_instrument: "Inspect instrument",
+        unverified_mapping: "Unverified mapping",
+        no_mapping: "No mapping",
+        failed_validation: "Failed validation",
+        manual_review: "Manual review",
+        manual_mapping_required: "Manual mapping required",
+        unset: "Unset",
+    };
+    const key = value.toLowerCase();
+    if (map[key]) return map[key];
+    return key.split("_").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+}
+function cmp(a: unknown, b: unknown) {
+    if (typeof a === "number" && typeof b === "number") return a - b;
+    if (typeof a === "boolean" && typeof b === "boolean") return Number(a) - Number(b);
+    return normalize(a).localeCompare(normalize(b));
+}
+function sortRows<T extends AnyRow>(rows: T[], sort: Sort) {
+    return [...rows].sort((a, b) => (sort.direction === "asc" ? cmp(a[sort.key], b[sort.key]) : -cmp(a[sort.key], b[sort.key])));
+}
+function hit(search: string, values: unknown[]) {
+    if (!search) return true;
+    return values.some((v) => normalize(v).includes(search));
+}
 
 function SessionBadge({ state }: { state: "enabled" | "disabled" | "loading" }) {
     if (state === "loading") return <span className={`${styles.badge} ${styles.badgeMuted}`}>Checking session</span>;
     if (state === "enabled") return <span className={`${styles.badge} ${styles.badgeSuccess}`}>Enabled (read-only)</span>;
     return <span className={`${styles.badge} ${styles.badgeWarning}`}>Disabled / Unauthorized</span>;
 }
-
-function normalize(value: unknown): string {
-    if (value === null || value === undefined) return "";
-    return String(value).toLowerCase();
+function HeaderSort({ labelText, keyName, sort, onToggle }: { labelText: string; keyName: string; sort: Sort; onToggle: (k: string) => void }) {
+    const marker = sort.key === keyName ? (sort.direction === "asc" ? "▲" : "▼") : "↕";
+    return <button type="button" className={styles.sortButton} onClick={() => onToggle(keyName)}>{labelText} <span>{marker}</span></button>;
 }
-
-function compareValues(a: unknown, b: unknown): number {
-    if (typeof a === "number" && typeof b === "number") return a - b;
-    if (typeof a === "boolean" && typeof b === "boolean") return Number(a) - Number(b);
-    return normalize(a).localeCompare(normalize(b));
+function Section({ title, summary, open, toggle, children }: { title: string; summary: string; open: boolean; toggle: () => void; children: React.ReactNode }) {
+    return <section className={styles.sectionSurface}><button type="button" className={styles.sectionHeader} onClick={toggle}><span>{title}</span><span className={styles.sectionMeta}>{summary} {open ? "▾" : "▸"}</span></button>{open ? <div className={styles.sectionBody}>{children}</div> : null}</section>;
 }
-
-function sortRows<T extends AnyRow>(rows: T[], sort: SortState): T[] {
-    return [...rows].sort((a, b) => {
-        const next = compareValues(a[sort.key], b[sort.key]);
-        return sort.direction === "asc" ? next : -next;
-    });
-}
-
-function matchesSearch(search: string, values: unknown[]): boolean {
-    if (!search) return true;
-    return values.some((value) => normalize(value).includes(search));
-}
-
-function SortableHeader({
-    label,
-    column,
-    sort,
-    onToggle,
-}: {
-    label: string;
-    column: string;
-    sort: SortState;
-    onToggle: (column: string) => void;
-}) {
-    const marker = sort.key === column ? (sort.direction === "asc" ? "▲" : "▼") : "↕";
-    return (
-        <button type="button" className={styles.sortButton} onClick={() => onToggle(column)}>
-            {label} <span>{marker}</span>
-        </button>
-    );
-}
-
-function Section({
-    title,
-    summary,
-    open,
-    onToggle,
-    children,
-}: {
-    title: string;
-    summary: string;
-    open: boolean;
-    onToggle: () => void;
-    children: React.ReactNode;
-}) {
-    return (
-        <section className={styles.sectionSurface}>
-            <button type="button" className={styles.sectionHeader} onClick={onToggle}>
-                <span>{title}</span>
-                <span className={styles.sectionMeta}>
-                    {summary} {open ? "▾" : "▸"}
-                </span>
-            </button>
-            {open ? <div className={styles.sectionBody}>{children}</div> : null}
-        </section>
-    );
+function Table({ head, rows }: { head: React.ReactNode; rows: React.ReactNode }) {
+    return <div className={styles.tableWrap}><table className={styles.table}><thead>{head}</thead><tbody>{rows}</tbody></table></div>;
 }
 
 export default function AdminShell() {
-    return (
-        <Refine authProvider={adminAuthProvider} accessControlProvider={adminAccessControlProvider} routerProvider={routerProvider} resources={[]}>
-            <AdminPanel />
-        </Refine>
-    );
+    return <Refine authProvider={adminAuthProvider} accessControlProvider={adminAccessControlProvider} routerProvider={routerProvider} resources={[]}><AdminPanel /></Refine>;
 }
 
 function AdminPanel() {
     const auth = useIsAuthenticated();
     const listAccess = useCan({ resource: "admin", action: "list" });
     const createAccess = useCan({ resource: "admin", action: "create" });
-    const sessionState = auth.isLoading ? "loading" : auth.data?.authenticated ? "enabled" : "disabled";
+    const session = auth.isLoading ? "loading" : auth.data?.authenticated ? "enabled" : "disabled";
 
-    const [statusData, setStatusData] = useState<MarketDataStatusPayload | null>(null);
+    const [status, setStatus] = useState<StatusPayload | null>(null);
     const [statusError, setStatusError] = useState<string | null>(null);
-    const [unmappedData, setUnmappedData] = useState<{ totalOpen: number; items: UnmappedRow[] } | null>(null);
+    const [unmapped, setUnmapped] = useState<{ totalOpen: number; items: UnmappedRow[] } | null>(null);
     const [unmappedError, setUnmappedError] = useState<string | null>(null);
-    const [instrumentsData, setInstrumentsData] = useState<{ total: number; items: InstrumentRow[] } | null>(null);
+    const [instruments, setInstruments] = useState<{ total: number; items: InstrumentRow[] } | null>(null);
     const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
-    const [mappingsData, setMappingsData] = useState<{ total: number; items: MappingRow[] } | null>(null);
+    const [mappings, setMappings] = useState<{ total: number; items: MappingRow[] } | null>(null);
     const [mappingsError, setMappingsError] = useState<string | null>(null);
-    const [runsData, setRunsData] = useState<{ total: number; items: RunsRow[] } | null>(null);
+    const [runs, setRuns] = useState<{ total: number; items: RunsRow[] } | null>(null);
     const [runsError, setRunsError] = useState<string | null>(null);
 
     const [search, setSearch] = useState("");
-    const searchTerm = search.trim().toLowerCase();
-    const [open, setOpen] = useState<SectionState>({ status: true, unmapped: true, instruments: false, mappings: false, runs: false });
+    const q = search.trim().toLowerCase();
+    const [open, setOpen] = useState<OpenState>({ guard: false, status: true, unmapped: true, instruments: false, mappings: false, runs: false });
 
-    const [unmappedSort, setUnmappedSort] = useState<SortState>({ key: "priority", direction: "desc" });
-    const [instrumentsSort, setInstrumentsSort] = useState<SortState>({ key: "isin", direction: "asc" });
-    const [mappingsSort, setMappingsSort] = useState<SortState>({ key: "isin", direction: "asc" });
-    const [runsSort, setRunsSort] = useState<SortState>({ key: "startedAt", direction: "desc" });
+    const [unmappedSort, setUnmappedSort] = useState<Sort>({ key: "priority", direction: "asc" });
+    const [instrumentSort, setInstrumentSort] = useState<Sort>({ key: "isin", direction: "asc" });
+    const [mappingSort, setMappingSort] = useState<Sort>({ key: "isin", direction: "asc" });
+    const [runSort, setRunSort] = useState<Sort>({ key: "startedAt", direction: "desc" });
 
-    function toggleSort(sort: SortState, setSort: (sort: SortState) => void, key: string) {
-        if (sort.key === key) setSort({ key, direction: sort.direction === "asc" ? "desc" : "asc" });
-        else setSort({ key, direction: "asc" });
-    }
+    const toggleSort = (cur: Sort, set: (s: Sort) => void, key: string) => set(cur.key === key ? { key, direction: cur.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" });
 
     useEffect(() => {
-        if (sessionState !== "enabled") return;
+        if (session !== "enabled") return;
         const controller = new AbortController();
         const load = async () => {
             const endpoints = [
-                ["/api/admin/market-data/status", setStatusData, setStatusError, "Market data status is currently unavailable."],
-                ["/api/admin/market-data/unmapped?limit=50", setUnmappedData, setUnmappedError, "Open/unmapped market-data assets are currently unavailable."],
-                ["/api/admin/market-data/instruments?limit=50", setInstrumentsData, setInstrumentsError, "Market instruments overview is currently unavailable."],
-                ["/api/admin/market-data/mappings?limit=50", setMappingsData, setMappingsError, "Market symbol mappings overview is currently unavailable."],
-                ["/api/admin/market-data/runs?limit=25", setRunsData, setRunsError, "Market data runs overview is currently unavailable."],
+                ["/api/admin/market-data/status", setStatus, setStatusError, "Market data status is currently unavailable."],
+                ["/api/admin/market-data/unmapped?limit=50", setUnmapped, setUnmappedError, "Open/unmapped market-data assets are currently unavailable."],
+                ["/api/admin/market-data/instruments?limit=50", setInstruments, setInstrumentsError, "Market instruments overview is currently unavailable."],
+                ["/api/admin/market-data/mappings?limit=50", setMappings, setMappingsError, "Market symbol mappings overview is currently unavailable."],
+                ["/api/admin/market-data/runs?limit=25", setRuns, setRunsError, "Market data runs overview is currently unavailable."],
             ] as const;
-            await Promise.all(
-                endpoints.map(async ([url, setData, setError, message]) => {
-                    try {
-                        const response = await fetch(url, { method: "GET", cache: "no-store", signal: controller.signal });
-                        if (!response.ok) throw new Error("fetch-failed");
-                        setData(await response.json());
-                        setError(null);
-                    } catch (error: unknown) {
-                        if (error instanceof Error && error.name === "AbortError") return;
-                        setData(null);
-                        setError(message);
-                    }
-                }),
-            );
+            await Promise.all(endpoints.map(async ([url, setData, setErr, msg]) => {
+                try {
+                    const r = await fetch(url, { method: "GET", cache: "no-store", signal: controller.signal });
+                    if (!r.ok) throw new Error("fetch");
+                    setData(await r.json());
+                    setErr(null);
+                } catch (e: unknown) {
+                    if (e instanceof Error && e.name === "AbortError") return;
+                    setData(null); setErr(msg);
+                }
+            }));
         };
         void load();
         return () => controller.abort();
-    }, [sessionState]);
+    }, [session]);
 
-    const unmappedRows = useMemo(
-        () =>
-            sortRows(
-                (unmappedData?.items ?? []).filter((row) =>
-                    matchesSearch(searchTerm, [
-                        row.isin,
-                        row.wkn,
-                        row.displayName,
-                        row.primarySymbol,
-                        row.marketDataStatus,
-                        row.mappingStatus,
-                        row.category,
-                        row.suggestedAction,
-                    ]),
-                ),
-                unmappedSort,
-            ),
-        [unmappedData, searchTerm, unmappedSort],
-    );
+    const kpis = useMemo(() => {
+        if (!status) return [];
+        return [
+            ["Instruments total", status.instrumentsTotal], ["Mappings total", status.mappingsTotal], ["YFinance mappings", status.yfinanceMappingsTotal], ["Verified mappings", status.verifiedYfinanceMappings], ["Primary mappings", status.primaryYfinanceMappings], ["With verified mapping", status.instrumentsWithVerifiedYfinanceMapping], ["Without any mapping", status.instrumentsWithoutAnyMapping], ["Without primary mapping", status.instrumentsWithoutPrimaryMapping], ["With price data", status.instrumentsWithDailyPriceData], ["With market actions", status.instrumentsWithMarketActions], ["Primary but no prices", status.instrumentsWithPrimaryMappingButNoPriceData], ["Failed validation candidates", status.failedValidationCandidates],
+        ] as const;
+    }, [status]);
 
-    const instrumentsRows = useMemo(
-        () =>
-            sortRows(
-                (instrumentsData?.items ?? []).filter((row) =>
-                    matchesSearch(searchTerm, [row.isin, row.wkn, row.displayName, row.name, row.primarySymbol, row.assetType, row.marketDataStatus]),
-                ),
-                instrumentsSort,
-            ),
-        [instrumentsData, searchTerm, instrumentsSort],
-    );
-
-    const mappingsRows = useMemo(
-        () =>
-            sortRows(
-                (mappingsData?.items ?? []).filter((row) =>
-                    matchesSearch(searchTerm, [row.isin, row.displayName, row.provider, row.symbol, row.exchange, row.statusReason]),
-                ),
-                mappingsSort,
-            ),
-        [mappingsData, searchTerm, mappingsSort],
-    );
-
-    const runsRows = useMemo(
-        () =>
-            sortRows(
-                (runsData?.items ?? []).filter((row) =>
-                    matchesSearch(searchTerm, [row.runType, row.status, row.provider, row.latestErrorMessage]),
-                ),
-                runsSort,
-            ),
-        [runsData, searchTerm, runsSort],
-    );
+    const unmappedRows = useMemo(() => sortRows((unmapped?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.primarySymbol, r.marketDataStatus, r.mappingStatus, r.category, r.suggestedAction])), unmappedSort), [unmapped, q, unmappedSort]);
+    const instrumentRows = useMemo(() => sortRows((instruments?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.name, r.primarySymbol, r.marketDataStatus, r.assetType])), instrumentSort), [instruments, q, instrumentSort]);
+    const mappingRows = useMemo(() => sortRows((mappings?.items ?? []).filter((r) => hit(q, [r.isin, r.displayName, r.provider, r.symbol, r.exchange, r.statusReason])), mappingSort), [mappings, q, mappingSort]);
+    const runRows = useMemo(() => sortRows((runs?.items ?? []).filter((r) => hit(q, [r.runType, r.status, r.provider, r.latestErrorMessage])), runSort), [runs, q, runSort]);
 
     useEffect(() => {
-        if (!searchTerm) return;
-        setOpen((prev) => ({
-            ...prev,
-            unmapped: unmappedRows.length > 0 || prev.unmapped,
-            instruments: instrumentsRows.length > 0 || prev.instruments,
-            mappings: mappingsRows.length > 0 || prev.mappings,
-            runs: runsRows.length > 0 || prev.runs,
-        }));
-    }, [searchTerm, unmappedRows.length, instrumentsRows.length, mappingsRows.length, runsRows.length]);
-
-    const matchCount = unmappedRows.length + instrumentsRows.length + mappingsRows.length + runsRows.length;
+        if (!q) return;
+        setOpen((prev) => ({ ...prev, unmapped: prev.unmapped || unmappedRows.length > 0, instruments: prev.instruments || instrumentRows.length > 0, mappings: prev.mappings || mappingRows.length > 0, runs: prev.runs || runRows.length > 0 }));
+    }, [q, unmappedRows.length, instrumentRows.length, mappingRows.length, runRows.length]);
 
     return (
         <main className={styles.root}>
-            <section className={`${styles.surface} ${styles.header}`}>
-                <p className={styles.eyebrow}>Admin Console</p>
-                <h1>Read-only Admin</h1>
-                <div className={styles.statusRow}>
-                    <span>Current admin session status</span>
-                    <SessionBadge state={sessionState} />
-                </div>
+            <section className={`${styles.surface} ${styles.headerSurface}`}>
+                <p className={styles.eyebrow}>Admin Console</p><h1>Read-only Admin</h1>
+                <div className={styles.statusRow}><span>Current admin session status</span><SessionBadge state={session} /></div>
                 <p className={styles.note}>This shell is read-only. No writes, no provider calls, and no production admin auth are enabled.</p>
             </section>
 
             <section className={`${styles.surface} ${styles.toolbar}`}>
-                <input
-                    className={styles.searchInput}
-                    type="text"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search ISIN, WKN, name, symbol, provider, status..."
-                />
-                <button type="button" className={styles.clearButton} onClick={() => setSearch("")}>
-                    Clear
-                </button>
-                <span className={styles.subtle}>Matches: {matchCount.toLocaleString()}</span>
+                <input className={styles.searchInput} type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ISIN, WKN, name, symbol, provider, status..." />
+                {q ? <button type="button" className={styles.clearButton} onClick={() => setSearch("")}>Clear</button> : null}
             </section>
 
-            <section className={`${styles.surface} ${styles.guard}`}>
-                <h2>Guard summary</h2>
-                <p>Session check uses <code>/api/admin/session</code>. Mutation actions are blocked by access control.</p>
-                <ul>
-                    <li>List access: {listAccess.data?.can ? "allowed" : "denied"}</li>
-                    <li>Create access: {createAccess.data?.can ? "allowed" : "denied"}</li>
-                </ul>
-            </section>
+            <Section title="Guard summary" summary="diagnostics" open={open.guard} toggle={() => setOpen((p) => ({ ...p, guard: !p.guard }))}>
+                <p className={styles.subtle}>Session endpoint: <code>/api/admin/session</code></p>
+                <p className={styles.subtle}>List access: {listAccess.data?.can ? "allowed" : "denied"}</p>
+                <p className={styles.subtle}>Create access: {createAccess.data?.can ? "allowed" : "denied"}</p>
+            </Section>
 
-            <Section title="Market Data Status" summary={statusData ? `${statusData.instrumentsTotal.toLocaleString()} instruments` : statusError ? "error" : "loading"} open={open.status} onToggle={() => setOpen((prev) => ({ ...prev, status: !prev.status }))}>
-                {sessionState !== "enabled" ? <p className={styles.subtle}>Status is unavailable while admin is disabled or unauthorized.</p> : null}
+            <Section title="Market Data Status" summary={status ? `${status.instrumentsTotal.toLocaleString()} instruments` : statusError ? "error" : "loading"} open={open.status} toggle={() => setOpen((p) => ({ ...p, status: !p.status }))}>
+                {session !== "enabled" ? <p className={styles.subtle}>Status is unavailable while admin is disabled or unauthorized.</p> : null}
                 {statusError ? <p className={styles.errorText}>{statusError}</p> : null}
+                {status ? (
+                    <>
+                        <section className={styles.kpiGrid}>{kpis.map(([k, v]) => <article className={styles.kpiCard} key={k}><p>{k}</p><strong>{v.toLocaleString()}</strong></article>)}</section>
+                        <section className={styles.breakdownGrid}>
+                            <article className={styles.card}><h3>Market data status counts</h3><ul className={styles.cleanList}>{Object.entries(status.marketDataStatusCounts).map(([s, c]) => <li key={s}><span>{label(s)}</span><strong>{c.toLocaleString()}</strong></li>)}</ul></article>
+                            <article className={styles.card}><h3>Reference source counts</h3><ul className={styles.cleanList}>{status.referenceSourceCounts.map((r) => <li key={r.sourceKey}><span>{r.sourceKey}</span><strong>{r.rowCount.toLocaleString()}</strong></li>)}</ul></article>
+                        </section>
+                    </>
+                ) : null}
             </Section>
 
-            <Section title="Unmapped / Open Market Data Assets" summary={`${unmappedRows.length.toLocaleString()} shown`} open={open.unmapped} onToggle={() => setOpen((prev) => ({ ...prev, unmapped: !prev.unmapped }))}>
+            <Section title="Unmapped / Open Market Data Assets" summary={`${unmappedRows.length.toLocaleString()} shown`} open={open.unmapped} toggle={() => setOpen((p) => ({ ...p, unmapped: !p.unmapped }))}>
                 {unmappedError ? <p className={styles.errorText}>{unmappedError}</p> : null}
-                {unmappedData ? <p className={styles.subtle}>Showing {unmappedRows.length.toLocaleString()} of {unmappedData.totalOpen.toLocaleString()} open cases.</p> : null}
-                <DataTable>
-                    <tr>
-                        <th><SortableHeader label="Prio" column="priority" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th>
-                        <th><SortableHeader label="ISIN" column="isin" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th>
-                        <th><SortableHeader label="Name" column="displayName" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th>
-                        <th><SortableHeader label="Category" column="category" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th>
-                        <th><SortableHeader label="Action" column="suggestedAction" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th>
-                        <th><SortableHeader label="Status" column="mappingStatus" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th>
-                    </tr>
-                    {unmappedRows.map((row) => (
-                        <tr key={row.isin}>
-                            <td>{row.priority}</td><td>{row.isin}</td><td className={styles.truncateCell}>{row.displayName ?? "—"}</td><td>{row.category}</td><td>{row.suggestedAction}</td><td>{row.mappingStatus}</td>
-                        </tr>
-                    ))}
-                </DataTable>
+                {unmapped ? <p className={styles.subtle}>Showing {unmappedRows.length.toLocaleString()} of {unmapped.totalOpen.toLocaleString()} open cases.</p> : null}
+                <Table head={<tr><th><HeaderSort labelText="Prio" keyName="priority" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="ISIN" keyName="isin" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Name" keyName="displayName" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Category" keyName="category" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Action" keyName="suggestedAction" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Status" keyName="mappingStatus" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th></tr>}
+                    rows={unmappedRows.map((r) => <tr key={r.isin}><td>{r.priority}</td><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? "—"}</td><td>{label(r.category)}</td><td>{label(r.suggestedAction)}</td><td><span className={styles.badgeTiny}>{label(r.mappingStatus)}</span></td></tr>)} />
             </Section>
 
-            <Section title="Market Instruments" summary={`${instrumentsRows.length.toLocaleString()} shown`} open={open.instruments} onToggle={() => setOpen((prev) => ({ ...prev, instruments: !prev.instruments }))}>
+            <Section title="Market Instruments" summary={`${instrumentRows.length.toLocaleString()} shown`} open={open.instruments} toggle={() => setOpen((p) => ({ ...p, instruments: !p.instruments }))}>
                 {instrumentsError ? <p className={styles.errorText}>{instrumentsError}</p> : null}
-                {instrumentsData ? <p className={styles.subtle}>Showing {instrumentsRows.length.toLocaleString()} of {instrumentsData.total.toLocaleString()} instruments.</p> : null}
-                <DataTable>
-                    <tr>
-                        <th><SortableHeader label="ISIN" column="isin" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Name" column="displayName" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Type" column="assetType" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Status" column="marketDataStatus" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Primary" column="primarySymbol" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Verified" column="verifiedMappingCount" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Candidates" column="candidateMappingCount" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Prices" column="hasPriceData" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                        <th><SortableHeader label="Last price" column="lastPriceDate" sort={instrumentsSort} onToggle={(k) => toggleSort(instrumentsSort, setInstrumentsSort, k)} /></th>
-                    </tr>
-                    {instrumentsRows.map((row) => (
-                        <tr key={row.isin}>
-                            <td>{row.isin}</td><td className={styles.truncateCell}>{row.displayName ?? row.name ?? "—"}</td><td>{row.assetType ?? "—"}</td><td>{row.marketDataStatus ?? "unset"}</td><td>{row.primarySymbol ?? "—"}</td><td>{row.verifiedMappingCount}</td><td>{row.candidateMappingCount}</td><td>{row.hasPriceData ? "yes" : "no"}</td><td>{row.lastPriceDate ?? "—"}</td>
-                        </tr>
-                    ))}
-                </DataTable>
+                {instruments ? <p className={styles.subtle}>Showing {instrumentRows.length.toLocaleString()} of {instruments.total.toLocaleString()} instruments.</p> : null}
+                <Table head={<tr><th><HeaderSort labelText="ISIN" keyName="isin" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Name" keyName="displayName" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Type" keyName="assetType" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Status" keyName="marketDataStatus" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Primary" keyName="primarySymbol" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Verified" keyName="verifiedMappingCount" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Candidates" keyName="candidateMappingCount" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Prices" keyName="hasPriceData" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th><th><HeaderSort labelText="Last price" keyName="lastPriceDate" sort={instrumentSort} onToggle={(k) => toggleSort(instrumentSort, setInstrumentSort, k)} /></th></tr>}
+                    rows={instrumentRows.map((r) => <tr key={r.isin}><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? r.name ?? "—"}</td><td>{r.assetType ?? "—"}</td><td><span className={styles.badgeTiny}>{label(r.marketDataStatus ?? "unset")}</span></td><td className={styles.monoCell}>{r.primarySymbol ?? "—"}</td><td>{r.verifiedMappingCount}</td><td>{r.candidateMappingCount}</td><td><span className={styles.badgeTiny}>{r.hasPriceData ? "Yes" : "No"}</span></td><td>{formatDate(r.lastPriceDate)}</td></tr>)} />
             </Section>
 
-            <Section title="Market Symbol Mappings" summary={`${mappingsRows.length.toLocaleString()} shown`} open={open.mappings} onToggle={() => setOpen((prev) => ({ ...prev, mappings: !prev.mappings }))}>
+            <Section title="Market Symbol Mappings" summary={`${mappingRows.length.toLocaleString()} shown`} open={open.mappings} toggle={() => setOpen((p) => ({ ...p, mappings: !p.mappings }))}>
                 {mappingsError ? <p className={styles.errorText}>{mappingsError}</p> : null}
-                {mappingsData ? <p className={styles.subtle}>Showing {mappingsRows.length.toLocaleString()} of {mappingsData.total.toLocaleString()} mappings.</p> : null}
-                <DataTable>
-                    <tr>
-                        <th><SortableHeader label="ISIN" column="isin" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                        <th><SortableHeader label="Provider" column="provider" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                        <th><SortableHeader label="Symbol" column="symbol" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                        <th><SortableHeader label="Primary" column="isPrimary" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                        <th><SortableHeader label="Active" column="isActive" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                        <th><SortableHeader label="Verified" column="verifiedAt" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                        <th><SortableHeader label="Has prices" column="hasPriceData" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                        <th><SortableHeader label="Latest price" column="latestPriceDate" sort={mappingsSort} onToggle={(k) => toggleSort(mappingsSort, setMappingsSort, k)} /></th>
-                    </tr>
-                    {mappingsRows.map((row) => (
-                        <tr key={row.id}>
-                            <td>{row.isin}</td><td>{row.provider}</td><td>{row.symbol}</td><td>{row.isPrimary ? "yes" : "no"}</td><td>{row.isActive ? "yes" : "no"}</td><td>{row.verifiedAt ? "yes" : "no"}</td><td>{row.hasPriceData ? "yes" : "no"}</td><td>{row.latestPriceDate ?? "—"}</td>
-                        </tr>
-                    ))}
-                </DataTable>
+                {mappings ? <p className={styles.subtle}>Showing {mappingRows.length.toLocaleString()} of {mappings.total.toLocaleString()} mappings.</p> : null}
+                <Table head={<tr><th><HeaderSort labelText="ISIN" keyName="isin" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th><th><HeaderSort labelText="Provider" keyName="provider" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th><th><HeaderSort labelText="Symbol" keyName="symbol" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th><th><HeaderSort labelText="Primary" keyName="isPrimary" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th><th><HeaderSort labelText="Active" keyName="isActive" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th><th><HeaderSort labelText="Verified" keyName="verifiedAt" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th><th><HeaderSort labelText="Has prices" keyName="hasPriceData" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th><th><HeaderSort labelText="Latest price" keyName="latestPriceDate" sort={mappingSort} onToggle={(k) => toggleSort(mappingSort, setMappingSort, k)} /></th></tr>}
+                    rows={mappingRows.map((r) => <tr key={r.id}><td className={styles.monoCell}>{r.isin}</td><td>{r.provider}</td><td className={styles.monoCell}>{r.symbol}</td><td><span className={styles.badgeTiny}>{r.isPrimary ? "Primary" : "Secondary"}</span></td><td><span className={styles.badgeTiny}>{r.isActive ? "Active" : "Inactive"}</span></td><td><span className={styles.badgeTiny}>{r.verifiedAt ? "Verified" : "Unverified"}</span></td><td><span className={styles.badgeTiny}>{r.hasPriceData ? "Yes" : "No"}</span></td><td>{formatDate(r.latestPriceDate)}</td></tr>)} />
             </Section>
 
-            <Section title="Market Data Runs" summary={`${runsRows.length.toLocaleString()} shown`} open={open.runs} onToggle={() => setOpen((prev) => ({ ...prev, runs: !prev.runs }))}>
+            <Section title="Market Data Runs" summary={`${runRows.length.toLocaleString()} shown`} open={open.runs} toggle={() => setOpen((p) => ({ ...p, runs: !p.runs }))}>
                 {runsError ? <p className={styles.errorText}>{runsError}</p> : null}
-                {runsData ? <p className={styles.subtle}>Showing {runsRows.length.toLocaleString()} of {runsData.total.toLocaleString()} runs.</p> : null}
+                {runs ? <p className={styles.subtle}>Showing {runRows.length.toLocaleString()} of {runs.total.toLocaleString()} runs.</p> : null}
                 <p className={styles.subtle}>Run actions remain CLI/admin-workflow only.</p>
-                <DataTable>
-                    <tr>
-                        <th><SortableHeader label="Run type" column="runType" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                        <th><SortableHeader label="Status" column="status" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                        <th><SortableHeader label="Provider" column="provider" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                        <th><SortableHeader label="Started" column="startedAt" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                        <th><SortableHeader label="Finished" column="finishedAt" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                        <th><SortableHeader label="Items" column="totalItems" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                        <th><SortableHeader label="Success" column="succeededItems" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                        <th><SortableHeader label="Failed" column="failedItems" sort={runsSort} onToggle={(k) => toggleSort(runsSort, setRunsSort, k)} /></th>
-                    </tr>
-                    {runsRows.map((row) => (
-                        <tr key={row.id}>
-                            <td>{row.runType}</td><td>{row.status}</td><td>{row.provider ?? "—"}</td><td>{row.startedAt ?? "—"}</td><td>{row.finishedAt ?? "—"}</td><td>{row.totalItems}</td><td>{row.succeededItems}</td><td>{row.failedItems}</td>
-                        </tr>
-                    ))}
-                </DataTable>
+                <Table head={<tr><th><HeaderSort labelText="Run type" keyName="runType" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th><th><HeaderSort labelText="Status" keyName="status" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th><th><HeaderSort labelText="Provider" keyName="provider" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th><th><HeaderSort labelText="Started" keyName="startedAt" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th><th><HeaderSort labelText="Finished" keyName="finishedAt" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th><th><HeaderSort labelText="Items" keyName="totalItems" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th><th><HeaderSort labelText="Success" keyName="succeededItems" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th><th><HeaderSort labelText="Failed" keyName="failedItems" sort={runSort} onToggle={(k) => toggleSort(runSort, setRunSort, k)} /></th></tr>}
+                    rows={runRows.map((r) => <tr key={r.id}><td>{label(r.runType)}</td><td><span className={styles.badgeTiny}>{label(r.status)}</span></td><td>{r.provider ?? "—"}</td><td>{formatDate(r.startedAt)}</td><td>{formatDate(r.finishedAt)}</td><td>{r.totalItems}</td><td>{r.succeededItems}</td><td>{r.failedItems}</td></tr>)} />
             </Section>
         </main>
-    );
-}
-
-function DataTable({ children }: { children: React.ReactNode }) {
-    const nodes = Array.isArray(children) ? children : [children];
-    return (
-        <div className={styles.tableWrap}>
-            <table className={styles.table}>
-                <thead>{nodes[0]}</thead>
-                <tbody>{nodes.slice(1)}</tbody>
-            </table>
-        </div>
     );
 }

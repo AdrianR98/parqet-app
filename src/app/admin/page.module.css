@@ -7,10 +7,15 @@
 }
 
 .surface {
-    background: var(--surface-gradient);
-    border: 1px solid var(--panel-border);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-soft);
     border-radius: 18px;
     padding: 18px;
+}
+
+.headerSurface {
+    background: var(--surface-gradient);
+    border-color: var(--panel-border);
 }
 
 .sectionSurface {
@@ -264,6 +269,23 @@
     max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.monoCell {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+}
+
+.badgeTiny {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    border-radius: 999px;
+    padding: 0 8px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface-control);
+    color: var(--text-main);
+    font-size: 0.78rem;
 }
 
 @media (max-width: 760px) {
