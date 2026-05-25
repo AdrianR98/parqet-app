@@ -58,6 +58,10 @@ export type AdminUnmappedItem = {
 export type AdminUnmappedPayload = {
     totalOpen: number;
     shown: number;
+    actionableTotal: number;
+    actionableShown: number;
+    classifiedTotal: number;
+    classifiedShown: number;
     limit: number;
     filters: {
         category: string | null;
@@ -65,7 +69,31 @@ export type AdminUnmappedPayload = {
         status: string | null;
     };
     items: AdminUnmappedItem[];
+    actionableItems: AdminUnmappedItem[];
+    classifiedItems: AdminUnmappedItem[];
 };
+
+const ACTIONABLE_CATEGORIES = new Set([
+    "mapping_candidate_needed",
+    "no_mapping",
+    "unverified_mapping",
+]);
+
+function isClassifiedItem(item: AdminUnmappedItem): boolean {
+    if (item.marketDataStatus === "legacy" || item.marketDataStatus === "derivative" || item.marketDataStatus === "excluded") return true;
+    if (item.marketDataStatus === "unknown") return true;
+    return (
+        item.category === "legacy_or_corporate_action" ||
+        item.category === "derivative_or_warrant" ||
+        item.category === "failed_or_excluded" ||
+        item.category === "manual_review"
+    );
+}
+
+function isActionableItem(item: AdminUnmappedItem): boolean {
+    if (isClassifiedItem(item)) return false;
+    return ACTIONABLE_CATEGORIES.has(item.category);
+}
 
 export function sanitizeUnmappedLimit(rawLimit: string | null): number {
     if (!rawLimit) return DEFAULT_LIMIT;
@@ -145,17 +173,26 @@ export async function getAdminUnmappedMarketData(input: {
         return true;
     });
 
-    const items = filtered.slice(0, limit);
+    const actionableAll = filtered.filter((item) => isActionableItem(item));
+    const classifiedAll = filtered.filter((item) => isClassifiedItem(item));
+    const actionableItems = actionableAll.slice(0, limit);
+    const classifiedItems = classifiedAll.slice(0, limit);
 
     return {
-        totalOpen: filtered.length,
-        shown: items.length,
+        totalOpen: actionableAll.length,
+        shown: actionableItems.length,
+        actionableTotal: actionableAll.length,
+        actionableShown: actionableItems.length,
+        classifiedTotal: classifiedAll.length,
+        classifiedShown: classifiedItems.length,
         limit,
         filters: {
             category: filters.category,
             action: filters.action,
             status: filters.status,
         },
-        items,
+        items: actionableItems,
+        actionableItems,
+        classifiedItems,
     };
 }

@@ -32,6 +32,10 @@ describe("admin market data unmapped route", () => {
         vi.mocked(getAdminUnmappedMarketData).mockResolvedValue({
             totalOpen: 1,
             shown: 1,
+            actionableTotal: 1,
+            actionableShown: 1,
+            classifiedTotal: 0,
+            classifiedShown: 0,
             limit: 50,
             filters: { category: null, action: null, status: null },
             items: [
@@ -55,6 +59,28 @@ describe("admin market data unmapped route", () => {
                     hasMarketActions: false,
                 },
             ],
+            actionableItems: [
+                {
+                    priority: 10,
+                    isin: "US0000000001",
+                    displayName: "Sample",
+                    assetType: "stock",
+                    currency: "USD",
+                    wkn: null,
+                    marketDataStatus: null,
+                    mappingStatus: "no_mapping",
+                    primarySymbol: null,
+                    candidateSymbols: [],
+                    category: "mapping_candidate_needed",
+                    suggestedAction: "add_candidates",
+                    statusReason: null,
+                    triageHint: "No mapping exists yet; add or import candidate symbols.",
+                    triageReason: "no yfinance mapping",
+                    hasPriceData: false,
+                    hasMarketActions: false,
+                },
+            ],
+            classifiedItems: [],
         });
 
         const response = await GET(new Request("http://localhost/api/admin/market-data/unmapped?limit=50"));
@@ -63,6 +89,8 @@ describe("admin market data unmapped route", () => {
         expect(response.status).toBe(200);
         expect(response.headers.get("cache-control")).toBe("no-store");
         expect(payload.shown).toBe(1);
+        expect(payload.actionableTotal).toBe(1);
+        expect(payload.classifiedTotal).toBe(0);
         expect(getAdminUnmappedMarketData).toHaveBeenCalledWith({
             limit: "50",
             category: null,
