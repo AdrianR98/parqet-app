@@ -66,16 +66,6 @@ function getSystemThemeServerSnapshot(): ResolvedTheme {
     return "dark";
 }
 
-function applyResolvedAppearanceMode(theme: ResolvedTheme): void {
-    if (typeof document === "undefined") {
-        return;
-    }
-
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.assettraceTheme = theme;
-    document.documentElement.style.colorScheme = theme;
-}
-
 export function useTheme() {
     const [appearanceMode, setAppearanceModeState] = useState<AppearanceMode>("system");
     const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemThemeServerSnapshot);
@@ -125,16 +115,6 @@ export function useTheme() {
     }, []);
 
     const resolvedTheme = resolveTheme(appearanceMode, systemTheme);
-
-    useEffect(() => {
-        if (typeof document !== "undefined") {
-            document.documentElement.dataset.appearance = appearanceMode;
-        }
-    }, [appearanceMode]);
-
-    useEffect(() => {
-        applyResolvedAppearanceMode(resolvedTheme);
-    }, [resolvedTheme]);
 
     function setAppearanceMode(mode: AppearanceMode) {
         saveAppearanceMode(mode);

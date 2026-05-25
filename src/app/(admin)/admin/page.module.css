@@ -1,0 +1,341 @@
+.root {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 20px 36px;
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+
+.surface {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 18px;
+    padding: 18px;
+}
+
+.headerSurface {
+    background: var(--surface-gradient);
+    border-color: var(--panel-border);
+}
+
+.sectionSurface {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+    min-width: 0;
+}
+
+.sectionHeader {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text-main);
+    text-align: left;
+    padding: 14px 16px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.sectionMeta {
+    color: var(--text-soft);
+    font-size: 0.9rem;
+}
+
+.sectionBody {
+    border-top: 1px solid var(--border-soft);
+    padding: 12px 16px 16px;
+    min-width: 0;
+}
+
+.header h1 {
+    margin: 4px 0 10px;
+    font-size: 1.7rem;
+}
+
+.eyebrow {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 0.92rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.statusRow {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    color: var(--text-soft);
+}
+
+.note {
+    margin: 12px 0 0;
+    color: var(--text-main);
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    border-radius: 999px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    font-size: 0.86rem;
+}
+
+.badgeSuccess {
+    background: var(--success-soft);
+    border-color: var(--success-soft-border);
+    color: var(--text-main);
+}
+
+.badgeWarning {
+    background: var(--warning-soft);
+    border-color: var(--warning-soft-border);
+    color: var(--warning-strong);
+}
+
+.badgeMuted {
+    background: var(--surface-control);
+    border-color: var(--panel-border);
+    color: var(--text-soft);
+}
+
+.guard p {
+    margin: 8px 0;
+    color: var(--text-soft);
+}
+
+.guard ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.searchInput {
+    flex: 1 1 280px;
+    min-height: 36px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 0 12px;
+    background: var(--surface-control);
+    color: var(--text-main);
+}
+
+.clearButton {
+    min-height: 36px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 0 12px;
+    background: var(--surface-control);
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+}
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.kpiCard {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.kpiCard p {
+    margin: 0 0 8px;
+    color: var(--text-soft);
+    font-size: 0.82rem;
+}
+
+.kpiCard strong {
+    font-size: 1.15rem;
+}
+
+.breakdownGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.cleanList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.cleanList li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-soft);
+    padding-bottom: 6px;
+}
+
+.subtle {
+    margin: 10px 0 0;
+    color: var(--text-soft);
+}
+
+.errorText {
+    margin: 10px 0 0;
+    color: var(--warning-strong);
+}
+
+.card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.card h3 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+
+.card p {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 0.92rem;
+}
+
+.tableWrap {
+    margin-top: 10px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.unmappedTable {
+    table-layout: fixed;
+}
+
+.table th,
+.table td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+    white-space: normal;
+}
+
+.table th {
+    color: var(--text-soft);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    background: var(--surface-elevated);
+    white-space: nowrap;
+}
+
+.table tbody tr:hover {
+    background: color-mix(in srgb, var(--surface-control) 70%, transparent);
+}
+
+.sortButton {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.truncateCell {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hintCell {
+    width: 28%;
+    max-width: 420px;
+    min-width: 0;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+}
+
+.hintText {
+    display: block;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+}
+
+.hintReason {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+}
+
+.wrapCell {
+    max-width: 220px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+}
+
+.monoCell {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    white-space: nowrap;
+}
+
+.badgeTiny {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    border-radius: 999px;
+    padding: 0 8px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface-control);
+    color: var(--text-main);
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+    .root {
+        padding: 14px 12px 24px;
+    }
+}
