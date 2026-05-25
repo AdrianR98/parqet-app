@@ -29,6 +29,7 @@
     "db:market:set:instrument-status": "tsx scripts/set-market-instrument-status.mjs",
     "db:market:promote:verified": "tsx scripts/promote-verified-market-symbols.mjs",
     "db:market:backfill:primary": "tsx scripts/backfill-primary-market-data.mjs",
+    "db:market:update:primary": "tsx scripts/update-primary-market-data-incremental.mjs",
     "db:market:import:reference:xetra": "tsx scripts/import-xetra-reference-instruments.mjs",
     "db:market:import:reference:trading-universe": "tsx scripts/import-trading-universe-reference-names.mjs",
     "yfinance:validate:symbols": "python scripts/yfinance/validate-symbol-candidates.py"

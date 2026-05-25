@@ -48,8 +48,9 @@ Use `--write` to execute provider export + DB import.
 Commands:  
 `npm run db:market:status`  
 `npm run db:market:unmapped`
-10. Later incremental update job  
-Not implemented in this issue. Track incremental/operational job planning in #330. Until then, repeat targeted CLI steps manually.
+10. Incremental update for verified primary mappings
+Command: `npm run db:market:update:primary`
+Dry-run by default. Add `--write` to run yfinance export + idempotent DB upserts for buffered incremental ranges (`--days-back`, default `10`).
 
 ## Script Catalog
 
@@ -71,6 +72,7 @@ Legend:
 | `db:market:import:validation` | `npm run db:market:import:validation -- <results.json>` | Import validation verdicts into mapping notes/verified state | dry-run | validation JSON array | summary; optional mapping updates with `--write` | read (dry), write (`--write`) | none | none |
 | `db:market:promote:verified` | `npm run db:market:promote:verified` | Choose best verified mapping as primary per ISIN | dry-run | DB verified mappings | planned promotions; optional primary updates with `--write` | read (dry), write (`--write`) | none | none |
 | `db:market:backfill:primary` | `npm run db:market:backfill:primary` | Backfill price/actions for primary mappings | dry-run | DB primary mappings | planned backfills; with `--write` runs export+import pipeline | read (dry), write (`--write`) | yfinance (only with `--write`) | `.market-data/backfill/*.json` |
+| `db:market:update:primary` | `npm run db:market:update:primary` | Incremental update of verified active primary yfinance mappings with overlap window | dry-run | DB primary mappings + optional filters | planned incremental windows; with `--write` runs provider fetch + idempotent upserts | read (dry), write (`--write`) | yfinance (only with `--write`) | none |
 | `db:market:status` | `npm run db:market:status` | High-level readiness/status snapshot | read-only | DB | console report | read | none | none |
 
 ### Supporting read/report scripts
@@ -102,6 +104,34 @@ Legend:
 - ADR/legacy/corporate-action cases (including Gazprom/ADR/old-ISIN/successor cases) require explicit manual review.
 - Backfill/import steps must remain idempotent and re-runnable.
 - Prefer dry-run first, then a scoped `--write` run (`--isin`, `--limit`, exclusion flags).
+- Incremental command defaults to dry-run and requires explicit `--write`.
+
+## Incremental Primary Update Command
+
+`npm run db:market:update:primary -- [flags]`
+
+Scope:
+
+- Processes only `provider=yfinance` mappings where `is_primary=true`, `is_active=true`, `verified_at is not null`.
+- Computes latest known `market_prices_daily` date per ISIN.
+- Uses incremental fetch start with safety overlap: `latest_date - --days-back` (default `10`).
+- Upserts prices and actions idempotently.
+- Continues processing after per-instrument failures.
+
+Supported flags:
+
+- `--write`: required for DB writes. Without this flag, command runs as dry-run only.
+- `--limit <n>`: cap processed mappings.
+- `--isin <ISIN[,ISIN...]>`: include only selected ISINs.
+- `--exclude-isin <ISIN[,ISIN...]>`: exclude selected ISINs.
+- `--days-back <n>`: overlap days for buffered refetch (default `10`).
+- `--force`: re-fetch full range (`period=max`) instead of incremental start planning.
+
+Examples:
+
+- Dry-run all: `npm run db:market:update:primary`
+- Dry-run subset: `npm run db:market:update:primary -- --isin IE00B8GKDB10,US7561091049 --days-back 14`
+- Write run scoped: `npm run db:market:update:primary -- --write --limit 20 --exclude-isin US0000000000`
 
 ## Troubleshooting
 
