@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { AssetSummary } from "../../lib/types";
 import { getAssetInitials, getAssetResolvedLogoUrl } from "../../lib/asset-display";
 import styles from "./AssetLogo.module.css";
@@ -66,6 +66,14 @@ function primeFailedUrlCache() {
     }
 }
 
+function ensureFailedUrlCacheLoaded() {
+    if (typeof window === "undefined") {
+        return;
+    }
+
+    primeFailedUrlCache();
+}
+
 function markFailedLogoUrl(url: string) {
     if (failedLogoUrls.has(url)) {
         return;
@@ -92,12 +100,9 @@ export default function AssetLogo({
     fallbackClassName,
     loading = "lazy",
 }: AssetLogoProps) {
+    ensureFailedUrlCacheLoaded();
     const logoUrl = useMemo(() => normalizeUrl(getAssetResolvedLogoUrl(asset)), [asset]);
     const [failedUrl, setFailedUrl] = useState<string | null>(null);
-
-    useEffect(() => {
-        primeFailedUrlCache();
-    }, []);
 
     const isKnownFailed = Boolean(logoUrl && failedLogoUrls.has(logoUrl));
     const shouldRenderFallback = !logoUrl || isKnownFailed || failedUrl === logoUrl;
