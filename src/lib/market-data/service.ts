@@ -146,6 +146,8 @@ export async function getMarketDataHistory(input: {
         const actions = await getMarketActionsByIsin({
             isin: normalizedIsin,
             provider: primaryMapping.provider,
+            from: fromDate,
+            to: toDate,
         });
         const latestPoint = points[points.length - 1];
         const latestResponsePriceDate = latestPoint.date;

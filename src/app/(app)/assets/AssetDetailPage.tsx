@@ -380,6 +380,26 @@ function PortfolioBreakdown({
     );
 }
 
+function getMarketDataResponseIsin(response: MarketDataResponse | null | undefined): string | null {
+    const metadataIsin = normalizeExactIsin(String(response?.metadata?.isin ?? "").trim());
+    if (metadataIsin) {
+        return metadataIsin;
+    }
+
+    const dataIsin = normalizeExactIsin(String(response?.data?.isin ?? "").trim());
+    return dataIsin || null;
+}
+
+function marketDataResponseMatchesIsin(response: MarketDataResponse | null | undefined, currentIsin: string): boolean {
+    const normalizedCurrentIsin = normalizeExactIsin(currentIsin);
+    if (!normalizedCurrentIsin) {
+        return false;
+    }
+
+    const responseIsin = getMarketDataResponseIsin(response);
+    return responseIsin === normalizedCurrentIsin;
+}
+
 function CopyableHeaderIdentifier({
     label,
     value,
@@ -1139,7 +1159,11 @@ export default function AssetDetailPage() {
             }
 
             setMarketDataResponse(payload);
-            if (payload.ok && (payload.data?.points?.length ?? 0) > 0) {
+            if (
+                payload.ok &&
+                (payload.data?.points?.length ?? 0) > 0 &&
+                marketDataResponseMatchesIsin(payload, currentIsin)
+            ) {
                 setLastRenderableMarketDataResponse(payload);
             }
         } catch (error) {
@@ -1174,6 +1198,12 @@ export default function AssetDetailPage() {
             controller.abort();
         };
     }, [currentIsin, selectedPricePeriod, loadMarketData]);
+
+    useEffect(() => {
+        setMarketDataResponse(null);
+        setLastRenderableMarketDataResponse(null);
+        setMarketDataNetworkError(null);
+    }, [currentIsin]);
 
     useEffect(() => {
         const settings = loadDividendKpiSettings();
@@ -1252,8 +1282,11 @@ export default function AssetDetailPage() {
     const marketStatus = marketDataResponse?.status ?? null;
     const marketDataPoints = marketDataResponse?.data?.points ?? [];
     const hasMarketSeries = Boolean(marketDataResponse?.ok && marketDataPoints.length > 0);
-    const lastRenderablePoints = lastRenderableMarketDataResponse?.data?.points ?? [];
-    const hasLastRenderableSeries = Boolean(lastRenderableMarketDataResponse?.ok && lastRenderablePoints.length > 0);
+    const hasLastRenderableSeries = Boolean(
+        marketDataResponseMatchesIsin(lastRenderableMarketDataResponse, currentIsin) &&
+        lastRenderableMarketDataResponse?.ok &&
+        (lastRenderableMarketDataResponse.data?.points?.length ?? 0) > 0,
+    );
     const renderableMarketResponse = hasMarketSeries ? marketDataResponse : hasLastRenderableSeries ? lastRenderableMarketDataResponse : null;
     const renderableMarketPoints = renderableMarketResponse?.data?.points ?? [];
     const hasRenderableMarketSeries = renderableMarketPoints.length > 0;
@@ -1364,9 +1397,10 @@ export default function AssetDetailPage() {
                                         className={`${styles.marketRangeButton} ${selectedPricePeriod === option.key ? styles.marketRangeButtonActive : ""}`}
                                         onClick={() => {
                                             setSelectedPricePeriod(option.key);
+                                            const currentSettings = loadAssetDetailRangeSettings();
                                             saveAssetDetailRangeSettings({
+                                                ...currentSettings,
                                                 pricePeriod: option.key,
-                                                dividendPeriod: selectedDividendPeriod,
                                             });
                                         }}
                                     >
@@ -1484,8 +1518,9 @@ export default function AssetDetailPage() {
                                 className={`${styles.marketRangeButton} ${selectedDividendPeriod === option.key ? styles.marketRangeButtonActive : ""}`}
                                 onClick={() => {
                                     setSelectedDividendPeriod(option.key);
+                                    const currentSettings = loadAssetDetailRangeSettings();
                                     saveAssetDetailRangeSettings({
-                                        pricePeriod: selectedPricePeriod,
+                                        ...currentSettings,
                                         dividendPeriod: option.key,
                                     });
                                 }}
