@@ -106,7 +106,7 @@ Legend:
 | `db:market:lookup:openfigi` | `npm run db:market:lookup:openfigi` | Query OpenFIGI to propose candidate symbols | dry-run | DB instruments (+ OpenFIGI key/env if used) | planned candidates; optional writes | read (dry), write (`--write`) | openfigi | optional `.market-data/*` output via flags |
 | `db:market:add:candidate` | `npm run db:market:add:candidate -- ...` | Manually add one candidate mapping | dry-run | CLI args (`--isin`, `--symbol`, etc.) | planned insert / optional write | read (dry), write (`--write`) | none | none |
 | `db:market:transfer:mapping` | `npm run db:market:transfer:mapping -- ...` | Transfer mapping between instruments with safety checks | dry-run | source/target args | planned transfer / optional write | read (dry), write (`--write`) | none | none |
-| `db:market:set:instrument-status` | `npm run db:market:set:instrument-status -- ...` | Mark instrument status (`active`, `excluded`, `legacy`, `derivative`, `unknown`) | dry-run | status args | planned status update / optional write | read (dry), write (`--write`) | none | none |
+| `db:market:set:instrument-status` | `npm run db:market:set:instrument-status -- ...` | Manual triage cleanup for instrument status (`active`, `excluded`, `legacy`, `derivative`, `unknown`) | dry-run | status args | before/planned/after status update output; optional write | read (dry), write (`--write`) | none | none |
 | `db:market:set:instrument-metadata` | `npm run db:market:set:instrument-metadata -- --isin <ISIN> ...` | Safely update one instrument metadata record (name/display_name/asset_type/currency/wkn) | dry-run | ISIN + field flags | planned metadata update / optional write | read (dry), write (`--write`) | none | none |
 | `db:market:import:json` | `npm run db:market:import:json -- <file>` | Import one market-data JSON payload into prices/actions/mappings | write | exported JSON payload | DB upserts + run logging | write | none | none |
 
@@ -202,6 +202,37 @@ Examples:
 - Dry-run all: `npm run db:market:update:primary`
 - Dry-run subset: `npm run db:market:update:primary -- --isin IE00B8GKDB10,US7561091049 --days-back 14`
 - Write run scoped: `npm run db:market:update:primary -- --write --limit 20 --exclude-isin US0000000000`
+
+## Manual Instrument Status Cleanup Command
+
+`npm run db:market:set:instrument-status -- --isin <ISIN> --status <status> [flags]`
+
+Scope:
+
+- Manual admin/CLI triage cleanup for `market_instruments.market_data_status`.
+- Dry-run by default; requires explicit `--write` to mutate DB.
+- Uses DB-only repository helpers and does not call providers.
+- Does not validate symbols, import mappings, promote mappings, or trigger backfill jobs.
+
+Allowed statuses:
+
+- `active`
+- `excluded`
+- `legacy`
+- `derivative`
+- `unknown`
+
+Supported flags:
+
+- Required: `--isin`, `--status`
+- Optional: `--reason`, `--successor-isin`, `--successor-symbol`, `--write`, `--force`, `--help`
+
+Examples:
+
+- Dry-run:
+  - `npm run db:market:set:instrument-status -- --isin US7495271071 --status active --reason "manual triage: active equity, mapping candidate"`
+- Write:
+  - `npm run db:market:set:instrument-status -- --isin US7495271071 --status active --reason "manual triage: active equity, mapping candidate" --write`
 
 ## Troubleshooting
 
