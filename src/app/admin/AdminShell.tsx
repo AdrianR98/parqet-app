@@ -6,10 +6,7 @@ import routerProvider from "@refinedev/nextjs-router";
 import { adminAccessControlProvider, adminAuthProvider } from "@/lib/admin/refine";
 import styles from "./page.module.css";
 
-const PLACEHOLDER_RESOURCES = [
-    "Market Data Status",
-    "Runs",
-] as const;
+const PLACEHOLDER_RESOURCES = ["Market Data Status"] as const;
 
 type MarketDataStatusPayload = {
     instrumentsTotal: number;
@@ -123,6 +120,33 @@ type MarketMappingsPayload = {
     }>;
 };
 
+type MarketRunsPayload = {
+    total: number;
+    shown: number;
+    limit: number;
+    filters: {
+        status: string | null;
+        runType: string | null;
+        provider: string | null;
+    };
+    items: Array<{
+        id: string;
+        runType: string;
+        status: string;
+        provider: string | null;
+        startedAt: string | null;
+        finishedAt: string | null;
+        durationMs: number | null;
+        requestedBy: string | null;
+        totalItems: number;
+        succeededItems: number;
+        failedItems: number;
+        skippedItems: number;
+        errorCount: number;
+        latestErrorMessage: string | null;
+    }>;
+};
+
 function SessionBadge({ state }: { state: "enabled" | "disabled" | "loading" }) {
     if (state === "loading") {
         return <span className={`${styles.badge} ${styles.badgeMuted}`}>Checking session</span>;
@@ -153,6 +177,8 @@ function AdminPanel() {
     const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
     const [mappingsData, setMappingsData] = useState<MarketMappingsPayload | null>(null);
     const [mappingsError, setMappingsError] = useState<string | null>(null);
+    const [runsData, setRunsData] = useState<MarketRunsPayload | null>(null);
+    const [runsError, setRunsError] = useState<string | null>(null);
 
     useEffect(() => {
         if (sessionState !== "enabled") return;
@@ -178,6 +204,35 @@ function AdminPanel() {
                 if (error instanceof Error && error.name === "AbortError") return;
                 setStatusData(null);
                 setStatusError("Market data status is currently unavailable.");
+            });
+
+        return () => controller.abort();
+    }, [sessionState]);
+
+    useEffect(() => {
+        if (sessionState !== "enabled") return;
+
+        const controller = new AbortController();
+
+        fetch("/api/admin/market-data/runs?limit=25", {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error("runs-fetch-failed");
+                }
+                return (await response.json()) as MarketRunsPayload;
+            })
+            .then((payload) => {
+                setRunsData(payload);
+                setRunsError(null);
+            })
+            .catch((error: unknown) => {
+                if (error instanceof Error && error.name === "AbortError") return;
+                setRunsData(null);
+                setRunsError("Market data runs overview is currently unavailable.");
             });
 
         return () => controller.abort();
@@ -538,6 +593,63 @@ function AdminPanel() {
                     </>
                 ) : (
                     <p className={styles.subtle}>No mapping data available.</p>
+                )}
+            </section>
+
+            <section className={styles.surface}>
+                <h2>Market Data Runs</h2>
+                <p className={styles.note}>Read-only run metadata. Run actions remain CLI/admin-workflow only.</p>
+                {sessionState !== "enabled" ? (
+                    <p className={styles.subtle}>List is unavailable while admin is disabled or unauthorized.</p>
+                ) : !runsData && !runsError ? (
+                    <p className={styles.subtle}>Loading market data runs...</p>
+                ) : runsError ? (
+                    <p className={styles.errorText}>{runsError}</p>
+                ) : runsData && runsData.items.length === 0 ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {runsData.shown.toLocaleString()} of {runsData.total.toLocaleString()} runs.
+                        </p>
+                        <p className={styles.subtle}>No market data runs for the current filter.</p>
+                    </>
+                ) : runsData ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {runsData.shown.toLocaleString()} of {runsData.total.toLocaleString()} runs.
+                        </p>
+                        <div className={styles.tableWrap}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>Run type</th>
+                                        <th>Status</th>
+                                        <th>Provider</th>
+                                        <th>Started</th>
+                                        <th>Finished</th>
+                                        <th>Items</th>
+                                        <th>Success</th>
+                                        <th>Failed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {runsData.items.map((item) => (
+                                        <tr key={item.id}>
+                                            <td>{item.runType}</td>
+                                            <td>{item.status}</td>
+                                            <td>{item.provider ?? "—"}</td>
+                                            <td>{item.startedAt ?? "—"}</td>
+                                            <td>{item.finishedAt ?? "—"}</td>
+                                            <td>{item.totalItems}</td>
+                                            <td>{item.succeededItems}</td>
+                                            <td>{item.failedItems}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : (
+                    <p className={styles.subtle}>No runs data available.</p>
                 )}
             </section>
 

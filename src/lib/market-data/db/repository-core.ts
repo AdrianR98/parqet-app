@@ -45,6 +45,7 @@ import type {
     AdminOpenUnmappedMarketDataRow,
     AdminMarketInstrumentOverviewRow,
     AdminMarketSymbolMappingOverviewRow,
+    AdminMarketDataRunOverviewRow,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -1729,6 +1730,71 @@ export async function listAdminMarketSymbolMappingsOverviewRows(): Promise<Admin
             hasPriceData: Boolean(row.has_price_data),
             latestPriceDate: row.latest_price_date === null ? null : normalizeDbDateValue(row.latest_price_date),
             latestClose: toNullableNumber(row.latest_close),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminMarketDataRunOverviewRows(): Promise<AdminMarketDataRunOverviewRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with run_item_counts as (
+                select
+                    ri.run_id,
+                    count(*)::int as total_items,
+                    count(*) filter (where lower(ri.status) in ('success', 'ok', 'completed'))::int as succeeded_items,
+                    count(*) filter (where lower(ri.status) in ('failed', 'error'))::int as failed_items,
+                    count(*) filter (where lower(ri.status) = 'skipped')::int as skipped_items,
+                    count(*) filter (where ri.error_message is not null and btrim(ri.error_message) <> '')::int as error_count
+                from market_data_run_items ri
+                group by ri.run_id
+            ),
+            latest_item_error as (
+                select distinct on (ri.run_id)
+                    ri.run_id,
+                    ri.error_message
+                from market_data_run_items ri
+                where ri.error_message is not null and btrim(ri.error_message) <> ''
+                order by ri.run_id, ri.id desc
+            )
+            select
+                r.id,
+                r.run_type,
+                r.status,
+                r.provider,
+                r.started_at,
+                r.finished_at,
+                case
+                    when r.finished_at is null then null
+                    else greatest(0, (extract(epoch from (r.finished_at - r.started_at)) * 1000)::bigint)
+                end as duration_ms,
+                coalesce(c.total_items, 0) as total_items,
+                coalesce(c.succeeded_items, 0) as succeeded_items,
+                coalesce(c.failed_items, 0) as failed_items,
+                coalesce(c.skipped_items, 0) as skipped_items,
+                coalesce(c.error_count, 0) as error_count,
+                coalesce(e.error_message, r.error_message) as latest_error_message
+            from market_data_runs r
+            left join run_item_counts c on c.run_id = r.id
+            left join latest_item_error e on e.run_id = r.id
+            order by r.started_at desc nulls last, r.id desc`,
+        );
+
+        return result.rows.map((row) => ({
+            id: String(row.id),
+            runType: String(row.run_type),
+            status: String(row.status),
+            provider: row.provider === null ? null : String(row.provider),
+            startedAt: row.started_at === null ? null : String(row.started_at),
+            finishedAt: row.finished_at === null ? null : String(row.finished_at),
+            durationMs: toNullableNumber(row.duration_ms),
+            totalItems: Number(row.total_items ?? 0),
+            succeededItems: Number(row.succeeded_items ?? 0),
+            failedItems: Number(row.failed_items ?? 0),
+            skippedItems: Number(row.skipped_items ?? 0),
+            errorCount: Number(row.error_count ?? 0),
+            latestErrorMessage: row.latest_error_message === null ? null : String(row.latest_error_message),
         }));
     } catch (error) {
         handleRepositoryError(error);

@@ -490,6 +490,22 @@ export type AdminMarketSymbolMappingOverviewRow = {
     latestClose: number | null;
 };
 
+export type AdminMarketDataRunOverviewRow = {
+    id: string;
+    runType: string;
+    status: string;
+    provider: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    durationMs: number | null;
+    totalItems: number;
+    succeededItems: number;
+    failedItems: number;
+    skippedItems: number;
+    errorCount: number;
+    latestErrorMessage: string | null;
+};
+
 export type VerifiedMappingForPromotion = {
     isin: string;
     name: string | null;
