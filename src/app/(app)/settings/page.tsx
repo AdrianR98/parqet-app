@@ -138,23 +138,15 @@ export default function SettingsPage() {
   return (
     <main className={`app-content ${styles.page}`}>
       <section className={`ui-surface ${styles.hero}`}>
-        <p className={styles.eyebrow}>AssetTrace · Einstellungen</p>
         <h1 className={styles.title}>Einstellungen</h1>
-        <p className={styles.description}>
-          Verwalte deine Parqet-Verbindung, Darstellung und lokale Daten auf
-          diesem Gerät.
-        </p>
       </section>
 
-      <div className={styles.grid}>
+      <div className={styles.stack}>
         <section className={`ui-surface ${styles.card}`} aria-labelledby="connection-heading">
           <div className={styles.cardHeader}>
             <h2 id="connection-heading" className={styles.cardTitle}>
               Parqet-Verbindung
             </h2>
-            <p className={styles.text}>
-              Verbindungsstatus und Aktionen für dein Parqet-Konto.
-            </p>
           </div>
 
           <div
@@ -173,7 +165,7 @@ export default function SettingsPage() {
             ) : null}
             <button
               type="button"
-              className="ui-btn ui-btn-secondary"
+              className={`ui-btn ${styles.dangerButton}`}
               onClick={disconnectParqet}
               disabled={disconnectState === "loading"}
             >
@@ -203,12 +195,8 @@ export default function SettingsPage() {
         <section className={`ui-surface ${styles.card}`} aria-labelledby="appearance-heading">
           <div className={styles.cardHeader}>
             <h2 id="appearance-heading" className={styles.cardTitle}>
-              Darstellung / UI
+              Darstellung
             </h2>
-            <p className={styles.text}>
-              Wähle, ob AssetTrace der Geräteeinstellung folgt oder dauerhaft
-              hell bzw. dunkel angezeigt wird.
-            </p>
           </div>
 
           <div className={styles.segmented} role="group" aria-label="Darstellungsmodus">
@@ -246,24 +234,16 @@ export default function SettingsPage() {
         <section className={`ui-surface ${styles.card}`} aria-labelledby="local-data-heading">
           <div className={styles.cardHeader}>
             <h2 id="local-data-heading" className={styles.cardTitle}>
-              Lokale Daten
+              Private Daten
             </h2>
-            <p className={styles.text}>
-              Die App aktualisiert deine Parqet-Daten automatisch, wenn sie
-              fehlen oder veraltet sind.
-            </p>
           </div>
 
           <div className={styles.actions}>
-            <button type="button" className="ui-btn ui-btn-secondary" onClick={clearLocalData}>
-              Lokale Daten löschen
+            <button type="button" className={`ui-btn ${styles.dangerButton}`} onClick={clearLocalData}>
+              Private Daten löschen
             </button>
           </div>
 
-          <p className={styles.meta}>
-            Wenn etwas nicht stimmt, kannst du lokale App-Daten löschen und die
-            App neu laden lassen.
-          </p>
           <p className={styles.meta}>
             Portfolio- und Aktivitätsdaten werden lokal in deinem Browser
             zwischengespeichert.
@@ -284,25 +264,6 @@ export default function SettingsPage() {
               {localDataMessage}
             </div>
           ) : null}
-        </section>
-
-        <section className={`ui-surface ${styles.card}`} aria-labelledby="admin-hint-heading">
-          <div className={styles.cardHeader}>
-            <h2 id="admin-hint-heading" className={styles.cardTitle}>
-              Hinweis
-            </h2>
-            <p className={styles.text}>
-              Marktdaten und Datenqualität werden in der Admin-Konsole geprüft.
-            </p>
-          </div>
-          <div className={styles.actions}>
-            <a className="ui-btn ui-btn-secondary" href="/admin">
-              Zur Admin-Konsole
-            </a>
-          </div>
-          <p className={styles.meta}>
-            Die Portfolio-Auswahl findest du oben im Header.
-          </p>
         </section>
       </div>
     </main>
