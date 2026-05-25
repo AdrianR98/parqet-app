@@ -21,7 +21,7 @@ export default function AppLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
-    const { theme, toggleTheme, themeStyle } = useTheme();
+    const { theme, toggleTheme } = useTheme();
 
     const activeView = useMemo(() => getActiveView(pathname), [pathname]);
 
@@ -48,7 +48,7 @@ export default function AppLayout({
     }, [pathname]);
 
     return (
-        <div className={styles.app} style={themeStyle}>
+        <div className={styles.app}>
             <div className={styles.main}>
                 <HeaderBar
                     theme={theme}

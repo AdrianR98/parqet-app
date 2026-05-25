@@ -25,6 +25,7 @@ export default function RootLayout({
   return (
     <html
       lang="de"
+      data-theme="dark"
       data-assettrace-theme="dark"
       style={{ colorScheme: "dark" }}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
