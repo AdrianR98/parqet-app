@@ -197,12 +197,12 @@ export default function SettingsPage() {
             </h2>
           </div>
 
-          <div className={styles.rangeSelector} role="group" aria-label="Darstellungsmodus">
+          <div className={styles.segmentedControl} role="group" aria-label="Darstellungsmodus">
             {APPEARANCE_OPTIONS.map((option) => (
               <button
                 key={option.value}
                 type="button"
-                className={`${styles.rangeButton} ${appearanceMode === option.value ? styles.rangeButtonActive : ""}`}
+                className={`${styles.segmentedButton} ${appearanceMode === option.value ? styles.segmentedButtonActive : ""}`}
                 onClick={() => setAppearanceMode(option.value)}
               >
                 {option.label}
@@ -211,13 +211,13 @@ export default function SettingsPage() {
           </div>
 
           <div className={styles.optionGroup}>
-            <p className={styles.text}>Zeilen pro Schritt in Listenansichten.</p>
-            <div className={styles.rangeSelector} role="group" aria-label="Reveal-Größe">
+            <p className={styles.text}>Zeilen pro Schritt</p>
+            <div className={styles.segmentedControl} role="group" aria-label="Reveal-Größe">
               {REVEAL_BLOCK_SIZE_OPTIONS.map((size) => (
                 <button
                   key={size}
                   type="button"
-                  className={`${styles.rangeButton} ${revealBlockSize === size ? styles.rangeButtonActive : ""}`}
+                  className={`${styles.segmentedButton} ${revealBlockSize === size ? styles.segmentedButtonActive : ""}`}
                   onClick={() => setRevealSize(size)}
                 >
                   {size}

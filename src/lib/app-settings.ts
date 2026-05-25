@@ -619,6 +619,7 @@ export function clearParqetLocalUserData(): void {
         }
 
         notifyLocalSettingsChanged();
+        window.dispatchEvent(new Event("storage"));
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }

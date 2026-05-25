@@ -56,10 +56,11 @@
     gap: 10px;
 }
 
-.rangeSelector {
-    display: inline-flex;
+.segmentedControl {
+    display: inline-grid;
+    grid-template-columns: repeat(3, minmax(72px, 1fr));
     align-items: center;
-    gap: 4px;
+    width: fit-content;
     padding: 4px;
     border: 1px solid var(--border-muted);
     border-radius: 999px;
@@ -67,7 +68,7 @@
     box-shadow: inset 0 1px 0 var(--surface-elevated-strong), 0 8px 16px rgba(41, 67, 99, 0.08);
 }
 
-.rangeButton {
+.segmentedButton {
     border: 0;
     background: transparent;
     color: var(--text-soft);
@@ -77,24 +78,25 @@
     padding: 10px 14px;
     min-height: 36px;
     cursor: pointer;
-    transition: color 140ms ease, background 180ms ease, box-shadow 180ms ease;
+    transition: color 140ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
-.rangeButton:hover,
-.rangeButton:focus-visible {
+.segmentedButton:hover,
+.segmentedButton:focus-visible {
     color: var(--text-main);
     outline: none;
 }
 
-.rangeButton:focus-visible {
+.segmentedButton:focus-visible {
     box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
-.rangeButtonActive {
+.segmentedButtonActive {
     background: var(--surface-control-active);
     color: var(--text-main);
     font-weight: 600;
     box-shadow: inset 0 1px 0 var(--surface-elevated-strong);
+    transform: translateY(-0.5px);
 }
 
 .actions {
@@ -166,12 +168,11 @@
 }
 
 @media (max-width: 1000px) {
-    .rangeSelector {
+    .segmentedControl {
         width: 100%;
-        justify-content: space-between;
     }
 
-    .rangeButton {
-        flex: 1;
+    .segmentedButton {
+        min-width: 0;
     }
 }

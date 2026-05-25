@@ -61,6 +61,6 @@ describe("clearParqetLocalUserData", () => {
         expect(windowMock.localStorage.getItem(PORTFOLIO_SCOPE_STORAGE_KEY)).toBeNull();
         expect(windowMock.localStorage.getItem(METADATA_STORAGE_KEY)).toBeNull();
         expect(windowMock.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("light");
-        expect(windowMock.dispatchEvent).toHaveBeenCalledTimes(1);
+        expect(windowMock.dispatchEvent).toHaveBeenCalledTimes(2);
     });
 });
