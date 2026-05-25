@@ -23,9 +23,10 @@ import {
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
 import { getActivityTypeLabel, normalizeExactIsin } from "../../../lib/local-activity-read-model";
 import { formatCurrency, formatShares } from "../../../lib/format";
-import { getAssetInitials, getAssetResolvedLogoUrl, isMeaningfulSymbol } from "../../../lib/asset-display";
+import { isMeaningfulSymbol } from "../../../lib/asset-display";
 import type { MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../../../lib/market-data/types";
 import type { ActivitiesAuditItem, AssetSummary, PortfolioPosition } from "../../../lib/types";
+import AssetLogo from "../../../components/common/AssetLogo";
 import styles from "./AssetDetailPage.module.css";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", { month: "short", year: "2-digit" });
@@ -1062,7 +1063,6 @@ export default function AssetDetailPage() {
         () => JSON.stringify({ scope: { mode: "all", selectedPortfolioIds: [] }, cacheUpdatedAt: null }),
     );
     const [heatmapOpen, setHeatmapOpen] = useState(false);
-    const [failedLogoIdentities, setFailedLogoIdentities] = useState<Record<string, true>>({});
     const [activeDividendTooltip, setActiveDividendTooltip] = useState<ActiveDividendTooltip | null>(null);
     const [marketDataResponse, setMarketDataResponse] = useState<MarketDataResponse | null>(null);
     const [lastRenderableMarketDataResponse, setLastRenderableMarketDataResponse] = useState<MarketDataResponse | null>(null);
@@ -1118,10 +1118,6 @@ export default function AssetDetailPage() {
         };
     }, [assetKey, clientReady, localStateSnapshot]);
 
-    const logoResetIdentity = viewModel
-        ? `${viewModel.asset.isin}|${getAssetResolvedLogoUrl(viewModel.asset) ?? ""}`
-        : "";
-    const logoFailed = Boolean(logoResetIdentity && failedLogoIdentities[logoResetIdentity]);
     const currentIsin = viewModel?.asset?.isin?.trim() ?? "";
 
     const loadMarketData = useCallback(async (signal?: AbortSignal) => {
@@ -1247,7 +1243,6 @@ export default function AssetDetailPage() {
 
     const { asset, metrics, warnings, lastUpdatedAt, selectedAssetPortfolioIds, selectedScopeMode, isManualEmptyScope, activityItems } = viewModel;
     const displayName = getAssetDisplayName(asset);
-    const logoUrl = getAssetResolvedLogoUrl(asset);
     const normalizedAssetIsin = normalizeExactIsin(asset.isin);
     const statusLabel = getAssetStatusLabel(metrics);
     const scopedIds = new Set(selectedAssetPortfolioIds);
@@ -1315,32 +1310,11 @@ export default function AssetDetailPage() {
 
             <section className={styles.headerCard}>
                 <div className={styles.assetMark}>
-                    {logoUrl && !logoFailed ? (
-                        <img
-                            src={logoUrl}
-                            alt={`${displayName} Logo`}
-                            width={46}
-                            height={46}
-                            onError={() => {
-                                if (!logoResetIdentity) {
-                                    return;
-                                }
-
-                                setFailedLogoIdentities((current) => {
-                                    if (current[logoResetIdentity]) {
-                                        return current;
-                                    }
-
-                                    return {
-                                        ...current,
-                                        [logoResetIdentity]: true,
-                                    };
-                                });
-                            }}
-                            loading="lazy"
-                            decoding="async"
-                        />
-                    ) : <span>{getAssetInitials(asset)}</span>}
+                    <AssetLogo
+                        asset={asset}
+                        displayName={displayName}
+                        loading="eager"
+                    />
                 </div>
                 <div className={styles.headerText}>
                     <h1>{displayName}</h1>

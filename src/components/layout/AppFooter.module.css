@@ -1,0 +1,37 @@
+.footer {
+    border-top: 1px solid var(--border-subtle);
+    padding: 20px 0 calc(24px + env(safe-area-inset-bottom, 0px));
+    color: var(--text-soft);
+    font-size: 1rem;
+    line-height: 1.35;
+    background: var(--surface-glass-subtle);
+}
+
+.inner {
+    width: 100%;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 22px;
+}
+
+.link {
+    color: var(--accent-cyan);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.link:hover,
+.link:focus-visible {
+    color: var(--text-main);
+}
+
+@media (max-width: 900px) {
+    .footer {
+        padding-top: 16px;
+        padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .inner {
+        padding: 0 12px;
+    }
+}

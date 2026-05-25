@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import HeaderBar from "../../components/dashboard/HeaderBar";
+import AppFooter from "../../components/layout/AppFooter";
 import { useTheme } from "../../hooks/use-theme";
 import styles from "./layout.module.css";
 
@@ -35,6 +36,7 @@ export default function AppLayout({
                 />
 
                 <div className={styles.content}>{children}</div>
+                <AppFooter />
             </div>
         </div>
     );
