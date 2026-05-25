@@ -38,17 +38,20 @@ Command: `npm run yfinance:validate:symbols -- --input .market-data/symbol-candi
 6. Validation result import  
 Command: `npm run db:market:import:validation -- .market-data/symbol-validation-results.json`  
 Use `--write` only after dry-run inspection.
-7. Promote verified mappings to primary  
+7. Manual mapping import (optional, curated backlog path)
+Command: `npm run db:market:import:manual-mappings -- .market-data/manual-symbol-mappings.json`
+Dry-run by default. Add `--write` only after manual review. This step does not call providers and does not auto-validate/promote/backfill.
+8. Promote verified mappings to primary
 Command: `npm run db:market:promote:verified`  
 Use `--write` only after checking planned promotions.
-8. Backfill prices/actions  
+9. Backfill prices/actions
 Command: `npm run db:market:backfill:primary`  
 Use `--write` to execute provider export + DB import.
-9. Status report  
+10. Status report
 Commands:  
 `npm run db:market:status`  
 `npm run db:market:unmapped`
-10. Incremental update for verified primary mappings
+11. Incremental update for verified primary mappings
 Command: `npm run db:market:update:primary`
 Dry-run by default. Add `--write` to run yfinance export + idempotent DB upserts for buffered incremental ranges (`--days-back`, default `10`).
 
@@ -70,6 +73,7 @@ Legend:
 | `db:market:export:candidates` | `npm run db:market:export:candidates -- ...` | Export unverified candidates for manual/provider validation | file-write | DB candidates | JSON candidate list | read | none | default `.market-data/symbol-candidates.json` |
 | `yfinance:validate:symbols` | `npm run yfinance:validate:symbols -- ...` | Validate candidates against yfinance history/actions (no DB writes) | provider-call | `--symbol`/`--input` | JSON lines to stdout; optional JSON array file with `--out` | none | yfinance | commonly `.market-data/symbol-validation-results.json` |
 | `db:market:import:validation` | `npm run db:market:import:validation -- <results.json>` | Import validation verdicts into mapping notes/verified state | dry-run | validation JSON array | summary; optional mapping updates with `--write` | read (dry), write (`--write`) | none | none |
+| `db:market:import:manual-mappings` | `npm run db:market:import:manual-mappings -- <file>` | Import curated manual symbol mappings as unverified candidates or guarded updates | dry-run | local JSON file (array or `{ mappings: [...] }`) | per-entry action plan + summary; optional writes with `--write` | read (dry), write (`--write`) | none | none |
 | `db:market:promote:verified` | `npm run db:market:promote:verified` | Choose best verified mapping as primary per ISIN | dry-run | DB verified mappings | planned promotions; optional primary updates with `--write` | read (dry), write (`--write`) | none | none |
 | `db:market:backfill:primary` | `npm run db:market:backfill:primary` | Backfill price/actions for primary mappings | dry-run | DB primary mappings | planned backfills; with `--write` runs export+import pipeline | read (dry), write (`--write`) | yfinance (only with `--write`) | `.market-data/backfill/*.json` |
 | `db:market:update:primary` | `npm run db:market:update:primary` | Incremental update of verified active primary yfinance mappings with overlap window | dry-run | DB primary mappings + optional filters | planned incremental windows; with `--write` runs provider fetch + idempotent upserts | read (dry), write (`--write`) | yfinance (only with `--write`) | none |
@@ -97,6 +101,7 @@ Legend:
 ## Safety Rules
 
 - Never commit `.market-data/` files. They are local artifacts only.
+- Keep manual mapping imports local-only (recommended input path: `.market-data/manual-symbol-mappings.json`).
 - Never commit DB URLs, provider payloads, tokens, cookies, OAuth values, or secrets.
 - Never add yfinance/OpenFIGI/provider calls to runtime API/UI routes.
 - Validation/export files (`symbol-candidates`, `symbol-validation-results`, backfill JSONs, ad-hoc reports) are local-only.
@@ -105,6 +110,58 @@ Legend:
 - Backfill/import steps must remain idempotent and re-runnable.
 - Prefer dry-run first, then a scoped `--write` run (`--isin`, `--limit`, exclusion flags).
 - Incremental command defaults to dry-run and requires explicit `--write`.
+
+## Manual Mapping Import Command
+
+`npm run db:market:import:manual-mappings -- .market-data/manual-symbol-mappings.json`
+
+Scope:
+
+- Admin/CLI-only import path for curated mappings (ETF/fund, ADR/corporate-action, and similar manual review cases).
+- Dry-run by default; requires `--write` for DB mutation.
+- No provider calls, no validation import, no primary promotion workflow, and no backfill workflow are executed by this command.
+- Imported rows stay compatible with the existing yfinance validation and promotion pipeline.
+- Forced manual updates clear `verified_at` and require re-validation before promotion/backfill steps.
+- Manual imports do not mark mappings as provider-verified.
+
+Supported flags:
+
+- `--write`: apply planned DB writes (default: dry-run only).
+- `--force`: allow guarded updates when an existing mapping is already verified/primary.
+- `--limit <n>`: process only first `n` valid entries after filters.
+- `--isin <ISIN[,ISIN...]>`: process only selected ISINs.
+- `--provider <provider>`: provider filter/override (currently only `yfinance` is supported).
+- `--help`: usage output.
+
+Supported entry fields:
+
+- `isin` (required, 12-char alphanumeric, uppercase-normalized)
+- `name` (optional)
+- `provider` (optional, defaults to `yfinance`)
+- `symbol` (required, non-empty)
+- `exchange` (optional)
+- `currency` (optional, uppercase 3-letter format)
+- `notes` (optional)
+- `isPrimary` (optional, default `false`)
+- `skipValidation` (optional)
+- `manualReview` (optional)
+
+Supported input shapes:
+
+- Array: `[ { ... }, { ... } ]`
+- Object: `{ "mappings": [ { ... }, { ... } ] }`
+
+Per-entry plan actions:
+
+- `insert`
+- `update_unverified`
+- `skip_existing_verified`
+- `skip_existing_primary`
+- `force_update`
+
+Example template:
+
+- See `docs/examples/manual-symbol-mappings.example.json`.
 
 ## Incremental Primary Update Command
 

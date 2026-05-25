@@ -1,0 +1,38 @@
+[
+  {
+    "isin": "IE00B8GKDB10",
+    "name": "Vanguard FTSE All-World High Dividend Yield UCITS ETF",
+    "provider": "yfinance",
+    "symbol": "VHYL.DE",
+    "exchange": "XETRA",
+    "currency": "EUR",
+    "notes": "manual ETF mapping via Xetra ticker",
+    "isPrimary": false,
+    "manualReview": true,
+    "skipValidation": false
+  },
+  {
+    "isin": "US36829G1076",
+    "name": "Gazprom ADR (legacy/corporate-action review)",
+    "provider": "yfinance",
+    "symbol": "OGZPY",
+    "exchange": "OTC",
+    "currency": "USD",
+    "notes": "ADR/corporate-action case; requires manual status review",
+    "isPrimary": false,
+    "manualReview": true,
+    "skipValidation": false
+  },
+  {
+    "isin": "US0378331005",
+    "name": "Apple Inc.",
+    "provider": "yfinance",
+    "symbol": "AAPL",
+    "exchange": "NASDAQ",
+    "currency": "USD",
+    "notes": "non-primary manual candidate example",
+    "isPrimary": false,
+    "manualReview": false,
+    "skipValidation": false
+  }
+]
