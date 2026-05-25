@@ -3,8 +3,8 @@ import type { MarketDataProvider, MarketDataResponse } from "./types";
 export function buildCacheMissResponse(input: { provider: MarketDataProvider; symbol: string }): MarketDataResponse {
     return {
         ok: false,
-        status: "cache_miss",
-        message: "Keine lokalen Kursdaten vorhanden. Bitte Kursdaten manuell aktualisieren.",
+        status: "no_prices",
+        message: "Für dieses Asset liegen keine historischen Kursdaten vor.",
         diagnostics: {
             provider: input.provider,
             symbol: input.symbol,

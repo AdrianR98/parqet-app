@@ -195,8 +195,10 @@ export function enrichAssetsWithMetadata(assets: AssetSummary[]): AssetSummary[]
 
         const csvMetadata = normalized ? CSV_ASSET_METADATA[normalized] : undefined;
         const cachedMetadata = normalized ? mergedCache[normalized] : undefined;
-        const authoritativeDisplayName = pickFirstMeaningfulName(
+        const fallbackDisplayName = pickFirstMeaningfulName(
             asset.isin,
+            asset.instrument?.displayName ?? null,
+            asset.instrument?.name ?? null,
             asset.instrumentDisplayName ?? null,
             typeof asset.externalMetadata?.curatedName === "string" ? asset.externalMetadata.curatedName : null,
             typeof asset.externalMetadata?.displayName === "string" ? asset.externalMetadata.displayName : null,
@@ -204,6 +206,18 @@ export function enrichAssetsWithMetadata(assets: AssetSummary[]): AssetSummary[]
             asset.displayName ?? null,
             asset.name ?? null,
         );
+        const hasAuthoritativeInstrumentStatus = typeof asset.instrumentMetadataStatus === "string";
+        const strictInstrumentDisplayName = pickFirstMeaningfulName(
+            asset.isin,
+            asset.instrument?.displayName ?? null,
+            asset.instrument?.name ?? null,
+            asset.instrumentDisplayName ?? null,
+            asset.instrumentName ?? null,
+        );
+        const authoritativeDisplayName = hasAuthoritativeInstrumentStatus
+            ? strictInstrumentDisplayName
+            : fallbackDisplayName;
+        const authoritativeInstrumentSymbol = asset.instrument?.primaryMapping?.symbol ?? null;
         const metadataError =
             asset.instrumentMetadataError ??
             (asset.instrumentMetadataStatus === "missing"
@@ -225,9 +239,9 @@ export function enrichAssetsWithMetadata(assets: AssetSummary[]): AssetSummary[]
             instrumentDisplayName: authoritativeDisplayName ?? null,
             instrumentMetadataError: metadataError,
 
-            symbol: asset.symbol ?? cachedMetadata?.symbol ?? cachedMetadata?.ticker ?? null,
-            ticker: asset.ticker ?? cachedMetadata?.ticker ?? null,
-            tickerSymbol: asset.tickerSymbol ?? cachedMetadata?.tickerSymbol ?? null,
+            symbol: authoritativeInstrumentSymbol ?? asset.symbol ?? (hasAuthoritativeInstrumentStatus ? null : (cachedMetadata?.symbol ?? cachedMetadata?.ticker ?? null)),
+            ticker: authoritativeInstrumentSymbol ?? asset.ticker ?? (hasAuthoritativeInstrumentStatus ? null : (cachedMetadata?.ticker ?? null)),
+            tickerSymbol: authoritativeInstrumentSymbol ?? asset.tickerSymbol ?? (hasAuthoritativeInstrumentStatus ? null : (cachedMetadata?.tickerSymbol ?? null)),
             wkn: asset.wkn ?? cachedMetadata?.wkn ?? null,
 
             marketPrice: asset.marketPrice ?? cachedMetadata?.marketPrice ?? null,

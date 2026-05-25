@@ -9,26 +9,98 @@ import type { AssetSummary } from "../../lib/types";
 import { createAssetDetailHref } from "../../lib/asset-detail";
 import { formatCurrency } from "../../lib/format";
 import { getSafePortfolioBreakdown } from "./asset-table-config";
-import { getAssetDisplayName, getAssetSubtitle, getAssetInitials, getAssetResolvedLogoUrl } from "../../lib/asset-display";
+import { buildInstrumentSubtitleParts, getAssetDisplayName, getAssetInitials, getAssetResolvedLogoUrl } from "../../lib/asset-display";
 
 export type AssetTableColumnKey = "name" | "remainingCostBasis" | "positionValue" | "unrealizedPnL" | "totalDividendNet" | "allocation" | "actions";
 
 const columnHelper = createColumnHelper<AssetSummary>();
 
-function buildMetaLine(asset: AssetSummary, subtitle: string): string {
-    const parts: string[] = [];
-    const normalizedMain = subtitle.trim().toUpperCase();
-    const normalizedIsin = asset.isin.trim().toUpperCase();
-
-    if (subtitle.trim().length > 0 && normalizedMain !== normalizedIsin) {
-        parts.push(subtitle);
+async function copyTextToClipboard(value: string): Promise<boolean> {
+    if (!value.trim()) {
+        return false;
     }
 
-    if (asset.isin.trim().length > 0 && !parts.some((entry) => entry.trim().toUpperCase() === normalizedIsin)) {
-        parts.push(asset.isin);
+    try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.setAttribute("readonly", "true");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        return copied;
+    } catch {
+        return false;
+    }
+}
+
+function CopyableIdentifier({
+    label,
+    value,
+}: {
+    label: "ISIN" | "WKN";
+    value: string;
+}) {
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <span className={styles.identifierPart}>
+            <span>{label} </span>
+            <button
+                type="button"
+                className={`${styles.inlineCopyButton} ${copied ? styles.inlineCopyButtonCopied : ""}`}
+                title={`${label} kopieren`}
+                aria-label={`${label} ${value} kopieren`}
+                onClick={async (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const ok = await copyTextToClipboard(value);
+                    if (!ok) {
+                        return;
+                    }
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1100);
+                }}
+            >
+                {value}
+            </button>
+        </span>
+    );
+}
+
+function AssetMetaLine({ asset }: { asset: AssetSummary }) {
+    const subtitleParts = buildInstrumentSubtitleParts(asset);
+
+    if (subtitleParts.length === 0) {
+        return null;
     }
 
-    return parts.join(" · ");
+    return (
+        <div className={styles.assetMeta}>
+            {subtitleParts.map((part, index) => {
+                const isIsin = part.startsWith("ISIN ");
+                const isWkn = part.startsWith("WKN ");
+                const value = part.split(" ").slice(1).join(" ").trim();
+                const key = `${asset.isin}-${part}-${index}`;
+
+                return (
+                    <Fragment key={key}>
+                        {index > 0 ? <span className={styles.metaSeparator}>·</span> : null}
+                        {isIsin && value ? <CopyableIdentifier label="ISIN" value={value} /> : null}
+                        {isWkn && value ? <CopyableIdentifier label="WKN" value={value} /> : null}
+                        {!isIsin && !isWkn ? <span className={styles.identifierPart}>{part}</span> : null}
+                    </Fragment>
+                );
+            })}
+        </div>
+    );
 }
 
 function AssetLogo({ asset, displayName }: { asset: AssetSummary; displayName: string }) {
@@ -66,8 +138,6 @@ export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: 
                 const asset = row.original;
                 const detailHref = createAssetDetailHref(asset);
                 const displayName = getAssetDisplayName(asset);
-                const subtitle = getAssetSubtitle(asset);
-                const metaLine = buildMetaLine(asset, subtitle);
 
                 return (
                     <div className={styles.assetIdentity}>
@@ -76,7 +146,7 @@ export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: 
                         </div>
                         <div className={styles.assetIdentityText}>
                             {detailHref ? <Link href={detailHref} className={styles.assetNameLink} title={displayName}>{displayName}</Link> : <div className={styles.assetName} title={displayName}>{displayName}</div>}
-                            {metaLine ? <div className={styles.assetMeta}>{metaLine}</div> : null}
+                            <AssetMetaLine asset={asset} />
                         </div>
                     </div>
                 );

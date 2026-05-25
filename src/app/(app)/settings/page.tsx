@@ -84,6 +84,7 @@ type ConnectionRefreshState =
   | "warning"
   | "error"
   | "auth";
+type MarketReloadState = "idle" | "loading" | "success" | "error";
 
 type LocalMarketAsset = {
   isin: string;
@@ -277,6 +278,9 @@ export default function SettingsPage() {
     useState<ConnectionRefreshState>("idle");
   const [connectionRefreshMessage, setConnectionRefreshMessage] = useState("");
   const [marketExportMessage, setMarketExportMessage] = useState("");
+  const [marketReloadState, setMarketReloadState] =
+    useState<MarketReloadState>("idle");
+  const [marketReloadMessage, setMarketReloadMessage] = useState("");
 
   const scopeResolution = useMemo(
     () => resolvePortfolioScope(portfolioScope, knownPortfolios),
@@ -425,6 +429,39 @@ export default function SettingsPage() {
     setMarketExportMessage(
       `Export erstellt: ${payload.activeAssets.length} aktive / ${payload.closedAssets.length} geschlossene Assets.`,
     );
+  }
+
+  async function reloadMarketDataFromDatabase() {
+    setMarketReloadState("loading");
+    setMarketReloadMessage("Kursdaten werden lokal neu geladen …");
+
+    try {
+      const cache = loadDashboardCache();
+      const probeIsin = [
+        ...(cache?.activeAssets ?? []),
+        ...(cache?.closedAssets ?? []),
+      ]
+        .map((asset) => normalizeIsin(asset.isin))
+        .find((isin) => /^[A-Z0-9]{12}$/.test(isin));
+
+      if (probeIsin) {
+        const response = await fetch(
+          `/api/market-data/history?isin=${encodeURIComponent(probeIsin)}`,
+        );
+        if (!response.ok) {
+          throw new Error("db_history_unavailable");
+        }
+      }
+
+      notifyLocalSettingsChanged();
+      setMarketReloadState("success");
+      setMarketReloadMessage(
+        "Kursdaten wurden aus der lokalen Datenbank neu geladen.",
+      );
+    } catch {
+      setMarketReloadState("error");
+      setMarketReloadMessage("Kursdaten konnten nicht neu geladen werden.");
+    }
   }
 
   return (
@@ -790,6 +827,47 @@ export default function SettingsPage() {
                   Keine Diagnose-Provider-Calls
                 </span>
               </div>
+            </div>
+          ) : null}
+        </section>
+
+        <section
+          className={`ui-surface ${styles.card}`}
+          aria-labelledby="market-data-heading"
+        >
+          <div className={styles.cardHeader}>
+            <h2 id="market-data-heading" className={styles.cardTitle}>
+              Marktdaten
+            </h2>
+            <p className={styles.text}>
+              Die App nutzt lokal gespeicherte Kursdaten aus der Datenbank. Das
+              Neuladen ruft keine externen Kursanbieter auf.
+            </p>
+          </div>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className="ui-btn ui-btn-secondary"
+              onClick={reloadMarketDataFromDatabase}
+              disabled={marketReloadState === "loading"}
+            >
+              Kursdaten neu laden
+            </button>
+          </div>
+          <p className={styles.meta}>
+            Lädt den aktuellen Stand aus der lokalen Kursdatenbank neu.
+          </p>
+          {marketReloadMessage ? (
+            <div
+              className={
+                marketReloadState === "success"
+                  ? "ui-banner ui-banner-info"
+                  : marketReloadState === "loading"
+                    ? "ui-banner ui-banner-info"
+                    : "ui-banner ui-banner-error"
+              }
+            >
+              {marketReloadMessage}
             </div>
           ) : null}
         </section>

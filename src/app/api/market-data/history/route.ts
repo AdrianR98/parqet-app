@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { getMarketDataHistory } from "../../../../lib/market-data/service";
 
+function normalizeLookupIsin(value: string): string {
+    return value.replace(/\s+/g, "").toUpperCase();
+}
+
+function isValidIsin(value: string): boolean {
+    return /^[A-Z0-9]{12}$/.test(value);
+}
+
 export async function GET(req: Request) {
     const url = new URL(req.url);
-    const isin = (url.searchParams.get("isin") ?? "").trim();
+    const isin = normalizeLookupIsin(url.searchParams.get("isin") ?? "");
     const refresh = url.searchParams.get("refresh") === "1";
 
-    if (!isin) {
+    if (!isin || !isValidIsin(isin)) {
         return NextResponse.json(
             {
                 ok: false,

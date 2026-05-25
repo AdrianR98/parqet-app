@@ -1,299 +1,250 @@
 import "server-only";
 
-import { getDailyPricesByIsin, getMarketActionsByIsin, getPrimarySymbolMappingByIsin, MarketDataRepositoryError } from "./db/repository";
 import {
-    canConsumeQuota,
-    consumeQuota,
-    getCachedSeries,
-    getCacheKey,
-    getCacheMetadata,
-    getQuotaInfo,
-    MARKET_DATA_CACHE_TTL_MS,
-    recordRefreshAttempt,
-    setCachedSeries,
-    shouldSkipRapidRefresh,
-} from "./cache";
-import { fetchAlphaVantageDailySeries } from "./alpha-vantage";
-import { buildCacheMissResponse } from "./service-core";
-import { resolveMarketSymbolForIsin } from "./symbol-mapping";
-import type { MarketDataCacheEntry, MarketDataResponse } from "./types";
+    getDailyPricesByIsin,
+    getInstrumentByIsin,
+    getMarketActionsByIsin,
+    getPrimarySymbolMappingByIsin,
+    MarketDataRepositoryError,
+} from "./db/repository";
+import type { MarketDataResponse } from "./types";
 
-function toKnownProvider(provider: string): "alphavantage" | "yfinance" | null {
-    if (provider === "alphavantage" || provider === "yfinance") {
-        return provider;
-    }
-    return null;
+function normalizeLookupIsin(value: string): string {
+    return value.replace(/\s+/g, "").toUpperCase();
 }
 
-async function readPostgresMarketData(isin: string): Promise<{
-    points: Awaited<ReturnType<typeof getDailyPricesByIsin>>;
-    actions: Awaited<ReturnType<typeof getMarketActionsByIsin>>;
-    symbol: string;
-    provider: "alphavantage" | "yfinance";
-    firstDate: string;
-    lastDate: string;
-} | null> {
-    const points = await getDailyPricesByIsin({ isin });
-    if (points.length === 0) {
-        return null;
+function isStaleLatestDate(latestPriceDate: string | null): boolean {
+    if (!latestPriceDate) {
+        return false;
     }
-    const actions = await getMarketActionsByIsin({ isin });
 
-    const latestPoint = points[points.length - 1];
-    const provider = toKnownProvider(latestPoint.provider) ?? "yfinance";
-    const symbol = latestPoint.symbol;
-    const firstDate = points[0].date;
-    const lastDate = latestPoint.date;
+    const latestDate = new Date(`${latestPriceDate}T00:00:00Z`);
+    if (Number.isNaN(latestDate.getTime())) {
+        return false;
+    }
 
-    return {
-        points,
-        actions,
-        symbol,
-        provider,
-        firstDate,
-        lastDate,
-    };
+    const ageMs = Date.now() - latestDate.getTime();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    return ageMs > sevenDaysMs;
 }
 
 export async function getMarketDataHistory(input: { isin: string; refresh: boolean }): Promise<MarketDataResponse> {
+    void input.refresh;
+    const normalizedIsin = normalizeLookupIsin(input.isin);
+
     try {
-        const dbData = await readPostgresMarketData(input.isin);
-        if (dbData) {
+        const instrument = await getInstrumentByIsin(normalizedIsin);
+        if (!instrument) {
             return {
-                ok: true,
-                status: "db_hit",
-                message: "Kursdaten aus lokaler Kursdatenbank.",
-                data: {
-                    provider: dbData.provider,
-                    isin: input.isin.replace(/\s+/g, "").toUpperCase(),
-                    symbol: dbData.symbol,
-                    points: dbData.points.map((point) => ({
-                        date: point.date,
-                        open: point.open ?? undefined,
-                        high: point.high ?? undefined,
-                        low: point.low ?? undefined,
-                        close: point.close,
-                        volume: point.volume,
-                        currency: point.currency,
-                    })),
-                    actions: dbData.actions
-                        .filter((action) => action.actionType === "dividend" && action.amount != null && Number.isFinite(action.amount))
-                        .map((action) => ({
-                            actionType: "dividend",
-                            date: action.date,
-                            amount: Number(action.amount),
-                            currency: action.currency,
-                        })),
-                    refreshedAt: dbData.points[dbData.points.length - 1].importedAt,
-                    source: "postgres",
-                },
-                cache: {
-                    refreshedAt: dbData.points[dbData.points.length - 1].importedAt,
-                    isFresh: true,
-                    ageHours: 0,
-                    provider: dbData.provider,
-                    symbol: dbData.symbol,
-                    pointCount: dbData.points.length,
-                },
-                diagnostics: {
-                    provider: dbData.provider,
-                    symbol: dbData.symbol,
-                    providerStatusCategory: "ok",
-                    detectedResponseShape: "none",
-                    pointCount: dbData.points.length,
+                ok: false,
+                status: "missing_instrument",
+                message: "Für diese ISIN wurden keine Instrumenten-Stammdaten gefunden.",
+                metadata: {
+                    isin: normalizedIsin,
+                    provider: null,
+                    symbol: null,
+                    exchange: null,
+                    currency: null,
+                    mappingStatus: "missing_instrument",
+                    marketDataStatus: null,
+                    marketDataStatusReason: null,
+                    latestPriceDate: null,
+                    pointCount: 0,
+                    stale: false,
                 },
             };
         }
 
-        const primaryMapping = await getPrimarySymbolMappingByIsin(input.isin);
-        if (primaryMapping?.provider === "yfinance") {
-            if (input.refresh) {
-                return {
-                    ok: false,
-                    status: "cache_miss",
-                    message: "Kursdaten werden künftig über den Datenimport aktualisiert.",
-                    diagnostics: {
-                        provider: "yfinance",
-                        symbol: primaryMapping.symbol,
-                        providerStatusCategory: "not_requested",
-                        detectedResponseShape: "none",
-                    },
-                };
-            }
+        const marketDataStatus = instrument.marketDataStatus;
+        const marketDataStatusReason = instrument.marketDataStatusReason;
+        const statusAsMappingStatus =
+            marketDataStatus === "excluded" ||
+            marketDataStatus === "legacy" ||
+            marketDataStatus === "derivative" ||
+            marketDataStatus === "unknown";
 
+        const primaryMapping = await getPrimarySymbolMappingByIsin(normalizedIsin);
+        if (!primaryMapping) {
             return {
                 ok: false,
-                status: "cache_miss",
-                message: "Für dieses Asset liegen noch keine Kursdaten in der lokalen Kursdatenbank vor.",
-                diagnostics: {
-                    provider: "yfinance",
+                status: statusAsMappingStatus ? marketDataStatus : "missing_primary_mapping",
+                message: statusAsMappingStatus
+                    ? `Marktdatenstatus: ${marketDataStatus}.`
+                    : "Für dieses Asset fehlt ein primäres Symbol-Mapping.",
+                metadata: {
+                    isin: normalizedIsin,
+                    provider: null,
+                    symbol: null,
+                    exchange: null,
+                    currency: instrument.currency ?? null,
+                    mappingStatus: statusAsMappingStatus ? marketDataStatus : "missing_primary_mapping",
+                    marketDataStatus,
+                    marketDataStatusReason,
+                    latestPriceDate: null,
+                    pointCount: 0,
+                    stale: false,
+                },
+            };
+        }
+
+        const points = await getDailyPricesByIsin({
+            isin: normalizedIsin,
+            provider: primaryMapping.provider,
+        });
+
+        if (points.length === 0) {
+            return {
+                ok: false,
+                status: statusAsMappingStatus ? marketDataStatus : "primary_without_prices",
+                message: statusAsMappingStatus
+                    ? `Marktdatenstatus: ${marketDataStatus}.`
+                    : "Für dieses Asset liegen keine historischen Kursdaten vor.",
+                metadata: {
+                    isin: normalizedIsin,
+                    provider: primaryMapping.provider,
                     symbol: primaryMapping.symbol,
-                    providerStatusCategory: "not_requested",
-                    detectedResponseShape: "none",
+                    exchange: primaryMapping.exchange ?? null,
+                    currency: primaryMapping.currency ?? instrument.currency ?? null,
+                    mappingStatus: statusAsMappingStatus ? marketDataStatus : "primary_without_prices",
+                    marketDataStatus,
+                    marketDataStatusReason,
+                    latestPriceDate: null,
+                    pointCount: 0,
+                    stale: false,
                 },
             };
         }
+
+        const actions = await getMarketActionsByIsin({
+            isin: normalizedIsin,
+            provider: primaryMapping.provider,
+        });
+        const latestPoint = points[points.length - 1];
+        const latestPriceDate = latestPoint.date;
+
+        return {
+            ok: true,
+            status: "db_hit",
+            message: "Kursdaten aus lokaler Kursdatenbank.",
+            data: {
+                provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
+                isin: normalizedIsin,
+                symbol: primaryMapping.symbol,
+                points: points.map((point) => ({
+                    date: point.date,
+                    open: point.open ?? undefined,
+                    high: point.high ?? undefined,
+                    low: point.low ?? undefined,
+                    close: point.close,
+                    volume: point.volume,
+                    currency: point.currency,
+                })),
+                actions: actions
+                    .filter((action) => action.actionType === "dividend" && action.amount != null && Number.isFinite(action.amount))
+                    .map((action) => ({
+                        actionType: "dividend",
+                        date: action.date,
+                        amount: Number(action.amount),
+                        currency: action.currency,
+                    })),
+                refreshedAt: latestPoint.importedAt,
+                source: "postgres",
+            },
+            metadata: {
+                isin: normalizedIsin,
+                provider: primaryMapping.provider,
+                symbol: primaryMapping.symbol,
+                exchange: primaryMapping.exchange ?? null,
+                currency: primaryMapping.currency ?? instrument.currency ?? null,
+                mappingStatus:
+                    marketDataStatus === "excluded" ||
+                    marketDataStatus === "legacy" ||
+                    marketDataStatus === "derivative" ||
+                    marketDataStatus === "unknown"
+                        ? marketDataStatus
+                        : "ok",
+                marketDataStatus,
+                marketDataStatusReason,
+                latestPriceDate,
+                pointCount: points.length,
+                stale: isStaleLatestDate(latestPriceDate),
+            },
+            cache: {
+                refreshedAt: latestPoint.importedAt,
+                isFresh: !isStaleLatestDate(latestPriceDate),
+                ageHours: 0,
+                provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
+                symbol: primaryMapping.symbol,
+                pointCount: points.length,
+            },
+            diagnostics: {
+                provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
+                symbol: primaryMapping.symbol,
+                providerStatusCategory: "ok",
+                detectedResponseShape: "none",
+                pointCount: points.length,
+            },
+        };
     } catch (error) {
-        if (!(error instanceof MarketDataRepositoryError) || error.code !== "missing_db_config") {
+        if (error instanceof MarketDataRepositoryError && error.code === "invalid_input") {
             return {
                 ok: false,
-                status: "provider_error",
-                message: "Kursdaten konnten nicht geladen werden.",
-            };
-        }
-    }
-
-    const symbolResolution = await resolveMarketSymbolForIsin(input.isin);
-
-    if (!symbolResolution.ok) {
-        return {
-            ok: false,
-            status: symbolResolution.status,
-            message: symbolResolution.message,
-        };
-    }
-
-    const cacheKey = getCacheKey(symbolResolution);
-    const cached = getCachedSeries(cacheKey);
-
-    if (cached) {
-        const cacheMeta = getCacheMetadata(cached, MARKET_DATA_CACHE_TTL_MS);
-
-        if (!input.refresh) {
-            return {
-                ok: true,
-                status: "cache_hit",
-                message: "Kursdaten aus lokalem Cache.",
-                data: {
-                    provider: cached.provider,
-                    isin: cached.isin,
-                    symbol: cached.symbol,
-                    points: cached.points,
-                    refreshedAt: cached.refreshedAt,
-                    source: "memory-cache",
+                status: "invalid_request",
+                message: "Ungültige ISIN.",
+                metadata: {
+                    isin: normalizedIsin,
+                    provider: null,
+                    symbol: null,
+                    exchange: null,
+                    currency: null,
+                    mappingStatus: "missing_instrument",
+                    marketDataStatus: null,
+                    marketDataStatusReason: null,
+                    latestPriceDate: null,
+                    pointCount: 0,
+                    stale: false,
                 },
-                cache: cacheMeta,
-                quota: getQuotaInfo(cached.provider),
             };
         }
 
-        if (input.refresh && shouldSkipRapidRefresh(cacheKey)) {
+        if (error instanceof MarketDataRepositoryError && error.code === "missing_db_config") {
             return {
-                ok: true,
-                status: "cache_hit",
-                message: "Kursdaten aus lokalem Cache.",
-                data: {
-                    provider: cached.provider,
-                    isin: cached.isin,
-                    symbol: cached.symbol,
-                    points: cached.points,
-                    refreshedAt: cached.refreshedAt,
-                    source: "memory-cache",
+                ok: false,
+                status: "db_unavailable",
+                message: "Kursdaten-Datenbank ist derzeit nicht verfügbar.",
+                metadata: {
+                    isin: normalizedIsin,
+                    provider: null,
+                    symbol: null,
+                    exchange: null,
+                    currency: null,
+                    mappingStatus: "db_unavailable",
+                    marketDataStatus: null,
+                    marketDataStatusReason: null,
+                    latestPriceDate: null,
+                    pointCount: 0,
+                    stale: false,
                 },
-                cache: cacheMeta,
-                quota: getQuotaInfo(cached.provider),
-            };
-        }
-    }
-
-    if (!input.refresh) {
-        return {
-            ...buildCacheMissResponse({
-                provider: symbolResolution.provider,
-                symbol: symbolResolution.symbol,
-            }),
-            quota: getQuotaInfo(symbolResolution.provider),
-        };
-    }
-
-    const provider = symbolResolution.provider;
-
-    if (!canConsumeQuota(provider)) {
-        if (cached) {
-            return {
-                ok: true,
-                status: "rate_limited",
-                message: "Alpha-Vantage-Tageslimit erreicht. Es wurden keine neuen Kursdaten abgefragt.",
-                data: {
-                    provider: cached.provider,
-                    isin: cached.isin,
-                    symbol: cached.symbol,
-                    points: cached.points,
-                    refreshedAt: cached.refreshedAt,
-                    source: "memory-cache-stale",
-                },
-                cache: getCacheMetadata(cached, MARKET_DATA_CACHE_TTL_MS),
-                quota: getQuotaInfo(provider),
             };
         }
 
         return {
             ok: false,
-            status: "rate_limited",
-            message: "Alpha-Vantage-Tageslimit erreicht. Es wurden keine neuen Kursdaten abgefragt.",
-            quota: getQuotaInfo(provider),
+            status: "not_available",
+            message: "Kursdaten konnten nicht geladen werden.",
+            metadata: {
+                isin: normalizedIsin,
+                provider: null,
+                symbol: null,
+                exchange: null,
+                currency: null,
+                mappingStatus: "db_unavailable",
+                marketDataStatus: null,
+                marketDataStatusReason: null,
+                latestPriceDate: null,
+                pointCount: 0,
+                stale: false,
+            },
         };
     }
-
-    consumeQuota(provider);
-    recordRefreshAttempt(cacheKey);
-
-    const providerResult = await fetchAlphaVantageDailySeries(symbolResolution.symbol);
-
-    if (!providerResult.ok) {
-        if (cached) {
-            return {
-                ok: true,
-                status: providerResult.status,
-                message: providerResult.message,
-                data: {
-                    provider: cached.provider,
-                    isin: cached.isin,
-                    symbol: cached.symbol,
-                    points: cached.points,
-                    refreshedAt: cached.refreshedAt,
-                    source: "memory-cache-stale",
-                },
-                cache: getCacheMetadata(cached, MARKET_DATA_CACHE_TTL_MS),
-                quota: getQuotaInfo(provider),
-                diagnostics: providerResult.diagnostics,
-            };
-        }
-
-        return {
-            ok: false,
-            status: providerResult.status,
-            message: providerResult.message,
-            quota: getQuotaInfo(provider),
-            diagnostics: providerResult.diagnostics,
-        };
-    }
-
-    const cacheEntry: MarketDataCacheEntry = {
-        isin: symbolResolution.isin,
-        symbol: symbolResolution.symbol,
-        provider,
-        points: providerResult.points,
-        refreshedAt: providerResult.refreshedAt,
-        status: "ready",
-    };
-
-    setCachedSeries(cacheKey, cacheEntry);
-
-    return {
-        ok: true,
-        status: "refreshed",
-        message: "Kursdaten wurden aktualisiert.",
-        data: {
-            provider,
-            isin: symbolResolution.isin,
-            symbol: symbolResolution.symbol,
-            points: providerResult.points,
-            refreshedAt: providerResult.refreshedAt,
-            source: providerResult.source,
-        },
-        cache: getCacheMetadata(cacheEntry, MARKET_DATA_CACHE_TTL_MS),
-        quota: getQuotaInfo(provider),
-        diagnostics: providerResult.diagnostics,
-    };
 }

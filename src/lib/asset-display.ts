@@ -158,6 +158,50 @@ export function getAssetSymbol(asset: AssetSummary): string | null {
     return null;
 }
 
+export function isMeaningfulSymbol(symbol: string | null, isin: string): boolean {
+    const normalizedSymbol = normalizeIdentifier(symbol);
+    const normalizedIsin = normalizeIdentifier(isin);
+    if (!normalizedSymbol || !normalizedIsin) {
+        return false;
+    }
+    return normalizedSymbol !== normalizedIsin;
+}
+
+export function getAuthoritativeTicker(asset: AssetSummary): string | null {
+    const instrumentSymbol = pickFirstDisplayString(asset.instrument?.primaryMapping?.symbol);
+    if (instrumentSymbol && isMeaningfulSymbol(instrumentSymbol, asset.isin)) {
+        return instrumentSymbol;
+    }
+
+    if (asset.instrumentMetadataStatus === "ok") {
+        const fallbackSymbol = pickFirstDisplayString(asset.symbol, asset.ticker, asset.tickerSymbol);
+        if (fallbackSymbol && isMeaningfulSymbol(fallbackSymbol, asset.isin)) {
+            return fallbackSymbol;
+        }
+    }
+
+    return null;
+}
+
+export function buildInstrumentSubtitleParts(asset: AssetSummary): string[] {
+    const parts: string[] = [];
+    const isin = pickFirstDisplayString(asset.isin);
+    const wkn = getAssetWkn(asset);
+    const ticker = getAuthoritativeTicker(asset);
+
+    if (isin) {
+        parts.push(`ISIN ${isin}`);
+    }
+    if (wkn) {
+        parts.push(`WKN ${wkn}`);
+    }
+    if (ticker) {
+        parts.push(`TICKER ${ticker}`);
+    }
+
+    return parts;
+}
+
 /**
  * Liefert bevorzugt die WKN.
  */
@@ -263,14 +307,14 @@ export function getAssetSubtitle(asset: AssetSummary): string {
         return `${base} • Instrumenten-Stammdaten fehlen`;
     }
 
-    const symbol = getAssetSymbol(asset);
+    const symbol = getAuthoritativeTicker(asset);
     const wkn = getAssetWkn(asset);
 
     if (wkn) {
         return `ISIN ${asset.isin} • WKN ${wkn}`;
     }
     if (symbol) {
-        return `ISIN ${asset.isin} • ${symbol}`;
+        return `ISIN ${asset.isin} • TICKER ${symbol}`;
     }
     return `ISIN ${asset.isin}`;
 }

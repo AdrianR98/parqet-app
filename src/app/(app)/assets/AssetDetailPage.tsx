@@ -169,17 +169,32 @@ function marketDataMessageForStatus(status: MarketDataStatus, message?: string):
         return message;
     }
 
-    if (status === "cache_miss") {
-        return "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
+    if (status === "missing_instrument") {
+        return "Keine Instrumenten-Stammdaten gefunden.";
     }
-    if (status === "missing_symbol") {
-        return "Für dieses Asset ist noch kein Marktdaten-Symbol hinterlegt.";
+    if (status === "missing_primary_mapping") {
+        return "Kein verifiziertes Kursdaten-Mapping vorhanden.";
     }
-    if (status === "missing_api_key") {
-        return "Alpha-Vantage-API-Key ist serverseitig nicht konfiguriert.";
+    if (status === "primary_without_prices" || status === "no_prices") {
+        return "Keine Kursdaten verfügbar.";
     }
-    if (status === "rate_limited") {
-        return "Alpha-Vantage-Tageslimit erreicht. Es wurden keine neuen Kursdaten abgefragt.";
+    if (status === "excluded") {
+        return "Dieses Instrument ist von der normalen Marktdatenverarbeitung ausgeschlossen.";
+    }
+    if (status === "legacy") {
+        return "Dieses Instrument ist als historisch/Legacy markiert.";
+    }
+    if (status === "derivative") {
+        return "Dieses Instrument ist als Derivat markiert und wird nicht wie ein normales Wertpapier ausgewertet.";
+    }
+    if (status === "unknown") {
+        return "Kursdaten müssen manuell geprüft werden.";
+    }
+    if (status === "db_unavailable") {
+        return "Kursdatenbank nicht verfügbar.";
+    }
+    if (status === "invalid_request") {
+        return "Ungültige Kursdaten-Anfrage.";
     }
 
     return "Kursdaten konnten nicht geladen werden.";
@@ -1005,7 +1020,7 @@ export default function AssetDetailPage() {
             if (!payload) {
                 setMarketDataResponse({
                     ok: false,
-                    status: "provider_error",
+                    status: "not_available",
                     message: "Kursdaten konnten nicht geladen werden.",
                 });
                 return;
@@ -1020,7 +1035,7 @@ export default function AssetDetailPage() {
             setMarketDataNetworkError(error instanceof Error ? error.message : "Unbekannter Fehler");
             setMarketDataResponse({
                 ok: false,
-                status: "provider_error",
+                status: "not_available",
                 message: "Kursdaten konnten nicht geladen werden.",
             });
         } finally {
@@ -1106,7 +1121,8 @@ export default function AssetDetailPage() {
     const marketMessage = marketDataResponse
         ? marketDataMessageForStatus(marketDataResponse.status, marketDataResponse.message)
         : "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
-    const showManualRefreshButton = marketStatus !== "missing_symbol";
+    const mappingStatus = marketDataResponse?.metadata?.mappingStatus ?? null;
+    const showManualRefreshButton = true;
     const quotaInfo = marketDataResponse?.quota;
     const refreshedAt = marketDataResponse?.data?.refreshedAt ?? marketDataResponse?.cache?.refreshedAt ?? null;
     const sourceLabel = marketDataResponse?.data?.provider === "alphavantage"
@@ -1119,8 +1135,6 @@ export default function AssetDetailPage() {
         : null;
     const hasMarketWarningWithData =
         hasMarketSeries &&
-        marketStatus !== "cache_hit" &&
-        marketStatus !== "refreshed" &&
         marketStatus !== "db_hit";
     const isDbBackedSeries = marketDataResponse?.data?.source === "postgres";
     const compactLimitedSource = typeof marketDataResponse?.data?.source === "string"
@@ -1245,10 +1259,33 @@ export default function AssetDetailPage() {
                         </div>
                     ) : (
                         <div className={styles.chartMissing}>
-                            <strong>{marketStatus === "missing_symbol" ? "Marktdaten-Symbol fehlt" : "Historische Kursdaten fehlen"}</strong>
+                            <strong>
+                                {mappingStatus === "missing_instrument"
+                                    ? "Keine Instrumenten-Stammdaten gefunden"
+                                    : mappingStatus === "missing_primary_mapping"
+                                        ? "Kein verifiziertes Kursdaten-Mapping vorhanden"
+                                        : mappingStatus === "primary_without_prices" || mappingStatus === "no_prices"
+                                            ? "Keine Kursdaten verfügbar"
+                                            : mappingStatus === "excluded"
+                                                ? "Instrument ausgeschlossen"
+                                                : mappingStatus === "legacy"
+                                                    ? "Instrument als Legacy markiert"
+                                                    : mappingStatus === "derivative"
+                                                        ? "Instrument als Derivat markiert"
+                                                        : mappingStatus === "unknown"
+                                                            ? "Kursdaten müssen manuell geprüft werden"
+                                                            : mappingStatus === "db_unavailable"
+                                                                ? "Kursdatenbank nicht verfügbar"
+                                                                : marketStatus === "invalid_request"
+                                                                    ? "Ungültige Kursdaten-Anfrage"
+                                                                    : "Historische Kursdaten fehlen"}
+                            </strong>
                             <p>{marketMessage}</p>
-                            {marketStatus === "missing_symbol" ? (
-                                <p className={styles.marketMappingHint}>Lege zuerst ein Symbol-Mapping an. Mapping: <code>src/data/market-symbol-overrides.json</code></p>
+                            {mappingStatus === "excluded" || mappingStatus === "legacy" || mappingStatus === "derivative" || mappingStatus === "unknown" ? (
+                                <p className={styles.marketMappingHint}>
+                                    Status: <code>{marketDataResponse?.metadata?.marketDataStatus ?? "unknown"}</code>
+                                    {marketDataResponse?.metadata?.marketDataStatusReason ? ` · ${marketDataResponse.metadata.marketDataStatusReason}` : ""}
+                                </p>
                             ) : null}
                         </div>
                     )}
