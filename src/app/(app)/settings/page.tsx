@@ -81,26 +81,10 @@ export default function SettingsPage() {
 
   const [disconnectState, setDisconnectState] = useState<ActionState>("idle");
   const [disconnectMessage, setDisconnectMessage] = useState("");
-  const [localDataState, setLocalDataState] = useState<ActionState>("idle");
-  const [localDataMessage, setLocalDataMessage] = useState("");
 
   function setRevealSize(size: RevealBlockSize) {
     saveRevealBlockSize(size);
     notifyLocalSettingsChanged();
-  }
-
-  function clearLocalData() {
-    const confirmed = window.confirm(
-      "Lokale App-Daten löschen? Darstellungseinstellungen bleiben erhalten.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    clearParqetLocalUserData();
-    setLocalDataState("success");
-    setLocalDataMessage("Lokale Daten wurden gelöscht.");
   }
 
   async function disconnectParqet() {
@@ -174,6 +158,10 @@ export default function SettingsPage() {
           </div>
 
           <p className={styles.meta}>
+            Deine Portfolio- und Aktivitätsdaten werden lokal in deinem Browser zwischengespeichert. Eine Speicherung deiner persönlichen Portfolio- und Aktivitätsdaten auf unseren Servern erfolgt nicht.
+          </p>
+
+          <p className={styles.meta}>
             Entfernt die Verbindung zu Parqet und löscht die lokal gespeicherten Portfolio- und Aktivitätsdaten von deinem Gerät. Darstellungseinstellungen bleiben erhalten.
           </p>
 
@@ -225,36 +213,6 @@ export default function SettingsPage() {
               ))}
             </div>
           </div>
-        </section>
-
-        <section className={`ui-surface ${styles.card}`} aria-labelledby="local-data-heading">
-          <div className={styles.cardHeader}>
-            <h2 id="local-data-heading" className={styles.cardTitle}>
-              Private Daten
-            </h2>
-          </div>
-
-          <div className={styles.actions}>
-            <button type="button" className={`ui-btn ${styles.dangerButton}`} onClick={clearLocalData}>
-              Private Daten löschen
-            </button>
-          </div>
-
-          <p className={styles.meta}>
-            Portfolio- und Aktivitätsdaten werden lokal in deinem Browser zwischengespeichert. Eine Speicherung deiner Persönlichen Daten auf unseren Servern erfolgt nie.
-          </p>
-
-          {localDataMessage ? (
-            <div
-              className={
-                localDataState === "success"
-                  ? "ui-banner ui-banner-info"
-                  : "ui-banner ui-banner-error"
-              }
-            >
-              {localDataMessage}
-            </div>
-          ) : null}
         </section>
       </div>
     </main>
