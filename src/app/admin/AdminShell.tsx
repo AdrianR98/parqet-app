@@ -7,7 +7,7 @@ import { adminAccessControlProvider, adminAuthProvider } from "@/lib/admin/refin
 import styles from "./page.module.css";
 
 type Sort = { key: string; direction: "asc" | "desc" };
-type OpenState = { guard: boolean; status: boolean; unmapped: boolean; requests: boolean; instruments: boolean; mappings: boolean; runs: boolean };
+type OpenState = { guard: boolean; status: boolean; unmapped: boolean; unmappedClassified: boolean; requests: boolean; instruments: boolean; mappings: boolean; runs: boolean };
 type AnyRow = Record<string, unknown>;
 
 type StatusPayload = {
@@ -115,7 +115,7 @@ function AdminPanel() {
 
     const [status, setStatus] = useState<StatusPayload | null>(null);
     const [statusError, setStatusError] = useState<string | null>(null);
-    const [unmapped, setUnmapped] = useState<{ totalOpen: number; items: UnmappedRow[] } | null>(null);
+    const [unmapped, setUnmapped] = useState<{ totalOpen: number; shown: number; actionableTotal: number; actionableShown: number; classifiedTotal: number; classifiedShown: number; items: UnmappedRow[]; actionableItems: UnmappedRow[]; classifiedItems: UnmappedRow[] } | null>(null);
     const [unmappedError, setUnmappedError] = useState<string | null>(null);
     const [instruments, setInstruments] = useState<{ total: number; items: InstrumentRow[] } | null>(null);
     const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
@@ -128,7 +128,7 @@ function AdminPanel() {
 
     const [search, setSearch] = useState("");
     const q = search.trim().toLowerCase();
-    const [open, setOpen] = useState<OpenState>({ guard: false, status: true, unmapped: true, requests: true, instruments: false, mappings: false, runs: false });
+    const [open, setOpen] = useState<OpenState>({ guard: false, status: true, unmapped: true, unmappedClassified: true, requests: true, instruments: false, mappings: false, runs: false });
 
     const [unmappedSort, setUnmappedSort] = useState<Sort>({ key: "priority", direction: "asc" });
     const [instrumentSort, setInstrumentSort] = useState<Sort>({ key: "isin", direction: "asc" });
@@ -173,7 +173,8 @@ function AdminPanel() {
         ] as const;
     }, [status]);
 
-    const unmappedRows = useMemo(() => sortRows((unmapped?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.primarySymbol, r.marketDataStatus, r.mappingStatus, r.category, r.suggestedAction, r.triageHint, r.triageReason])), unmappedSort), [unmapped, q, unmappedSort]);
+    const unmappedRows = useMemo(() => sortRows((unmapped?.actionableItems ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.primarySymbol, r.marketDataStatus, r.mappingStatus, r.category, r.suggestedAction, r.triageHint, r.triageReason])), unmappedSort), [unmapped, q, unmappedSort]);
+    const unmappedClassifiedRows = useMemo(() => sortRows((unmapped?.classifiedItems ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.primarySymbol, r.marketDataStatus, r.mappingStatus, r.category, r.suggestedAction, r.triageHint, r.triageReason])), unmappedSort), [unmapped, q, unmappedSort]);
     const instrumentRows = useMemo(() => sortRows((instruments?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.name, r.primarySymbol, r.marketDataStatus, r.assetType])), instrumentSort), [instruments, q, instrumentSort]);
     const mappingRows = useMemo(() => sortRows((mappings?.items ?? []).filter((r) => hit(q, [r.isin, r.displayName, r.provider, r.symbol, r.exchange, r.statusReason])), mappingSort), [mappings, q, mappingSort]);
     const runRows = useMemo(() => sortRows((runs?.items ?? []).filter((r) => hit(q, [r.runType, r.status, r.provider, r.latestErrorMessage])), runSort), [runs, q, runSort]);
@@ -181,11 +182,20 @@ function AdminPanel() {
 
     useEffect(() => {
         if (!q) return;
-        setOpen((prev) => ({ ...prev, unmapped: prev.unmapped || unmappedRows.length > 0, requests: prev.requests || requestRows.length > 0, instruments: prev.instruments || instrumentRows.length > 0, mappings: prev.mappings || mappingRows.length > 0, runs: prev.runs || runRows.length > 0 }));
-    }, [q, unmappedRows.length, requestRows.length, instrumentRows.length, mappingRows.length, runRows.length]);
+        setOpen((prev) => ({
+            ...prev,
+            unmapped: prev.unmapped || unmappedRows.length > 0,
+            unmappedClassified: prev.unmappedClassified || unmappedClassifiedRows.length > 0,
+            requests: prev.requests || requestRows.length > 0,
+            instruments: prev.instruments || instrumentRows.length > 0,
+            mappings: prev.mappings || mappingRows.length > 0,
+            runs: prev.runs || runRows.length > 0,
+        }));
+    }, [q, unmappedRows.length, unmappedClassifiedRows.length, requestRows.length, instrumentRows.length, mappingRows.length, runRows.length]);
 
     const statusSummary = session !== "enabled" ? "disabled" : statusError ? "error" : !status ? "loading" : `${status.instrumentsTotal.toLocaleString()} instruments`;
     const unmappedSummary = session !== "enabled" ? "disabled" : unmappedError ? "error" : !unmapped ? "loading" : `${unmappedRows.length.toLocaleString()} shown`;
+    const unmappedClassifiedSummary = session !== "enabled" ? "disabled" : unmappedError ? "error" : !unmapped ? "loading" : `${unmappedClassifiedRows.length.toLocaleString()} shown`;
     const instrumentsSummary = session !== "enabled" ? "disabled" : instrumentsError ? "error" : !instruments ? "loading" : `${instrumentRows.length.toLocaleString()} shown`;
     const mappingsSummary = session !== "enabled" ? "disabled" : mappingsError ? "error" : !mappings ? "loading" : `${mappingRows.length.toLocaleString()} shown`;
     const runsSummary = session !== "enabled" ? "disabled" : runsError ? "error" : !runs ? "loading" : `${runRows.length.toLocaleString()} shown`;
@@ -228,11 +238,22 @@ function AdminPanel() {
             <Section title="Unmapped / Open Market Data Assets" summary={unmappedSummary} open={open.unmapped} toggle={() => setOpen((p) => ({ ...p, unmapped: !p.unmapped }))}>
                 {session === "enabled" && !unmapped && !unmappedError ? <p className={styles.subtle}>Loading unmapped/open assets...</p> : null}
                 {unmappedError ? <p className={styles.errorText}>{unmappedError}</p> : null}
-                {unmapped ? <p className={styles.subtle}>Showing {unmappedRows.length.toLocaleString()} of {unmapped.totalOpen.toLocaleString()} open cases.</p> : null}
-                {unmapped && unmappedRows.length === 0 ? <p className={styles.subtle}>No open/unmapped market-data assets for the current filter.</p> : null}
+                {unmapped ? <p className={styles.subtle}>Showing {unmappedRows.length.toLocaleString()} of {unmapped.actionableTotal.toLocaleString()} actionable open cases.</p> : null}
+                {unmapped && unmappedRows.length === 0 ? <p className={styles.subtle}>No actionable unmapped market-data assets.</p> : null}
                 {unmapped && unmappedRows.length > 0 ? (
                     <Table tableClassName={styles.unmappedTable} head={<tr><th><HeaderSort labelText="Prio" keyName="priority" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="ISIN" keyName="isin" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Name" keyName="displayName" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Category" keyName="category" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Action" keyName="suggestedAction" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th>Hint</th><th><HeaderSort labelText="Status" keyName="mappingStatus" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th></tr>}
                         rows={unmappedRows.map((r) => <tr key={r.isin}><td>{r.priority}</td><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? "—"}</td><td className={styles.wrapCell} title={label(r.category)}>{label(r.category)}</td><td className={styles.wrapCell} title={label(r.suggestedAction)}>{label(r.suggestedAction)}</td><td className={styles.hintCell} title={r.triageHint ?? undefined}><span className={styles.hintText} title={r.triageHint ?? undefined}>{r.triageHint ?? "—"}</span>{r.triageReason ? <span className={styles.hintReason} title={r.triageReason}>{r.triageReason}</span> : null}</td><td><span className={styles.badgeTiny}>{label(r.mappingStatus)}</span></td></tr>)} />
+                ) : null}
+            </Section>
+
+            <Section title="Classified / Terminal Market Data Cases" summary={unmappedClassifiedSummary} open={open.unmappedClassified} toggle={() => setOpen((p) => ({ ...p, unmappedClassified: !p.unmappedClassified }))}>
+                {session === "enabled" && !unmapped && !unmappedError ? <p className={styles.subtle}>Loading classified/terminal assets...</p> : null}
+                {unmappedError ? <p className={styles.errorText}>{unmappedError}</p> : null}
+                {unmapped ? <p className={styles.subtle}>Showing {unmappedClassifiedRows.length.toLocaleString()} of {unmapped.classifiedTotal.toLocaleString()} classified cases.</p> : null}
+                {unmapped && unmappedClassifiedRows.length === 0 ? <p className={styles.subtle}>No classified/terminal market-data cases for the current filter.</p> : null}
+                {unmapped && unmappedClassifiedRows.length > 0 ? (
+                    <Table tableClassName={styles.unmappedTable} head={<tr><th><HeaderSort labelText="Prio" keyName="priority" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="ISIN" keyName="isin" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Name" keyName="displayName" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Category" keyName="category" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Action" keyName="suggestedAction" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th>Hint</th><th><HeaderSort labelText="Status" keyName="mappingStatus" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th></tr>}
+                        rows={unmappedClassifiedRows.map((r) => <tr key={`classified-${r.isin}`}><td>{r.priority}</td><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? "—"}</td><td className={styles.wrapCell} title={label(r.category)}>{label(r.category)}</td><td className={styles.wrapCell} title={label(r.suggestedAction)}>{label(r.suggestedAction)}</td><td className={styles.hintCell} title={r.triageHint ?? undefined}><span className={styles.hintText} title={r.triageHint ?? undefined}>{r.triageHint ?? "—"}</span>{r.triageReason ? <span className={styles.hintReason} title={r.triageReason}>{r.triageReason}</span> : null}</td><td><span className={styles.badgeTiny}>{label(r.mappingStatus)}</span></td></tr>)} />
                 ) : null}
             </Section>
 

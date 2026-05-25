@@ -49,8 +49,10 @@ describe("admin unmapped market data helper", () => {
 
         expect(payload.totalOpen).toBe(1);
         expect(payload.shown).toBe(1);
+        expect(payload.actionableTotal).toBe(1);
+        expect(payload.classifiedTotal).toBe(0);
         expect(payload.limit).toBe(10);
-        expect(payload.items[0]).toMatchObject({
+        expect(payload.actionableItems[0]).toMatchObject({
             isin: "US0000000001",
             mappingStatus: "unverified_mapping",
             category: "unverified_mapping",
@@ -84,7 +86,9 @@ describe("admin unmapped market data helper", () => {
             },
         ]);
         const payload = await getAdminUnmappedMarketData({});
-        expect(payload.items[0]).toMatchObject({
+        expect(payload.totalOpen).toBe(0);
+        expect(payload.classifiedTotal).toBe(1);
+        expect(payload.classifiedItems[0]).toMatchObject({
             category: "derivative_or_warrant",
             suggestedAction: "review_derivative_or_exclude",
             triageReason: "name or assetType matched derivative/warrant pattern",
@@ -113,7 +117,8 @@ describe("admin unmapped market data helper", () => {
             },
         ]);
         const payload = await getAdminUnmappedMarketData({});
-        expect(payload.items[0]).toMatchObject({
+        expect(payload.totalOpen).toBe(0);
+        expect(payload.classifiedItems[0]).toMatchObject({
             category: "legacy_or_corporate_action",
             suggestedAction: "review_legacy_or_successor",
             triageHint: "Instrument is marked legacy in DB; inspect status or successor mapping.",
@@ -143,7 +148,8 @@ describe("admin unmapped market data helper", () => {
             },
         ]);
         const payload = await getAdminUnmappedMarketData({});
-        expect(payload.items[0]).toMatchObject({
+        expect(payload.totalOpen).toBe(0);
+        expect(payload.classifiedItems[0]).toMatchObject({
             category: "legacy_or_corporate_action",
             suggestedAction: "review_legacy_or_successor",
             triageReason: "name/status reason matched legacy/corporate-action pattern",
@@ -172,7 +178,8 @@ describe("admin unmapped market data helper", () => {
             },
         ]);
         const payload = await getAdminUnmappedMarketData({});
-        expect(payload.items[0]).toMatchObject({
+        expect(payload.totalOpen).toBe(1);
+        expect(payload.actionableItems[0]).toMatchObject({
             category: "mapping_candidate_needed",
             suggestedAction: "add_candidates",
             triageHint: "No mapping exists yet; add or import candidate symbols.",
@@ -202,7 +209,8 @@ describe("admin unmapped market data helper", () => {
             },
         ]);
         const payload = await getAdminUnmappedMarketData({});
-        expect(payload.items[0]).toMatchObject({
+        expect(payload.totalOpen).toBe(0);
+        expect(payload.classifiedItems[0]).toMatchObject({
             category: "failed_or_excluded",
             suggestedAction: "review_failed_validation",
             triageReason: "has failed validation candidate",
@@ -231,7 +239,8 @@ describe("admin unmapped market data helper", () => {
             },
         ]);
         const payload = await getAdminUnmappedMarketData({});
-        expect(payload.items[0]).toMatchObject({
+        expect(payload.totalOpen).toBe(0);
+        expect(payload.classifiedItems[0]).toMatchObject({
             category: "manual_review",
             suggestedAction: "inspect_instrument",
         });
@@ -261,6 +270,7 @@ describe("admin unmapped market data helper", () => {
         const payload = await getAdminUnmappedMarketData({});
         expect(payload.totalOpen).toBe(0);
         expect(payload.items).toHaveLength(0);
+        expect(payload.classifiedItems).toHaveLength(0);
     });
 
     it("applies supported filters", async () => {
@@ -305,9 +315,10 @@ describe("admin unmapped market data helper", () => {
 
         const payload = await getAdminUnmappedMarketData({ status: "legacy" });
 
-        expect(payload.totalOpen).toBe(1);
-        expect(payload.items).toHaveLength(1);
-        expect(payload.items[0].isin).toBe("US0000000001");
+        expect(payload.totalOpen).toBe(0);
+        expect(payload.items).toHaveLength(0);
+        expect(payload.classifiedTotal).toBe(1);
+        expect(payload.classifiedItems[0].isin).toBe("US0000000001");
     });
 
     it("drops unsupported filters", () => {
