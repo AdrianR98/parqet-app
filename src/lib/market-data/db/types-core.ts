@@ -249,6 +249,29 @@ export type InsertSymbolMappingCandidateInput = {
     notes?: string | null;
 };
 
+export type InsertManualSymbolMappingInput = {
+    instrumentId: string;
+    provider: string;
+    symbol: string;
+    exchange?: string | null;
+    currency?: string | null;
+    isPrimary?: boolean;
+    isActive?: boolean;
+    verifiedAt?: string | null;
+    notes?: string | null;
+};
+
+export type UpdateSymbolMappingByIdInput = {
+    id: string;
+    symbol?: string;
+    exchange?: string | null;
+    currency?: string | null;
+    isPrimary?: boolean;
+    isActive?: boolean;
+    verifiedAt?: string | null;
+    notes?: string | null;
+};
+
 export type UpsertSymbolMappingInput = {
     isin: string;
     provider: string;

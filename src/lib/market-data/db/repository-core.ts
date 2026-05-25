@@ -29,10 +29,12 @@ import type {
     DbMarketReferenceSource,
     DbXetraReferenceCandidate,
     InsertSymbolMappingCandidateInput,
+    InsertManualSymbolMappingInput,
     ListXetraReferenceCandidatesInput,
     UpsertReferenceInstrumentInput,
     UpsertReferenceSourceInput,
     UpdateSymbolMappingValidationInput,
+    UpdateSymbolMappingByIdInput,
     UpsertDailyPricesInput,
     UpsertInstrumentInput,
     UpsertMarketActionsInput,
@@ -710,6 +712,84 @@ export async function insertSymbolMappingCandidate(input: InsertSymbolMappingCan
             [input.instrumentId, provider, symbol, input.exchange ?? null, input.currency ?? null, input.notes ?? null],
         );
         return result.rows.length > 0;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function insertManualSymbolMapping(input: InsertManualSymbolMappingInput): Promise<DbMarketSymbolMapping | null> {
+    try {
+        const provider = input.provider.trim().toLowerCase();
+        const symbol = input.symbol.trim().toUpperCase();
+        if (!provider || !symbol) {
+            throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
+        }
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `insert into market_symbol_mappings
+                (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
+             values
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             on conflict do nothing
+             returning id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active,
+                       verified_at, notes, created_at, updated_at`,
+            [
+                input.instrumentId,
+                provider,
+                symbol,
+                input.exchange ?? null,
+                input.currency ?? null,
+                input.isPrimary ?? false,
+                input.isActive ?? true,
+                input.verifiedAt ?? null,
+                input.notes ?? null,
+            ],
+        );
+        const row = result.rows[0];
+        return row ? mapSymbolMappingRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInput): Promise<DbMarketSymbolMapping | null> {
+    try {
+        const id = String(input.id ?? "").trim();
+        if (!id) {
+            throw new MarketDataRepositoryError("invalid_input", "Mapping-ID fehlt.");
+        }
+
+        const symbol = input.symbol === undefined ? null : input.symbol.trim().toUpperCase();
+        if (symbol !== null && !symbol) {
+            throw new MarketDataRepositoryError("invalid_input", "Symbol fehlt.");
+        }
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `update market_symbol_mappings
+             set symbol = coalesce($2, symbol),
+                 exchange = coalesce($3::text, exchange),
+                 currency = coalesce($4::text, currency),
+                 is_primary = coalesce($5::boolean, is_primary),
+                 is_active = coalesce($6::boolean, is_active),
+                 verified_at = coalesce($7::timestamptz, verified_at),
+                 notes = coalesce($8::text, notes),
+                 updated_at = now()
+             where id = $1
+             returning id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active,
+                       verified_at, notes, created_at, updated_at`,
+            [
+                id,
+                symbol,
+                input.exchange,
+                input.currency,
+                input.isPrimary ?? null,
+                input.isActive ?? null,
+                input.verifiedAt ?? null,
+                input.notes ?? null,
+            ],
+        );
+        const row = result.rows[0];
+        return row ? mapSymbolMappingRow(row) : null;
     } catch (error) {
         handleRepositoryError(error);
     }

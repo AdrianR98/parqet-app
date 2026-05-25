@@ -32,7 +32,8 @@
     "db:market:update:primary": "tsx scripts/update-primary-market-data-incremental.mjs",
     "db:market:import:reference:xetra": "tsx scripts/import-xetra-reference-instruments.mjs",
     "db:market:import:reference:trading-universe": "tsx scripts/import-trading-universe-reference-names.mjs",
-    "yfinance:validate:symbols": "python scripts/yfinance/validate-symbol-candidates.py"
+    "yfinance:validate:symbols": "python scripts/yfinance/validate-symbol-candidates.py",
+    "db:market:import:manual-mappings": "tsx scripts/import-manual-market-symbol-mappings.mjs"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",
