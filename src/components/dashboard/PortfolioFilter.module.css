@@ -12,7 +12,7 @@
     min-height: 44px;
     border-radius: 999px;
     border: 1px solid var(--panel-border);
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(240, 249, 255, 0.62));
+    background: var(--surface-gradient);
     box-shadow: 0 8px 16px rgba(79, 108, 145, 0.12);
     backdrop-filter: blur(14px);
 }
@@ -20,7 +20,7 @@
 .icon {
     grid-row: 1 / span 2;
     align-self: center;
-    color: rgba(70, 104, 143, 0.72);
+    color: var(--text-soft);
     font-size: 10px;
 }
 
@@ -44,7 +44,7 @@
     grid-row: 1 / span 2;
     align-self: center;
     font-size: 12px;
-    color: rgba(84, 113, 146, 0.8);
+    color: var(--text-soft);
 }
 
 .menu {
@@ -56,7 +56,7 @@
     padding: 10px;
     border: 1px solid var(--panel-border);
     border-radius: 14px;
-    background: linear-gradient(160deg, rgba(248, 252, 255, 0.95), rgba(238, 246, 252, 0.9));
+    background: var(--surface-overlay);
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(14px);
 }
@@ -87,22 +87,22 @@
 }
 
 .item:hover {
-    background: rgba(255, 255, 255, 0.55);
+    background: var(--surface-control-hover);
 }
 
 .item input[type="checkbox"] {
     appearance: none;
     width: 16px;
     height: 16px;
-    border: 1px solid rgba(88, 118, 149, 0.44);
+    border: 1px solid var(--border-muted);
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--surface-control);
     position: relative;
 }
 
 .item input[type="checkbox"]:checked {
     border-color: var(--accent-cyan);
-    background: color-mix(in srgb, var(--accent-cyan) 18%, white);
+    background: color-mix(in srgb, var(--accent-cyan) 30%, var(--surface-control));
 }
 
 .item input[type="checkbox"]:checked::after {
