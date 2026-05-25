@@ -1279,30 +1279,33 @@ export default function AssetDetailPage() {
     const hasScopedPosition = metrics.portfolioBreakdown.length > 0;
     const recentActivities = scopedAssetActivities.slice(0, 5);
     const noScopedAssetMessage = "Dieses Asset ist in den ausgewählten Portfolios nicht enthalten.";
-    const marketStatus = marketDataResponse?.status ?? null;
-    const marketDataPoints = marketDataResponse?.data?.points ?? [];
-    const hasMarketSeries = Boolean(marketDataResponse?.ok && marketDataPoints.length > 0);
+    const currentMarketDataResponse = marketDataResponseMatchesIsin(marketDataResponse, currentIsin)
+        ? marketDataResponse
+        : null;
+    const marketStatus = currentMarketDataResponse?.status ?? null;
+    const marketDataPoints = currentMarketDataResponse?.data?.points ?? [];
+    const hasMarketSeries = Boolean(currentMarketDataResponse?.ok && marketDataPoints.length > 0);
     const hasLastRenderableSeries = Boolean(
         marketDataResponseMatchesIsin(lastRenderableMarketDataResponse, currentIsin) &&
         lastRenderableMarketDataResponse?.ok &&
         (lastRenderableMarketDataResponse.data?.points?.length ?? 0) > 0,
     );
-    const renderableMarketResponse = hasMarketSeries ? marketDataResponse : hasLastRenderableSeries ? lastRenderableMarketDataResponse : null;
+    const renderableMarketResponse = hasMarketSeries ? currentMarketDataResponse : hasLastRenderableSeries ? lastRenderableMarketDataResponse : null;
     const renderableMarketPoints = renderableMarketResponse?.data?.points ?? [];
     const hasRenderableMarketSeries = renderableMarketPoints.length > 0;
-    const marketMessage = marketDataResponse
-        ? marketDataMessageForStatus(marketDataResponse.status, marketDataResponse.message)
+    const marketMessage = currentMarketDataResponse
+        ? marketDataMessageForStatus(currentMarketDataResponse.status, currentMarketDataResponse.message)
         : "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
-    const mappingStatus = marketDataResponse?.metadata?.mappingStatus ?? null;
+    const mappingStatus = currentMarketDataResponse?.metadata?.mappingStatus ?? null;
     const hasMarketWarningWithData =
         hasRenderableMarketSeries &&
         marketStatus !== "db_hit" &&
         !marketDataLoading;
     const headerTickerFromInstrument = String(asset.instrument?.primaryMapping?.symbol ?? "").trim();
-    const headerTickerFromHistory = String(marketDataResponse?.metadata?.symbol ?? marketDataResponse?.data?.symbol ?? "").trim();
+    const headerTickerFromHistory = String(currentMarketDataResponse?.metadata?.symbol ?? currentMarketDataResponse?.data?.symbol ?? "").trim();
     const headerTickerRaw = headerTickerFromInstrument || headerTickerFromHistory;
     const headerTicker = isMeaningfulSymbol(headerTickerRaw || null, headerIsin || asset.isin) ? headerTickerRaw : "";
-    const headerExchange = String(asset.instrument?.primaryMapping?.exchange ?? marketDataResponse?.metadata?.exchange ?? "").trim();
+    const headerExchange = String(asset.instrument?.primaryMapping?.exchange ?? currentMarketDataResponse?.metadata?.exchange ?? "").trim();
 
     return (
         <main className={styles.page}>
@@ -1452,8 +1455,8 @@ export default function AssetDetailPage() {
                                 <p>{marketDataLoading ? "Kursdaten werden geladen …" : marketMessage}</p>
                                 {mappingStatus === "excluded" || mappingStatus === "legacy" || mappingStatus === "derivative" || mappingStatus === "unknown" ? (
                                     <p className={styles.marketMappingHint}>
-                                        Status: <code>{marketDataResponse?.metadata?.marketDataStatus ?? "unknown"}</code>
-                                        {marketDataResponse?.metadata?.marketDataStatusReason ? ` · ${marketDataResponse.metadata.marketDataStatusReason}` : ""}
+                                        Status: <code>{currentMarketDataResponse?.metadata?.marketDataStatus ?? "unknown"}</code>
+                                        {currentMarketDataResponse?.metadata?.marketDataStatusReason ? ` · ${currentMarketDataResponse.metadata.marketDataStatusReason}` : ""}
                                     </p>
                                 ) : null}
                             </div>
