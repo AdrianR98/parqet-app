@@ -130,7 +130,7 @@ export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: 
                             />
                         </div>
                         <div className={styles.assetIdentityText}>
-                            {detailHref ? <Link href={detailHref} className={styles.assetNameLink} title={displayName}>{displayName}</Link> : <div className={styles.assetName} title={displayName}>{displayName}</div>}
+                            {detailHref ? <Link href={detailHref} prefetch={false} className={styles.assetNameLink} title={displayName}>{displayName}</Link> : <div className={styles.assetName} title={displayName}>{displayName}</div>}
                             <AssetMetaLine asset={asset} />
                         </div>
                     </div>
