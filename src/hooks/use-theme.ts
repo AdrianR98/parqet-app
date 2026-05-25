@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import {
+    APPEARANCE_CHANGE_EVENT,
     loadAppearanceMode,
     saveAppearanceMode,
     type AppearanceMode,
@@ -156,11 +157,11 @@ function subscribeToAppearanceMode(onStoreChange: () => void) {
     }
 
     window.addEventListener("storage", onStoreChange);
-    window.addEventListener("assettrace:appearance-change", onStoreChange);
+    window.addEventListener(APPEARANCE_CHANGE_EVENT, onStoreChange);
 
     return () => {
         window.removeEventListener("storage", onStoreChange);
-        window.removeEventListener("assettrace:appearance-change", onStoreChange);
+        window.removeEventListener(APPEARANCE_CHANGE_EVENT, onStoreChange);
     };
 }
 
@@ -217,8 +218,12 @@ function applyResolvedAppearanceMode(theme: ResolvedTheme): void {
 }
 
 export function useTheme() {
-    const [appearanceMode, setAppearanceModeState] = useState<AppearanceMode>("system");
-    const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemThemeServerSnapshot);
+    const [appearanceMode, setAppearanceModeState] = useState<AppearanceMode>(() => (
+        typeof window === "undefined" ? "system" : loadAppearanceMode()
+    ));
+    const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() => (
+        typeof window === "undefined" ? getSystemThemeServerSnapshot() : getSystemThemeSnapshot()
+    ));
 
     useEffect(() => {
         const syncAppearanceModeFromStorage = () => {
@@ -273,10 +278,6 @@ export function useTheme() {
     function setAppearanceMode(mode: AppearanceMode) {
         saveAppearanceMode(mode);
         setAppearanceModeState(mode);
-
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(new Event("assettrace:appearance-change"));
-        }
     }
 
     function toggleTheme() {

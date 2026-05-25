@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import HeaderBar from "../../components/dashboard/HeaderBar";
 import AppFooter from "../../components/layout/AppFooter";
@@ -24,6 +24,28 @@ export default function AppLayout({
     const { theme, toggleTheme, themeStyle } = useTheme();
 
     const activeView = useMemo(() => getActiveView(pathname), [pathname]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const handlePageShow = (event: PageTransitionEvent) => {
+            if (!event.persisted) {
+                return;
+            }
+
+            // BFCache restore from /admin occasionally returns a stale/non-interactive
+            // settings subtree. A targeted reload restores full interactivity and
+            // rehydrates persisted appearance mode from localStorage.
+            if (pathname.startsWith("/settings")) {
+                window.location.reload();
+            }
+        };
+
+        window.addEventListener("pageshow", handlePageShow);
+        return () => window.removeEventListener("pageshow", handlePageShow);
+    }, [pathname]);
 
     return (
         <div className={styles.app} style={themeStyle}>
