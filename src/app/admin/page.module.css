@@ -13,6 +13,37 @@
     padding: 18px;
 }
 
+.sectionSurface {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+}
+
+.sectionHeader {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text-main);
+    text-align: left;
+    padding: 14px 16px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.sectionMeta {
+    color: var(--text-soft);
+    font-size: 0.9rem;
+}
+
+.sectionBody {
+    border-top: 1px solid var(--border-soft);
+    padding: 12px 16px 16px;
+}
+
 .header h1 {
     margin: 4px 0 10px;
     font-size: 1.7rem;
@@ -75,6 +106,33 @@
 .guard ul {
     margin: 0;
     padding-left: 18px;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.searchInput {
+    flex: 1 1 280px;
+    min-height: 36px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 0 12px;
+    background: var(--surface-control);
+    color: var(--text-main);
+}
+
+.clearButton {
+    min-height: 36px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 0 12px;
+    background: var(--surface-control);
+    color: var(--text-main);
+    cursor: pointer;
 }
 
 .grid {
@@ -175,11 +233,37 @@
     padding: 8px;
     border-bottom: 1px solid var(--border-soft);
     vertical-align: top;
+    white-space: nowrap;
 }
 
 .table th {
     color: var(--text-soft);
     font-weight: 600;
+    position: sticky;
+    top: 0;
+    background: var(--surface-elevated);
+}
+
+.table tbody tr:hover {
+    background: color-mix(in srgb, var(--surface-control) 70%, transparent);
+}
+
+.sortButton {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.truncateCell {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 @media (max-width: 760px) {
