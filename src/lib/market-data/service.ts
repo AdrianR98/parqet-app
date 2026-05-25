@@ -1,12 +1,14 @@
 import "server-only";
 
 import {
+    getLatestDailyPriceDateByIsin,
     getDailyPricesByIsin,
     getInstrumentByIsin,
     getMarketActionsByIsin,
     getPrimarySymbolMappingByIsin,
     MarketDataRepositoryError,
 } from "./db/repository";
+import { downsampleHistoryPoints, resolveFromDateForPeriod, type HistoryPeriod } from "./history-utils";
 import type { MarketDataResponse } from "./types";
 
 function normalizeLookupIsin(value: string): string {
@@ -28,8 +30,14 @@ function isStaleLatestDate(latestPriceDate: string | null): boolean {
     return ageMs > sevenDaysMs;
 }
 
-export async function getMarketDataHistory(input: { isin: string }): Promise<MarketDataResponse> {
+export async function getMarketDataHistory(input: {
+    isin: string;
+    period?: HistoryPeriod;
+    fromDate?: string;
+    toDate?: string;
+}): Promise<MarketDataResponse> {
     const normalizedIsin = normalizeLookupIsin(input.isin);
+    const requestedPeriod = input.period ?? "MAX";
 
     try {
         const instrument = await getInstrumentByIsin(normalizedIsin);
@@ -86,10 +94,25 @@ export async function getMarketDataHistory(input: { isin: string }): Promise<Mar
             };
         }
 
-        const points = await getDailyPricesByIsin({
+        const latestPriceDate = await getLatestDailyPriceDateByIsin({
             isin: normalizedIsin,
             provider: primaryMapping.provider,
         });
+        const periodFromDate = resolveFromDateForPeriod({
+            requestedPeriod,
+            latestPriceDate,
+        });
+        const fromDate = input.fromDate ?? periodFromDate ?? undefined;
+        const toDate = input.toDate;
+
+        const pointsRaw = await getDailyPricesByIsin({
+            isin: normalizedIsin,
+            provider: primaryMapping.provider,
+            from: fromDate,
+            to: toDate,
+        });
+        const downsampleResult = downsampleHistoryPoints(pointsRaw);
+        const points = downsampleResult.points;
 
         if (points.length === 0) {
             return {
@@ -109,6 +132,12 @@ export async function getMarketDataHistory(input: { isin: string }): Promise<Mar
                     marketDataStatusReason,
                     latestPriceDate: null,
                     pointCount: 0,
+                    requestedPeriod,
+                    fromDate: fromDate ?? null,
+                    toDate: toDate ?? null,
+                    pointCountRaw: downsampleResult.pointCountRaw,
+                    pointCountReturned: downsampleResult.pointCountReturned,
+                    downsampled: downsampleResult.downsampled,
                     stale: false,
                 },
             };
@@ -117,9 +146,11 @@ export async function getMarketDataHistory(input: { isin: string }): Promise<Mar
         const actions = await getMarketActionsByIsin({
             isin: normalizedIsin,
             provider: primaryMapping.provider,
+            from: fromDate,
+            to: toDate,
         });
         const latestPoint = points[points.length - 1];
-        const latestPriceDate = latestPoint.date;
+        const latestResponsePriceDate = latestPoint.date;
 
         return {
             ok: true,
@@ -164,24 +195,30 @@ export async function getMarketDataHistory(input: { isin: string }): Promise<Mar
                         : "ok",
                 marketDataStatus,
                 marketDataStatusReason,
-                latestPriceDate,
-                pointCount: points.length,
-                stale: isStaleLatestDate(latestPriceDate),
+                latestPriceDate: latestResponsePriceDate,
+                pointCount: downsampleResult.pointCountReturned,
+                requestedPeriod,
+                fromDate: fromDate ?? null,
+                toDate: toDate ?? null,
+                pointCountRaw: downsampleResult.pointCountRaw,
+                pointCountReturned: downsampleResult.pointCountReturned,
+                downsampled: downsampleResult.downsampled,
+                stale: isStaleLatestDate(latestResponsePriceDate),
             },
             cache: {
                 refreshedAt: latestPoint.importedAt,
-                isFresh: !isStaleLatestDate(latestPriceDate),
+                isFresh: !isStaleLatestDate(latestResponsePriceDate),
                 ageHours: 0,
                 provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
                 symbol: primaryMapping.symbol,
-                pointCount: points.length,
+                pointCount: downsampleResult.pointCountReturned,
             },
             diagnostics: {
                 provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
                 symbol: primaryMapping.symbol,
                 providerStatusCategory: "ok",
                 detectedResponseShape: "none",
-                pointCount: points.length,
+                pointCount: downsampleResult.pointCountReturned,
             },
         };
     } catch (error) {

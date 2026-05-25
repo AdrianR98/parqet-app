@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+    loadAssetDetailRangeSettings,
     loadKnownPortfolios,
     loadPortfolioScope,
     resolvePortfolioScope,
+    saveAssetDetailRangeSettings,
     subscribeToLocalSettings,
 } from "../../../lib/app-settings";
 import { loadDashboardCache } from "../../../lib/dashboard-cache";
@@ -39,7 +41,7 @@ const DETAIL_RANGE_OPTIONS = [
 ] as const;
 const DIVIDEND_RANGE_OPTIONS = [
     { key: "ytd", label: "YTD" },
-    { key: "12m", label: "12M" },
+    { key: "12m", label: "1Y" },
     { key: "3y", label: "3Y" },
     { key: "5y", label: "5Y" },
     { key: "max", label: "MAX" },
@@ -92,6 +94,23 @@ async function copyIdentifierToClipboard(value: string): Promise<boolean> {
 }
 const DIVIDEND_CAGR_OPTIONS = [2, 3, 5, 7, 10, 15] as const;
 const DIVIDEND_KPI_SETTINGS_KEY = "assettrace-dividend-kpi-settings-v1";
+const PORTFOLIO_BREAKDOWN_SHARE_EPSILON = 0.00005;
+const PORTFOLIO_BREAKDOWN_VALUE_EPSILON = 0.005;
+const PORTFOLIO_CHART_PALETTE = [
+    "var(--chart-series-1)",
+    "var(--chart-series-2)",
+    "var(--chart-series-3)",
+    "var(--chart-series-4)",
+    "var(--chart-series-5)",
+    "var(--chart-series-6)",
+    "var(--chart-series-7)",
+    "var(--chart-series-8)",
+    "var(--chart-series-9)",
+    "var(--chart-series-10)",
+    "var(--chart-series-11)",
+    "var(--chart-series-12)",
+] as const;
+const PORTFOLIO_CHART_FALLBACK = "var(--chart-series-fallback)";
 
 function parseMarketDataResponse(payload: unknown): MarketDataResponse | null {
     if (!payload || typeof payload !== "object") {
@@ -108,6 +127,16 @@ function parseMarketDataResponse(payload: unknown): MarketDataResponse | null {
 
 function rangeDaysFor(selectedRange: DetailRangeKey): number | null {
     return DETAIL_RANGE_OPTIONS.find((option) => option.key === selectedRange)?.days ?? null;
+}
+
+function toHistoryPeriod(selectedRange: DetailRangeKey): "1M" | "3M" | "6M" | "1Y" | "3Y" | "5Y" | "MAX" {
+    if (selectedRange === "1m") return "1M";
+    if (selectedRange === "3m") return "3M";
+    if (selectedRange === "6m") return "6M";
+    if (selectedRange === "1y") return "1Y";
+    if (selectedRange === "3y") return "3Y";
+    if (selectedRange === "5y") return "5Y";
+    return "MAX";
 }
 
 function rangeIndex(selectedRange: DetailRangeKey): number {
@@ -291,22 +320,84 @@ function getLocalAssetStateSnapshot(): string {
     });
 }
 
-function PortfolioBreakdown({ entries }: { entries: PortfolioPosition[] }) {
+function PortfolioBreakdown({
+    entries,
+    portfolioColors = {},
+}: {
+    entries: PortfolioPosition[];
+    portfolioColors?: Record<string, string>;
+}) {
     if (entries.length === 0) {
         return <div className={styles.inlineEmpty}>Keine Portfolio-Anteile im aktuell ausgewählten Scope.</div>;
     }
 
+    const totalShares = entries.reduce((sum, entry) => {
+        const shares = Number(entry.netShares);
+        const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
+        if (!hasDisplayableShares || shares <= 0) {
+            return sum;
+        }
+        return sum + shares;
+    }, 0);
+
+    const sharePercentFormatter = new Intl.NumberFormat("de-DE", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+    });
+
     return (
         <div className={styles.breakdownList}>
-            {entries.map((entry) => (
-                <div key={entry.portfolioId} className={styles.breakdownRow}>
-                    <span className={styles.breakdownName}>{entry.portfolioName}</span>
-                    <span>{formatShares(entry.netShares)}</span>
-                    <span>{formatCurrency(entry.positionValue)}</span>
-                </div>
-            ))}
+            {entries.map((entry) => {
+                const shares = Number(entry.netShares);
+                const value = Number(entry.positionValue);
+                const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
+                const hasDisplayableValue = Number.isFinite(value) && Math.abs(value) >= PORTFOLIO_BREAKDOWN_VALUE_EPSILON;
+                const sharePercent =
+                    hasDisplayableShares && shares > 0 && Number.isFinite(totalShares) && totalShares > 0
+                        ? (shares / totalShares) * 100
+                        : null;
+                const color = portfolioColors[entry.portfolioId];
+
+                return (
+                    <div key={entry.portfolioId} className={styles.breakdownRow}>
+                        <span className={styles.breakdownPortfolioCell}>
+                            <span
+                                className={styles.portfolioNameBadge}
+                                style={{ "--portfolio-color": color } as CSSProperties}
+                            >
+                                {entry.portfolioName}
+                            </span>
+                        </span>
+                        <span className={styles.breakdownNumberCell}>{hasDisplayableShares ? formatShares(entry.netShares) : "—"}</span>
+                        <span className={styles.breakdownNumberCell}>{hasDisplayableShares && hasDisplayableValue ? formatCurrency(entry.positionValue) : "—"}</span>
+                        <span className={styles.breakdownNumberCell}>
+                            {!hasDisplayableShares || sharePercent == null ? "—" : `${sharePercentFormatter.format(sharePercent)} %`}
+                        </span>
+                    </div>
+                );
+            })}
         </div>
     );
+}
+
+function getMarketDataResponseIsin(response: MarketDataResponse | null | undefined): string | null {
+    const metadataIsin = normalizeExactIsin(String(response?.metadata?.isin ?? "").trim());
+    if (metadataIsin) {
+        return metadataIsin;
+    }
+
+    const dataIsin = normalizeExactIsin(String(response?.data?.isin ?? "").trim());
+    return dataIsin || null;
+}
+
+function marketDataResponseMatchesIsin(response: MarketDataResponse | null | undefined, currentIsin: string): boolean {
+    const normalizedCurrentIsin = normalizeExactIsin(currentIsin);
+    if (!normalizedCurrentIsin) {
+        return false;
+    }
+
+    const responseIsin = getMarketDataResponseIsin(response);
+    return responseIsin === normalizedCurrentIsin;
 }
 
 function CopyableHeaderIdentifier({
@@ -708,24 +799,14 @@ function buildDividendAnalysis(input: {
         }
     }
 
-    const palette = [
-        "#1f5f93",
-        "#0f7a93",
-        "#2f7f6b",
-        "#3b6da8",
-        "#4e5ea8",
-        "#5e74a0",
-        "#2f8d9f",
-        "#4f7f59",
-        "#7a6ca8",
-        "#357196",
-        "#4b8a86",
-        "#6f7f99",
-    ];
-
     const portfolios = Array.from(portfolioTotals.entries())
         .sort((a, b) => b[1].total - a[1].total)
-        .map(([id, entry], idx) => ({ id, label: entry.name, total: entry.total, color: palette[idx % palette.length] }));
+        .map(([id, entry], idx) => ({
+            id,
+            label: entry.name,
+            total: entry.total,
+            color: PORTFOLIO_CHART_PALETTE[idx % PORTFOLIO_CHART_PALETTE.length],
+        }));
 
     const monthSlotsAll: DividendMonthSlot[] = Array.from({ length: monthsInRange }, (_, idx) => {
         const date = addMonths(startMonth, idx);
@@ -811,10 +892,10 @@ function MarketPriceChart({
     const ySpan = Math.max(0.0001, max - min);
     const leftPad = 48;
     const rightPad = 12;
-    const topPad = 14;
-    const bottomPad = 28;
+    const topPad = 12;
+    const bottomPad = 24;
     const width = 1000;
-    const height = 280;
+    const height = 450;
     const plotWidth = width - leftPad - rightPad;
     const plotHeight = height - topPad - bottomPad;
 
@@ -884,8 +965,6 @@ function MarketPriceChart({
                     <small>Total Return inkl. Dividenden folgt separat.</small>
                 </div>
             </div>
-            <div className={styles.marketHintLine}>Aktuell in Börsenwährung. EUR-Ansicht folgt über FX-Umrechnung.</div>
-
             <div className={styles.marketChartFrame}>
                 <svg viewBox={`0 0 ${width} ${height}`} className={styles.marketChartSvg} role="img" aria-label="Schlusskurs-Verlauf">
                     {yTicks.map((tick) => {
@@ -986,10 +1065,11 @@ export default function AssetDetailPage() {
     const [failedLogoIdentities, setFailedLogoIdentities] = useState<Record<string, true>>({});
     const [activeDividendTooltip, setActiveDividendTooltip] = useState<ActiveDividendTooltip | null>(null);
     const [marketDataResponse, setMarketDataResponse] = useState<MarketDataResponse | null>(null);
+    const [lastRenderableMarketDataResponse, setLastRenderableMarketDataResponse] = useState<MarketDataResponse | null>(null);
     const [marketDataLoading, setMarketDataLoading] = useState(false);
     const [marketDataNetworkError, setMarketDataNetworkError] = useState<string | null>(null);
-    const [selectedPricePeriod, setSelectedPricePeriod] = useState<DetailRangeKey>("1y");
-    const [selectedDividendPeriod, setSelectedDividendPeriod] = useState<DividendRangeKey>("12m");
+    const [selectedPricePeriod, setSelectedPricePeriod] = useState<DetailRangeKey>(() => loadAssetDetailRangeSettings().pricePeriod);
+    const [selectedDividendPeriod, setSelectedDividendPeriod] = useState<DividendRangeKey>(() => loadAssetDetailRangeSettings().dividendPeriod);
     const [cagrPrimaryYears, setCagrPrimaryYears] = useState(5);
     const [cagrSecondaryYears, setCagrSecondaryYears] = useState(10);
     const [activeCagrMenu, setActiveCagrMenu] = useState<"primary" | "secondary" | null>(null);
@@ -1061,7 +1141,7 @@ export default function AssetDetailPage() {
         setMarketDataLoading(true);
 
         try {
-            const query = `/api/market-data/history?isin=${encodeURIComponent(currentIsin)}`;
+            const query = `/api/market-data/history?isin=${encodeURIComponent(currentIsin)}&period=${toHistoryPeriod(selectedPricePeriod)}`;
             const response = await fetch(query, { method: "GET", signal });
             const payload = parseMarketDataResponse(await response.json());
 
@@ -1079,6 +1159,13 @@ export default function AssetDetailPage() {
             }
 
             setMarketDataResponse(payload);
+            if (
+                payload.ok &&
+                (payload.data?.points?.length ?? 0) > 0 &&
+                marketDataResponseMatchesIsin(payload, currentIsin)
+            ) {
+                setLastRenderableMarketDataResponse(payload);
+            }
         } catch (error) {
             if (signal?.aborted || requestId !== marketRequestSequence.current) {
                 return;
@@ -1097,7 +1184,7 @@ export default function AssetDetailPage() {
 
             setMarketDataLoading(false);
         }
-    }, [currentIsin]);
+    }, [currentIsin, selectedPricePeriod]);
 
     useEffect(() => {
         if (!currentIsin) {
@@ -1110,7 +1197,13 @@ export default function AssetDetailPage() {
         return () => {
             controller.abort();
         };
-    }, [currentIsin, loadMarketData]);
+    }, [currentIsin, selectedPricePeriod, loadMarketData]);
+
+    useEffect(() => {
+        setMarketDataResponse(null);
+        setLastRenderableMarketDataResponse(null);
+        setMarketDataNetworkError(null);
+    }, [currentIsin]);
 
     useEffect(() => {
         const settings = loadDividendKpiSettings();
@@ -1179,25 +1272,40 @@ export default function AssetDetailPage() {
     });
     const primaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrPrimaryYears);
     const secondaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrSecondaryYears);
+    const dividendPortfolioColorById = Object.fromEntries(
+        dividendAnalysis.portfolios.map((portfolio) => [portfolio.id, portfolio.color]),
+    );
 
     const hasScopedPosition = metrics.portfolioBreakdown.length > 0;
     const recentActivities = scopedAssetActivities.slice(0, 5);
     const noScopedAssetMessage = "Dieses Asset ist in den ausgewählten Portfolios nicht enthalten.";
-    const marketStatus = marketDataResponse?.status ?? null;
-    const marketDataPoints = marketDataResponse?.data?.points ?? [];
-    const hasMarketSeries = marketDataResponse?.ok && marketDataPoints.length > 0;
-    const marketMessage = marketDataResponse
-        ? marketDataMessageForStatus(marketDataResponse.status, marketDataResponse.message)
+    const currentMarketDataResponse = marketDataResponseMatchesIsin(marketDataResponse, currentIsin)
+        ? marketDataResponse
+        : null;
+    const marketStatus = currentMarketDataResponse?.status ?? null;
+    const marketDataPoints = currentMarketDataResponse?.data?.points ?? [];
+    const hasMarketSeries = Boolean(currentMarketDataResponse?.ok && marketDataPoints.length > 0);
+    const hasLastRenderableSeries = Boolean(
+        marketDataResponseMatchesIsin(lastRenderableMarketDataResponse, currentIsin) &&
+        lastRenderableMarketDataResponse?.ok &&
+        (lastRenderableMarketDataResponse.data?.points?.length ?? 0) > 0,
+    );
+    const renderableMarketResponse = hasMarketSeries ? currentMarketDataResponse : hasLastRenderableSeries ? lastRenderableMarketDataResponse : null;
+    const renderableMarketPoints = renderableMarketResponse?.data?.points ?? [];
+    const hasRenderableMarketSeries = renderableMarketPoints.length > 0;
+    const marketMessage = currentMarketDataResponse
+        ? marketDataMessageForStatus(currentMarketDataResponse.status, currentMarketDataResponse.message)
         : "Für dieses Asset liegen noch keine lokal gecachten Kursdaten vor.";
-    const mappingStatus = marketDataResponse?.metadata?.mappingStatus ?? null;
+    const mappingStatus = currentMarketDataResponse?.metadata?.mappingStatus ?? null;
     const hasMarketWarningWithData =
-        hasMarketSeries &&
-        marketStatus !== "db_hit";
+        hasRenderableMarketSeries &&
+        marketStatus !== "db_hit" &&
+        !marketDataLoading;
     const headerTickerFromInstrument = String(asset.instrument?.primaryMapping?.symbol ?? "").trim();
-    const headerTickerFromHistory = String(marketDataResponse?.metadata?.symbol ?? marketDataResponse?.data?.symbol ?? "").trim();
+    const headerTickerFromHistory = String(currentMarketDataResponse?.metadata?.symbol ?? currentMarketDataResponse?.data?.symbol ?? "").trim();
     const headerTickerRaw = headerTickerFromInstrument || headerTickerFromHistory;
     const headerTicker = isMeaningfulSymbol(headerTickerRaw || null, headerIsin || asset.isin) ? headerTickerRaw : "";
-    const headerExchange = String(asset.instrument?.primaryMapping?.exchange ?? marketDataResponse?.metadata?.exchange ?? "").trim();
+    const headerExchange = String(asset.instrument?.primaryMapping?.exchange ?? currentMarketDataResponse?.metadata?.exchange ?? "").trim();
 
     return (
         <main className={styles.page}>
@@ -1290,61 +1398,70 @@ export default function AssetDetailPage() {
                                         type="button"
                                         aria-pressed={selectedPricePeriod === option.key}
                                         className={`${styles.marketRangeButton} ${selectedPricePeriod === option.key ? styles.marketRangeButtonActive : ""}`}
-                                        onClick={() => setSelectedPricePeriod(option.key)}
+                                        onClick={() => {
+                                            setSelectedPricePeriod(option.key);
+                                            const currentSettings = loadAssetDetailRangeSettings();
+                                            saveAssetDetailRangeSettings({
+                                                ...currentSettings,
+                                                pricePeriod: option.key,
+                                            });
+                                        }}
                                     >
                                         {option.label}
                                     </button>
                                 ))}
                         </div>
                     </div>
-                    {marketDataLoading ? (
-                        <div className={styles.chartMissing}>
-                            <strong>Kursdaten werden geladen …</strong>
-                            <p>Es werden nur lokal verfügbare Kursdaten angezeigt.</p>
-                        </div>
-                    ) : hasMarketSeries ? (
-                        <div className={styles.marketChartSection}>
-                            <MarketPriceChart
-                                points={marketDataPoints}
-                                selectedRange={selectedPricePeriod}
-                                currency={marketDataResponse?.metadata?.currency ?? null}
-                            />
-                            {hasMarketWarningWithData ? (
-                                <div className={styles.marketStatusWarning}>{marketMessage}</div>
-                            ) : null}
-                        </div>
-                    ) : (
-                        <div className={styles.chartMissing}>
-                            <strong>
-                                {mappingStatus === "missing_instrument"
-                                    ? "Keine Instrumenten-Stammdaten gefunden"
-                                    : mappingStatus === "missing_primary_mapping"
-                                        ? "Kein verifiziertes Kursdaten-Mapping vorhanden"
-                                        : mappingStatus === "primary_without_prices" || mappingStatus === "no_prices"
-                                            ? "Keine Kursdaten verfügbar"
-                                            : mappingStatus === "excluded"
-                                                ? "Instrument ausgeschlossen"
-                                                : mappingStatus === "legacy"
-                                                    ? "Instrument als Legacy markiert"
-                                                    : mappingStatus === "derivative"
-                                                        ? "Instrument als Derivat markiert"
-                                                        : mappingStatus === "unknown"
-                                                            ? "Kursdaten müssen manuell geprüft werden"
-                                                            : mappingStatus === "db_unavailable"
-                                                                ? "Kursdatenbank nicht verfügbar"
-                                                                : marketStatus === "invalid_request"
-                                                                    ? "Ungültige Kursdaten-Anfrage"
-                                                                    : "Historische Kursdaten fehlen"}
-                            </strong>
-                            <p>{marketMessage}</p>
-                            {mappingStatus === "excluded" || mappingStatus === "legacy" || mappingStatus === "derivative" || mappingStatus === "unknown" ? (
-                                <p className={styles.marketMappingHint}>
-                                    Status: <code>{marketDataResponse?.metadata?.marketDataStatus ?? "unknown"}</code>
-                                    {marketDataResponse?.metadata?.marketDataStatusReason ? ` · ${marketDataResponse.metadata.marketDataStatusReason}` : ""}
-                                </p>
-                            ) : null}
-                        </div>
-                    )}
+                    <div className={styles.marketChartStage}>
+                        {hasRenderableMarketSeries ? (
+                            <div className={`${styles.marketChartSection} ${marketDataLoading ? styles.marketChartSectionLoading : ""}`}>
+                                <MarketPriceChart
+                                    points={renderableMarketPoints}
+                                    selectedRange={selectedPricePeriod}
+                                    currency={renderableMarketResponse?.metadata?.currency ?? null}
+                                />
+                                {hasMarketWarningWithData ? (
+                                    <div className={styles.marketStatusWarning}>{marketMessage}</div>
+                                ) : null}
+                                {marketDataLoading ? (
+                                    <div className={styles.marketLoadingOverlay} aria-live="polite">
+                                        Kursdaten werden geladen …
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : (
+                            <div className={styles.chartMissing}>
+                                <strong>
+                                    {mappingStatus === "missing_instrument"
+                                        ? "Keine Instrumenten-Stammdaten gefunden"
+                                        : mappingStatus === "missing_primary_mapping"
+                                            ? "Kein verifiziertes Kursdaten-Mapping vorhanden"
+                                            : mappingStatus === "primary_without_prices" || mappingStatus === "no_prices"
+                                                ? "Keine Kursdaten verfügbar"
+                                                : mappingStatus === "excluded"
+                                                    ? "Instrument ausgeschlossen"
+                                                    : mappingStatus === "legacy"
+                                                        ? "Instrument als Legacy markiert"
+                                                        : mappingStatus === "derivative"
+                                                            ? "Instrument als Derivat markiert"
+                                                            : mappingStatus === "unknown"
+                                                                ? "Kursdaten müssen manuell geprüft werden"
+                                                                : mappingStatus === "db_unavailable"
+                                                                    ? "Kursdatenbank nicht verfügbar"
+                                                                    : marketStatus === "invalid_request"
+                                                                        ? "Ungültige Kursdaten-Anfrage"
+                                                                        : "Historische Kursdaten fehlen"}
+                                </strong>
+                                <p>{marketDataLoading ? "Kursdaten werden geladen …" : marketMessage}</p>
+                                {mappingStatus === "excluded" || mappingStatus === "legacy" || mappingStatus === "derivative" || mappingStatus === "unknown" ? (
+                                    <p className={styles.marketMappingHint}>
+                                        Status: <code>{currentMarketDataResponse?.metadata?.marketDataStatus ?? "unknown"}</code>
+                                        {currentMarketDataResponse?.metadata?.marketDataStatusReason ? ` · ${currentMarketDataResponse.metadata.marketDataStatusReason}` : ""}
+                                    </p>
+                                ) : null}
+                            </div>
+                        )}
+                    </div>
                     {marketDataNetworkError ? <div className={styles.marketStatusWarning}>Netzwerkhinweis: {marketDataNetworkError}</div> : null}
                 </article>
 
@@ -1360,17 +1477,19 @@ export default function AssetDetailPage() {
                         <div className={styles.warningHint}>{warnings.length} Hinweis{warnings.length === 1 ? "" : "e"} verfügbar.</div>
                     ) : null}
                     <div className={styles.inlineSection}>
-                        <h3>Portfolio-Aufteilung</h3>
                         {isManualEmptyScope ? (
                             <div className={styles.inlineEmpty}>{noScopedAssetMessage}</div>
                         ) : (
                             <>
                                 <div className={styles.breakdownHeader}>
-                                    <span>Portfolio</span>
-                                    <span>Bestand</span>
-                                    <span>Wert</span>
+                                    <span className={styles.breakdownHeaderPortfolio}>Portfolio</span>
+                                    <span className={styles.breakdownHeaderNumeric}>Bestand</span>
+                                    <span className={styles.breakdownHeaderNumeric}>Wert</span>
+                                    <span className={styles.breakdownHeaderNumeric}>Anteil</span>
                                 </div>
-                                <PortfolioBreakdown entries={metrics.portfolioBreakdown} />
+                                <div className={styles.breakdownScrollArea}>
+                                    <PortfolioBreakdown entries={metrics.portfolioBreakdown} portfolioColors={dividendPortfolioColorById} />
+                                </div>
                             </>
                         )}
                     </div>
@@ -1400,7 +1519,14 @@ export default function AssetDetailPage() {
                                 type="button"
                                 aria-pressed={selectedDividendPeriod === option.key}
                                 className={`${styles.marketRangeButton} ${selectedDividendPeriod === option.key ? styles.marketRangeButtonActive : ""}`}
-                                onClick={() => setSelectedDividendPeriod(option.key)}
+                                onClick={() => {
+                                    setSelectedDividendPeriod(option.key);
+                                    const currentSettings = loadAssetDetailRangeSettings();
+                                    saveAssetDetailRangeSettings({
+                                        ...currentSettings,
+                                        dividendPeriod: option.key,
+                                    });
+                                }}
                             >
                                 {option.label}
                             </button>
@@ -1505,15 +1631,6 @@ export default function AssetDetailPage() {
 
                 {dividendAnalysis.monthSlots.length > 0 && dividendAnalysis.hasAnyValidScopedDividendRows && !isManualEmptyScope ? (
                     <div className={styles.dividendModule}>
-                        <div className={styles.dividendLegend}>
-                            {dividendAnalysis.portfolios.map((portfolio) => (
-                                <div key={portfolio.id} className={styles.legendItem}>
-                                    <span className={styles.legendSwatch} style={{ backgroundColor: portfolio.color }} />
-                                    <span>{portfolio.label}</span>
-                                </div>
-                            ))}
-                        </div>
-
                         <div className={styles.dividendChart} aria-label="Monatliche Dividenden nach Portfolio">
                             <div className={styles.dividendYAxis}>
                                 {dividendAnalysis.yTicks.slice().reverse().map((tick) => (
@@ -1545,7 +1662,7 @@ export default function AssetDetailPage() {
                                                         const height = ratio * 100;
                                                         const bottom = accumulated;
                                                         accumulated += height;
-                                                        const color = dividendAnalysis.portfolios.find((entry) => entry.id === segment.portfolioId)?.color ?? "#7d93ad";
+                                                        const color = dividendAnalysis.portfolios.find((entry) => entry.id === segment.portfolioId)?.color ?? PORTFOLIO_CHART_FALLBACK;
                                                         const isBottom = segmentIndex === 0;
                                                         const isTop = segmentIndex === slot.segments.length - 1;
                                                         const tooltipTop = Math.max(8, CHART_HEIGHT_PX - ((bottom + height / 2) / 100) * CHART_HEIGHT_PX);
