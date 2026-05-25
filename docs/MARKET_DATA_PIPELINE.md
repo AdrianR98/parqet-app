@@ -96,6 +96,7 @@ Legend:
 | `db:market:add:candidate` | `npm run db:market:add:candidate -- ...` | Manually add one candidate mapping | dry-run | CLI args (`--isin`, `--symbol`, etc.) | planned insert / optional write | read (dry), write (`--write`) | none | none |
 | `db:market:transfer:mapping` | `npm run db:market:transfer:mapping -- ...` | Transfer mapping between instruments with safety checks | dry-run | source/target args | planned transfer / optional write | read (dry), write (`--write`) | none | none |
 | `db:market:set:instrument-status` | `npm run db:market:set:instrument-status -- ...` | Mark instrument status (`active`, `excluded`, `legacy`, `derivative`, `unknown`) | dry-run | status args | planned status update / optional write | read (dry), write (`--write`) | none | none |
+| `db:market:set:instrument-metadata` | `npm run db:market:set:instrument-metadata -- --isin <ISIN> ...` | Safely update one instrument metadata record (name/display_name/asset_type/currency/wkn) | dry-run | ISIN + field flags | planned metadata update / optional write | read (dry), write (`--write`) | none | none |
 | `db:market:import:json` | `npm run db:market:import:json -- <file>` | Import one market-data JSON payload into prices/actions/mappings | write | exported JSON payload | DB upserts + run logging | write | none | none |
 
 ## Safety Rules
