@@ -22,6 +22,7 @@ async function run() {
         listReferenceSourceCounts,
         listVerifiedMappingsForPromotion,
     } = await import("../src/lib/market-data/db/repository-core.ts");
+    const { buildStatusReportTriageSummary } = await import("../src/lib/market-data/db/status-report-triage.ts");
 
     const summary = await getMarketDataStatusSummary();
     const allInstruments = await listMarketInstruments({ limit: 50000 });
@@ -64,14 +65,53 @@ async function run() {
         }
     }
 
-    const withoutVerified = allInstruments
-        .filter((item) => !verifiedIsins.has(item.isin))
-        .slice(0, 20);
+    const triageSummary = buildStatusReportTriageSummary({
+        instruments: allInstruments.map((item) => ({
+            isin: item.isin,
+            name: item.name,
+            marketDataStatus: item.marketDataStatus,
+        })),
+        verifiedIsins,
+    });
 
-    if (withoutVerified.length > 0) {
-        console.log("Top instruments without verified yfinance mapping (max 20):");
-        for (const row of withoutVerified) {
+    const rawWithoutVerifiedMapping = triageSummary.rawWithoutVerifiedMapping;
+    const actionableWithoutVerifiedMapping = triageSummary.actionableWithoutVerifiedMapping;
+    const terminalWithoutVerifiedMapping = triageSummary.terminalWithoutVerifiedMapping;
+    const manualReviewWithoutVerifiedMapping = triageSummary.manualReviewWithoutVerifiedMapping;
+    const classifiedNonActionableManual = terminalWithoutVerifiedMapping.length + manualReviewWithoutVerifiedMapping.length;
+
+    console.log(`- raw instruments without verified yfinance mapping: ${rawWithoutVerifiedMapping.length}`);
+    console.log(`- actionable instruments without verified yfinance mapping: ${actionableWithoutVerifiedMapping.length}`);
+    console.log(`- terminal instruments without verified yfinance mapping: ${terminalWithoutVerifiedMapping.length}`);
+    console.log(`- manual-review (unknown) instruments without verified yfinance mapping: ${manualReviewWithoutVerifiedMapping.length}`);
+    console.log(`- terminal breakdown excluded: ${triageSummary.terminalBreakdown.excluded}`);
+    console.log(`- terminal breakdown legacy: ${triageSummary.terminalBreakdown.legacy}`);
+    console.log(`- terminal breakdown derivative: ${triageSummary.terminalBreakdown.derivative}`);
+    console.log(`- terminal/manual-review breakdown unknown: ${manualReviewWithoutVerifiedMapping.length}`);
+    console.log(`- open actionable mapping backlog: ${actionableWithoutVerifiedMapping.length}`);
+    console.log(`- classified non-actionable/manual cases: ${classifiedNonActionableManual}`);
+
+    if (rawWithoutVerifiedMapping.length > 0) {
+        console.log("Top instruments without verified yfinance mapping (raw, includes terminal statuses) (max 20):");
+        for (const row of rawWithoutVerifiedMapping.slice(0, 20)) {
             console.log(`- ${row.isin} | ${row.name ?? "-"}`);
+        }
+    }
+
+    if (actionableWithoutVerifiedMapping.length > 0) {
+        console.log("Top actionable instruments without verified yfinance mapping (max 20):");
+        for (const row of actionableWithoutVerifiedMapping.slice(0, 20)) {
+            console.log(`- ${row.isin} | ${row.name ?? "-"} | ${row.marketDataStatus ?? "unset"}`);
+        }
+    } else {
+        console.log("No actionable unmapped instruments. Run `npm run db:market:unmapped` for detailed open mapping report.");
+    }
+
+    const terminalOrManualRows = [...terminalWithoutVerifiedMapping, ...manualReviewWithoutVerifiedMapping];
+    if (terminalOrManualRows.length > 0) {
+        console.log("Top terminal/manually classified instruments without verified yfinance mapping (max 20):");
+        for (const row of terminalOrManualRows.slice(0, 20)) {
+            console.log(`- ${row.isin} | ${row.name ?? "-"} | ${row.marketDataStatus ?? "unset"}`);
         }
     }
 
@@ -82,7 +122,7 @@ async function run() {
         }
     }
 
-    console.log("Hint: Run `npm run db:market:unmapped` for a detailed open mapping report.");
+    console.log("Hint: Run `npm run db:market:unmapped` for a detailed open mapping report (actionable backlog focus).");
 }
 
 run()

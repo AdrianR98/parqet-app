@@ -88,13 +88,13 @@ Legend:
 | `db:market:promote:verified` | `npm run db:market:promote:verified` | Choose best verified mapping as primary per ISIN | dry-run | DB verified mappings | planned promotions; optional primary updates with `--write` | read (dry), write (`--write`) | none | none |
 | `db:market:backfill:primary` | `npm run db:market:backfill:primary` | Backfill price/actions for primary mappings | dry-run | DB primary mappings | planned backfills; with `--write` runs export+import pipeline | read (dry), write (`--write`) | yfinance (only with `--write`) | `.market-data/backfill/*.json` |
 | `db:market:update:primary` | `npm run db:market:update:primary` | Incremental update of verified active primary yfinance mappings with overlap window | dry-run | DB primary mappings + optional filters | planned incremental windows; with `--write` runs provider fetch + idempotent upserts | read (dry), write (`--write`) | yfinance (only with `--write`) | none |
-| `db:market:status` | `npm run db:market:status` | High-level readiness/status snapshot | read-only | DB | console report | read | none | none |
+| `db:market:status` | `npm run db:market:status` | High-level readiness/status snapshot (raw counts + actionable vs terminal/manual split) | read-only | DB | console report | read | none | none |
 
 ### Supporting read/report scripts
 
 | Script | Command | Purpose | Mode | Inputs | Outputs | DB | Provider | Generated files |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `db:market:unmapped` | `npm run db:market:unmapped` | Detailed open mapping report with categories/actions | read-only | DB | table/json/csv report | read | none | optional `--out` file |
+| `db:market:unmapped` | `npm run db:market:unmapped` | Detailed open actionable mapping backlog report with categories/actions | read-only | DB | table/json/csv report | read | none | optional `--out` file |
 
 ### Supporting reference/candidate maintenance scripts
 
