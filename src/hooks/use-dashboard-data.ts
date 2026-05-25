@@ -77,7 +77,7 @@ type UseDashboardDataResult = {
 
   togglePortfolio: (portfolioId: string) => void;
   resetPortfolioSelection: () => void;
-  loadAssets: () => Promise<void>;
+  loadAssets: (nextSelectedPortfolioIds?: string[]) => Promise<void>;
   startReconnect: () => void;
 };
 
@@ -213,6 +213,15 @@ export function useDashboardData(): UseDashboardDataResult {
   const guardedGlobalAssetProductEnabled =
     resolveGlobalAssetProductGuardEnabled();
 
+  const debugDashboard = useCallback(
+    (message: string, payload?: Record<string, unknown>) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug(`[dashboard-bootstrap] ${message}`, payload ?? {});
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     selectedPortfolioIdsRef.current = selectedPortfolioIds;
   }, [selectedPortfolioIds]);
@@ -289,6 +298,12 @@ export function useDashboardData(): UseDashboardDataResult {
         if (resolvedScope.usedFallback) {
           savePortfolioScope(resolvedScope.scope);
         }
+
+        debugDashboard("portfolios loaded", {
+          count: items.length,
+          resolvedSelectedPortfolioIds: resolvedScope.selectedPortfolioIds,
+          scopeMode: resolvedScope.scope.mode,
+        });
       } catch (error) {
         setErrorMessage(
           getUserFacingCaughtErrorMessage(
@@ -302,7 +317,7 @@ export function useDashboardData(): UseDashboardDataResult {
     }
 
     loadPortfolios();
-  }, [hydratePortfolioSelection]);
+  }, [hydratePortfolioSelection, debugDashboard]);
 
   useEffect(() => {
     const cached = loadDashboardCache();
@@ -349,10 +364,25 @@ export function useDashboardData(): UseDashboardDataResult {
     }
   }, [guardedGlobalAssetProductEnabled, hydratePortfolioSelection]);
 
-  const loadAssets = useCallback(async function loadAssets() {
+  const effectiveSelectedPortfolioIds = useMemo(() => {
+    if (selectedPortfolioIds.length > 0) {
+      return selectedPortfolioIds;
+    }
+
+    if (portfolios.length === 0) {
+      return [];
+    }
+
+    const resolvedScope = resolvePortfolioScope(portfolioScope, portfolios);
+    return resolvedScope.selectedPortfolioIds;
+  }, [selectedPortfolioIds, portfolios, portfolioScope]);
+
+  const loadAssets = useCallback(async function loadAssets(nextSelectedPortfolioIds?: string[]) {
     if (assetLoadInFlightRef.current) {
       return;
     }
+
+    const portfolioIdsForLoad = nextSelectedPortfolioIds ?? selectedPortfolioIdsRef.current;
 
     assetLoadInFlightRef.current = true;
     const hasVisibleData = activeAssets.length > 0 || closedAssets.length > 0;
@@ -360,10 +390,15 @@ export function useDashboardData(): UseDashboardDataResult {
     setRefreshingAssets(hasVisibleData);
     setErrorMessage("");
 
+    debugDashboard("loadAssets start", {
+      portfolioIdsForLoad,
+      hasVisibleData,
+    });
+
     try {
       const params = new URLSearchParams();
 
-      for (const portfolioId of selectedPortfolioIds) {
+      for (const portfolioId of portfolioIdsForLoad) {
         params.append("portfolioId", portfolioId);
       }
 
@@ -391,7 +426,7 @@ export function useDashboardData(): UseDashboardDataResult {
 
       const preparedCacheWrite = persistDashboardCacheWrite({
         response: data,
-        selectedPortfolioIds,
+        selectedPortfolioIds: portfolioIdsForLoad,
         guardEnabled: guardedGlobalAssetProductEnabled,
       });
 
@@ -405,9 +440,20 @@ export function useDashboardData(): UseDashboardDataResult {
       setConsistencyReport(data.consistencyReport ?? null);
       setReconciliationWarnings(data.reconciliationWarnings ?? []);
       setLastUpdatedAt(preparedCacheWrite.generatedAt);
-      setLastLoadedPortfolioIds(selectedPortfolioIds);
+      setLastLoadedPortfolioIds(portfolioIdsForLoad);
       setHasCachedData(true);
+
+      debugDashboard("loadAssets success", {
+        portfolioIdsForLoad,
+        selectedAssets: preparedCacheWrite.selectedAssets.length,
+        selectedActiveAssets: preparedCacheWrite.selectedActiveAssets.length,
+        selectedClosedAssets: preparedCacheWrite.selectedClosedAssets.length,
+      });
     } catch (error) {
+      debugDashboard("loadAssets error", {
+        portfolioIdsForLoad,
+        error: error instanceof Error ? error.message : String(error),
+      });
       setErrorMessage(
         getUserFacingCaughtErrorMessage(
           error,
@@ -418,12 +464,13 @@ export function useDashboardData(): UseDashboardDataResult {
       assetLoadInFlightRef.current = false;
       setLoadingAssets(false);
       setRefreshingAssets(false);
+      debugDashboard("loadAssets end", { portfolioIdsForLoad });
     }
   }, [
     activeAssets.length,
     closedAssets.length,
-    selectedPortfolioIds,
     guardedGlobalAssetProductEnabled,
+    debugDashboard,
   ]);
 
   function resetPortfolioSelectionToAll() {
@@ -498,18 +545,35 @@ export function useDashboardData(): UseDashboardDataResult {
   }, [portfolios, hydratePortfolioSelection]);
 
   useEffect(() => {
+    const hasPendingPortfolioSelection =
+      hasCachedData &&
+      !haveSamePortfolioSelection(effectiveSelectedPortfolioIds, lastLoadedPortfolioIds);
     const decision = shouldAutoRefreshDashboardData({
       loadingPortfolios,
       loadingAssets,
       refreshingAssets,
       hasPortfolios: portfolios.length > 0,
-      selectedPortfolioIds,
+      selectedPortfolioIds: effectiveSelectedPortfolioIds,
       hasCachedData,
       isCacheStale: isDashboardDataStale(lastUpdatedAt),
-      hasPendingPortfolioSelection:
-        hasCachedData &&
-        !haveSamePortfolioSelection(selectedPortfolioIds, lastLoadedPortfolioIds),
+      hasPendingPortfolioSelection,
       alreadyExecutedKeys: autoRefreshExecutedKeysRef.current,
+    });
+
+    debugDashboard("auto-refresh decision", {
+      loadingPortfolios,
+      loadingAssets,
+      refreshingAssets,
+      portfolioCount: portfolios.length,
+      selectedPortfolioIds,
+      effectiveSelectedPortfolioIds,
+      lastLoadedPortfolioIds,
+      hasCachedData,
+      showStaleWarning: isDashboardDataStale(lastUpdatedAt),
+      hasPendingPortfolioSelection,
+      reason: decision.reason,
+      shouldRefresh: decision.shouldRefresh,
+      executionKey: decision.executionKey,
     });
 
     if (!decision.shouldRefresh || !decision.executionKey) {
@@ -517,17 +581,19 @@ export function useDashboardData(): UseDashboardDataResult {
     }
 
     autoRefreshExecutedKeysRef.current.add(decision.executionKey);
-    void loadAssets();
+    void loadAssets(effectiveSelectedPortfolioIds);
   }, [
     loadingPortfolios,
     loadingAssets,
     refreshingAssets,
     portfolios,
     selectedPortfolioIds,
+    effectiveSelectedPortfolioIds,
     hasCachedData,
     lastUpdatedAt,
     lastLoadedPortfolioIds,
     loadAssets,
+    debugDashboard,
   ]);
 
   const selectedPortfolioCount = useMemo(() => {

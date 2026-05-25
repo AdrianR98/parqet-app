@@ -38,6 +38,46 @@ describe("shouldAutoRefreshDashboardData", () => {
         });
     });
 
+    it("defers refresh when selected portfolio ids are not resolved yet", () => {
+        const decision = shouldAutoRefreshDashboardData({
+            loadingPortfolios: false,
+            loadingAssets: false,
+            refreshingAssets: false,
+            hasPortfolios: true,
+            selectedPortfolioIds: [],
+            hasCachedData: false,
+            isCacheStale: false,
+            hasPendingPortfolioSelection: false,
+            alreadyExecutedKeys: new Set<string>(),
+        });
+
+        expect(decision).toEqual({
+            shouldRefresh: false,
+            reason: null,
+            executionKey: null,
+        });
+    });
+
+    it("allows refresh when selected ids become available after defer", () => {
+        const decision = shouldAutoRefreshDashboardData({
+            loadingPortfolios: false,
+            loadingAssets: false,
+            refreshingAssets: false,
+            hasPortfolios: true,
+            selectedPortfolioIds: ["p42"],
+            hasCachedData: false,
+            isCacheStale: false,
+            hasPendingPortfolioSelection: false,
+            alreadyExecutedKeys: new Set<string>(),
+        });
+
+        expect(decision).toEqual({
+            shouldRefresh: true,
+            reason: "missing_cache",
+            executionKey: "missing_cache:p42",
+        });
+    });
+
     it("returns true for stale cache", () => {
         const decision = shouldAutoRefreshDashboardData({
             loadingPortfolios: false,
