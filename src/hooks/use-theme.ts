@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import {
     loadAppearanceMode,
@@ -164,12 +164,23 @@ function subscribeToAppearanceMode(onStoreChange: () => void) {
     };
 }
 
-function getAppearanceModeSnapshot(): AppearanceMode {
-    return loadAppearanceMode();
+export function resolveTheme(mode: AppearanceMode, systemTheme: ResolvedTheme): ResolvedTheme {
+    return mode === "system" ? systemTheme : mode;
 }
 
-function getAppearanceModeServerSnapshot(): AppearanceMode {
-    return "system";
+export function getNextHeaderThemeMode(
+    mode: AppearanceMode,
+    resolvedTheme: ResolvedTheme,
+): AppearanceMode {
+    if (mode === "dark") {
+        return "light";
+    }
+
+    if (mode === "light") {
+        return "dark";
+    }
+
+    return resolvedTheme === "dark" ? "light" : "dark";
 }
 
 function subscribeToSystemTheme(onStoreChange: () => void) {
@@ -206,43 +217,62 @@ function applyResolvedAppearanceMode(theme: ResolvedTheme): void {
 }
 
 export function useTheme() {
-    const appearanceMode = useSyncExternalStore(
-        subscribeToAppearanceMode,
-        getAppearanceModeSnapshot,
-        getAppearanceModeServerSnapshot,
-    );
-    const systemTheme = useSyncExternalStore(
-        subscribeToSystemTheme,
-        getSystemThemeSnapshot,
-        getSystemThemeServerSnapshot,
-    );
-
-    const resolvedTheme = appearanceMode === "system" ? systemTheme : appearanceMode;
+    const [appearanceMode, setAppearanceModeState] = useState<AppearanceMode>("system");
+    const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemThemeServerSnapshot);
 
     useEffect(() => {
-        applyResolvedAppearanceMode(resolvedTheme);
-    }, [resolvedTheme]);
+        const syncAppearanceModeFromStorage = () => {
+            const persistedMode = loadAppearanceMode();
+            setAppearanceModeState((currentMode) => (
+                currentMode === persistedMode ? currentMode : persistedMode
+            ));
+        };
+
+        syncAppearanceModeFromStorage();
+        const unsubscribe = subscribeToAppearanceMode(syncAppearanceModeFromStorage);
+
+        if (typeof window !== "undefined") {
+            window.addEventListener("pageshow", syncAppearanceModeFromStorage);
+            window.addEventListener("focus", syncAppearanceModeFromStorage);
+            document.addEventListener("visibilitychange", syncAppearanceModeFromStorage);
+        }
+
+        return () => {
+            unsubscribe();
+            if (typeof window !== "undefined") {
+                window.removeEventListener("pageshow", syncAppearanceModeFromStorage);
+                window.removeEventListener("focus", syncAppearanceModeFromStorage);
+                document.removeEventListener("visibilitychange", syncAppearanceModeFromStorage);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (typeof window === "undefined") {
             return;
         }
 
-        const reapplyTheme = () => applyResolvedAppearanceMode(resolvedTheme);
-
-        window.addEventListener("pageshow", reapplyTheme);
-        window.addEventListener("focus", reapplyTheme);
-        document.addEventListener("visibilitychange", reapplyTheme);
-
-        return () => {
-            window.removeEventListener("pageshow", reapplyTheme);
-            window.removeEventListener("focus", reapplyTheme);
-            document.removeEventListener("visibilitychange", reapplyTheme);
+        const syncSystemTheme = () => {
+            const nextTheme = getSystemThemeSnapshot();
+            setSystemTheme((currentTheme) => (
+                currentTheme === nextTheme ? currentTheme : nextTheme
+            ));
         };
+
+        syncSystemTheme();
+        const unsubscribe = subscribeToSystemTheme(syncSystemTheme);
+        return unsubscribe;
+    }, []);
+
+    const resolvedTheme = resolveTheme(appearanceMode, systemTheme);
+
+    useEffect(() => {
+        applyResolvedAppearanceMode(resolvedTheme);
     }, [resolvedTheme]);
 
     function setAppearanceMode(mode: AppearanceMode) {
         saveAppearanceMode(mode);
+        setAppearanceModeState(mode);
 
         if (typeof window !== "undefined") {
             window.dispatchEvent(new Event("assettrace:appearance-change"));
@@ -250,7 +280,7 @@ export function useTheme() {
     }
 
     function toggleTheme() {
-        setAppearanceMode(resolvedTheme === "dark" ? "light" : "dark");
+        setAppearanceMode(getNextHeaderThemeMode(appearanceMode, resolvedTheme));
     }
 
     const themeStyle = useMemo<ThemeStyle>(() => getThemeStyle(resolvedTheme), [resolvedTheme]);
