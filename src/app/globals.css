@@ -27,6 +27,16 @@
     --surface-glass-subtle: rgba(255, 255, 255, 0.5);
     --surface-glass-panel: rgba(255, 255, 255, 0.58);
     --surface-glass-hover: rgba(255, 255, 255, 0.55);
+    --surface-elevated: rgba(255, 255, 255, 0.72);
+    --surface-elevated-strong: rgba(255, 255, 255, 0.84);
+    --surface-elevated-soft: rgba(255, 255, 255, 0.58);
+    --surface-overlay: rgba(255, 255, 255, 0.94);
+    --surface-control: rgba(255, 255, 255, 0.72);
+    --surface-control-active: linear-gradient(170deg, rgba(126, 175, 230, 0.34), rgba(183, 214, 244, 0.46));
+    --surface-control-hover: rgba(255, 255, 255, 0.56);
+    --surface-tooltip: rgba(248, 252, 255, 0.96);
+    --surface-gradient: linear-gradient(160deg, rgba(255, 255, 255, 0.76), rgba(246, 251, 255, 0.58));
+    --surface-gradient-strong: linear-gradient(160deg, rgba(255, 255, 255, 0.84), rgba(246, 251, 255, 0.65));
     --border-soft: rgba(85, 112, 142, 0.14);
     --border-muted: rgba(80, 109, 140, 0.2);
     --border-subtle: rgba(80, 109, 140, 0.12);
@@ -74,6 +84,16 @@ html[data-assettrace-theme="dark"] {
     --surface-glass-subtle: rgba(20, 32, 51, 0.62);
     --surface-glass-panel: rgba(24, 38, 60, 0.8);
     --surface-glass-hover: rgba(31, 49, 75, 0.82);
+    --surface-elevated: rgba(24, 38, 60, 0.82);
+    --surface-elevated-strong: rgba(28, 44, 68, 0.9);
+    --surface-elevated-soft: rgba(22, 35, 55, 0.74);
+    --surface-overlay: rgba(23, 37, 58, 0.95);
+    --surface-control: rgba(25, 40, 63, 0.78);
+    --surface-control-active: linear-gradient(170deg, rgba(64, 114, 166, 0.48), rgba(88, 134, 184, 0.42));
+    --surface-control-hover: rgba(31, 49, 75, 0.82);
+    --surface-tooltip: rgba(23, 37, 58, 0.96);
+    --surface-gradient: linear-gradient(160deg, rgba(31, 48, 72, 0.86), rgba(23, 37, 58, 0.76));
+    --surface-gradient-strong: linear-gradient(160deg, rgba(35, 53, 79, 0.9), rgba(25, 40, 63, 0.82));
     --border-soft: rgba(187, 209, 236, 0.18);
     --border-muted: rgba(187, 209, 236, 0.24);
     --border-subtle: rgba(187, 209, 236, 0.14);
@@ -122,7 +142,7 @@ button, input, select, textarea { font: inherit; }
 .app-section-stack { display: flex; flex-direction: column; gap: 14px; }
 
 .ui-surface {
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.76), rgba(246, 251, 255, 0.58));
+    background: var(--surface-gradient);
     border: 1px solid var(--panel-border);
     border-radius: 20px;
     backdrop-filter: blur(14px);
@@ -139,7 +159,7 @@ button, input, select, textarea { font: inherit; }
 .ui-filter-btn {
     min-height: 44px;
     border-radius: 13px;
-    background: rgba(255, 255, 255, 0.72);
+    background: var(--surface-control);
     color: var(--text-main);
 }
 
@@ -166,9 +186,9 @@ button, input, select, textarea { font: inherit; }
 }
 
 .ui-btn-primary { background: var(--accent-cyan); color: #fff; }
-.ui-btn-secondary { background: rgba(255, 255, 255, 0.68); color: var(--text-main); }
+.ui-btn-secondary { background: var(--surface-control); color: var(--text-main); }
 .ui-btn-ghost { background: transparent; color: var(--text-soft); border-color: transparent; }
-.ui-btn-ghost:hover { background: rgba(255, 255, 255, 0.56); color: var(--text-main); border-color: var(--panel-border); }
+.ui-btn-ghost:hover { background: var(--surface-control-hover); color: var(--text-main); border-color: var(--panel-border); }
 
 .ui-icon-btn {
     display: inline-flex;
@@ -178,19 +198,19 @@ button, input, select, textarea { font: inherit; }
     height: 34px;
     border-radius: 10px;
     border: 1px solid var(--panel-border);
-    background: rgba(255, 255, 255, 0.64);
+    background: var(--surface-control);
     color: var(--text-soft);
     cursor: pointer;
 }
 
-.ui-icon-btn:hover { color: var(--text-main); border-color: var(--accent-cyan); background: rgba(255, 255, 255, 0.82); }
+.ui-icon-btn:hover { color: var(--text-main); border-color: var(--accent-cyan); background: var(--surface-elevated-strong); }
 
 .ui-banner {
     color: var(--text-main);
     padding: 10px 12px;
     border-radius: 12px;
     border: 1px solid var(--panel-border);
-    background: rgba(255, 255, 255, 0.58);
+    background: var(--surface-elevated-soft);
 }
 
 .ui-banner-error { border-color: rgba(199, 74, 90, 0.38); }
