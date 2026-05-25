@@ -32,7 +32,7 @@ export function getConnectionStatusView(
   ) {
     return {
       kind: "auth_required",
-      label: "Neu verbinden",
+      label: "Autorisierung erforderlich",
       description:
         "Die Parqet-Verbindung muss erneuert werden. Lokale Daten bleiben verfügbar.",
       actionLabel: "Parqet erneut verbinden",
@@ -80,7 +80,7 @@ export function getConnectionStatusView(
     kind: "unknown",
     label: "Status unbekannt",
     description: "Noch kein lokaler Verbindungsstatus vorhanden.",
-    actionLabel: "Parqet verbinden",
+    actionLabel: "Mit Parqet verbinden",
     actionHref: "/api/auth/start",
   };
 }

@@ -196,6 +196,15 @@ function getSystemThemeServerSnapshot(): ResolvedTheme {
     return "dark";
 }
 
+function applyResolvedAppearanceMode(theme: ResolvedTheme): void {
+    if (typeof document === "undefined") {
+        return;
+    }
+
+    document.documentElement.dataset.assettraceTheme = theme;
+    document.documentElement.style.colorScheme = theme;
+}
+
 export function useTheme() {
     const appearanceMode = useSyncExternalStore(
         subscribeToAppearanceMode,
@@ -211,12 +220,25 @@ export function useTheme() {
     const resolvedTheme = appearanceMode === "system" ? systemTheme : appearanceMode;
 
     useEffect(() => {
-        if (typeof document === "undefined") {
+        applyResolvedAppearanceMode(resolvedTheme);
+    }, [resolvedTheme]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
             return;
         }
 
-        document.documentElement.dataset.assettraceTheme = resolvedTheme;
-        document.documentElement.style.colorScheme = resolvedTheme;
+        const reapplyTheme = () => applyResolvedAppearanceMode(resolvedTheme);
+
+        window.addEventListener("pageshow", reapplyTheme);
+        window.addEventListener("focus", reapplyTheme);
+        document.addEventListener("visibilitychange", reapplyTheme);
+
+        return () => {
+            window.removeEventListener("pageshow", reapplyTheme);
+            window.removeEventListener("focus", reapplyTheme);
+            document.removeEventListener("visibilitychange", reapplyTheme);
+        };
     }, [resolvedTheme]);
 
     function setAppearanceMode(mode: AppearanceMode) {

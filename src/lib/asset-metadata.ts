@@ -16,7 +16,7 @@ import {
     normalizeMetadata,
 } from "./metadata-utils";
 
-const METADATA_STORAGE_KEY = "parqet-asset-metadata-cache-v1";
+export const METADATA_STORAGE_KEY = "parqet-asset-metadata-cache-v1";
 
 // ============================================================
 // Lokaler manueller Seed
