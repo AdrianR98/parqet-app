@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import {
     loadAssetDetailTimeRange,
@@ -23,7 +23,7 @@ import {
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
 import { getActivityTypeLabel, normalizeExactIsin } from "../../../lib/local-activity-read-model";
 import { formatCurrency, formatShares } from "../../../lib/format";
-import { getAssetInitials, getAssetResolvedLogoUrl } from "../../../lib/asset-display";
+import { getAssetInitials, getAssetResolvedLogoUrl, isMeaningfulSymbol } from "../../../lib/asset-display";
 import type { MarketDataAction, MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../../../lib/market-data/types";
 import type { ActivitiesAuditItem, AssetSummary, PortfolioPosition } from "../../../lib/types";
 import styles from "./AssetDetailPage.module.css";
@@ -59,6 +59,34 @@ const MARKET_PERCENT_FORMATTER = new Intl.NumberFormat("de-DE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
 });
+
+async function copyIdentifierToClipboard(value: string): Promise<boolean> {
+    if (!value.trim()) {
+        return false;
+    }
+
+    try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.setAttribute("readonly", "true");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        return copied;
+    } catch {
+        return false;
+    }
+}
+const DIVIDEND_CAGR_OPTIONS = [2, 3, 5, 7, 10, 15] as const;
+const DIVIDEND_KPI_SETTINGS_KEY = "assettrace-dividend-kpi-settings-v1";
 
 function parseMarketDataResponse(payload: unknown): MarketDataResponse | null {
     if (!payload || typeof payload !== "object") {
@@ -204,6 +232,10 @@ function uniqueIds(ids: string[]): string[] {
     return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
 }
 
+function sanitizeCagrYears(candidate: unknown, fallback: number): number {
+    return DIVIDEND_CAGR_OPTIONS.includes(candidate as (typeof DIVIDEND_CAGR_OPTIONS)[number]) ? Number(candidate) : fallback;
+}
+
 type SelectedAssetScope = {
     mode: "all" | "manual";
     selectedAssetPortfolioIds: string[];
@@ -276,6 +308,40 @@ function PortfolioBreakdown({ entries }: { entries: PortfolioPosition[] }) {
     );
 }
 
+function CopyableHeaderIdentifier({
+    label,
+    value,
+}: {
+    label: "ISIN" | "WKN";
+    value: string;
+}) {
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <span className={styles.headerMetaPart}>
+            <span>{label} </span>
+            <button
+                type="button"
+                className={`${styles.inlineMetaCopyButton} ${copied ? styles.inlineMetaCopyButtonCopied : ""}`}
+                title={`${label} kopieren`}
+                aria-label={`${label} ${value} kopieren`}
+                onClick={async (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const ok = await copyIdentifierToClipboard(value);
+                    if (!ok) {
+                        return;
+                    }
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1000);
+                }}
+            >
+                {value}
+            </button>
+        </span>
+    );
+}
+
 type DividendMonthSegment = {
     portfolioId: string;
     portfolioName: string;
@@ -303,8 +369,7 @@ type DividendAnalysis = {
     total: number;
     paymentCount: number;
     ttmYield: number | null;
-    cagr5: number | null;
-    cagr10: number | null;
+    yearlySums: Map<number, number>;
     hasAnyScopedDividendRows: boolean;
     hasAnyValidScopedDividendRows: boolean;
     monthSlots: DividendMonthSlot[];
@@ -326,7 +391,7 @@ type ActiveDividendTooltip = {
 };
 
 type KpiHelpProps = {
-    label: string;
+    label: ReactNode;
     value: string;
     helpText: string;
 };
@@ -410,6 +475,10 @@ function computeCagr(yearlySums: Map<number, number>, years: number): number | n
     }
 
     return Math.pow(end / start, 1 / years) - 1;
+}
+
+function calculateDividendCagr(yearlySums: Map<number, number>, years: number): number | null {
+    return computeCagr(yearlySums, years);
 }
 
 function monthDiffInclusive(start: Date, end: Date): number {
@@ -566,8 +635,7 @@ function buildDividendAnalysis(input: {
             total: 0,
             paymentCount: 0,
             ttmYield,
-            cagr5: computeCagr(yearlySums, 5),
-            cagr10: computeCagr(yearlySums, 10),
+            yearlySums,
             hasAnyScopedDividendRows,
             hasAnyValidScopedDividendRows,
             monthSlots,
@@ -687,8 +755,7 @@ function buildDividendAnalysis(input: {
         total,
         paymentCount,
         ttmYield,
-        cagr5: computeCagr(yearlySums, 5),
-        cagr10: computeCagr(yearlySums, 10),
+        yearlySums,
         hasAnyScopedDividendRows,
         hasAnyValidScopedDividendRows,
         monthSlots,
@@ -936,6 +1003,9 @@ export default function AssetDetailPage() {
     const [marketDataRefreshing, setMarketDataRefreshing] = useState(false);
     const [marketDataNetworkError, setMarketDataNetworkError] = useState<string | null>(null);
     const [marketReturnMode, setMarketReturnMode] = useState<MarketReturnMode>("price_only");
+    const [cagrPrimaryYears, setCagrPrimaryYears] = useState(5);
+    const [cagrSecondaryYears, setCagrSecondaryYears] = useState(10);
+    const [activeCagrMenu, setActiveCagrMenu] = useState<"primary" | "secondary" | null>(null);
     const marketRequestSequence = useRef(0);
 
     const viewModel = useMemo(() => {
@@ -1064,6 +1134,38 @@ export default function AssetDetailPage() {
         };
     }, [currentIsin, loadMarketData]);
 
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        try {
+            const raw = window.localStorage.getItem(DIVIDEND_KPI_SETTINGS_KEY);
+            if (!raw) {
+                return;
+            }
+
+            const parsed = JSON.parse(raw) as Partial<{ cagrPrimaryYears: number; cagrSecondaryYears: number }>;
+            setCagrPrimaryYears(sanitizeCagrYears(parsed.cagrPrimaryYears, 5));
+            setCagrSecondaryYears(sanitizeCagrYears(parsed.cagrSecondaryYears, 10));
+        } catch {
+            setCagrPrimaryYears(5);
+            setCagrSecondaryYears(10);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const payload = JSON.stringify({
+            cagrPrimaryYears: sanitizeCagrYears(cagrPrimaryYears, 5),
+            cagrSecondaryYears: sanitizeCagrYears(cagrSecondaryYears, 10),
+        });
+        window.localStorage.setItem(DIVIDEND_KPI_SETTINGS_KEY, payload);
+    }, [cagrPrimaryYears, cagrSecondaryYears]);
+
     if (!clientReady) {
         return (
             <main className={styles.page}>
@@ -1093,6 +1195,8 @@ export default function AssetDetailPage() {
     const normalizedAssetIsin = normalizeExactIsin(asset.isin);
     const statusLabel = getAssetStatusLabel(metrics);
     const scopedIds = new Set(selectedAssetPortfolioIds);
+    const headerIsin = String(asset.instrument?.isin ?? asset.isin ?? "").trim();
+    const headerWkn = String(asset.instrument?.wkn ?? asset.wkn ?? "").trim();
 
     const scopedAssetActivities = activityItems
         .filter((item) => normalizeExactIsin(item.isin) === normalizedAssetIsin)
@@ -1110,6 +1214,8 @@ export default function AssetDetailPage() {
         scopedCostBasis: metrics.remainingCostBasis,
         selectedRange,
     });
+    const primaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrPrimaryYears);
+    const secondaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrSecondaryYears);
 
     const hasScopedPosition = metrics.portfolioBreakdown.length > 0;
     const recentActivities = scopedAssetActivities.slice(0, 5);
@@ -1148,6 +1254,11 @@ export default function AssetDetailPage() {
     const localizedSourceLabel = isDbBackedSeries
         ? "eigene Kursdatenbank"
         : sourceLabel;
+    const headerTickerFromInstrument = String(asset.instrument?.primaryMapping?.symbol ?? "").trim();
+    const headerTickerFromHistory = String(marketDataResponse?.metadata?.symbol ?? marketDataResponse?.data?.symbol ?? "").trim();
+    const headerTickerRaw = headerTickerFromInstrument || headerTickerFromHistory;
+    const headerTicker = isMeaningfulSymbol(headerTickerRaw || null, headerIsin || asset.isin) ? headerTickerRaw : "";
+    const headerExchange = String(asset.instrument?.primaryMapping?.exchange ?? marketDataResponse?.metadata?.exchange ?? "").trim();
 
     return (
         <main className={styles.page}>
@@ -1186,7 +1297,30 @@ export default function AssetDetailPage() {
                 </div>
                 <div className={styles.headerText}>
                     <h1>{displayName}</h1>
-                    <div className={styles.metaLine}>ISIN {asset.isin || getAssetDetailKey(asset)} · {statusLabel}</div>
+                    <div className={styles.metaLine}>
+                        <span className={styles.headerMetaList}>
+                            {headerIsin ? <CopyableHeaderIdentifier label="ISIN" value={headerIsin} /> : <span className={styles.headerMetaPart}>ISIN {asset.isin || getAssetDetailKey(asset)}</span>}
+                            {headerWkn ? (
+                                <>
+                                    <span className={styles.headerMetaSeparator}>·</span>
+                                    <CopyableHeaderIdentifier label="WKN" value={headerWkn} />
+                                </>
+                            ) : null}
+                            {headerTicker ? (
+                                <>
+                                    <span className={styles.headerMetaSeparator}>·</span>
+                                    <span className={styles.headerMetaPart}>TICKER {headerTicker}</span>
+                                </>
+                            ) : null}
+                            {headerExchange ? (
+                                <>
+                                    <span className={styles.headerMetaSeparator}>·</span>
+                                    <span className={styles.headerMetaPart}>BÖRSE {headerExchange}</span>
+                                </>
+                            ) : null}
+                        </span>
+                    </div>
+                    <div className={styles.metaSubline}>{statusLabel}</div>
                     <div className={styles.metaSubline}>Stand: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString("de-DE") : "unbekannt"}</div>
                 </div>
             </section>
@@ -1364,14 +1498,74 @@ export default function AssetDetailPage() {
                         helpText="Netto-Dividenden der letzten 12 Monate geteilt durch den aktuellen Einstand im ausgewählten Portfolio-Scope. Der Wert ist unabhängig vom gewählten Chart-Zeitraum."
                     />
                     <DividendKpiCard
-                        label="CAGR 5 Jahre"
-                        value={formatPercent(dividendAnalysis.cagr5)}
-                        helpText="Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über 5 Jahre. Wird nur berechnet, wenn ausreichend gültige Jahresdaten vorhanden sind."
+                        label={(
+                            <span className={styles.kpiLabelWrap}>
+                                <button
+                                    type="button"
+                                    className={styles.kpiLabelButton}
+                                    aria-haspopup="menu"
+                                    aria-label={`CAGR-Zeitraum auswählen, aktuell ${cagrPrimaryYears} Jahre`}
+                                    onClick={() => setActiveCagrMenu((current) => current === "primary" ? null : "primary")}
+                                >
+                                    CAGR {cagrPrimaryYears} Jahre
+                                </button>
+                                {activeCagrMenu === "primary" ? (
+                                    <span className={styles.kpiDropdownMenu} role="menu">
+                                        {DIVIDEND_CAGR_OPTIONS.map((years) => (
+                                            <button
+                                                key={`primary-${years}`}
+                                                type="button"
+                                                className={styles.kpiDropdownItem}
+                                                role="menuitem"
+                                                onClick={() => {
+                                                    setCagrPrimaryYears(years);
+                                                    setActiveCagrMenu(null);
+                                                }}
+                                            >
+                                                {years} Jahre
+                                            </button>
+                                        ))}
+                                    </span>
+                                ) : null}
+                            </span>
+                        )}
+                        value={formatPercent(primaryCagr)}
+                        helpText={`Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über ${cagrPrimaryYears} Jahre. Bei unzureichenden Daten wird kein Wert angezeigt.`}
                     />
                     <DividendKpiCard
-                        label="CAGR 10 Jahre"
-                        value={formatPercent(dividendAnalysis.cagr10)}
-                        helpText="Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über 10 Jahre. Wird nur berechnet, wenn ausreichend gültige Jahresdaten vorhanden sind."
+                        label={(
+                            <span className={styles.kpiLabelWrap}>
+                                <button
+                                    type="button"
+                                    className={styles.kpiLabelButton}
+                                    aria-haspopup="menu"
+                                    aria-label={`CAGR-Zeitraum auswählen, aktuell ${cagrSecondaryYears} Jahre`}
+                                    onClick={() => setActiveCagrMenu((current) => current === "secondary" ? null : "secondary")}
+                                >
+                                    CAGR {cagrSecondaryYears} Jahre
+                                </button>
+                                {activeCagrMenu === "secondary" ? (
+                                    <span className={styles.kpiDropdownMenu} role="menu">
+                                        {DIVIDEND_CAGR_OPTIONS.map((years) => (
+                                            <button
+                                                key={`secondary-${years}`}
+                                                type="button"
+                                                className={styles.kpiDropdownItem}
+                                                role="menuitem"
+                                                onClick={() => {
+                                                    setCagrSecondaryYears(years);
+                                                    setActiveCagrMenu(null);
+                                                }}
+                                            >
+                                                {years} Jahre
+                                            </button>
+                                        ))}
+                                    </span>
+                                ) : null}
+                            </span>
+                        )}
+                        value={formatPercent(secondaryCagr)}
+                        helpText={`Durchschnittliches jährliches Wachstum der lokalen Netto-Dividenden über ${cagrSecondaryYears} Jahre. Bei unzureichenden Daten wird kein Wert angezeigt.`}
                     />
                 </div>
 
