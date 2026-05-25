@@ -213,15 +213,6 @@ export function useDashboardData(): UseDashboardDataResult {
   const guardedGlobalAssetProductEnabled =
     resolveGlobalAssetProductGuardEnabled();
 
-  const debugDashboard = useCallback(
-    (message: string, payload?: Record<string, unknown>) => {
-      if (process.env.NODE_ENV !== "production") {
-        console.debug(`[dashboard-bootstrap] ${message}`, payload ?? {});
-      }
-    },
-    [],
-  );
-
   useEffect(() => {
     selectedPortfolioIdsRef.current = selectedPortfolioIds;
   }, [selectedPortfolioIds]);
@@ -299,11 +290,6 @@ export function useDashboardData(): UseDashboardDataResult {
           savePortfolioScope(resolvedScope.scope);
         }
 
-        debugDashboard("portfolios loaded", {
-          count: items.length,
-          resolvedSelectedPortfolioIds: resolvedScope.selectedPortfolioIds,
-          scopeMode: resolvedScope.scope.mode,
-        });
       } catch (error) {
         setErrorMessage(
           getUserFacingCaughtErrorMessage(
@@ -317,7 +303,7 @@ export function useDashboardData(): UseDashboardDataResult {
     }
 
     loadPortfolios();
-  }, [hydratePortfolioSelection, debugDashboard]);
+  }, [hydratePortfolioSelection]);
 
   useEffect(() => {
     const cached = loadDashboardCache();
@@ -390,11 +376,6 @@ export function useDashboardData(): UseDashboardDataResult {
     setRefreshingAssets(hasVisibleData);
     setErrorMessage("");
 
-    debugDashboard("loadAssets start", {
-      portfolioIdsForLoad,
-      hasVisibleData,
-    });
-
     try {
       const params = new URLSearchParams();
 
@@ -443,17 +424,7 @@ export function useDashboardData(): UseDashboardDataResult {
       setLastLoadedPortfolioIds(portfolioIdsForLoad);
       setHasCachedData(true);
 
-      debugDashboard("loadAssets success", {
-        portfolioIdsForLoad,
-        selectedAssets: preparedCacheWrite.selectedAssets.length,
-        selectedActiveAssets: preparedCacheWrite.selectedActiveAssets.length,
-        selectedClosedAssets: preparedCacheWrite.selectedClosedAssets.length,
-      });
     } catch (error) {
-      debugDashboard("loadAssets error", {
-        portfolioIdsForLoad,
-        error: error instanceof Error ? error.message : String(error),
-      });
       setErrorMessage(
         getUserFacingCaughtErrorMessage(
           error,
@@ -464,13 +435,11 @@ export function useDashboardData(): UseDashboardDataResult {
       assetLoadInFlightRef.current = false;
       setLoadingAssets(false);
       setRefreshingAssets(false);
-      debugDashboard("loadAssets end", { portfolioIdsForLoad });
     }
   }, [
     activeAssets.length,
     closedAssets.length,
     guardedGlobalAssetProductEnabled,
-    debugDashboard,
   ]);
 
   function resetPortfolioSelectionToAll() {
@@ -560,22 +529,6 @@ export function useDashboardData(): UseDashboardDataResult {
       alreadyExecutedKeys: autoRefreshExecutedKeysRef.current,
     });
 
-    debugDashboard("auto-refresh decision", {
-      loadingPortfolios,
-      loadingAssets,
-      refreshingAssets,
-      portfolioCount: portfolios.length,
-      selectedPortfolioIds,
-      effectiveSelectedPortfolioIds,
-      lastLoadedPortfolioIds,
-      hasCachedData,
-      showStaleWarning: isDashboardDataStale(lastUpdatedAt),
-      hasPendingPortfolioSelection,
-      reason: decision.reason,
-      shouldRefresh: decision.shouldRefresh,
-      executionKey: decision.executionKey,
-    });
-
     if (!decision.shouldRefresh || !decision.executionKey) {
       return;
     }
@@ -593,7 +546,6 @@ export function useDashboardData(): UseDashboardDataResult {
     lastUpdatedAt,
     lastLoadedPortfolioIds,
     loadAssets,
-    debugDashboard,
   ]);
 
   const selectedPortfolioCount = useMemo(() => {

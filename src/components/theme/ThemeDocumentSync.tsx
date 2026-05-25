@@ -27,10 +27,6 @@ function applyThemeToDocument(): void {
     document.documentElement.dataset.assettraceTheme = resolvedTheme;
     document.documentElement.dataset.appearance = appearanceMode;
     document.documentElement.style.colorScheme = resolvedTheme;
-
-    if (process.env.NODE_ENV !== "production") {
-        console.debug("[theme-sync] applied", { appearanceMode, resolvedTheme });
-    }
 }
 
 export default function ThemeDocumentSync() {
