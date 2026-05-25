@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Refine, useCan, useIsAuthenticated } from "@refinedev/core";
 import routerProvider from "@refinedev/nextjs-router";
 import { adminAccessControlProvider, adminAuthProvider } from "@/lib/admin/refine";
+import {
+    LAST_ROUTE_KEY,
+    VISITED_ADMIN_ROUTE_KEY,
+} from "@/lib/settings-restore-guard";
 import styles from "./page.module.css";
 
 type Sort = { key: string; direction: "asc" | "desc" };
@@ -104,6 +108,15 @@ function Table({ head, rows, tableClassName }: { head: React.ReactNode; rows: Re
 }
 
 export default function AdminShell() {
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        window.sessionStorage.setItem(LAST_ROUTE_KEY, window.location.pathname);
+        window.sessionStorage.setItem(VISITED_ADMIN_ROUTE_KEY, "1");
+    }, []);
+
     return <Refine authProvider={adminAuthProvider} accessControlProvider={adminAccessControlProvider} routerProvider={routerProvider} resources={[]}><AdminPanel /></Refine>;
 }
 
