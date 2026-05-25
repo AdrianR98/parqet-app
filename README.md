@@ -39,6 +39,7 @@ ChatGPT owns issue shaping and mode selection. Codex follows the supplied mode a
 - [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) - current repository status and next steps.
 - [docs/PROJECT_PRODUCT_BRIEF.md](docs/PROJECT_PRODUCT_BRIEF.md) - product idea and Phase-1 questions.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - architecture status and pipeline-readiness references.
+- [docs/MARKET_DATA_PIPELINE.md](docs/MARKET_DATA_PIPELINE.md) - admin/CLI market-data workflow, sequence and safety rules.
 - [docs/PIPELINE_INVENTORY.md](docs/PIPELINE_INVENTORY.md) - current Parqet pipeline inventory and replacement-gate checklist.
 - [docs/ROADMAP.md](docs/ROADMAP.md) - longer-term roadmap and governance.
 - [docs/adr/](docs/adr) - architecture and collaboration decision records.
