@@ -158,6 +158,30 @@
     font-size: 0.92rem;
 }
 
+.tableWrap {
+    margin-top: 10px;
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+}
+
+.table th {
+    color: var(--text-soft);
+    font-weight: 600;
+}
+
 @media (max-width: 760px) {
     .root {
         padding: 14px 12px 24px;

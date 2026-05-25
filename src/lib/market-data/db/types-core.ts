@@ -431,6 +431,25 @@ export type MarketInstrumentStatusSummaryRow = {
     count: number;
 };
 
+export type AdminOpenUnmappedMarketDataRow = {
+    isin: string;
+    displayName: string | null;
+    assetType: string | null;
+    currency: string | null;
+    wkn: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    marketDataStatusReason: string | null;
+    hasAnyMapping: boolean;
+    hasPrimaryMapping: boolean;
+    hasVerifiedMapping: boolean;
+    hasVerifiedPrimary: boolean;
+    hasFailedValidation: boolean;
+    hasPriceData: boolean;
+    hasMarketActions: boolean;
+    primarySymbol: string | null;
+    candidateSymbols: string[];
+};
+
 export type VerifiedMappingForPromotion = {
     isin: string;
     name: string | null;

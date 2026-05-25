@@ -10,7 +10,6 @@ const PLACEHOLDER_RESOURCES = [
     "Market Data Status",
     "Instruments",
     "Mappings",
-    "Unmapped Assets",
     "Runs",
 ] as const;
 
@@ -30,6 +29,34 @@ type MarketDataStatusPayload = {
     failedValidationCandidates: number;
     marketDataStatusCounts: Record<string, number>;
     referenceSourceCounts: Array<{ sourceKey: string; rowCount: number }>;
+};
+
+type UnmappedMarketDataPayload = {
+    totalOpen: number;
+    shown: number;
+    limit: number;
+    filters: {
+        category: string | null;
+        action: string | null;
+        status: string | null;
+    };
+    items: Array<{
+        priority: number;
+        isin: string;
+        displayName: string | null;
+        assetType: string | null;
+        currency: string | null;
+        wkn: string | null;
+        marketDataStatus: string | null;
+        mappingStatus: string;
+        primarySymbol: string | null;
+        candidateSymbols: string[];
+        category: string;
+        suggestedAction: string;
+        statusReason: string | null;
+        hasPriceData: boolean;
+        hasMarketActions: boolean;
+    }>;
 };
 
 function SessionBadge({ state }: { state: "enabled" | "disabled" | "loading" }) {
@@ -56,6 +83,8 @@ function AdminPanel() {
           : "disabled";
     const [statusData, setStatusData] = useState<MarketDataStatusPayload | null>(null);
     const [statusError, setStatusError] = useState<string | null>(null);
+    const [unmappedData, setUnmappedData] = useState<UnmappedMarketDataPayload | null>(null);
+    const [unmappedError, setUnmappedError] = useState<string | null>(null);
 
     useEffect(() => {
         if (sessionState !== "enabled") return;
@@ -81,6 +110,35 @@ function AdminPanel() {
                 if (error instanceof Error && error.name === "AbortError") return;
                 setStatusData(null);
                 setStatusError("Market data status is currently unavailable.");
+            });
+
+        return () => controller.abort();
+    }, [sessionState]);
+
+    useEffect(() => {
+        if (sessionState !== "enabled") return;
+
+        const controller = new AbortController();
+
+        fetch("/api/admin/market-data/unmapped?limit=50", {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error("unmapped-fetch-failed");
+                }
+                return (await response.json()) as UnmappedMarketDataPayload;
+            })
+            .then((payload) => {
+                setUnmappedData(payload);
+                setUnmappedError(null);
+            })
+            .catch((error: unknown) => {
+                if (error instanceof Error && error.name === "AbortError") return;
+                setUnmappedData(null);
+                setUnmappedError("Open/unmapped market-data assets are currently unavailable.");
             });
 
         return () => controller.abort();
@@ -179,6 +237,65 @@ function AdminPanel() {
                     </>
                 ) : (
                     <p className={styles.subtle}>No status data available.</p>
+                )}
+            </section>
+
+            <section className={styles.surface}>
+                <h2>Unmapped / Open Market Data Assets</h2>
+                <p className={styles.note}>
+                    Read-only view. Changes still happen through the CLI/admin workflow.
+                </p>
+                {sessionState !== "enabled" ? (
+                    <p className={styles.subtle}>List is unavailable while admin is disabled or unauthorized.</p>
+                ) : !unmappedData && !unmappedError ? (
+                    <p className={styles.subtle}>Loading unmapped/open assets...</p>
+                ) : unmappedError ? (
+                    <p className={styles.errorText}>{unmappedError}</p>
+                ) : unmappedData && unmappedData.items.length === 0 ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {unmappedData.shown.toLocaleString()} of {unmappedData.totalOpen.toLocaleString()} open cases.
+                        </p>
+                        <p className={styles.subtle}>No open/unmapped market-data assets for the current filter.</p>
+                    </>
+                ) : unmappedData ? (
+                    <>
+                        <p className={styles.subtle}>
+                            Showing {unmappedData.shown.toLocaleString()} of {unmappedData.totalOpen.toLocaleString()} open cases.
+                        </p>
+                        <div className={styles.tableWrap}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>Prio</th>
+                                        <th>ISIN</th>
+                                        <th>Name</th>
+                                        <th>Category</th>
+                                        <th>Action</th>
+                                        <th>Status</th>
+                                        <th>Primary</th>
+                                        <th>Candidates</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {unmappedData.items.map((item) => (
+                                        <tr key={item.isin}>
+                                            <td>{item.priority}</td>
+                                            <td>{item.isin}</td>
+                                            <td>{item.displayName ?? "—"}</td>
+                                            <td>{item.category}</td>
+                                            <td>{item.suggestedAction}</td>
+                                            <td>{item.mappingStatus}</td>
+                                            <td>{item.primarySymbol ?? "—"}</td>
+                                            <td>{item.candidateSymbols.length ? item.candidateSymbols.join(", ") : "—"}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : (
+                    <p className={styles.subtle}>No unmapped/open data available.</p>
                 )}
             </section>
 

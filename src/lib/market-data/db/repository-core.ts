@@ -42,6 +42,7 @@ import type {
     UpsertSymbolMappingInput,
     TradingUniverseReferenceMatch,
     ReferenceSourceCount,
+    AdminOpenUnmappedMarketDataRow,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -1492,6 +1493,89 @@ export async function listMarketInstrumentStatusSummary(): Promise<MarketInstrum
                     ? null
                     : normalizeInstrumentStatus(String(row.status)),
             count: Number(row.count ?? 0),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listAdminOpenUnmappedMarketDataRows(): Promise<AdminOpenUnmappedMarketDataRow[]> {
+    try {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with mapping as (
+                select
+                    i.id as instrument_id,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true) as has_any_mapping,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.is_primary = true) as has_primary_mapping,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.verified_at is not null) as has_verified_mapping,
+                    bool_or(m.provider = 'yfinance' and m.is_active = true and m.is_primary = true and m.verified_at is not null) as has_verified_primary,
+                    bool_or(m.provider = 'yfinance' and m.notes ilike '%validated:yfinance; status=failed%') as has_failed_validation,
+                    array_remove(array_agg(distinct case when m.provider = 'yfinance' then m.symbol end), null) as candidate_symbols,
+                    max(case when m.provider = 'yfinance' and m.is_primary = true then m.symbol end) as primary_symbol
+                from market_instruments i
+                left join market_symbol_mappings m on m.instrument_id = i.id
+                group by i.id
+            ),
+            price_flags as (
+                select instrument_id, true as has_prices
+                from market_prices_daily
+                group by instrument_id
+            ),
+            action_flags as (
+                select instrument_id, true as has_actions
+                from market_actions
+                group by instrument_id
+            )
+            select
+                i.isin,
+                i.display_name,
+                i.asset_type,
+                i.currency,
+                i.wkn,
+                i.market_data_status,
+                i.market_data_status_reason,
+                coalesce(m.has_any_mapping, false) as has_any_mapping,
+                coalesce(m.has_primary_mapping, false) as has_primary_mapping,
+                coalesce(m.has_verified_mapping, false) as has_verified_mapping,
+                coalesce(m.has_verified_primary, false) as has_verified_primary,
+                coalesce(m.has_failed_validation, false) as has_failed_validation,
+                coalesce(p.has_prices, false) as has_price_data,
+                coalesce(a.has_actions, false) as has_market_actions,
+                m.primary_symbol,
+                coalesce(m.candidate_symbols, '{}'::text[]) as candidate_symbols
+            from market_instruments i
+            left join mapping m on m.instrument_id = i.id
+            left join price_flags p on p.instrument_id = i.id
+            left join action_flags a on a.instrument_id = i.id
+            where (
+                coalesce(m.has_verified_primary, false) = false
+                or coalesce(m.has_primary_mapping, false) = false
+                or coalesce(m.has_failed_validation, false) = true
+                or (coalesce(m.has_primary_mapping, false) = true and coalesce(p.has_prices, false) = false)
+                or coalesce(i.market_data_status, '') in ('excluded', 'legacy', 'derivative', 'unknown')
+            )
+            order by i.isin asc`,
+        );
+
+        return result.rows.map((row) => ({
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            assetType: row.asset_type === null ? null : String(row.asset_type),
+            currency: row.currency === null ? null : String(row.currency),
+            wkn: row.wkn === null ? null : String(row.wkn),
+            marketDataStatus: row.market_data_status === null ? null : normalizeInstrumentStatus(String(row.market_data_status)),
+            marketDataStatusReason: row.market_data_status_reason === null ? null : String(row.market_data_status_reason),
+            hasAnyMapping: Boolean(row.has_any_mapping),
+            hasPrimaryMapping: Boolean(row.has_primary_mapping),
+            hasVerifiedMapping: Boolean(row.has_verified_mapping),
+            hasVerifiedPrimary: Boolean(row.has_verified_primary),
+            hasFailedValidation: Boolean(row.has_failed_validation),
+            hasPriceData: Boolean(row.has_price_data),
+            hasMarketActions: Boolean(row.has_market_actions),
+            primarySymbol: row.primary_symbol === null ? null : String(row.primary_symbol),
+            candidateSymbols: Array.isArray(row.candidate_symbols)
+                ? row.candidate_symbols.filter((value): value is string => typeof value === "string")
+                : [],
         }));
     } catch (error) {
         handleRepositoryError(error);
