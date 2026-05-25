@@ -173,11 +173,13 @@ export function getAuthoritativeTicker(asset: AssetSummary): string | null {
         return instrumentSymbol;
     }
 
-    if (asset.instrumentMetadataStatus === "ok") {
-        const fallbackSymbol = pickFirstDisplayString(asset.symbol, asset.ticker, asset.tickerSymbol);
-        if (fallbackSymbol && isMeaningfulSymbol(fallbackSymbol, asset.isin)) {
-            return fallbackSymbol;
-        }
+    if (isIsinLike(asset.isin)) {
+        return null;
+    }
+
+    const fallbackSymbol = pickFirstDisplayString(asset.symbol, asset.ticker, asset.tickerSymbol);
+    if (fallbackSymbol && isMeaningfulSymbol(fallbackSymbol, asset.isin)) {
+        return fallbackSymbol;
     }
 
     return null;
@@ -234,6 +236,16 @@ export function getAssetWkn(asset: AssetSummary): string | null {
 export function getAssetDisplayName(asset: AssetSummary): string {
     if (isIsinLike(asset.isin) && asset.instrumentMetadataStatus !== "ok") {
         return "Stammdaten fehlen";
+    }
+
+    if (isIsinLike(asset.isin) && asset.instrumentMetadataStatus === "ok") {
+        const strictInstrumentDisplayName = pickFirstDisplayString(
+            asset.instrument?.displayName,
+            asset.instrument?.name,
+            asset.instrumentDisplayName,
+            asset.instrumentName
+        );
+        return strictInstrumentDisplayName ?? "Stammdaten fehlen";
     }
 
     const instrumentDisplayName = pickFirstDisplayString(

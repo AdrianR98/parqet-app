@@ -12,7 +12,6 @@ function isValidIsin(value: string): boolean {
 export async function GET(req: Request) {
     const url = new URL(req.url);
     const isin = normalizeLookupIsin(url.searchParams.get("isin") ?? "");
-    const refresh = url.searchParams.get("refresh") === "1";
 
     if (!isin || !isValidIsin(isin)) {
         return NextResponse.json(
@@ -25,7 +24,7 @@ export async function GET(req: Request) {
         );
     }
 
-    const result = await getMarketDataHistory({ isin, refresh });
+    const result = await getMarketDataHistory({ isin });
 
     if (result.status === "invalid_request") {
         return NextResponse.json(result, { status: 400 });

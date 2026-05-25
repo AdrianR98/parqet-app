@@ -4,7 +4,6 @@ import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-    loadAssetDetailTimeRange,
     loadKnownPortfolios,
     loadPortfolioScope,
     resolvePortfolioScope,
@@ -28,7 +27,6 @@ import type { ActivitiesAuditItem, AssetSummary, PortfolioPosition } from "../..
 import styles from "./AssetDetailPage.module.css";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", { month: "short", year: "2-digit" });
-const CHART_MONTHS = 12;
 const CHART_HEIGHT_PX = 230;
 const DETAIL_RANGE_OPTIONS = [
     { key: "1m", label: "1M", days: 31 },
@@ -39,8 +37,16 @@ const DETAIL_RANGE_OPTIONS = [
     { key: "5y", label: "5Y", days: 365 * 5 + 2 },
     { key: "max", label: "MAX", days: null },
 ] as const;
+const DIVIDEND_RANGE_OPTIONS = [
+    { key: "ytd", label: "YTD" },
+    { key: "12m", label: "12M" },
+    { key: "3y", label: "3Y" },
+    { key: "5y", label: "5Y" },
+    { key: "max", label: "MAX" },
+] as const;
 
 type DetailRangeKey = (typeof DETAIL_RANGE_OPTIONS)[number]["key"];
+type DividendRangeKey = (typeof DIVIDEND_RANGE_OPTIONS)[number]["key"];
 type ActivePriceTooltip = {
     index: number;
 };
@@ -104,24 +110,51 @@ function rangeDaysFor(selectedRange: DetailRangeKey): number | null {
     return DETAIL_RANGE_OPTIONS.find((option) => option.key === selectedRange)?.days ?? null;
 }
 
-function rangeMonthsFor(selectedRange: DetailRangeKey): number | null {
-    const days = rangeDaysFor(selectedRange);
-    if (days == null) {
-        return null;
-    }
-    return Math.max(1, Math.round(days / 30.4));
-}
-
 function rangeIndex(selectedRange: DetailRangeKey): number {
     const index = DETAIL_RANGE_OPTIONS.findIndex((option) => option.key === selectedRange);
     return index >= 0 ? index : 0;
 }
 
-function sanitizeDetailRangeKey(candidate: string | null | undefined): DetailRangeKey {
-    const normalized = (candidate ?? "").toLowerCase();
-    return DETAIL_RANGE_OPTIONS.some((option) => option.key === normalized)
-        ? (normalized as DetailRangeKey)
-        : "1y";
+function dividendRangeIndex(selectedRange: DividendRangeKey): number {
+    const index = DIVIDEND_RANGE_OPTIONS.findIndex((option) => option.key === selectedRange);
+    return index >= 0 ? index : 0;
+}
+
+function normalizeDividendKpiSettings(value: unknown): { cagrPrimaryYears: number; cagrSecondaryYears: number } {
+    const parsed = typeof value === "object" && value !== null
+        ? (value as Partial<{ cagrPrimaryYears: unknown; cagrSecondaryYears: unknown }>)
+        : {};
+    const rawPrimary = typeof parsed.cagrPrimaryYears === "string" ? Number(parsed.cagrPrimaryYears) : parsed.cagrPrimaryYears;
+    const rawSecondary = typeof parsed.cagrSecondaryYears === "string" ? Number(parsed.cagrSecondaryYears) : parsed.cagrSecondaryYears;
+    return {
+        cagrPrimaryYears: sanitizeCagrYears(rawPrimary, 5),
+        cagrSecondaryYears: sanitizeCagrYears(rawSecondary, 10),
+    };
+}
+
+function loadDividendKpiSettings(): { cagrPrimaryYears: number; cagrSecondaryYears: number } {
+    if (typeof window === "undefined") {
+        return { cagrPrimaryYears: 5, cagrSecondaryYears: 10 };
+    }
+    try {
+        const raw = window.localStorage.getItem(DIVIDEND_KPI_SETTINGS_KEY);
+        if (!raw) {
+            return { cagrPrimaryYears: 5, cagrSecondaryYears: 10 };
+        }
+        return normalizeDividendKpiSettings(JSON.parse(raw));
+    } catch {
+        return { cagrPrimaryYears: 5, cagrSecondaryYears: 10 };
+    }
+}
+
+function saveDividendKpiSettings(settings: { cagrPrimaryYears: number; cagrSecondaryYears: number }) {
+    if (typeof window === "undefined") {
+        return;
+    }
+    window.localStorage.setItem(
+        DIVIDEND_KPI_SETTINGS_KEY,
+        JSON.stringify(normalizeDividendKpiSettings(settings)),
+    );
 }
 
 function filterMarketPointsByRange(points: MarketDataPoint[], selectedRange: DetailRangeKey): MarketDataPoint[] {
@@ -453,8 +486,8 @@ function monthDiffInclusive(start: Date, end: Date): number {
     return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
 }
 
-function resolveAxisMode(range: DetailRangeKey, spanMonths: number): "monthYear" | "year" {
-    if (range === "1y" || range === "3y") {
+function resolveAxisMode(range: DetailRangeKey | DividendRangeKey, spanMonths: number): "monthYear" | "year" {
+    if (range === "1m" || range === "3m" || range === "6m" || range === "1y" || range === "ytd" || range === "12m" || range === "3y") {
         return "monthYear";
     }
 
@@ -468,7 +501,7 @@ function resolveAxisMode(range: DetailRangeKey, spanMonths: number): "monthYear"
 function shouldShowMonthLabel(
     index: number,
     total: number,
-    range: DetailRangeKey,
+    range: DetailRangeKey | DividendRangeKey,
     date: Date,
     previousDate: Date | null,
     spanMonths: number,
@@ -477,7 +510,7 @@ function shouldShowMonthLabel(
         return true;
     }
 
-    if (range === "1y") {
+    if (range === "1m" || range === "3m" || range === "6m" || range === "1y" || range === "ytd" || range === "12m") {
         return true;
     }
 
@@ -537,7 +570,7 @@ function buildNiceTicks(maxValue: number): { maxRounded: number; ticks: number[]
 function buildDividendAnalysis(input: {
     dividendActivities: ActivitiesAuditItem[];
     scopedCostBasis: number | null;
-    selectedRange: DetailRangeKey;
+    selectedRange: DividendRangeKey;
 }): DividendAnalysis {
     const hasAnyScopedDividendRows = input.dividendActivities.length > 0;
     const validRows = input.dividendActivities
@@ -581,7 +614,15 @@ function buildDividendAnalysis(input: {
 
     if (!latestDate) {
         const nowMonth = monthStart(new Date());
-        const start = input.selectedRange === "max" ? nowMonth : addMonths(nowMonth, -((rangeMonthsFor(input.selectedRange) ?? CHART_MONTHS) - 1));
+        const start = input.selectedRange === "max"
+            ? nowMonth
+            : input.selectedRange === "ytd"
+                ? new Date(nowMonth.getFullYear(), 0, 1)
+                : input.selectedRange === "12m"
+                    ? addMonths(nowMonth, -11)
+                    : input.selectedRange === "3y"
+                        ? addMonths(nowMonth, -35)
+                        : addMonths(nowMonth, -59);
         const slots = monthDiffInclusive(start, nowMonth);
         const monthSlots = Array.from({ length: Math.max(1, slots) }, (_, idx) => {
             const date = addMonths(start, idx);
@@ -614,10 +655,15 @@ function buildDividendAnalysis(input: {
         return row.date < earliest ? row.date : earliest;
     }, latestDate as Date | null);
     const endMonth = monthStart(latestDate);
-    const selectedMonths = rangeMonthsFor(input.selectedRange) ?? CHART_MONTHS;
     const startMonth = input.selectedRange === "max"
         ? monthStart(earliestDate ?? latestDate)
-        : addMonths(endMonth, -((selectedMonths ?? CHART_MONTHS) - 1));
+        : input.selectedRange === "ytd"
+            ? new Date(endMonth.getFullYear(), 0, 1)
+            : input.selectedRange === "12m"
+                ? addMonths(endMonth, -11)
+                : input.selectedRange === "3y"
+                    ? addMonths(endMonth, -35)
+                    : addMonths(endMonth, -59);
     const monthsInRange = monthDiffInclusive(startMonth, endMonth);
     const rangeRows = validRows.filter((row) => {
         const slotMonth = monthStart(row.date);
@@ -939,18 +985,15 @@ export default function AssetDetailPage() {
     const [heatmapOpen, setHeatmapOpen] = useState(false);
     const [failedLogoIdentities, setFailedLogoIdentities] = useState<Record<string, true>>({});
     const [activeDividendTooltip, setActiveDividendTooltip] = useState<ActiveDividendTooltip | null>(null);
-    const selectedRange = useSyncExternalStore<DetailRangeKey>(
-        subscribeToLocalSettings,
-        () => sanitizeDetailRangeKey(loadAssetDetailTimeRange()),
-        () => "1y",
-    );
     const [marketDataResponse, setMarketDataResponse] = useState<MarketDataResponse | null>(null);
     const [marketDataLoading, setMarketDataLoading] = useState(false);
     const [marketDataNetworkError, setMarketDataNetworkError] = useState<string | null>(null);
     const [selectedPricePeriod, setSelectedPricePeriod] = useState<DetailRangeKey>("1y");
+    const [selectedDividendPeriod, setSelectedDividendPeriod] = useState<DividendRangeKey>("12m");
     const [cagrPrimaryYears, setCagrPrimaryYears] = useState(5);
     const [cagrSecondaryYears, setCagrSecondaryYears] = useState(10);
     const [activeCagrMenu, setActiveCagrMenu] = useState<"primary" | "secondary" | null>(null);
+    const [dividendKpiSettingsReady, setDividendKpiSettingsReady] = useState(false);
     const marketRequestSequence = useRef(0);
 
     const viewModel = useMemo(() => {
@@ -1070,36 +1113,21 @@ export default function AssetDetailPage() {
     }, [currentIsin, loadMarketData]);
 
     useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        try {
-            const raw = window.localStorage.getItem(DIVIDEND_KPI_SETTINGS_KEY);
-            if (!raw) {
-                return;
-            }
-
-            const parsed = JSON.parse(raw) as Partial<{ cagrPrimaryYears: number; cagrSecondaryYears: number }>;
-            setCagrPrimaryYears(sanitizeCagrYears(parsed.cagrPrimaryYears, 5));
-            setCagrSecondaryYears(sanitizeCagrYears(parsed.cagrSecondaryYears, 10));
-        } catch {
-            setCagrPrimaryYears(5);
-            setCagrSecondaryYears(10);
-        }
+        const settings = loadDividendKpiSettings();
+        setCagrPrimaryYears(settings.cagrPrimaryYears);
+        setCagrSecondaryYears(settings.cagrSecondaryYears);
+        setDividendKpiSettingsReady(true);
     }, []);
 
     useEffect(() => {
-        if (typeof window === "undefined") {
+        if (!dividendKpiSettingsReady) {
             return;
         }
-
-        const payload = JSON.stringify({
-            cagrPrimaryYears: sanitizeCagrYears(cagrPrimaryYears, 5),
-            cagrSecondaryYears: sanitizeCagrYears(cagrSecondaryYears, 10),
+        saveDividendKpiSettings({
+            cagrPrimaryYears,
+            cagrSecondaryYears,
         });
-        window.localStorage.setItem(DIVIDEND_KPI_SETTINGS_KEY, payload);
-    }, [cagrPrimaryYears, cagrSecondaryYears]);
+    }, [cagrPrimaryYears, cagrSecondaryYears, dividendKpiSettingsReady]);
 
     if (!clientReady) {
         return (
@@ -1147,7 +1175,7 @@ export default function AssetDetailPage() {
     const dividendAnalysis = buildDividendAnalysis({
         dividendActivities: scopedDividendActivities,
         scopedCostBasis: metrics.remainingCostBasis,
-        selectedRange,
+        selectedRange: selectedDividendPeriod,
     });
     const primaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrPrimaryYears);
     const secondaryCagr = calculateDividendCagr(dividendAnalysis.yearlySums, cagrSecondaryYears);
@@ -1350,7 +1378,35 @@ export default function AssetDetailPage() {
             </section>
 
             <article className={`${styles.card} ${styles.prominentCard}`}>
-                <div className={styles.cardHead}><h2>Dividendenanalyse</h2></div>
+                <div className={styles.cardHead}>
+                    <h2>Dividendenanalyse</h2>
+                    <div
+                        className={styles.marketRangeSelector}
+                        role="group"
+                        aria-label="Dividenden-Zeitraum auswählen"
+                        style={{ gridTemplateColumns: `repeat(${DIVIDEND_RANGE_OPTIONS.length}, minmax(0, 1fr))` }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            className={styles.marketRangeIndicator}
+                            style={{
+                                width: `calc((100% - 8px) / ${DIVIDEND_RANGE_OPTIONS.length})`,
+                                transform: `translateX(${dividendRangeIndex(selectedDividendPeriod) * 100}%)`,
+                            }}
+                        />
+                        {DIVIDEND_RANGE_OPTIONS.map((option) => (
+                            <button
+                                key={option.key}
+                                type="button"
+                                aria-pressed={selectedDividendPeriod === option.key}
+                                className={`${styles.marketRangeButton} ${selectedDividendPeriod === option.key ? styles.marketRangeButtonActive : ""}`}
+                                onClick={() => setSelectedDividendPeriod(option.key)}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 <div className={styles.dividendSummary}>
                     <DividendKpiCard
                         label="Gesamtsumme im Zeitraum"
@@ -1389,6 +1445,10 @@ export default function AssetDetailPage() {
                                                 role="menuitem"
                                                 onClick={() => {
                                                     setCagrPrimaryYears(years);
+                                                    saveDividendKpiSettings({
+                                                        cagrPrimaryYears: years,
+                                                        cagrSecondaryYears,
+                                                    });
                                                     setActiveCagrMenu(null);
                                                 }}
                                             >
@@ -1424,6 +1484,10 @@ export default function AssetDetailPage() {
                                                 role="menuitem"
                                                 onClick={() => {
                                                     setCagrSecondaryYears(years);
+                                                    saveDividendKpiSettings({
+                                                        cagrPrimaryYears,
+                                                        cagrSecondaryYears: years,
+                                                    });
                                                     setActiveCagrMenu(null);
                                                 }}
                                             >
@@ -1472,7 +1536,7 @@ export default function AssetDetailPage() {
                                         const spanMonths = dividendAnalysis.monthSlots.length > 1
                                             ? monthDiffInclusive(dividendAnalysis.monthSlots[0].monthStart, dividendAnalysis.monthSlots[dividendAnalysis.monthSlots.length - 1].monthStart)
                                             : 1;
-                                        const axisMode = resolveAxisMode(selectedRange, spanMonths);
+                                        const axisMode = resolveAxisMode(selectedDividendPeriod, spanMonths);
                                         return (
                                             <div key={slot.key} className={styles.dividendBarItem}>
                                                 <div className={styles.dividendBarTrack}>
@@ -1525,7 +1589,7 @@ export default function AssetDetailPage() {
                                                     {shouldShowMonthLabel(
                                                         monthIndex,
                                                         dividendAnalysis.monthSlots.length,
-                                                        selectedRange,
+                                                        selectedDividendPeriod,
                                                         slot.monthStart,
                                                         previousSlot?.monthStart ?? null,
                                                         spanMonths,

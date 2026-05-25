@@ -28,8 +28,7 @@ function isStaleLatestDate(latestPriceDate: string | null): boolean {
     return ageMs > sevenDaysMs;
 }
 
-export async function getMarketDataHistory(input: { isin: string; refresh: boolean }): Promise<MarketDataResponse> {
-    void input.refresh;
+export async function getMarketDataHistory(input: { isin: string }): Promise<MarketDataResponse> {
     const normalizedIsin = normalizeLookupIsin(input.isin);
 
     try {
