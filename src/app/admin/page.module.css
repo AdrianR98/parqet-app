@@ -248,7 +248,7 @@
     padding: 8px;
     border-bottom: 1px solid var(--border-soft);
     vertical-align: top;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .table th {
@@ -257,6 +257,7 @@
     position: sticky;
     top: 0;
     background: var(--surface-elevated);
+    white-space: nowrap;
 }
 
 .table tbody tr:hover {
@@ -284,16 +285,18 @@
 
 .hintCell {
     width: 28%;
-    max-width: 380px;
+    max-width: 420px;
     min-width: 0;
     white-space: normal !important;
+    overflow-wrap: break-word;
+    line-height: 1.35;
 }
 
 .hintText {
     display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
 }
 
 .hintReason {
@@ -301,20 +304,21 @@
     margin-top: 2px;
     color: var(--text-soft);
     font-size: 0.78rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
 }
 
-.compactTextCell {
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.wrapCell {
+    max-width: 220px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
 }
 
 .monoCell {
     font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    white-space: nowrap;
 }
 
 .badgeTiny {
@@ -327,6 +331,7 @@
     background: var(--surface-control);
     color: var(--text-main);
     font-size: 0.78rem;
+    white-space: nowrap;
 }
 
 @media (max-width: 760px) {
