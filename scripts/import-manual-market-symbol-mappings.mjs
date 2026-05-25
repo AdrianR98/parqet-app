@@ -206,12 +206,23 @@ function determineAction(ctx) {
     }
 
     const targetBySymbol = ctx.sameIsinProviderMappings.find((row) => row.symbol === ctx.entry.symbol);
-    const target = targetBySymbol ?? ctx.sameIsinProviderMappings[0] ?? null;
+    const existingPrimary = ctx.sameIsinProviderMappings.find((row) => row.isPrimary);
 
-    if (!target) {
-        return { action: "insert", reason: "no_existing_isin_provider_mapping", target: null };
+    if (!targetBySymbol) {
+        if (ctx.entry.isPrimary && existingPrimary && !ctx.force) {
+            return { action: "skip_existing_primary", reason: "existing_primary_protected", target: existingPrimary };
+        }
+        if (ctx.entry.isPrimary && existingPrimary && ctx.force) {
+            return {
+                action: "force_update",
+                reason: "force_primary_replacement_not_supported; verification_will_be_cleared",
+                target: null,
+            };
+        }
+        return { action: "insert", reason: "new_symbol_for_isin_provider", target: null };
     }
 
+    const target = targetBySymbol;
     const isProtected = Boolean(target.verifiedAt) || Boolean(target.isPrimary);
     if (isProtected && !ctx.force) {
         if (target.isPrimary) {
@@ -221,10 +232,14 @@ function determineAction(ctx) {
     }
 
     if (isProtected && ctx.force) {
-        return { action: "would_force_update", reason: target.isPrimary ? "force_overrides_primary" : "force_overrides_verified", target };
+        return {
+            action: "force_update",
+            reason: target.isPrimary ? "force_overrides_primary; verification_will_be_cleared" : "force_overrides_verified; verification_will_be_cleared",
+            target,
+        };
     }
 
-    return { action: "update_unverified", reason: "replace_unverified_mapping", target };
+    return { action: "update_unverified", reason: "update_exact_symbol_match", target };
 }
 
 async function closeDbPool() {
@@ -264,7 +279,7 @@ async function run() {
         plannedUpdates: 0,
         skippedExistingVerified: 0,
         skippedExistingPrimary: 0,
-        wouldForceUpdate: 0,
+        forceUpdatesPlanned: 0,
         invalidEntries: 0,
         written: 0,
     };
@@ -308,7 +323,7 @@ async function run() {
         if (decision.action === "update_unverified") summary.plannedUpdates += 1;
         if (decision.action === "skip_existing_verified") summary.skippedExistingVerified += 1;
         if (decision.action === "skip_existing_primary") summary.skippedExistingPrimary += 1;
-        if (decision.action === "would_force_update") summary.wouldForceUpdate += 1;
+        if (decision.action === "force_update") summary.forceUpdatesPlanned += 1;
         if (decision.action === "invalid") summary.invalidEntries += 1;
 
         console.log(`${entry.isin} | ${entry.symbol} | ${decision.action} | ${decision.reason}`);
@@ -333,7 +348,10 @@ async function run() {
             continue;
         }
 
-        if (decision.action === "update_unverified" || decision.action === "would_force_update") {
+        if (decision.action === "update_unverified" || decision.action === "force_update") {
+            if (!decision.target) {
+                continue;
+            }
             const updated = await updateSymbolMappingById({
                 id: decision.target.id,
                 symbol: entry.symbol,
@@ -341,6 +359,7 @@ async function run() {
                 currency: entry.currency,
                 isPrimary: entry.isPrimary,
                 isActive: true,
+                clearVerifiedAt: true,
                 notes: buildNotes(entry),
             });
             if (updated) summary.written += 1;
@@ -353,7 +372,7 @@ async function run() {
     console.log(`- planned updates: ${summary.plannedUpdates}`);
     console.log(`- skipped existing verified: ${summary.skippedExistingVerified}`);
     console.log(`- skipped existing primary: ${summary.skippedExistingPrimary}`);
-    console.log(`- would force update: ${summary.wouldForceUpdate}`);
+    console.log(`- force updates planned: ${summary.forceUpdatesPlanned}`);
     console.log(`- invalid entries: ${summary.invalidEntries}`);
     console.log(`- written: ${options.write ? summary.written : 0}`);
     if (!options.write) {

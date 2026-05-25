@@ -269,6 +269,7 @@ export type UpdateSymbolMappingByIdInput = {
     isPrimary?: boolean;
     isActive?: boolean;
     verifiedAt?: string | null;
+    clearVerifiedAt?: boolean;
     notes?: string | null;
 };
 

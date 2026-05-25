@@ -771,8 +771,12 @@ export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInpu
                  currency = coalesce($4::text, currency),
                  is_primary = coalesce($5::boolean, is_primary),
                  is_active = coalesce($6::boolean, is_active),
-                 verified_at = coalesce($7::timestamptz, verified_at),
-                 notes = coalesce($8::text, notes),
+                 verified_at = case
+                     when $8::boolean then null
+                     when $7::timestamptz is not null then $7::timestamptz
+                     else verified_at
+                 end,
+                 notes = coalesce($9::text, notes),
                  updated_at = now()
              where id = $1
              returning id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active,
@@ -785,6 +789,7 @@ export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInpu
                 input.isPrimary ?? null,
                 input.isActive ?? null,
                 input.verifiedAt ?? null,
+                input.clearVerifiedAt === true,
                 input.notes ?? null,
             ],
         );

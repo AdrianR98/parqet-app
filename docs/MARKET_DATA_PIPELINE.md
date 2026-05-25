@@ -121,6 +121,8 @@ Scope:
 - Dry-run by default; requires `--write` for DB mutation.
 - No provider calls, no validation import, no primary promotion workflow, and no backfill workflow are executed by this command.
 - Imported rows stay compatible with the existing yfinance validation and promotion pipeline.
+- Forced manual updates clear `verified_at` and require re-validation before promotion/backfill steps.
+- Manual imports do not mark mappings as provider-verified.
 
 Supported flags:
 
@@ -155,7 +157,7 @@ Per-entry plan actions:
 - `update_unverified`
 - `skip_existing_verified`
 - `skip_existing_primary`
-- `would_force_update`
+- `force_update`
 
 Example template:
 
