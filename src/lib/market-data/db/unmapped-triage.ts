@@ -45,11 +45,13 @@ export type UnmappedTriageResult = {
     category: UnmappedTriageCategory;
     suggestedAction: UnmappedSuggestedAction;
     triageHint: string | null;
+    triageReason: string | null;
     priority: number;
 };
 
 const DERIVATIVE_RE = /\b(warrant|discount warrant|knock-?out|turbo|zertifikat|certificate|optionsschein)\b/i;
-const LEGACY_RE = /\b(old|alt|adr|sp adr|depository receipt|successor|royal dutch shell b)\b/i;
+const LEGACY_NAME_RE = /\b(royal dutch shell b|old isin|legacy isin|corporate action|successor)\b/i;
+const LEGACY_QUALIFIED_OLD_RE = /\b(old|alt)\s+(isin|share|line|series|class)\b/i;
 const PLAUSIBLE_EQUITY_FUND_RE = /\b(stock|equity|share|fund|fonds|etf|ucits)\b/i;
 const FAILED_RE = /\b(fail|invalid|error|rejected|excluded)\b/i;
 const UNKNOWN_RE = /^(unknown|n\/a|null|undefined|-)?$/i;
@@ -73,7 +75,7 @@ function likelyDerivative(input: UnmappedTriageInput): boolean {
 
 function likelyLegacy(input: UnmappedTriageInput): boolean {
     const text = `${input.displayName ?? ""} ${input.marketDataStatusReason ?? ""}`;
-    return LEGACY_RE.test(text);
+    return LEGACY_NAME_RE.test(text) || LEGACY_QUALIFIED_OLD_RE.test(text);
 }
 
 function hasUnknownName(input: UnmappedTriageInput): boolean {
@@ -91,13 +93,19 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
     const reason = normalizeText(input.marketDataStatusReason);
 
     if (mappingStatus === "ready") {
-        return { category: "ready", suggestedAction: "ready", triageHint: "Mapping is verified and has price data." };
+        return {
+            category: "ready",
+            suggestedAction: "ready",
+            triageHint: "Mapping is verified and has price data.",
+            triageReason: "verified primary mapping with price data",
+        };
     }
     if (mappingStatus === "failed_validation" || FAILED_RE.test(reason)) {
         return {
             category: "failed_or_excluded",
             suggestedAction: "review_failed_validation",
             triageHint: "Validation failed or was excluded; review the candidate and status reason.",
+            triageReason: input.hasFailedValidation ? "has failed validation candidate" : "status reason matched failed/excluded pattern",
         };
     }
     if (status === "derivative" || likelyDerivative(input)) {
@@ -105,13 +113,23 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
             category: "derivative_or_warrant",
             suggestedAction: "review_derivative_or_exclude",
             triageHint: "Looks like a derivative/warrant based on name, type, or status.",
+            triageReason: status === "derivative" ? "market_data_status=derivative" : "name or assetType matched derivative/warrant pattern",
         };
     }
-    if (status === "legacy" || likelyLegacy(input)) {
+    if (status === "legacy") {
         return {
             category: "legacy_or_corporate_action",
             suggestedAction: "review_legacy_or_successor",
-            triageHint: "Likely legacy/corporate-action instrument; review successor mapping.",
+            triageHint: "Instrument is marked legacy in DB; inspect status or successor mapping.",
+            triageReason: "market_data_status=legacy",
+        };
+    }
+    if (likelyLegacy(input)) {
+        return {
+            category: "legacy_or_corporate_action",
+            suggestedAction: "review_legacy_or_successor",
+            triageHint: "Likely legacy/corporate-action candidate; review successor details and instrument history.",
+            triageReason: "name/status reason matched legacy/corporate-action pattern",
         };
     }
     if (status === "excluded") {
@@ -119,6 +137,7 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
             category: "failed_or_excluded",
             suggestedAction: "inspect_instrument",
             triageHint: "Instrument is marked excluded; inspect status reason before further mapping.",
+            triageReason: "market_data_status=excluded",
         };
     }
     if (hasUnknownName(input) || status === "unknown") {
@@ -126,6 +145,7 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
             category: "manual_review",
             suggestedAction: "inspect_instrument",
             triageHint: "Insufficient or unclear metadata; inspect instrument details manually.",
+            triageReason: status === "unknown" ? "market_data_status=unknown" : "missing/unclear metadata",
         };
     }
     if (mappingStatus === "primary_without_prices") {
@@ -133,6 +153,7 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
             category: "unverified_mapping",
             suggestedAction: "backfill_primary",
             triageHint: "Primary mapping exists and is verified; backfill prices/actions.",
+            triageReason: "verified primary exists but no price data",
         };
     }
     if (mappingStatus === "unverified_mapping") {
@@ -140,6 +161,7 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
             category: "unverified_mapping",
             suggestedAction: "validate_candidates",
             triageHint: "Candidate mapping exists but is not verified yet.",
+            triageReason: "mapping exists but not verified",
         };
     }
     if (mappingStatus === "no_mapping") {
@@ -148,12 +170,14 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
                 category: "mapping_candidate_needed",
                 suggestedAction: "add_candidates",
                 triageHint: "No mapping exists yet; add or import candidate symbols.",
+                triageReason: "no yfinance mapping",
             };
         }
         return {
             category: "no_mapping",
             suggestedAction: input.candidateSymbols.length > 0 ? "validate_candidates" : "import_manual_mapping",
             triageHint: "No mapping exists; add candidates or import a manual mapping.",
+            triageReason: input.candidateSymbols.length > 0 ? "no primary yfinance mapping" : "no yfinance mapping",
         };
     }
 
@@ -161,6 +185,7 @@ function classify(input: UnmappedTriageInput, mappingStatus: MappingStatus): Omi
         category: "manual_review",
         suggestedAction: "inspect_instrument",
         triageHint: null,
+        triageReason: null,
     };
 }
 

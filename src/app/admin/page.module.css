@@ -272,6 +272,29 @@
     white-space: nowrap;
 }
 
+.hintCell {
+    min-width: 280px;
+    max-width: 380px;
+    white-space: normal !important;
+}
+
+.hintText {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hintReason {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .monoCell {
     font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
 }

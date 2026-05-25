@@ -56,6 +56,7 @@ describe("admin unmapped market data helper", () => {
             category: "unverified_mapping",
             suggestedAction: "validate_candidates",
             triageHint: "Candidate mapping exists but is not verified yet.",
+            triageReason: "mapping exists but not verified",
             hasPriceData: false,
             hasMarketActions: true,
         });
@@ -86,19 +87,20 @@ describe("admin unmapped market data helper", () => {
         expect(payload.items[0]).toMatchObject({
             category: "derivative_or_warrant",
             suggestedAction: "review_derivative_or_exclude",
+            triageReason: "name or assetType matched derivative/warrant pattern",
         });
     });
 
-    it("classifies legacy/corporate action rows", async () => {
+    it("classifies explicit legacy status rows and exposes DB status reason", async () => {
         vi.mocked(listAdminOpenUnmappedMarketDataRows).mockResolvedValue([
             {
                 isin: "GB00B03MM408",
-                displayName: "Royal Dutch Shell B old",
+                displayName: "Royal Dutch Shell B",
                 assetType: "stock",
                 currency: "GBP",
                 wkn: null,
                 marketDataStatus: "legacy",
-                marketDataStatusReason: "old ISIN",
+                marketDataStatusReason: "status set by curation",
                 hasAnyMapping: false,
                 hasPrimaryMapping: false,
                 hasVerifiedMapping: false,
@@ -114,6 +116,37 @@ describe("admin unmapped market data helper", () => {
         expect(payload.items[0]).toMatchObject({
             category: "legacy_or_corporate_action",
             suggestedAction: "review_legacy_or_successor",
+            triageHint: "Instrument is marked legacy in DB; inspect status or successor mapping.",
+            triageReason: "market_data_status=legacy",
+        });
+    });
+
+    it("classifies legacy/corporate action heuristic rows for old ISIN naming", async () => {
+        vi.mocked(listAdminOpenUnmappedMarketDataRows).mockResolvedValue([
+            {
+                isin: "GB00B03MM408",
+                displayName: "Royal Dutch Shell B old ISIN",
+                assetType: "stock",
+                currency: "GBP",
+                wkn: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                hasAnyMapping: false,
+                hasPrimaryMapping: false,
+                hasVerifiedMapping: false,
+                hasVerifiedPrimary: false,
+                hasFailedValidation: false,
+                hasPriceData: false,
+                hasMarketActions: false,
+                primarySymbol: null,
+                candidateSymbols: [],
+            },
+        ]);
+        const payload = await getAdminUnmappedMarketData({});
+        expect(payload.items[0]).toMatchObject({
+            category: "legacy_or_corporate_action",
+            suggestedAction: "review_legacy_or_successor",
+            triageReason: "name/status reason matched legacy/corporate-action pattern",
         });
     });
 
@@ -142,6 +175,8 @@ describe("admin unmapped market data helper", () => {
         expect(payload.items[0]).toMatchObject({
             category: "mapping_candidate_needed",
             suggestedAction: "add_candidates",
+            triageHint: "No mapping exists yet; add or import candidate symbols.",
+            triageReason: "no yfinance mapping",
         });
     });
 
@@ -170,6 +205,7 @@ describe("admin unmapped market data helper", () => {
         expect(payload.items[0]).toMatchObject({
             category: "failed_or_excluded",
             suggestedAction: "review_failed_validation",
+            triageReason: "has failed validation candidate",
         });
     });
 

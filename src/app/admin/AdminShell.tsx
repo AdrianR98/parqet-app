@@ -27,7 +27,7 @@ type StatusPayload = {
     marketDataStatusCounts: Record<string, number>;
     referenceSourceCounts: Array<{ sourceKey: string; rowCount: number }>;
 };
-type UnmappedRow = { priority: number; isin: string; displayName: string | null; wkn: string | null; mappingStatus: string; category: string; suggestedAction: string; triageHint: string | null; primarySymbol: string | null; marketDataStatus: string | null };
+type UnmappedRow = { priority: number; isin: string; displayName: string | null; wkn: string | null; mappingStatus: string; category: string; suggestedAction: string; triageHint: string | null; triageReason: string | null; primarySymbol: string | null; marketDataStatus: string | null };
 type InstrumentRow = { isin: string; displayName: string | null; name: string | null; assetType: string | null; wkn: string | null; marketDataStatus: string | null; primarySymbol: string | null; verifiedMappingCount: number; candidateMappingCount: number; hasPriceData: boolean; firstPriceDate: string | null; lastPriceDate: string | null };
 type MappingRow = { id: string; isin: string; displayName: string | null; provider: string; symbol: string; exchange: string | null; isPrimary: boolean; isActive: boolean; verifiedAt: string | null; hasPriceData: boolean; latestPriceDate: string | null; statusReason: string | null };
 type RunsRow = { id: string; runType: string; status: string; provider: string | null; startedAt: string | null; finishedAt: string | null; totalItems: number; succeededItems: number; failedItems: number; latestErrorMessage: string | null };
@@ -172,7 +172,7 @@ function AdminPanel() {
         ] as const;
     }, [status]);
 
-    const unmappedRows = useMemo(() => sortRows((unmapped?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.primarySymbol, r.marketDataStatus, r.mappingStatus, r.category, r.suggestedAction, r.triageHint])), unmappedSort), [unmapped, q, unmappedSort]);
+    const unmappedRows = useMemo(() => sortRows((unmapped?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.primarySymbol, r.marketDataStatus, r.mappingStatus, r.category, r.suggestedAction, r.triageHint, r.triageReason])), unmappedSort), [unmapped, q, unmappedSort]);
     const instrumentRows = useMemo(() => sortRows((instruments?.items ?? []).filter((r) => hit(q, [r.isin, r.wkn, r.displayName, r.name, r.primarySymbol, r.marketDataStatus, r.assetType])), instrumentSort), [instruments, q, instrumentSort]);
     const mappingRows = useMemo(() => sortRows((mappings?.items ?? []).filter((r) => hit(q, [r.isin, r.displayName, r.provider, r.symbol, r.exchange, r.statusReason])), mappingSort), [mappings, q, mappingSort]);
     const runRows = useMemo(() => sortRows((runs?.items ?? []).filter((r) => hit(q, [r.runType, r.status, r.provider, r.latestErrorMessage])), runSort), [runs, q, runSort]);
@@ -231,7 +231,7 @@ function AdminPanel() {
                 {unmapped && unmappedRows.length === 0 ? <p className={styles.subtle}>No open/unmapped market-data assets for the current filter.</p> : null}
                 {unmapped && unmappedRows.length > 0 ? (
                     <Table head={<tr><th><HeaderSort labelText="Prio" keyName="priority" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="ISIN" keyName="isin" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Name" keyName="displayName" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Category" keyName="category" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th><HeaderSort labelText="Action" keyName="suggestedAction" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th><th>Hint</th><th><HeaderSort labelText="Status" keyName="mappingStatus" sort={unmappedSort} onToggle={(k) => toggleSort(unmappedSort, setUnmappedSort, k)} /></th></tr>}
-                        rows={unmappedRows.map((r) => <tr key={r.isin}><td>{r.priority}</td><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? "—"}</td><td>{label(r.category)}</td><td>{label(r.suggestedAction)}</td><td className={styles.truncateCell}>{r.triageHint ?? "—"}</td><td><span className={styles.badgeTiny}>{label(r.mappingStatus)}</span></td></tr>)} />
+                        rows={unmappedRows.map((r) => <tr key={r.isin}><td>{r.priority}</td><td className={styles.monoCell}>{r.isin}</td><td className={styles.truncateCell}>{r.displayName ?? "—"}</td><td>{label(r.category)}</td><td>{label(r.suggestedAction)}</td><td className={styles.hintCell} title={r.triageHint ?? undefined}><span className={styles.hintText}>{r.triageHint ?? "—"}</span>{r.triageReason ? <span className={styles.hintReason} title={r.triageReason}>{r.triageReason}</span> : null}</td><td><span className={styles.badgeTiny}>{label(r.mappingStatus)}</span></td></tr>)} />
                 ) : null}
             </Section>
 

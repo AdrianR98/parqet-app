@@ -50,6 +50,7 @@ export type AdminUnmappedItem = {
     suggestedAction: string;
     statusReason: string | null;
     triageHint: string | null;
+    triageReason: string | null;
     hasPriceData: boolean;
     hasMarketActions: boolean;
 };
@@ -129,6 +130,7 @@ export async function getAdminUnmappedMarketData(input: {
                 suggestedAction: classification.suggestedAction,
                 statusReason: row.marketDataStatusReason,
                 triageHint: classification.triageHint,
+                triageReason: classification.triageReason,
                 hasPriceData: row.hasPriceData,
                 hasMarketActions: row.hasMarketActions,
             };

@@ -50,6 +50,7 @@ describe("admin market data unmapped route", () => {
                     suggestedAction: "add_candidates",
                     statusReason: null,
                     triageHint: "No mapping exists yet; add or import candidate symbols.",
+                    triageReason: "no yfinance mapping",
                     hasPriceData: false,
                     hasMarketActions: false,
                 },
