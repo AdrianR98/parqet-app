@@ -28,6 +28,7 @@ export type MarketDataSeries = {
 };
 
 export type MarketDataStatus =
+    | "cache_miss"
     | "db_hit"
     | "missing_instrument"
     | "missing_primary_mapping"
