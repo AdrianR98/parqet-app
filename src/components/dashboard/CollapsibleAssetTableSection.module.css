@@ -5,7 +5,7 @@
     padding: 14px;
     border: 1px solid var(--panel-border);
     border-radius: 22px;
-    background: linear-gradient(165deg, rgba(255, 255, 255, 0.7), rgba(247, 251, 255, 0.54));
+    background: var(--surface-gradient);
     box-shadow: var(--shadow-soft);
 }
 
@@ -56,7 +56,7 @@
     border: 1px solid var(--panel-border);
     font-size: 12px;
     color: var(--text-soft);
-    background: rgba(255, 255, 255, 0.64);
+    background: var(--surface-control);
 }
 
 .subtitle {
@@ -80,7 +80,7 @@
 
 .header:hover .chevron {
     border-color: var(--panel-border);
-    background: rgba(255, 255, 255, 0.64);
+    background: var(--surface-control);
 }
 
 .open {
@@ -100,7 +100,7 @@
     padding: 10px;
     border: 1px solid var(--panel-border);
     border-radius: 14px;
-    background: linear-gradient(160deg, rgba(249, 252, 255, 0.95), rgba(240, 248, 255, 0.9));
+    background: var(--surface-overlay);
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(14px);
 }
@@ -116,7 +116,7 @@
 }
 
 .menuItem:hover {
-    background: rgba(255, 255, 255, 0.58);
+    background: var(--surface-control-hover);
 }
 
 .content {

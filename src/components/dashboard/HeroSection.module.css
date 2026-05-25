@@ -21,7 +21,7 @@
     padding: 16px;
     border: 1px solid var(--panel-border);
     border-radius: 20px;
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(239, 248, 255, 0.58));
+    background: var(--surface-gradient);
 }
 
 .donutWrap {
@@ -66,8 +66,8 @@
     position: absolute;
     inset: 69px;
     border-radius: 50%;
-    background: rgba(245, 251, 255, 0.95);
-    border: 1px solid rgba(84, 113, 145, 0.14);
+    background: var(--surface-elevated-strong);
+    border: 1px solid var(--border-soft);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -103,8 +103,8 @@
     bottom: -12px;
     transform: translate(-50%, 100%);
     white-space: nowrap;
-    background: rgba(248, 252, 255, 0.96);
-    border: 1px solid rgba(84, 113, 145, 0.2);
+    background: var(--surface-tooltip);
+    border: 1px solid var(--border-muted);
     border-radius: 10px;
     padding: 6px 9px;
     box-shadow: 0 8px 18px rgba(68, 96, 129, 0.16);
@@ -148,7 +148,7 @@
     padding: 10px 12px;
     border: 1px solid rgba(91, 120, 151, 0.16);
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.62);
+    background: var(--surface-elevated);
 }
 
 .kpiCard span {
