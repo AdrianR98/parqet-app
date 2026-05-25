@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Request } from "@playwright/test";
 
-const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v2";
+const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v3";
 const KNOWN_PORTFOLIOS_STORAGE_KEY = "assettrace-known-portfolios-v1";
 const PORTFOLIO_SCOPE_STORAGE_KEY = "assettrace-portfolio-scope-v1";
 const SYNTHETIC_LOADED_AT = "2026-05-01T10:15:00.000Z";
@@ -88,13 +88,50 @@ function isUnexpectedProviderRoute(request: Request): boolean {
   );
 }
 
-async function visitSmokeRoute(page: Page, route: string): Promise<void> {
+async function waitForSyntheticDashboardCache(page: Page): Promise<void> {
+  try {
+    await page.waitForFunction(
+      (key) => {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return false;
+        try {
+          const parsed = JSON.parse(raw);
+          return (
+            parsed &&
+            Array.isArray(parsed.activeAssets) &&
+            Array.isArray(parsed.closedAssets) &&
+            Array.isArray(parsed.selectedPortfolioIds) &&
+            Array.isArray(parsed.reconciliationWarnings)
+          );
+        } catch {
+          return false;
+        }
+      },
+      DASHBOARD_CACHE_KEY,
+      { timeout: 3000 },
+    );
+  } catch {
+    const storageKeys = await page.evaluate(() =>
+      Object.keys(window.localStorage).sort(),
+    );
+    throw new Error(
+      `Synthetic dashboard cache not ready. localStorage keys: ${storageKeys.join(", ") || "(none)"}`,
+    );
+  }
+}
+
+async function visitSmokeRoute(
+  page: Page,
+  route: string,
+  options?: { expectSyntheticCache?: boolean },
+): Promise<void> {
   await page.goto(route, { waitUntil: "domcontentloaded" });
   await expect(page.locator("body")).toBeVisible();
   await page.waitForLoadState("load");
 
-  // Bounded smoke-test hydration window for late React/Next boot warnings.
-  await page.waitForTimeout(250);
+  if (options?.expectSyntheticCache) {
+    await waitForSyntheticDashboardCache(page);
+  }
 }
 
 function createSyntheticActivity(index: number) {
@@ -183,6 +220,37 @@ function createSyntheticAsset(isin: string, name: string) {
     unrealizedPnL: 84,
     totalDividendNet: 30,
     latestActivityAt: SYNTHETIC_LOADED_AT,
+    curatedName: name,
+    displayName: name,
+    title: name,
+    assetName: name,
+    instrumentDisplayName: name,
+    instrumentName: name,
+    instrumentMetadataStatus: "ok",
+    instrumentMetadataError: null,
+    instrument: {
+      isin,
+      displayName: name,
+      name,
+      wkn: "SYN001",
+      assetType: "stock",
+      currency: "EUR",
+      metadataStatus: "ok",
+      metadataError: null,
+      marketDataStatus: "active",
+      marketDataStatusReason: null,
+      marketDataSuccessorIsin: null,
+      marketDataSuccessorSymbol: null,
+      primaryMapping: {
+        provider: "yfinance",
+        symbol: "SYN",
+        exchange: "XETR",
+        currency: "EUR",
+        verifiedAt: SYNTHETIC_LOADED_AT,
+        isPrimary: true,
+        isActive: true,
+      },
+    },
     name,
     symbol: "SYN",
     ticker: "SYN",
@@ -215,6 +283,11 @@ const SYNTHETIC_ACTIVITIES = Array.from({ length: 36 }, (_, index) =>
 const SYNTHETIC_ACTIVE_ASSETS = [
   createSyntheticAsset("XSYNTH000001", "Synthetic Report Asset One"),
   createSyntheticAsset("XSYNTH000002", "Synthetic Report Asset Two"),
+];
+
+const SYNTHETIC_GUARDED_ACTIVE_ASSETS = [
+  createSyntheticAsset("XSYNTH000001", "Synthetic Guarded Product One"),
+  createSyntheticAsset("XSYNTH000002", "Synthetic Guarded Product Two"),
 ];
 
 const SYNTHETIC_DASHBOARD_CACHE = {
@@ -591,6 +664,7 @@ const SYNTHETIC_STORAGE_STATE_WITH_GUARDED_PRODUCT = {
         name: DASHBOARD_CACHE_KEY,
         value: JSON.stringify({
           ...SYNTHETIC_DASHBOARD_CACHE,
+          activeAssets: SYNTHETIC_GUARDED_ACTIVE_ASSETS,
           globalAssetProductReadModel: SYNTHETIC_GUARDED_PRODUCT_READ_MODEL,
         }),
       },
@@ -645,7 +719,7 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
     const monitor = createFailureMonitor(page);
     const providerMonitor = createProviderRouteMonitor(page);
 
-    await visitSmokeRoute(page, "/activities");
+    await visitSmokeRoute(page, "/activities", { expectSyntheticCache: true });
 
     await expect(page.getByText("Geladener Snapshot")).toBeVisible();
     await expect(page.getByText("36 von 36")).toBeVisible();
@@ -688,7 +762,7 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
     const monitor = createFailureMonitor(page);
     const providerMonitor = createProviderRouteMonitor(page);
 
-    await visitSmokeRoute(page, "/timeline");
+    await visitSmokeRoute(page, "/timeline", { expectSyntheticCache: true });
 
     await expect(page.getByText("Geladener Snapshot")).toBeVisible();
     await expect(page.getByText("36 Ereignisse").first()).toBeVisible();
@@ -722,7 +796,7 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
     const monitor = createFailureMonitor(page);
     const providerMonitor = createProviderRouteMonitor(page);
 
-    await visitSmokeRoute(page, "/settings");
+    await visitSmokeRoute(page, "/settings", { expectSyntheticCache: true });
 
     await expect(page.getByText("Synthetic Alpha Portfolio")).toBeVisible();
     await expect(page.getByText("Synthetic Beta Portfolio")).toBeVisible();
@@ -745,7 +819,7 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
     const monitor = createFailureMonitor(page);
     const providerMonitor = createProviderRouteMonitor(page);
 
-    await visitSmokeRoute(page, "/reports");
+    await visitSmokeRoute(page, "/reports", { expectSyntheticCache: true });
 
     await expect(page.getByRole("heading", { name: "Lokaler Portfolio-Report" })).toBeVisible();
     await expect(page.getByText("Synthetic Report Asset One")).toBeVisible();
@@ -766,7 +840,7 @@ test.describe("V1 canonical global asset safe-field smoke", () => {
     const monitor = createFailureMonitor(page);
     const providerMonitor = createProviderRouteMonitor(page);
 
-    await visitSmokeRoute(page, "/dashboard");
+    await visitSmokeRoute(page, "/dashboard", { expectSyntheticCache: true });
     await expect(page.getByRole("link", { name: "Synthetic Guarded Product One" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Synthetic Guarded Product Two" })).toBeVisible();
     await expect(page.getByText("4.248,00", { exact: false })).toBeVisible();
