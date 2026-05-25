@@ -59,6 +59,7 @@ export type AssetMetadata = {
   currency?: string | null;
   assetType?: string | null;
   exchange?: string | null;
+  logoUrl?: string | null;
 };
 
 export type AssetInstrumentPrimaryMapping = {

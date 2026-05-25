@@ -518,8 +518,8 @@ export function loadKnownPortfolios(): Portfolio[] {
                 return {
                     id,
                     name,
-                    currency: safeTrimmedString(candidate.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? candidate.currency,
-                    createdAt: safeTrimmedString(candidate.createdAt, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ?? candidate.createdAt,
+                    currency: safeTrimmedString(candidate.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? "",
+                    createdAt: safeTrimmedString(candidate.createdAt, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ?? "",
                     distinctBrokers: safeStringArray(
                         candidate.distinctBrokers,
                         LOCAL_STORAGE_LIMITS.maxWarningListItems,
@@ -549,8 +549,8 @@ export function saveKnownPortfolios(portfolios: Portfolio[]): void {
             .map((portfolio) => ({
                 id: safeTrimmedString(portfolio.id, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? "",
                 name: safeTrimmedString(portfolio.name, LOCAL_STORAGE_LIMITS.maxPortfolioNameChars) ?? "",
-                currency: safeTrimmedString(portfolio.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? portfolio.currency,
-                createdAt: safeTrimmedString(portfolio.createdAt, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ?? portfolio.createdAt,
+                currency: safeTrimmedString(portfolio.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? "",
+                createdAt: safeTrimmedString(portfolio.createdAt, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ?? "",
                 distinctBrokers: Array.isArray(portfolio.distinctBrokers)
                     ? safeStringArray(
                         portfolio.distinctBrokers,

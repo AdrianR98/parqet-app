@@ -12,6 +12,7 @@ export const LOCAL_STORAGE_LIMITS = {
   maxWarningMessageChars: 1_000,
   maxWarningCodeChars: 64,
   maxWarningListItems: 50,
+  maxLogoUrlChars: 1_000,
 } as const;
 
 export function safeTrimmedString(
@@ -55,6 +56,18 @@ export function safeNonNegativeNumber(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
     ? value
     : fallback;
+}
+
+export function safeFiniteNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+export function safeNullableFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function safeBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
 }
 
 export function parseJsonWithLimit(

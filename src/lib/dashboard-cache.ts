@@ -2,8 +2,12 @@
 
 import type {
   ActivitiesAuditItem,
+  AssetInstrumentPrimaryMapping,
+  AssetInstrumentSnapshot,
+  AssetMetadata,
   AssetSummary,
   ConsistencyReport,
+  PortfolioPosition,
   ReconciliationWarning,
   SnapshotFreshness,
 } from "./types";
@@ -12,6 +16,9 @@ import type { GuardedSourceSelection } from "./parqet/global-assets/product-surf
 import {
   LOCAL_STORAGE_LIMITS,
   parseJsonWithLimit,
+  safeBoolean,
+  safeFiniteNumber,
+  safeNullableFiniteNumber,
   safeNonNegativeNumber,
   safeStringArray,
   safeTrimmedString,
@@ -160,6 +167,307 @@ function sanitizePortfolioBreakdownRows(value: unknown): unknown[] {
     .slice(0, LOCAL_STORAGE_LIMITS.maxPortfolioBreakdownRowsPerAsset);
 }
 
+function sanitizeInstrumentMetadataStatus(
+  value: unknown,
+): AssetSummary["instrumentMetadataStatus"] | undefined {
+  return value === "ok" ||
+    value === "missing" ||
+    value === "db_unavailable" ||
+    value === "missing_name"
+    ? value
+    : undefined;
+}
+
+function sanitizeMarketDataStatus(
+  value: unknown,
+): AssetInstrumentSnapshot["marketDataStatus"] {
+  return value === "active" ||
+    value === "excluded" ||
+    value === "legacy" ||
+    value === "derivative" ||
+    value === "unknown" ||
+    value === null
+    ? value
+    : null;
+}
+
+function sanitizeAssetMetadataLike(value: unknown): Partial<AssetMetadata> | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<AssetMetadata> & { logoUrl?: unknown };
+
+  return {
+    name:
+      safeTrimmedString(candidate.name, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ??
+      null,
+    assetName:
+      safeTrimmedString(candidate.assetName, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ??
+      null,
+    displayName:
+      safeTrimmedString(
+        candidate.displayName,
+        LOCAL_STORAGE_LIMITS.maxDisplayTextChars,
+      ) ?? null,
+    title:
+      safeTrimmedString(candidate.title, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ??
+      null,
+    symbol:
+      safeTrimmedString(candidate.symbol, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    ticker:
+      safeTrimmedString(candidate.ticker, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    tickerSymbol:
+      safeTrimmedString(
+        candidate.tickerSymbol,
+        LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+      ) ?? null,
+    wkn: safeTrimmedString(candidate.wkn, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? null,
+    curatedName:
+      safeTrimmedString(
+        candidate.curatedName,
+        LOCAL_STORAGE_LIMITS.maxDisplayTextChars,
+      ) ?? null,
+    instrumentDisplayName:
+      safeTrimmedString(
+        candidate.instrumentDisplayName,
+        LOCAL_STORAGE_LIMITS.maxDisplayTextChars,
+      ) ?? null,
+    instrumentName:
+      safeTrimmedString(
+        candidate.instrumentName,
+        LOCAL_STORAGE_LIMITS.maxDisplayTextChars,
+      ) ?? null,
+    metadataSource:
+      safeTrimmedString(
+        candidate.metadataSource,
+        LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+      ) ?? null,
+    nameSource:
+      safeTrimmedString(candidate.nameSource, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    displayNameSource:
+      safeTrimmedString(
+        candidate.displayNameSource,
+        LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+      ) ?? null,
+    metadataUpdatedAt:
+      safeTrimmedString(
+        candidate.metadataUpdatedAt,
+        LOCAL_STORAGE_LIMITS.maxDisplayTextChars,
+      ) ?? null,
+    instrumentMetadataStatus: sanitizeInstrumentMetadataStatus(
+      candidate.instrumentMetadataStatus,
+    ),
+    instrumentMetadataError:
+      safeTrimmedString(
+        candidate.instrumentMetadataError,
+        LOCAL_STORAGE_LIMITS.maxWarningMessageChars,
+      ) ?? null,
+    marketPrice: safeNullableFiniteNumber(candidate.marketPrice),
+    marketPriceAt:
+      safeTrimmedString(
+        candidate.marketPriceAt,
+        LOCAL_STORAGE_LIMITS.maxDisplayTextChars,
+      ) ?? null,
+    marketPriceSource:
+      safeTrimmedString(
+        candidate.marketPriceSource,
+        LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+      ) ?? null,
+    currency:
+      safeTrimmedString(candidate.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    assetType:
+      safeTrimmedString(candidate.assetType, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    exchange:
+      safeTrimmedString(candidate.exchange, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    logoUrl:
+      safeTrimmedString(candidate.logoUrl, LOCAL_STORAGE_LIMITS.maxLogoUrlChars) ??
+      null,
+  };
+}
+
+function sanitizeInstrumentPrimaryMapping(
+  value: unknown,
+): AssetInstrumentPrimaryMapping | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<AssetInstrumentPrimaryMapping>;
+  const provider = safeTrimmedString(
+    candidate.provider,
+    LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+  );
+  const symbol = safeTrimmedString(
+    candidate.symbol,
+    LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+  );
+
+  if (!provider || !symbol) {
+    return null;
+  }
+
+  return {
+    provider,
+    symbol,
+    exchange:
+      safeTrimmedString(candidate.exchange, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    currency:
+      safeTrimmedString(candidate.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    verifiedAt:
+      safeTrimmedString(candidate.verifiedAt, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ??
+      null,
+    isPrimary: safeBoolean(candidate.isPrimary),
+    isActive: safeBoolean(candidate.isActive),
+  };
+}
+
+function sanitizeInstrumentSnapshot(value: unknown): AssetInstrumentSnapshot | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<AssetInstrumentSnapshot>;
+  const isin = safeTrimmedString(candidate.isin, LOCAL_STORAGE_LIMITS.maxIdLikeChars);
+  const metadataStatus = sanitizeInstrumentMetadataStatus(candidate.metadataStatus);
+
+  if (!isin || !metadataStatus) {
+    return null;
+  }
+
+  return {
+    isin,
+    displayName:
+      safeTrimmedString(
+        candidate.displayName,
+        LOCAL_STORAGE_LIMITS.maxDisplayTextChars,
+      ) ?? null,
+    name:
+      safeTrimmedString(candidate.name, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ??
+      null,
+    wkn: safeTrimmedString(candidate.wkn, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ?? null,
+    assetType:
+      safeTrimmedString(candidate.assetType, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    currency:
+      safeTrimmedString(candidate.currency, LOCAL_STORAGE_LIMITS.maxIdLikeChars) ??
+      null,
+    metadataStatus,
+    metadataError:
+      safeTrimmedString(
+        candidate.metadataError,
+        LOCAL_STORAGE_LIMITS.maxWarningMessageChars,
+      ) ?? null,
+    marketDataStatus: sanitizeMarketDataStatus(candidate.marketDataStatus),
+    marketDataStatusReason:
+      safeTrimmedString(
+        candidate.marketDataStatusReason,
+        LOCAL_STORAGE_LIMITS.maxWarningMessageChars,
+      ) ?? null,
+    marketDataSuccessorIsin:
+      safeTrimmedString(
+        candidate.marketDataSuccessorIsin,
+        LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+      ) ?? null,
+    marketDataSuccessorSymbol:
+      safeTrimmedString(
+        candidate.marketDataSuccessorSymbol,
+        LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+      ) ?? null,
+    primaryMapping: sanitizeInstrumentPrimaryMapping(candidate.primaryMapping),
+  };
+}
+
+function sanitizePortfolioBreakdownRow(value: unknown): PortfolioPosition | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Partial<PortfolioPosition>;
+  const portfolioId = safeTrimmedString(
+    candidate.portfolioId,
+    LOCAL_STORAGE_LIMITS.maxIdLikeChars,
+  );
+  const portfolioName = safeTrimmedString(
+    candidate.portfolioName,
+    LOCAL_STORAGE_LIMITS.maxPortfolioNameChars,
+  );
+
+  if (!portfolioId || !portfolioName) {
+    return null;
+  }
+
+  return {
+    portfolioId,
+    portfolioName,
+    netShares: safeFiniteNumber(candidate.netShares),
+    remainingCostBasis: safeFiniteNumber(candidate.remainingCostBasis),
+    avgBuyPrice: safeNullableFiniteNumber(candidate.avgBuyPrice),
+    latestTradePrice: safeNullableFiniteNumber(candidate.latestTradePrice),
+    marketPrice: safeNullableFiniteNumber(candidate.marketPrice),
+    positionValue: safeNullableFiniteNumber(candidate.positionValue),
+    unrealizedPnL: safeNullableFiniteNumber(candidate.unrealizedPnL),
+    totalDividendNet: safeFiniteNumber(candidate.totalDividendNet),
+  };
+}
+
+function sanitizeGlobalAssetProductReadModel(
+  value: unknown,
+): ProductReadModelAssets | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as ProductReadModelAssets;
+  if (!Array.isArray(candidate.assets)) {
+    return null;
+  }
+
+  if (candidate.assets.length > LOCAL_STORAGE_LIMITS.maxAssets) {
+    return null;
+  }
+
+  return candidate;
+}
+
+function sanitizeGuardedSourceSelection(value: unknown): GuardedSourceSelection | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as GuardedSourceSelection;
+
+  const selectedSourceValid =
+    candidate.selectedSource === "compatibility" ||
+    candidate.selectedSource === "global_asset_product";
+  const reasonValid =
+    candidate.reason === "guard_not_enabled" ||
+    candidate.reason === "product_read_model_missing" ||
+    candidate.reason === "product_read_model_invalid" ||
+    candidate.reason === "product_read_model_not_fresh" ||
+    candidate.reason === "product_read_model_scope_mismatch" ||
+    candidate.reason === "product_read_model_ready";
+
+  if (
+    !selectedSourceValid ||
+    !reasonValid ||
+    !Array.isArray(candidate.blockedMetrics) ||
+    !Array.isArray(candidate.fallbackFields)
+  ) {
+    return null;
+  }
+
+  return candidate;
+}
+
 function sanitizeAssetSummary(asset: unknown): AssetSummary | null {
   if (!isCacheAssetCompatible(asset)) {
     return null;
@@ -180,7 +488,9 @@ function sanitizeAssetSummary(asset: unknown): AssetSummary | null {
       LOCAL_STORAGE_LIMITS.maxPortfolioIds,
       LOCAL_STORAGE_LIMITS.maxPortfolioNameChars,
     ),
-    portfolioBreakdown: sanitizePortfolioBreakdownRows(candidate.portfolioBreakdown) as AssetSummary["portfolioBreakdown"],
+    portfolioBreakdown: sanitizePortfolioBreakdownRows(candidate.portfolioBreakdown)
+      .map(sanitizePortfolioBreakdownRow)
+      .filter((row): row is PortfolioPosition => row !== null),
     name:
       safeTrimmedString(candidate.name, LOCAL_STORAGE_LIMITS.maxDisplayTextChars) ??
       null,
@@ -240,6 +550,10 @@ function sanitizeAssetSummary(asset: unknown): AssetSummary | null {
         candidate.instrumentMetadataError,
         LOCAL_STORAGE_LIMITS.maxWarningMessageChars,
       ) ?? null,
+    metadata: sanitizeAssetMetadataLike(candidate.metadata),
+    externalMetadata: sanitizeAssetMetadataLike(candidate.externalMetadata),
+    assetMeta: sanitizeAssetMetadataLike(candidate.assetMeta),
+    instrument: sanitizeInstrumentSnapshot(candidate.instrument),
   };
 }
 
@@ -387,6 +701,12 @@ function sanitizeDashboardCache(cache: DashboardCache): DashboardCache {
       null,
     reconciliationWarnings,
     activityItems: activityItems.slice(0, LOCAL_STORAGE_LIMITS.maxActivities),
+    globalAssetProductReadModel: sanitizeGlobalAssetProductReadModel(
+      cache.globalAssetProductReadModel,
+    ),
+    guardedSourceSelection: sanitizeGuardedSourceSelection(
+      cache.guardedSourceSelection,
+    ),
   };
 }
 
