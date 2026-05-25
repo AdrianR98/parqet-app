@@ -27,12 +27,18 @@ function evaluateAdminReturnBoundary() {
     }
 
     if (decision.shouldReload) {
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("[admin-return-restore] action reload", { pathname: currentPath });
+        }
         window.sessionStorage.setItem(ADMIN_RETURN_RELOADED_FOR_KEY, currentPath);
         window.location.reload();
         return;
     }
 
     if (decision.shouldClearMarker) {
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("[admin-return-restore] action clear", { pathname: currentPath });
+        }
         window.sessionStorage.removeItem(ADMIN_RETURN_PENDING_KEY);
         window.sessionStorage.removeItem(ADMIN_RETURN_RELOADED_FOR_KEY);
     }
@@ -49,6 +55,8 @@ export default function AdminReturnRestoreGuard() {
         }
 
         evaluateAdminReturnBoundary();
+        window.setTimeout(() => evaluateAdminReturnBoundary(), 0);
+        window.setTimeout(() => evaluateAdminReturnBoundary(), 100);
 
         const handlePopState = () => {
             window.setTimeout(() => evaluateAdminReturnBoundary(), 0);

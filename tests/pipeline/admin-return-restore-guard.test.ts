@@ -42,6 +42,14 @@ describe("shouldReloadAfterAdminReturn", () => {
         })).toEqual({ shouldReload: false, shouldClearMarker: false });
     });
 
+    it("does not reload nested admin routes", () => {
+        expect(shouldReloadAfterAdminReturn({
+            pathname: "/admin/market-data",
+            pending: "1",
+            reloadedFor: null,
+        })).toEqual({ shouldReload: false, shouldClearMarker: false });
+    });
+
     it("does not reload when no pending admin marker exists", () => {
         expect(shouldReloadAfterAdminReturn({
             pathname: "/settings",
