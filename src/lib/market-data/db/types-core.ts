@@ -52,6 +52,18 @@ export type UpdateMarketInstrumentStatusInput = {
     successorSymbol?: string | null;
 };
 
+export type UpdateMarketInstrumentMetadataInput = {
+    isin: string;
+    name?: string;
+    displayName?: string;
+    assetType?: string;
+    currency?: string;
+    wkn?: string;
+    metadataSource?: string | null;
+    nameSource?: string | null;
+    displayNameSource?: string | null;
+};
+
 export type DbMarketSymbolMapping = {
     id: string;
     instrumentId: string;

@@ -21,6 +21,7 @@ import type {
     MarketDataInstrumentStatus,
     MarketInstrumentStatusSummaryRow,
     UpdateMarketInstrumentStatusInput,
+    UpdateMarketInstrumentMetadataInput,
     EnrichMarketInstrumentsFromReferencesInput,
     EnrichMarketInstrumentsFromReferencesResult,
     EnrichMarketInstrumentsFromTradingUniverseInput,
@@ -1369,6 +1370,81 @@ export async function getMarketDataStatusSummary(): Promise<MarketDataStatusSumm
 
 export async function getMarketInstrumentStatusByIsin(isin: string): Promise<DbMarketInstrument | null> {
     return getInstrumentByIsin(isin);
+}
+
+export async function updateMarketInstrumentMetadata(input: UpdateMarketInstrumentMetadataInput): Promise<DbMarketInstrument | null> {
+    try {
+        const normalizedIsin = assertIsin(input.isin);
+        const updates: string[] = [];
+        const params: Array<string | null> = [normalizedIsin];
+
+        if (Object.hasOwn(input, "name")) {
+            params.push(input.name ?? null);
+            updates.push(`name = $${params.length}`);
+        }
+        if (Object.hasOwn(input, "displayName")) {
+            params.push(input.displayName ?? null);
+            updates.push(`display_name = $${params.length}`);
+        }
+        if (Object.hasOwn(input, "assetType")) {
+            params.push(input.assetType ?? null);
+            updates.push(`asset_type = $${params.length}`);
+        }
+        if (Object.hasOwn(input, "currency")) {
+            params.push(input.currency ?? null);
+            updates.push(`currency = $${params.length}`);
+        }
+        if (Object.hasOwn(input, "wkn")) {
+            params.push(input.wkn ?? null);
+            updates.push(`wkn = $${params.length}`);
+        }
+
+        const touchedMetadataField =
+            Object.hasOwn(input, "name") ||
+            Object.hasOwn(input, "displayName") ||
+            Object.hasOwn(input, "assetType") ||
+            Object.hasOwn(input, "currency") ||
+            Object.hasOwn(input, "wkn");
+
+        if (Object.hasOwn(input, "metadataSource")) {
+            params.push(input.metadataSource ?? null);
+            updates.push(`metadata_source = $${params.length}`);
+        }
+        if (Object.hasOwn(input, "nameSource")) {
+            params.push(input.nameSource ?? null);
+            updates.push(`name_source = $${params.length}`);
+        }
+        if (Object.hasOwn(input, "displayNameSource")) {
+            params.push(input.displayNameSource ?? null);
+            updates.push(`display_name_source = $${params.length}`);
+        }
+        if (Object.hasOwn(input, "displayName")) {
+            updates.push("display_metadata_updated_at = now()");
+        }
+        if (touchedMetadataField || Object.hasOwn(input, "metadataSource")) {
+            updates.push("metadata_updated_at = now()");
+        }
+
+        if (updates.length === 0) {
+            throw new MarketDataRepositoryError("invalid_input", "Keine Felder für Metadata-Update angegeben.");
+        }
+
+        const result = await queryPostgres<Record<string, unknown>>(
+            `update market_instruments
+             set ${updates.join(", ")},
+                 updated_at = now()
+             where isin = $1
+             returning id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
+                       name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
+                       market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at`,
+            params,
+        );
+
+        const row = result.rows[0];
+        return row ? mapInstrumentRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
 }
 
 export async function updateMarketInstrumentStatus(input: UpdateMarketInstrumentStatusInput): Promise<DbMarketInstrument | null> {
