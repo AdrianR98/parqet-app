@@ -1,0 +1,108 @@
+.root {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 20px 36px;
+    display: grid;
+    gap: 16px;
+}
+
+.surface {
+    background: var(--surface-gradient);
+    border: 1px solid var(--panel-border);
+    border-radius: 18px;
+    padding: 18px;
+}
+
+.header h1 {
+    margin: 4px 0 10px;
+    font-size: 1.7rem;
+}
+
+.eyebrow {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 0.92rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.statusRow {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    color: var(--text-soft);
+}
+
+.note {
+    margin: 12px 0 0;
+    color: var(--text-main);
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    border-radius: 999px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    font-size: 0.86rem;
+}
+
+.badgeSuccess {
+    background: var(--success-soft);
+    border-color: var(--success-soft-border);
+    color: var(--text-main);
+}
+
+.badgeWarning {
+    background: var(--warning-soft);
+    border-color: var(--warning-soft-border);
+    color: var(--warning-strong);
+}
+
+.badgeMuted {
+    background: var(--surface-control);
+    border-color: var(--panel-border);
+    color: var(--text-soft);
+}
+
+.guard p {
+    margin: 8px 0;
+    color: var(--text-soft);
+}
+
+.guard ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+}
+
+.card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.card h3 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+
+.card p {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 0.92rem;
+}
+
+@media (max-width: 760px) {
+    .root {
+        padding: 14px 12px 24px;
+    }
+}
