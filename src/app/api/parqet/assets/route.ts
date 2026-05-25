@@ -782,13 +782,17 @@ export async function GET(req: Request) {
           marketMetadataDbAvailable,
         ),
       );
-      try {
-        await recordUnknownMarketDataRequestsFromAssets({
-          assets: assetsWithMarketMetadata,
-          knownIsins: new Set(Object.keys(marketMetadataByIsin)),
-        });
-      } catch {
-        // Queue recording is best-effort; user runtime responses must remain stable.
+      if (marketMetadataDbAvailable) {
+        try {
+          await recordUnknownMarketDataRequestsFromAssets({
+            assets: assetsWithMarketMetadata,
+            knownIsins: new Set(Object.keys(marketMetadataByIsin)),
+          });
+        } catch {
+          // Queue recording is best-effort; user runtime responses must remain stable.
+        }
+      } else {
+        // Skip runtime unknown-request recording when metadata lookup is unavailable.
       }
 
       const activeAssets = assetsWithMarketMetadata.filter(
