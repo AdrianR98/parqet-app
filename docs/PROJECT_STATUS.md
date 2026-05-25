@@ -1,20 +1,18 @@
 # Project Status
 
-Status: Phase 1 active / Phase 2 pipeline-readiness planning
+Status: Active Parqet integration baseline with DB-backed market-data runtime and explicit admin workflows
 Owner: AdrianR98
-Last reviewed: 2026-05-14
+Last reviewed: 2026-05-25
 
 ## Current Working Status
 
-The repository has completed Phase 0 and Phase 0.1.
+Parqet OAuth and authorized local portfolio/activity flow remain the application baseline. Dashboard and activity views continue to use local/cache-backed behavior.
 
-Phase 0 established the collaboration, documentation, prompt, template and CI baseline. Phase 0.1 hardened the workflow rules, agent permissions, issue lifecycle, PR review rules, documentation impact rules, GitHub Project guidance, Translation-Agent v1 and Issue-Agent v1.
+Asset detail is now stabilized around DB-backed market-history chart reads plus dividend and portfolio analytics. Runtime market-history access is DB-only by architecture boundary.
 
-The project is now keeping Phase 1 local-first UI foundation work stable while Phase 2 pipeline-readiness planning is active.
+Provider-touching market-data actions are intentionally isolated to explicit admin/CLI workflows (update runs, mapping, unmapped reporting, safe metadata updates). This keeps runtime views predictable and API-budget aware.
 
-Phase 1 defines and prepares the core product value of the Parqet Integration: an asset-centric, portfolio-wide view that consolidates the same security across multiple authorized Parqet portfolios while keeping portfolio origin, transfers, dividends, warnings and confidence visible.
-
-The Global Asset pipeline must not replace existing product calculations or product routes until the pipeline-readiness decision backlog, inventory evidence and route/read-model replacement gate are satisfied.
+Recent UI hardening includes Elbstream-based logo generation/use, shared asset-logo handling with failed-logo session cache, structured footer links/attribution, and semantic theme-token contrast repair for light/dark surfaces.
 
 ## Product Definition
 
@@ -39,16 +37,29 @@ DP-11 product read-model and migration-gate policy is locked in `docs/V1_GUARDRA
 
 ## Latest Stable State
 
-The repository contains a Next.js App Router application with Parqet-oriented routes and UI areas, including dashboard and activities/audit concepts. The existing product implementation remains the stable baseline during Phase 1 until a later decision explicitly changes it.
+### Dashboard / Overview
 
-Known implementation themes from existing documentation:
+- Authorized Parqet portfolio data flow is stable.
+- Local/cache-backed dashboard and activity reads remain the primary app runtime pattern.
 
-- Parqet Connect is the intended OAuth data source.
-- Authorized portfolio and activity data are transformed into internal portfolio views.
-- Reconciliation warnings and overrides are part of the data-quality model.
-- Dashboard, assets and activities/audit views should continue moving toward one shared normalized activity context.
-- The existing Parqet pipeline guardrail remains: do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
-- Pipeline-readiness planning is tracked in #248. The completed inventory and replacement-gate evidence from #249 is documented in `docs/PIPELINE_INVENTORY.md`.
+### Asset Detail
+
+- Asset detail charting uses periodized, DB-backed market-history reads.
+- Recent hardening includes no-flicker chart behavior, ISIN isolation and persisted price/dividend range preferences.
+- Dividend and portfolio analytics remain part of the asset-detail baseline.
+
+### Market-Data DB / CLI Workflow
+
+- Runtime market-history is DB-only; runtime routes must not rely on ad-hoc provider history calls.
+- Provider/admin actions are explicit workflows: incremental update job, unmapped report, manual symbol mapping and safe instrument metadata updates.
+- `docs/MARKET_DATA_PIPELINE.md` is the canonical operator workflow.
+
+### Logos / Footer / Theme
+
+- Elbstream is the generated logo source.
+- Shared `AssetLogo` behavior includes failed-logo session caching.
+- Footer is structured with Impressum/Datenschutz placeholders and Elbstream attribution.
+- Light/dark contrast is repaired via semantic theme tokens.
 
 ## Completed Baseline Work
 
@@ -115,6 +126,14 @@ Locked/Completed pipeline-readiness decision and test follow-ups:
 - #309: Guarded Global Asset product migration for Dashboard/AssetTable/Reports now includes real app-flow coexistence cache population from the explicit `/api/parqet/assets` load path, guarded dashboard/report source selection wiring and compatibility-safe fallback behavior for missing/stale/scope-mismatch/blocked fields.
 - Follow-up to #309/#310/#311: Dashboard, AssetTable and Reports now run safe non-valuation Global Asset defaults when product-read-model freshness/scope evidence is ready, while valuation/performance and transfer-sensitive fields remain compatibility-backed and rollback can force full compatibility via `NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED=off|false|0`.
 - #314: First broad canonical safe-field route group migration completed for Dashboard, AssetTable-visible Dashboard rows and Reports. Global Asset PRM identity/display/portfolio labels are canonical only when readiness evidence is fresh and scope-compatible; missing/stale/scope-mismatch/invalid PRM data and explicit rollback stay compatibility-backed. Valuation, performance, cost-basis, dividend totals, transfer-sensitive and quantity-sensitive fields remain compatibility-owned.
+- #331: Market-data admin/CLI workflow documentation (`docs/MARKET_DATA_PIPELINE.md`) refreshed as the operational source of truth.
+- #330: Incremental primary market-data update job completed.
+- #328: Unmapped report workflow completed.
+- #329: Manual symbol mapping workflow completed.
+- #348: Safe market instrument metadata update CLI completed.
+- #342: Elbstream logo integration completed.
+- #351: Structured footer with legal placeholders and attribution completed.
+- #353: Dark-mode/light-mode surface contrast repair via semantic theme tokens completed.
 
 Status note for #248:
 
@@ -123,6 +142,7 @@ Status note for #248:
 - #314 does not close #248: Dashboard/AssetTable/Reports have completed the first canonical safe-field slice for identity/display/portfolio labels when readiness evidence is present, but full canonical route replacement, provider/runtime migration, old-path removal and valuation ownership transition remain open.
 - DP-09 is now locked as a documentation decision through #166 and `docs/GLOBAL_ASSET_OVERRIDES.md`; this does not authorize override UI/write/storage implementation.
 - DP-13/status cleanup remains a documentation/status topic; this cleanup does not close #248.
+- New market-data and UI hardening work can proceed in parallel when it respects runtime DB-only boundaries and existing pipeline guardrails.
 
 Known follow-ups outside the Phase-1 core:
 
@@ -152,12 +172,11 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 
 ## Next Steps
 
-1. Use #248 as the pipeline-readiness parent / decision backlog.
-2. Use `docs/PIPELINE_INVENTORY.md` from #249 as the replacement-gate evidence baseline.
-3. Keep #248 open for direction/backlog tracking, and treat DP-13 as docs/status cleanup until the next implementation direction is selected.
-4. Keep the #314 safe-field route group as a limited canonical slice, not a valuation/full-route replacement.
-5. Keep current product routes and existing calculations stable until full route-specific comparison, API-budget, privacy and rollback evidence is reviewed.
-6. Next direct implementation step after #314: define the valuation/full-route replacement path for #248, including cost basis, market value, unrealized PnL, transfer-pairing, FX and old-path removal evidence.
+1. #337: Define and enforce localStorage/dashboard cache size limits and stale-data clarity.
+2. #343: Plan and scope the protected read-only market-data admin console first slice.
+3. #326: Address unknown assets/import queue workflow.
+4. Continue documentation cleanup and stale issue triage where it improves operational clarity.
+5. Review/re-scope/close #324 as historical: current direction is DB-backed runtime market history with provider/yfinance calls isolated to explicit admin/CLI workflows.
 
 ## Risks
 
@@ -165,6 +184,12 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 | --- | --- | --- |
 | Private data leakage | Blocks PRs and may require secret rotation or history cleanup | Keep `.local/` ignored, keep `.env*` ignored and review diffs before PR |
 | Duplicate pipeline logic | Future dashboard/audit inconsistencies | Preserve existing guardrail and use #248 plus `docs/PIPELINE_INVENTORY.md` before route/read-model migration |
+| Local cache staleness/size drift | Users may see stale data or excessive browser storage growth | Add explicit freshness messaging, bounded cache sizes and refresh controls (#337) |
+| Market-data admin workflow complexity | Misuse can create partial updates or operator confusion | Keep admin steps explicit, documented and narrow-scoped in `docs/MARKET_DATA_PIPELINE.md` |
+| Unknown assets/import queue backlog | Assets can remain unresolved and degrade trust in reports | Prioritize queue design and triage flow in #326 |
+| Stale docs and stale issue narratives | Team decisions may target outdated architecture assumptions | Periodic status refresh and issue re-scope/closure where direction changed |
+| Legal placeholder pages not final compliance | Footer links could be misunderstood as final legal content | Keep placeholders clearly marked and replace with reviewed legal content later |
+| Elbstream logo browser requests expose public identifiers | Asset identifiers may appear in external logo request URLs | Keep requests limited to public instrument identifiers and avoid private payload leakage |
 | Missing test baseline | Refactors remain harder to verify | Track as follow-up; do not add test tooling without a focused issue |
 | CI not yet protected | Failed checks do not block merge automatically | Treat GitHub CI as factual merge gate; activate Branch Protection later |
 | German placeholders incomplete | German docs are not yet useful as standalone docs | English remains source of truth until Translation-Agent PR |
@@ -185,3 +210,4 @@ Before productive Global Asset UI or replacement of existing asset calculations:
 - Branch Protection is not activated yet.
 - Product route/read-model migration starts only after the relevant #248 decisions, `docs/PIPELINE_INVENTORY.md` replacement-gate evidence and DP-11 Product Read Model gate are satisfied.
 - GitHub Project Board is an operational view, not the source of truth.
+- Runtime market-history remains DB-only; provider calls remain explicit admin/CLI concerns rather than user-runtime route behavior.
