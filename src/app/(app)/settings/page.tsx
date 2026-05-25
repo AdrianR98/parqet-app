@@ -68,7 +68,7 @@ function getServerSettingsSnapshot(): string {
 }
 
 export default function SettingsPage() {
-  const { appearanceMode, resolvedTheme, setAppearanceMode } = useTheme();
+  const { appearanceMode, setAppearanceMode } = useTheme();
   const settingsSnapshot = useSyncExternalStore(
     subscribeToLocalSettings,
     getSettingsSnapshot,
@@ -174,9 +174,7 @@ export default function SettingsPage() {
           </div>
 
           <p className={styles.meta}>
-            Entfernt die Verbindung zu Parqet und löscht lokal gespeicherte
-            Portfolio- und Aktivitätsdaten von diesem Gerät.
-            Darstellungseinstellungen bleiben erhalten.
+            Entfernt die Verbindung zu Parqet und löscht die lokal gespeicherten Portfolio- und Aktivitätsdaten von deinem Gerät. Darstellungseinstellungen bleiben erhalten.
           </p>
 
           {disconnectMessage ? (
@@ -199,35 +197,33 @@ export default function SettingsPage() {
             </h2>
           </div>
 
-          <div className={styles.segmented} role="group" aria-label="Darstellungsmodus">
+          <div className={styles.rangeSelector} role="group" aria-label="Darstellungsmodus">
             {APPEARANCE_OPTIONS.map((option) => (
               <button
                 key={option.value}
                 type="button"
-                className={`${styles.segmentButton} ${appearanceMode === option.value ? styles.segmentButtonActive : ""}`}
+                className={`${styles.rangeButton} ${appearanceMode === option.value ? styles.rangeButtonActive : ""}`}
                 onClick={() => setAppearanceMode(option.value)}
               >
                 {option.label}
               </button>
             ))}
           </div>
-          <p className={styles.meta}>Aktiv: {resolvedTheme === "dark" ? "Dunkel" : "Hell"}.</p>
 
           <div className={styles.optionGroup}>
             <p className={styles.text}>Zeilen pro Schritt in Listenansichten.</p>
-            <div className={styles.segmented} role="group" aria-label="Reveal-Größe">
+            <div className={styles.rangeSelector} role="group" aria-label="Reveal-Größe">
               {REVEAL_BLOCK_SIZE_OPTIONS.map((size) => (
                 <button
                   key={size}
                   type="button"
-                  className={`${styles.segmentButton} ${revealBlockSize === size ? styles.segmentButtonActive : ""}`}
+                  className={`${styles.rangeButton} ${revealBlockSize === size ? styles.rangeButtonActive : ""}`}
                   onClick={() => setRevealSize(size)}
                 >
                   {size}
                 </button>
               ))}
             </div>
-            <p className={styles.meta}>Aktiv: {revealBlockSize} Zeilen pro Schritt.</p>
           </div>
         </section>
 
@@ -245,12 +241,7 @@ export default function SettingsPage() {
           </div>
 
           <p className={styles.meta}>
-            Portfolio- und Aktivitätsdaten werden lokal in deinem Browser
-            zwischengespeichert.
-          </p>
-          <p className={styles.meta}>
-            Die Market-Data-Datenbank enthält allgemeine Instrument- und
-            Kursdaten, keine privaten Portfolioinhalte.
+            Portfolio- und Aktivitätsdaten werden lokal in deinem Browser zwischengespeichert. Eine Speicherung deiner Persönlichen Daten auf unseren Servern erfolgt nie.
           </p>
 
           {localDataMessage ? (
