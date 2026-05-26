@@ -4,6 +4,11 @@ Status: Active baseline aligned to current architecture
 Owner: AdrianR98
 Last reviewed: 2026-05-26
 
+## Active Documentation Refactor Context
+
+- Refs #384: Phase 1 domain language/model-boundary hardening.
+- Fixes #385: Documentation baseline for the domain refactor roadmap before implementation changes.
+
 ## Current Baseline
 
 - Next.js Parqet Integration with Parqet OAuth for authorized portfolio access.

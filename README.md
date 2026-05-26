@@ -28,6 +28,7 @@ Current operator workflow details are documented in [docs/MARKET_DATA_PIPELINE.m
 - [docs/V1_GUARDRAILS.md](docs/V1_GUARDRAILS.md)
 - [docs/AI_WORKFLOW_ADOPTION.md](docs/AI_WORKFLOW_ADOPTION.md)
 - [docs/DOMAIN_LANGUAGE.md](docs/DOMAIN_LANGUAGE.md)
+- [docs/DOMAIN_MODEL_BOUNDARIES.md](docs/DOMAIN_MODEL_BOUNDARIES.md)
 
 ## Local Development
 
