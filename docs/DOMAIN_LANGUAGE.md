@@ -1,48 +1,74 @@
 # Domain Language
 
-This file defines the initial shared vocabulary for Parqet App discussions, planning, and implementation prompts.
+This file defines the shared vocabulary for Parqet App planning and implementation prompts.
 
-## Terms
+## Canonical Domain Terms
 
-### Global Asset
+### Asset
 
-A normalized cross-portfolio asset identity used to represent one economic instrument consistently across provider responses and local projections.
+The long-term app/domain term for a concrete tradable identity in the product model.
 
-### Product Read Model
+### GlobalAsset
 
-The UI and route-safe projection used by app views and route handlers to present portfolio/product information without mutating upstream source records. A Product Read Model must carry explicit source, freshness, scope, confidence, warnings, blocked metrics, and value classification so consumers can distinguish trusted values from constrained or partial outputs.
+One concrete `Asset` identity across portfolios, equivalent to an ISIN-like canonical identity used for cross-portfolio joins and aggregation.
 
-### Compatibility Path
+### Instrument (phase-out)
 
-A temporary, explicitly scoped transition path used to keep behavior stable while replacing an old implementation. It must have an exit plan and removal criteria.
+`Instrument` is a legacy app/domain term and must be phased out from domain language in favor of `Asset` and `GlobalAsset`.
 
-### Security Lineage
+### AssetSummary (deprecated)
 
-The traceable origin and transformation chain for security-related identifiers and attributes (for example symbols, ISIN-like identifiers, mappings, and derived labels).
+`AssetSummary` is deprecated immediately and targeted for complete removal. Do not introduce new `AssetSummary` usage in docs, prompts, or code.
 
-### Asset Family
+### SecurityLineage
 
-A lineage-aware grouping of a current or primary instrument together with historical or related instruments. Asset Family is used for display and analysis continuity across symbol/identifier changes and related mappings, without mutating or rewriting raw activity records.
+`SecurityLineage` is the final code term for lineage work that traces identity and relationship transitions over time.
 
-### Corporate Action Event
+### AssetEvent
 
-A time-bound issuer or market event that changes holdings, price basis, or metadata (for example split, merger, spin-off, dividend, ticker change, delisting).
+Umbrella event term for asset/market/reference events tied to an `Asset` or `GlobalAsset` timeline.
 
-### Lineage Projection
+### DividendEvent
 
-A read-focused projection of how source events and mappings were transformed into currently displayed state, with emphasis on reproducibility and auditability.
+A dividend-specific `AssetEvent` subtype that remains separate from other event types.
 
-### Blocked Metrics
+### CorporateActionEvent
 
-Metrics intentionally withheld from presentation or downstream use because required prerequisites are missing, inconsistent, unverifiable, or outside allowed confidence thresholds.
+A corporate-action-specific `AssetEvent` subtype that remains separate from dividend events.
 
-### Confidence Signals
+### TransferMatch
 
-Structured indicators that communicate reliability of derived values or mappings (for example source completeness, reconciliation status, freshness, and conflict state).
+Transfer reconciliation term that remains separate from `AssetEvent` matching.
 
-## Usage Rules
+### ActivityCategory
 
-1. Use these terms consistently in issues, prompts, and docs.
-2. Prefer explicit term usage over ambiguous shorthand.
-3. If a new term is needed, define it here before broad usage.
-4. Keep definitions English and implementation-neutral.
+Preferred categorization term for normalized activity records.
+
+Allowed categories:
+
+- `trade`
+- `dividend`
+- `transfer`
+- `cash`
+- `fee_tax`
+- `corporate_action`
+- `unknown`
+
+## Target Model Names
+
+Metric models:
+
+- `GlobalAssetMetrics`
+- `SecurityLineageMetrics`
+
+View models:
+
+- `GlobalAssetViewModel`
+- `SecurityLineageViewModel`
+
+## Boundary Rules
+
+1. UI components must consume ViewModels and must not own metric calculation logic.
+2. Raw Parqet activities remain immutable.
+3. Private Parqet user activity data and public/reference market data must remain separated.
+4. Use these terms consistently in issues, prompts, and docs before implementation refactors begin.
