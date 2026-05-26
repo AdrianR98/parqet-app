@@ -790,7 +790,7 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
     await expectNoRouteFailures(page, monitor, providerMonitor);
   });
 
-  test("settings displays synthetic local scope and keeps local-only interactions provider-call safe", async ({
+  test("settings displays simplified sections and keeps local-only interactions provider-call safe", async ({
     page,
   }) => {
     const monitor = createFailureMonitor(page);
@@ -798,17 +798,33 @@ test.describe("V1 synthetic local interaction smoke tests", () => {
 
     await visitSmokeRoute(page, "/settings", { expectSyntheticCache: true });
 
-    await expect(page.getByText("Synthetic Alpha Portfolio")).toBeVisible();
-    await expect(page.getByText("Synthetic Beta Portfolio")).toBeVisible();
-    await expect(page.getByText("Autorisiert: 2 Portfolios.")).toBeVisible();
-    await expect(page.getByText("36 lokale", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Einstellungen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Parqet-Verbindung" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Darstellung" })).toBeVisible();
 
     await page.getByRole("button", { name: "Hell", exact: true }).click();
-    await expect(page.getByText("Aktiv: Hell.")).toBeVisible();
-    await page.getByRole("button", { name: "Manuelle Auswahl" }).click();
-    await expect(
-      page.getByText("Portfolio-Scope lokal gespeichert. Es wurden keine Parqet-Daten geladen."),
-    ).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => ({
+      appearance: document.documentElement.dataset.appearance ?? null,
+      theme: document.documentElement.dataset.theme ?? null,
+    }))).toEqual({
+      appearance: "light",
+      theme: "light",
+    });
+
+    await page.getByRole("button", { name: "Dunkel", exact: true }).click();
+    await expect.poll(async () => page.evaluate(() => ({
+      appearance: document.documentElement.dataset.appearance ?? null,
+      theme: document.documentElement.dataset.theme ?? null,
+    }))).toEqual({
+      appearance: "dark",
+      theme: "dark",
+    });
+
+    await expect(page.getByText("Manuelle Auswahl")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Portfolios aktualisieren" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Parqet-Daten lokal erneuern" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Lokale Daten" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Private Daten" })).toHaveCount(0);
 
     await expectNoRouteFailures(page, monitor, providerMonitor);
   });
