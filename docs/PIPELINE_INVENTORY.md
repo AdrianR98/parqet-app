@@ -26,7 +26,7 @@ No portfolio-management/debug/admin controls remain in Settings.
 ## Market Data Runtime
 
 - Runtime market-history reads are DB-only.
-- Runtime does not call yfinance/OpenFIGI/Alpha Vantage.
+- Runtime does not call yfinance or OpenFIGI.
 
 ## Market Data Operator Tables
 
@@ -42,9 +42,6 @@ No portfolio-management/debug/admin controls remain in Settings.
 
 - Active workflow: yfinance-based validation/backfill/update.
 - Optional admin lookup: OpenFIGI.
-- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
-- Do not use Alpha Vantage as fallback.
-- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 ## Terminology
 

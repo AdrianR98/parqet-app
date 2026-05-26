@@ -65,8 +65,6 @@ For each row:
 | Timeline | Change Timeline filters, grouping/scope controls and local summary interactions. | Summary counts and filters are calculated from loaded local Activity Items. No provider call or background sync starts. | Warnings and summaries must be redacted and count/scope-oriented. |
 | Reports | Open Reports, change preview/local report options, copy Markdown and export CSV. | Opening, previewing, copying and exporting use the selected local snapshot/read model only. No provider refresh is triggered by report actions. | Exports contain only visible, loaded and safe report/read-model fields. No raw payloads, tokens, cookies, hidden IDs, debug data or private screenshots. |
 | Settings appearance | Change System/Hell/Dunkel appearance mode. | Appearance changes write local UI state only. No provider call, reload, sync or audit route starts. | Settings must not display secrets or raw provider payloads. |
-| Settings scope | Change global portfolio scope/local selection controls. | Scope changes are local and may show mismatch or stale-state notices. They must not fetch missing provider data automatically. | Scope labels must avoid exposing private data in screenshots or logs used for review. |
-| Settings local data | Use local cache reset, local settings reset and safe diagnostics views. | Reset and diagnostics actions do not perform provider-side destructive work or hidden refreshes. Diagnostics may show local freshness/cache metadata only. | Diagnostics must be redacted and must not print tokens, cookies, OAuth codes, `.env` values, raw provider payloads, private activity rows or unredacted identifiers. |
 
 ## Reviewer Notes
 

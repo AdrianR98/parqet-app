@@ -1,6 +1,6 @@
 # Local Quickstart
 
-Status: current local usage guide (post-PR #378)
+Status: current local usage guide
 
 ## 1. Start The Local App
 
@@ -48,13 +48,6 @@ Use the in-app OAuth connect/reconnect flow when prompted.
 
 - `Parqet-Verbindung`
 - `Darstellung`
-
-Removed from Settings baseline:
-
-- Portfolio management controls
-- Manual portfolio refresh controls
-- Diagnostics/debug/export/admin controls
-- Separate private-data card
 
 Disconnect behavior:
 

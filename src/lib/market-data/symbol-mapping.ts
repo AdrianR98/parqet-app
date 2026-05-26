@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { MarketDataProvider, MarketSymbolOverride, MarketSymbolResolution } from "./types";
 
-const ALLOWED_PROVIDERS: ReadonlySet<MarketDataProvider> = new Set(["alphavantage"]);
+const ALLOWED_PROVIDERS: ReadonlySet<MarketDataProvider> = new Set(["yfinance"]);
 const SYMBOL_OVERRIDES_PATH = path.join(process.cwd(), "src", "data", "market-symbol-overrides.json");
 
 export function normalizeIsin(isin: string): string {

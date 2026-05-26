@@ -1,12 +1,11 @@
 # Project Status
 
-Status: Active baseline aligned to post-PR #378 architecture
+Status: Active baseline aligned to current architecture
 Owner: AdrianR98
 Last reviewed: 2026-05-26
 
 ## Current Baseline
 
-- PR #378 behavior is the current baseline.
 - Next.js Parqet Integration with Parqet OAuth for authorized portfolio access.
 - User Portfolio Data is cached browser-local for Dashboard, Activities and Asset Detail.
 - `/settings` is simplified to `Parqet-Verbindung` and `Darstellung`.
@@ -21,9 +20,6 @@ Last reviewed: 2026-05-26
 
 - Current provider workflow for validation/backfill/update is yfinance-based.
 - OpenFIGI may be used as candidate lookup/admin workflow.
-- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
-- Do not use Alpha Vantage as fallback.
-- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 ## Follow-Ups
 
@@ -31,19 +27,11 @@ Last reviewed: 2026-05-26
 2. CSP nonce/hash strategy for inline root scripts.
 3. Cache-event debounce/performance pass.
 4. Dark-mode asset/logo research: issue #379.
-5. Alpha Vantage removal cleanup.
-6. Future corporate-action/security-lineage planning.
+5. Future corporate-action/security-lineage planning.
 
 ## Future Corporate-Action / Lineage Work (Not Implemented)
 
 Goal: show merged economic history across related instruments without rewriting raw activities.
-
-Examples:
-
-- Shell A/B -> Shell plc
-- ETF mergers
-- Reverse splits with ISIN change
-- Spin-offs
 
 Current building blocks:
 

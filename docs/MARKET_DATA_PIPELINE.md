@@ -9,7 +9,7 @@ Runtime market-history reads are DB-only.
 - Route: `src/app/api/market-data/history/route.ts`
 - Service: `src/lib/market-data/service.ts`
 
-Runtime does not call yfinance, OpenFIGI or Alpha Vantage.
+Runtime does not call yfinance or OpenFIGI.
 
 Provider calls are restricted to explicit Admin/CLI workflows.
 
@@ -17,9 +17,6 @@ Provider calls are restricted to explicit Admin/CLI workflows.
 
 - Primary provider workflow: yfinance (validation/backfill/incremental update).
 - OpenFIGI: optional candidate lookup/admin workflow.
-- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
-- Do not use Alpha Vantage as fallback.
-- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 ## Current Market-Data Tables
 
