@@ -61,7 +61,7 @@ This document defines the Phase 1 domain boundaries for the refactor roadmap (Re
 
 1. Raw Parqet activities remain immutable.
 2. Private Parqet user activity data and public/reference market data must remain separated in storage and processing boundaries.
-3. `AssetSummary` is deprecated immediately and targeted for complete removal; no new dependencies should be introduced.
+3. `AssetSummary` is deprecated immediately and targeted for complete removal; no new dependencies should be introduced. See `docs/ASSET_SUMMARY_REMOVAL_PLAN.md` for the live removal inventory and slice plan.
 4. `SecurityLineage` is the final code term for lineage work and must be used consistently in new roadmap docs.
 
 ## Non-goal Reminder

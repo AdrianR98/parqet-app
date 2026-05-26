@@ -334,6 +334,9 @@ function mapPortfolioBreakdown(input: {
   return [...projected, ...missingCompatibilityEntries];
 }
 
+// Temporary compatibility boundary:
+// Product read-model rows are still projected back into AssetSummary for legacy dashboard surfaces.
+// This bridge is targeted for deletion after all consumers migrate to GlobalAssetViewModel outputs.
 function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
   row: ProductReadModelAssetRow;
   fallback?: AssetSummary;
@@ -495,5 +498,6 @@ export function buildCompatibilityAssetSummariesFromGuardedRows(input: {
   productReadModel: ProductReadModelAssets;
   compatibilityAssets: AssetSummary[];
 }): AssetSummary[] {
+  // Alias retained only to keep current call sites stable during phased AssetSummary removal.
   return buildAssetSummariesFromCanonicalSafeFields(input);
 }

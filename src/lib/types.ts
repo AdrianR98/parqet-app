@@ -126,6 +126,11 @@ export type PortfolioPosition = {
  * - override summary
  * - transfer linkage status
  * - warning counters direkt am Asset
+ *
+ * @deprecated Phase 2: `AssetSummary` is scheduled for complete removal.
+ * Do not introduce new `AssetSummary` imports/usages.
+ * Migrate consumers to `GlobalAsset`, `GlobalAssetMetrics`, and `GlobalAssetViewModel`.
+ * See `docs/ASSET_SUMMARY_REMOVAL_PLAN.md` for the scoped removal inventory.
  */
 
 export type AssetSummary = {
@@ -297,8 +302,11 @@ export type AssetsApiResponse = {
   activeAssetCount?: number;
   closedAssetCount?: number;
 
+  /** @deprecated Use product/read-model based output and view-model projections instead of `AssetSummary[]`. */
   assets?: AssetSummary[];
+  /** @deprecated Use product/read-model based output and view-model projections instead of `AssetSummary[]`. */
   activeAssets?: AssetSummary[];
+  /** @deprecated Use product/read-model based output and view-model projections instead of `AssetSummary[]`. */
   closedAssets?: AssetSummary[];
 
   generatedAt?: string;

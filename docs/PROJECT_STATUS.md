@@ -9,6 +9,11 @@ Last reviewed: 2026-05-26
 - Refs #384: Phase 1 domain language/model-boundary hardening.
 - Fixes #385: Documentation baseline for the domain refactor roadmap before implementation changes.
 
+## Phase 2 Kickoff (AssetSummary Removal Track)
+
+- Refs #384, Refs #386: `AssetSummary` deprecation is now explicit in code and documentation.
+- The complete file-level removal inventory and phased migration slices are documented in `docs/ASSET_SUMMARY_REMOVAL_PLAN.md`.
+
 ## Current Baseline
 
 - Next.js Parqet Integration with Parqet OAuth for authorized portfolio access.
