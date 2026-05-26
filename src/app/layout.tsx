@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ThemeDocumentSync from "../components/theme/ThemeDocumentSync";
+import { buildAdminReturnRestoreScript } from "../lib/admin-return-restore-guard";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,55 +36,7 @@ const PRE_HYDRATION_THEME_SCRIPT = `
 })();
 `;
 
-const ADMIN_RETURN_RESTORE_SCRIPT = `
-(() => {
-  try {
-    const pendingKey = "assettrace:admin-return-pending";
-    const reloadedForKey = "assettrace:admin-return-reloaded-for";
-    const staticFilePattern = /\\.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|avif|map|txt|xml)$/i;
-
-    const isReloadablePath = (pathname) => {
-      if (typeof pathname !== "string" || !pathname.startsWith("/")) return false;
-      if (pathname.startsWith("/admin")) return false;
-      if (pathname.startsWith("/api")) return false;
-      if (pathname.startsWith("/_next")) return false;
-      if (staticFilePattern.test(pathname)) return false;
-      return true;
-    };
-
-    const checkAdminReturn = () => {
-      try {
-        const pathname = window.location.pathname;
-        const pending = window.sessionStorage.getItem(pendingKey);
-        const reloadedFor = window.sessionStorage.getItem(reloadedForKey);
-
-        if (pending !== "1") return;
-        if (!isReloadablePath(pathname)) return;
-
-        if (reloadedFor === pathname) {
-          window.sessionStorage.removeItem(pendingKey);
-          window.sessionStorage.removeItem(reloadedForKey);
-          return;
-        }
-
-        window.sessionStorage.setItem(reloadedForKey, pathname);
-        window.location.reload();
-      } catch (_error) {}
-    };
-
-    checkAdminReturn();
-    window.setTimeout(checkAdminReturn, 0);
-    window.setTimeout(checkAdminReturn, 100);
-
-    window.addEventListener("pageshow", checkAdminReturn);
-    window.addEventListener("popstate", () => window.setTimeout(checkAdminReturn, 0));
-    window.addEventListener("focus", checkAdminReturn);
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) checkAdminReturn();
-    });
-  } catch (_error) {}
-})();
-`;
+const ADMIN_RETURN_RESTORE_SCRIPT = buildAdminReturnRestoreScript();
 
 export default function RootLayout({
   children,

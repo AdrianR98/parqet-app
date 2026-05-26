@@ -158,7 +158,11 @@ export default function SettingsPage() {
           </div>
 
           <p className={styles.meta}>
-            Deine Portfolio- und Aktivitätsdaten werden lokal in deinem Browser zwischengespeichert. Eine Speicherung deiner persönlichen Portfolio- und Aktivitätsdaten auf unseren Servern erfolgt nicht.
+            Deine Portfolio- und Aktivitätsdaten werden für die Anzeige verarbeitet und lokal in deinem Browser zwischengespeichert. Vollständige Portfolio- und Aktivitätsverläufe werden nicht dauerhaft in unserer Server-Datenbank gespeichert.
+          </p>
+
+          <p className={styles.meta}>
+            Allgemeine Wertpapier- und Kursdaten können serverseitig verarbeitet und gespeichert werden.
           </p>
 
           <p className={styles.meta}>

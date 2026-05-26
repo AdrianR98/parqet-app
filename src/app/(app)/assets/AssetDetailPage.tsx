@@ -1257,7 +1257,7 @@ export default function AssetDetailPage() {
             <main className={styles.page}>
                 <section className={styles.stateBox}>
                     <strong>Lokaler Stand wird vorbereitet</strong>
-                    <p>Asset-Daten werden aus dem lokalen Cache geladen.</p>
+                    <p>Der lokale Datenstand wird automatisch vorbereitet.</p>
                 </section>
             </main>
         );
@@ -1268,7 +1268,7 @@ export default function AssetDetailPage() {
             <main className={styles.page}>
                 <section className={styles.stateBox}>
                     <strong>Asset nicht lokal verfügbar</strong>
-                    <p>Bitte in der Übersicht Daten laden und dann erneut öffnen.</p>
+                    <p>Der lokale Datenstand wird automatisch vorbereitet. Wenn das Asset danach weiterhin fehlt, öffne das Dashboard oder verbinde Parqet erneut.</p>
                     <Link href="/dashboard" className="ui-btn ui-btn-secondary">Zurück zur Übersicht</Link>
                 </section>
             </main>

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { isNormalAppRoute, shouldReloadAfterAdminReturn } from "../../src/lib/admin-return-restore-guard";
+import {
+    ADMIN_RETURN_EXCLUDED_PREFIXES,
+    ADMIN_RETURN_PENDING_KEY,
+    ADMIN_RETURN_RELOADED_FOR_KEY,
+    ADMIN_RETURN_STATIC_ASSET_REGEX_SOURCE,
+    buildAdminReturnRestoreScript,
+    isNormalAppRoute,
+    shouldReloadAfterAdminReturn,
+} from "../../src/lib/admin-return-restore-guard";
 
 describe("shouldReloadAfterAdminReturn", () => {
     it("reloads settings when pending and no route-specific reload guard exists", () => {
@@ -95,5 +103,22 @@ describe("isNormalAppRoute", () => {
         expect(isNormalAppRoute("/api/admin/session")).toBe(false);
         expect(isNormalAppRoute("/_next/static/chunk.js")).toBe(false);
         expect(isNormalAppRoute("/favicon.ico")).toBe(false);
+    });
+});
+
+describe("buildAdminReturnRestoreScript", () => {
+    it("embeds shared keys and route guards to reduce helper/script drift", () => {
+        const script = buildAdminReturnRestoreScript();
+
+        expect(script).toContain(ADMIN_RETURN_PENDING_KEY);
+        expect(script).toContain(ADMIN_RETURN_RELOADED_FOR_KEY);
+        expect(script).toContain(ADMIN_RETURN_STATIC_ASSET_REGEX_SOURCE);
+
+        for (const prefix of ADMIN_RETURN_EXCLUDED_PREFIXES) {
+            expect(script).toContain(prefix);
+        }
+
+        expect(script).toContain("window.location.reload()");
+        expect(script).toContain("window.setTimeout(checkAdminReturn, 100)");
     });
 });
