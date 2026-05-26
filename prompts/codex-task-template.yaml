@@ -274,10 +274,17 @@ template: |
 
   Hard output limit:
   - Do not print command logs.
+  - Do not print command transcripts.
   - Do not list executed commands.
   - Do not mention routine reads/searches/checks.
   - Do not narrate implementation phases.
   - Do not print full files, full diffs, full logs or generated output.
+  - If verification is run, summarize only status, not commands or logs.
+  - Use verification line format only:
+    - Verification: <check name> — passed
+    - Verification: <check name> — failed: <short reason>
+    - Verification: not run — <reason>
+  - Do not include Run/npm command blocks unless explicitly requested.
   - Only output a blocker message if blocked; otherwise output only final compact handoff.
 
   Allowed changes:
@@ -345,8 +352,16 @@ template: |
   - Use compact handoff format only:
     - Branch
     - Changed files
+    - Removed files, if any
     - What changed
-    - Known blockers / manual checks needed
+    - Verification
+    - Known blockers / manual checks
+    - Commit SHA
+    - PR URL, if already open
+
+  Deletion policy:
+  - If a feature/path/provider/UI flow is replaced and explicitly removed, delete it from code and docs.
+  - Do not preserve it as deprecated, legacy, fallback or historical implementation unless the task explicitly requests a transitional compatibility path.
 
   Risks / notes:
   - <risk or note to watch>

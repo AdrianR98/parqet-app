@@ -21,6 +21,7 @@ execution:
   - For non-Voll implementation tasks, stop and propose a smaller slice if more than 6 app files appear necessary unless the task explicitly allows the broader scope.
   - Prefer an analysis-only first pass for broad or uncertain work before implementing.
   - Do not modify app implementation files for governance-only tasks.
+  - If a feature, provider path, UI flow or implementation is replaced and explicitly removed, delete it from code and docs; do not keep deprecated/legacy/fallback/historical paths unless a task explicitly requires a transitional compatibility path.
   - Do not add tests, libraries or tooling unless requested by the issue.
   - Do not create or modify GitHub labels in code or label-management scripts.
 
@@ -232,7 +233,8 @@ reporting:
   progress_updates:
     - Default to final-only output.
     - During execution, output only a concise blocker message if blocked.
-    - Do not narrate commands, routine file reads, searches, checks or implementation phases.
+    - Do not print command logs, command transcripts, command lists, routine progress narration, implementation phases, file-read narration, search narration, full diffs or full logs.
+    - Do not narrate routine reads/searches/checks.
   include_when_relevant:
     - branch
     - changed files
@@ -249,6 +251,7 @@ reporting:
     - full-file dumps
     - full-diff dumps after successful implementation
     - command lists
+    - command transcripts
     - routine narration
     - private chain-of-thought
     - private API response data
@@ -259,6 +262,22 @@ reporting:
   failure_logs:
     - include only relevant excerpts
     - private data in logs is a blocker
+  verification_format:
+    - "Verification: <check name> — passed"
+    - "Verification: <check name> — failed: <short reason>"
+    - "Verification: not run — <reason>"
+  verification_reporting_rules:
+    - If verification is run, summarize only status, not commands or logs.
+    - Do not include Run/npm command blocks unless explicitly requested.
+  compact_handoff_order:
+    - Branch
+    - Changed files
+    - Removed files
+    - What changed
+    - Verification
+    - Known blockers/manual checks
+    - Commit SHA
+    - PR URL (if already open)
 
 pr_body_must_include:
   - Linked issues
