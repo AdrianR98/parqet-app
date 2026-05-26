@@ -157,7 +157,7 @@ export async function getMarketDataHistory(input: {
             status: "db_hit",
             message: "Kursdaten aus lokaler Kursdatenbank.",
             data: {
-                provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
+                provider: "yfinance",
                 isin: normalizedIsin,
                 symbol: primaryMapping.symbol,
                 points: points.map((point) => ({
@@ -209,12 +209,12 @@ export async function getMarketDataHistory(input: {
                 refreshedAt: latestPoint.importedAt,
                 isFresh: !isStaleLatestDate(latestResponsePriceDate),
                 ageHours: 0,
-                provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
+                provider: "yfinance",
                 symbol: primaryMapping.symbol,
                 pointCount: downsampleResult.pointCountReturned,
             },
             diagnostics: {
-                provider: primaryMapping.provider === "yfinance" ? "yfinance" : "alphavantage",
+                provider: "yfinance",
                 symbol: primaryMapping.symbol,
                 providerStatusCategory: "ok",
                 detectedResponseShape: "none",

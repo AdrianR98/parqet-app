@@ -1,7 +1,7 @@
 [
   {
     "isin": "US0378331005",
-    "provider": "alphavantage",
+    "provider": "yfinance",
     "symbol": "AAPL",
     "name": "Apple Inc."
   }

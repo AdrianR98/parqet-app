@@ -2,20 +2,17 @@
 
 Parqet App is a Next.js Parqet Integration.
 
-Current architecture baseline (post-PR #378):
+Current architecture baseline:
 
 - Parqet OAuth is used for authorized portfolio access.
 - User Portfolio Data (Parqet-derived portfolio/activity data) is cached browser-local for app views.
 - `/settings` is simplified to two cards: `Parqet-Verbindung` and `Darstellung`.
 - Disconnect clears Parqet auth cookies server-side and Parqet-derived browser-local data client-side, while appearance/UI preferences remain.
 - Header portfolio selection is the user-facing portfolio selection path.
-- Dashboard, Activities and Asset Detail can recover from missing local cache through the local bootstrap/cache-change flow.
+- Dashboard, Activities and Asset Detail can recover from missing local cache through local bootstrap/cache-change flow.
 - `/admin` lives in the `(admin)` route group and is read-only for market-data inspection/triage.
 - Runtime market-history reads are DB-only (`src/lib/market-data/service.ts`), with provider calls restricted to explicit Admin/CLI workflows.
 - Current provider workflow is yfinance-based; OpenFIGI is optional admin lookup support.
-- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
-- Do not use Alpha Vantage as fallback.
-- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 Current operator workflow details are documented in [docs/MARKET_DATA_PIPELINE.md](docs/MARKET_DATA_PIPELINE.md).
 

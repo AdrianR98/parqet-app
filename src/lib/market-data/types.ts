@@ -1,4 +1,4 @@
-export type MarketDataProvider = "alphavantage" | "yfinance";
+export type MarketDataProvider = "yfinance";
 export type MarketHistoryPeriod = "1M" | "3M" | "6M" | "1Y" | "3Y" | "5Y" | "MAX";
 
 export type MarketDataPoint = {
