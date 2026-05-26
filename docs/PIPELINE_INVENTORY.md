@@ -42,7 +42,9 @@ No portfolio-management/debug/admin controls remain in Settings.
 
 - Active workflow: yfinance-based validation/backfill/update.
 - Optional admin lookup: OpenFIGI.
-- Alpha Vantage: residual/deprecated cleanup candidate, not future strategy.
+- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
+- Do not use Alpha Vantage as fallback.
+- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 ## Terminology
 

@@ -16,7 +16,7 @@ Status: active roadmap aligned to current baseline
 2. CSP nonce/hash strategy for inline root scripts.
 3. Cache-event debounce/performance pass.
 4. Dark-mode asset/logo research (#379).
-5. Alpha Vantage removal/deprecation cleanup.
+5. Alpha Vantage removal cleanup.
 
 ## Future Data Model Work (Not Implemented)
 

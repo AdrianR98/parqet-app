@@ -21,7 +21,9 @@ Last reviewed: 2026-05-26
 
 - Current provider workflow for validation/backfill/update is yfinance-based.
 - OpenFIGI may be used as candidate lookup/admin workflow.
-- Alpha Vantage is not part of the intended future strategy and should be treated as residual/deprecated cleanup where code still exists.
+- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
+- Do not use Alpha Vantage as fallback.
+- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 ## Follow-Ups
 
@@ -29,7 +31,7 @@ Last reviewed: 2026-05-26
 2. CSP nonce/hash strategy for inline root scripts.
 3. Cache-event debounce/performance pass.
 4. Dark-mode asset/logo research: issue #379.
-5. Alpha Vantage removal/deprecation cleanup.
+5. Alpha Vantage removal cleanup.
 6. Future corporate-action/security-lineage planning.
 
 ## Future Corporate-Action / Lineage Work (Not Implemented)

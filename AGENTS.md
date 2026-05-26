@@ -20,6 +20,7 @@ Core rules:
 - Do not redesign the app or implement product features unless the issue explicitly requests it.
 - Phase-1 analysis tasks are read/report-first and must not change app code unless explicitly allowed.
 - Do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
+- If a feature, provider path, UI flow or implementation is replaced and explicitly removed, delete it from code and docs. Do not preserve it as deprecated, legacy, fallback or historical implementation unless a task explicitly requires a transitional compatibility path.
 - Treat external API budget minimization as a product and architecture rule, not just a debugging preference.
 - Any provider/API-touching change must describe request impact, cache/reuse strategy, retry behavior and rate-limit handling.
 - Avoid automatic full reloads for navigation, filtering, editing or rendering unless an issue explicitly justifies them.
@@ -46,5 +47,21 @@ Codex output discipline:
 
 - Default output mode is final-only.
 - During execution, output only a concise blocker message if blocked.
-- Do not print command logs, command lists, full files, full diffs, full logs, generated output, routine reads/searches/checks or implementation narration.
-- Final handoff must stay compact: Branch, Changed files, What changed, Known blockers / manual checks needed.
+- Do not print command logs, command transcripts, command lists, routine progress narration, implementation phases, file-read narration, search narration, full diffs, full files, full logs or generated output.
+- If verification is run, summarize only status, not commands or logs.
+- Verification lines must use:
+  - `Verification: <check name> — passed`
+  - `Verification: <check name> — failed: <short reason>`
+  - `Verification: not run — <reason>`
+- Do not list every command unless the task explicitly requests exact commands.
+- For failures, include only the relevant failure excerpt.
+- No `Run: npm ...` blocks in normal final handoff unless explicitly requested.
+- Final handoff must stay compact and use:
+  - Branch
+  - Changed files
+  - Removed files, if any
+  - What changed
+  - Verification
+  - Known blockers / manual checks
+  - Commit SHA
+  - PR URL, if already open

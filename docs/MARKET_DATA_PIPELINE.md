@@ -17,7 +17,9 @@ Provider calls are restricted to explicit Admin/CLI workflows.
 
 - Primary provider workflow: yfinance (validation/backfill/incremental update).
 - OpenFIGI: optional candidate lookup/admin workflow.
-- Alpha Vantage: residual/deprecated code path candidate; not part of intended future provider strategy.
+- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
+- Do not use Alpha Vantage as fallback.
+- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 ## Current Market-Data Tables
 

@@ -26,7 +26,9 @@ Status: active guardrails aligned to current architecture
 
 - yfinance is the active provider workflow for validation/backfill/update.
 - OpenFIGI may be used for candidate lookup/admin support.
-- Alpha Vantage is not the intended future strategy and should be treated as deprecated/residual cleanup where present.
+- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
+- Do not use Alpha Vantage as fallback.
+- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 ## Market Actions And Lineage
 

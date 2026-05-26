@@ -13,7 +13,9 @@ Current architecture baseline (post-PR #378):
 - `/admin` lives in the `(admin)` route group and is read-only for market-data inspection/triage.
 - Runtime market-history reads are DB-only (`src/lib/market-data/service.ts`), with provider calls restricted to explicit Admin/CLI workflows.
 - Current provider workflow is yfinance-based; OpenFIGI is optional admin lookup support.
-- Alpha Vantage is not part of the intended future provider strategy and should be treated as residual cleanup where still present.
+- Alpha Vantage is not part of the intended architecture and should be removed in a dedicated cleanup PR.
+- Do not use Alpha Vantage as fallback.
+- Do not reference Alpha Vantage in future planning except as a removal target until deleted.
 
 Current operator workflow details are documented in [docs/MARKET_DATA_PIPELINE.md](docs/MARKET_DATA_PIPELINE.md).
 
