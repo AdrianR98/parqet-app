@@ -1114,21 +1114,21 @@ export function projectGlobalAssetsProductReadModel(
 }
 
 export function buildGlobalAssetsProductReadModelComparisonEvidence(input: {
-  compatibilityAssets: ProductReadModelCompatibilityAssetInput[];
+  currentAssets: ProductReadModelCompatibilityAssetInput[];
   projected: ProductReadModelAssets;
 }): ProductReadModelAssetsComparisonEvidence {
-  const compatibility = {
-    assetCount: input.compatibilityAssets.length,
-    assetWithPositionValueCount: input.compatibilityAssets.filter(
+  const currentSurface = {
+    assetCount: input.currentAssets.length,
+    assetWithPositionValueCount: input.currentAssets.filter(
       (asset) => asset.positionValue != null,
     ).length,
-    assetWithUnrealizedPnLCount: input.compatibilityAssets.filter(
+    assetWithUnrealizedPnLCount: input.currentAssets.filter(
       (asset) => asset.unrealizedPnL != null,
     ).length,
-    assetWithDividendCount: input.compatibilityAssets.filter(
+    assetWithDividendCount: input.currentAssets.filter(
       (asset) => asset.totalDividendNet != null,
     ).length,
-    assetWithQuantityCount: input.compatibilityAssets.filter((asset) => asset.netShares != null).length,
+    assetWithQuantityCount: input.currentAssets.filter((asset) => asset.netShares != null).length,
   };
   const projectedByStatus: Record<ProductReadModelAssetStatus, number> = {
     active: 0,
@@ -1159,19 +1159,19 @@ export function buildGlobalAssetsProductReadModelComparisonEvidence(input: {
   };
 
   return {
-    compatibility,
+    compatibility: currentSurface,
     projected,
     delta: {
-      assetCount: projected.assetCount - compatibility.assetCount,
+      assetCount: projected.assetCount - currentSurface.assetCount,
       blockedMetricAssetCount: projected.blockedMetricAssetCount,
       warningAssetCount: projected.warningAssetCount,
       blockerWarningCount: projected.blockerWarningCount,
-      quantityCoverage: projected.withQuantityCount - compatibility.assetWithQuantityCount,
-      marketValueCoverage: projected.withMarketValueCount - compatibility.assetWithPositionValueCount,
-      costBasisCoverage: projected.withCostBasisCount - compatibility.assetCount,
+      quantityCoverage: projected.withQuantityCount - currentSurface.assetWithQuantityCount,
+      marketValueCoverage: projected.withMarketValueCount - currentSurface.assetWithPositionValueCount,
+      costBasisCoverage: projected.withCostBasisCount - currentSurface.assetCount,
       unrealizedPnLCoverage:
-        projected.withUnrealizedPnLCount - compatibility.assetWithUnrealizedPnLCount,
-      dividendsCoverage: projected.withDividendsCount - compatibility.assetWithDividendCount,
+        projected.withUnrealizedPnLCount - currentSurface.assetWithUnrealizedPnLCount,
+      dividendsCoverage: projected.withDividendsCount - currentSurface.assetWithDividendCount,
     },
   };
 }

@@ -8,6 +8,7 @@ Last updated: 2026-05-27
 - `AssetSummary` is removed from runtime code (`src/**`) and tests (`tests/**`).
 - No ProductReadModel-to-`AssetSummary` compatibility projection remains.
 - Runtime surfaces now use `GlobalAssetViewModel` and Product Read Model outputs.
+- Active compatibility selector fallback is removed: guarded selection is now either `global_asset_product` or explicit `product_read_model_unavailable`.
 
 ## Runtime Removal Result
 
@@ -30,6 +31,8 @@ Last updated: 2026-05-27
 
 ## Remaining Blockers
 
+- `GlobalAssetViewModel` still contains some legacy-shaped continuity fields (for example multiple display-name aliases and nullable metadata mirrors).  
+  This is not a compatibility adapter, but it should be cleaned in a dedicated follow-up slice: `GlobalAssetViewModel shape cleanup`.
 - Documentation still references `AssetSummary` as historical/deprecation context in:
   - `docs/DATA_MODEL.md`
   - `docs/DOMAIN_LANGUAGE.md`

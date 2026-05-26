@@ -312,19 +312,19 @@ export function useDashboardData(): UseDashboardDataResult {
       return;
     }
 
-    const compatibilityActiveAssets = enrichAssetsWithMetadata(
+    const cachedActiveAssets = enrichAssetsWithMetadata(
       cached.activeAssets ?? [],
     );
-    const compatibilityClosedAssets = enrichAssetsWithMetadata(
+    const cachedClosedAssets = enrichAssetsWithMetadata(
       cached.closedAssets ?? [],
     );
-    const compatibilityAssets = [
-      ...compatibilityActiveAssets,
-      ...compatibilityClosedAssets,
+    const cachedAssets = [
+      ...cachedActiveAssets,
+      ...cachedClosedAssets,
     ];
     const rawGlobalAssetProductReadModel = cached.globalAssetProductReadModel ?? null;
     const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-      compatibilityAssets,
+      currentAssets: cachedAssets,
       productReadModel: rawGlobalAssetProductReadModel,
       guardEnabled: guardedGlobalAssetProductEnabled,
     });

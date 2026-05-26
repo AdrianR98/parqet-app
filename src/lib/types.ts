@@ -129,7 +129,7 @@ export type PortfolioPosition = {
  * - warning counters direkt am Asset
  *
  * Runtime ViewModel für Dashboard-/Detail-Surfaces.
- * Phase 2 nutzt diesen Typ als Ersatz für den entfernten GlobalAssetViewModel-Typ.
+ * Phase 2 nutzt diesen Typ als Ersatz für den entfernten AssetSummary-Runtime-View-Typ.
  */
 
 export type GlobalAssetViewModel = {

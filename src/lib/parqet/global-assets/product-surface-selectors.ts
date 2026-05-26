@@ -12,17 +12,20 @@ import type { BlockedMetric } from "./types";
 
 export type CanonicalSafeFieldSurfaceId = "dashboard" | "asset_table" | "reports";
 
-export type CanonicalSafeFieldProductSource = "compatibility" | "global_asset_product";
+export type CanonicalSafeFieldProductSource =
+  | "global_asset_product"
+  | "product_read_model_unavailable";
 
 export type CanonicalSafeFieldSelectionReason =
-  | "guard_not_enabled"
+  | "guard_disabled"
   | "product_read_model_missing"
   | "product_read_model_invalid"
+  | "product_read_model_empty"
   | "product_read_model_not_fresh"
   | "product_read_model_scope_mismatch"
   | "product_read_model_ready";
 
-export type CanonicalSafeFieldFallbackField =
+export type CanonicalSafeFieldAffectedField =
   | "position_value"
   | "unrealized_pnl"
   | "remaining_cost_basis"
@@ -32,7 +35,7 @@ export type CanonicalSafeFieldFallbackField =
 
 export type CanonicalSafeFieldSelectionDiagnostics = {
   readModelId: string | null;
-  compatibilityAssetCount: number;
+  currentAssetCount: number;
   productAssetCount: number;
   blockedMetricAssetCount: number;
   blockedMetricCount: number;
@@ -50,13 +53,13 @@ export type CanonicalSafeFieldSelection = {
   selectedSource: CanonicalSafeFieldProductSource;
   reason: CanonicalSafeFieldSelectionReason;
   blockedMetrics: BlockedMetric[];
-  fallbackFields: CanonicalSafeFieldFallbackField[];
+  affectedFields: CanonicalSafeFieldAffectedField[];
   diagnostics: CanonicalSafeFieldSelectionDiagnostics;
 };
 
 export type SelectCanonicalSafeFieldSourceInput = {
   surface: CanonicalSafeFieldSurfaceId;
-  compatibilityAssets: GlobalAssetViewModel[];
+  currentAssets: GlobalAssetViewModel[];
   productReadModel?: unknown;
   guardEnabled: boolean;
 };
@@ -64,12 +67,12 @@ export type SelectCanonicalSafeFieldSourceInput = {
 export type GuardedSurfaceId = CanonicalSafeFieldSurfaceId;
 export type GuardedProductSource = CanonicalSafeFieldProductSource;
 export type GuardedSourceSelectionReason = CanonicalSafeFieldSelectionReason;
-export type GuardedFallbackField = CanonicalSafeFieldFallbackField;
+export type GuardedAffectedField = CanonicalSafeFieldAffectedField;
 export type GuardedSourceSelectionDiagnostics = CanonicalSafeFieldSelectionDiagnostics;
 export type GuardedSourceSelection = CanonicalSafeFieldSelection;
 export type SelectGuardedSourceInput = SelectCanonicalSafeFieldSourceInput;
 
-const ALWAYS_COMPATIBILITY_FALLBACK_FIELDS: CanonicalSafeFieldFallbackField[] = [
+const DEFAULT_AFFECTED_FIELDS: CanonicalSafeFieldAffectedField[] = [
   "position_value",
   "unrealized_pnl",
   "remaining_cost_basis",
@@ -82,33 +85,33 @@ function uniqueBlockedMetrics(rows: ProductReadModelAssetRow[]): BlockedMetric[]
   return Array.from(new Set(rows.flatMap((row) => row.blockedMetrics)));
 }
 
-function blockedMetricsToFallbackFields(metrics: BlockedMetric[]): CanonicalSafeFieldFallbackField[] {
-  const fallbackFields = new Set<CanonicalSafeFieldFallbackField>(ALWAYS_COMPATIBILITY_FALLBACK_FIELDS);
+function blockedMetricsToAffectedFields(metrics: BlockedMetric[]): CanonicalSafeFieldAffectedField[] {
+  const affectedFields = new Set<CanonicalSafeFieldAffectedField>(DEFAULT_AFFECTED_FIELDS);
 
   for (const metric of metrics) {
     if (metric === "market_value") {
-      fallbackFields.add("position_value");
+      affectedFields.add("position_value");
     }
 
     if (metric === "unrealized_pnl" || metric === "realized_gains") {
-      fallbackFields.add("unrealized_pnl");
+      affectedFields.add("unrealized_pnl");
     }
 
     if (metric === "cost_basis") {
-      fallbackFields.add("remaining_cost_basis");
-      fallbackFields.add("avg_buy_price");
+      affectedFields.add("remaining_cost_basis");
+      affectedFields.add("avg_buy_price");
     }
 
     if (metric === "position" || metric === "portfolio_breakdown") {
-      fallbackFields.add("net_shares");
+      affectedFields.add("net_shares");
     }
 
     if (metric === "dividends") {
-      fallbackFields.add("total_dividend_net");
+      affectedFields.add("total_dividend_net");
     }
   }
 
-  return Array.from(fallbackFields);
+  return Array.from(affectedFields);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -178,7 +181,7 @@ function isScopeCompatibleForCanonicalSafeFieldSelection(state: ProductReadModel
 }
 
 function buildDiagnostics(input: {
-  compatibilityAssets: GlobalAssetViewModel[];
+  currentAssets: GlobalAssetViewModel[];
   productReadModel: ProductReadModelAssets | null;
 }): CanonicalSafeFieldSelectionDiagnostics {
   const productAssets = input.productReadModel?.assets ?? [];
@@ -187,7 +190,7 @@ function buildDiagnostics(input: {
 
   return {
     readModelId: input.productReadModel?.metadata.readModelId ?? null,
-    compatibilityAssetCount: input.compatibilityAssets.length,
+    currentAssetCount: input.currentAssets.length,
     productAssetCount: productAssets.length,
     blockedMetricAssetCount: productAssets.filter((row) => row.blockedMetrics.length > 0).length,
     blockedMetricCount: blockedMetrics.length,
@@ -201,81 +204,92 @@ function buildDiagnostics(input: {
   };
 }
 
+function buildUnavailableSelection(input: {
+  surface: CanonicalSafeFieldSurfaceId;
+  reason: Exclude<CanonicalSafeFieldSelectionReason, "product_read_model_ready">;
+  blockedMetrics: BlockedMetric[];
+  affectedFields: CanonicalSafeFieldAffectedField[];
+  diagnostics: CanonicalSafeFieldSelectionDiagnostics;
+}): CanonicalSafeFieldSelection {
+  return {
+    surface: input.surface,
+    selectedSource: "product_read_model_unavailable",
+    reason: input.reason,
+    blockedMetrics: input.blockedMetrics,
+    affectedFields: input.affectedFields,
+    diagnostics: input.diagnostics,
+  };
+}
+
 export function selectCanonicalSafeFieldProductSurfaceSource(
   input: SelectCanonicalSafeFieldSourceInput,
 ): CanonicalSafeFieldSelection {
   const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
   const diagnostics = buildDiagnostics({
-    compatibilityAssets: input.compatibilityAssets,
+    currentAssets: input.currentAssets,
     productReadModel,
   });
   const blockedMetrics = uniqueBlockedMetrics(productReadModel?.assets ?? []);
-  const fallbackFields = blockedMetricsToFallbackFields(blockedMetrics);
+  const affectedFields = blockedMetricsToAffectedFields(blockedMetrics);
 
   if (!input.guardEnabled) {
-    return {
+    return buildUnavailableSelection({
       surface: input.surface,
-      selectedSource: "compatibility",
-      reason: "guard_not_enabled",
+      reason: "guard_disabled",
       blockedMetrics,
-      fallbackFields,
+      affectedFields,
       diagnostics,
-    };
+    });
   }
 
   if (input.productReadModel == null) {
-    return {
+    return buildUnavailableSelection({
       surface: input.surface,
-      selectedSource: "compatibility",
       reason: "product_read_model_missing",
       blockedMetrics,
-      fallbackFields,
+      affectedFields,
       diagnostics,
-    };
+    });
   }
 
   if (!productReadModel) {
-    return {
+    return buildUnavailableSelection({
       surface: input.surface,
-      selectedSource: "compatibility",
       reason: "product_read_model_invalid",
       blockedMetrics,
-      fallbackFields,
+      affectedFields,
       diagnostics,
-    };
+    });
   }
 
-  if (input.compatibilityAssets.length > 0 && productReadModel.assets.length === 0) {
-    return {
+  if (input.currentAssets.length > 0 && productReadModel.assets.length === 0) {
+    return buildUnavailableSelection({
       surface: input.surface,
-      selectedSource: "compatibility",
-      reason: "product_read_model_missing",
+      reason: "product_read_model_empty",
       blockedMetrics,
-      fallbackFields,
+      affectedFields,
       diagnostics,
-    };
+    });
   }
 
   if (!isFreshEnoughForCanonicalSafeFieldSelection(productReadModel.metadata.freshnessState)) {
-    return {
+    return buildUnavailableSelection({
       surface: input.surface,
-      selectedSource: "compatibility",
       reason: "product_read_model_not_fresh",
       blockedMetrics,
-      fallbackFields,
+      affectedFields,
       diagnostics,
-    };
+    });
   }
 
   if (!isScopeCompatibleForCanonicalSafeFieldSelection(productReadModel.metadata.scopeState)) {
-    return {
+    return buildUnavailableSelection({
       surface: input.surface,
-      selectedSource: "compatibility",
       reason: "product_read_model_scope_mismatch",
       blockedMetrics,
-      fallbackFields,
+      affectedFields,
       diagnostics,
-    };
+    });
   }
 
   return {
@@ -283,7 +297,7 @@ export function selectCanonicalSafeFieldProductSurfaceSource(
     selectedSource: "global_asset_product",
     reason: "product_read_model_ready",
     blockedMetrics,
-    fallbackFields,
+    affectedFields,
     diagnostics,
   };
 }

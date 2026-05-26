@@ -459,12 +459,13 @@ function sanitizeGuardedSourceSelection(value: unknown): GuardedSourceSelection 
   const candidate = value as GuardedSourceSelection;
 
   const selectedSourceValid =
-    candidate.selectedSource === "compatibility" ||
-    candidate.selectedSource === "global_asset_product";
+    candidate.selectedSource === "global_asset_product" ||
+    candidate.selectedSource === "product_read_model_unavailable";
   const reasonValid =
-    candidate.reason === "guard_not_enabled" ||
+    candidate.reason === "guard_disabled" ||
     candidate.reason === "product_read_model_missing" ||
     candidate.reason === "product_read_model_invalid" ||
+    candidate.reason === "product_read_model_empty" ||
     candidate.reason === "product_read_model_not_fresh" ||
     candidate.reason === "product_read_model_scope_mismatch" ||
     candidate.reason === "product_read_model_ready";
@@ -473,7 +474,7 @@ function sanitizeGuardedSourceSelection(value: unknown): GuardedSourceSelection 
     !selectedSourceValid ||
     !reasonValid ||
     !Array.isArray(candidate.blockedMetrics) ||
-    !Array.isArray(candidate.fallbackFields)
+    !Array.isArray(candidate.affectedFields)
   ) {
     return null;
   }
@@ -481,7 +482,7 @@ function sanitizeGuardedSourceSelection(value: unknown): GuardedSourceSelection 
   return candidate;
 }
 
-function sanitizeAssetSummary(asset: unknown): GlobalAssetViewModel | null {
+function sanitizeGlobalAssetViewModel(asset: unknown): GlobalAssetViewModel | null {
   if (!isCacheAssetCompatible(asset)) {
     return null;
   }
@@ -675,7 +676,7 @@ function sanitizeActivitiesAuditItem(item: unknown): ActivitiesAuditItem | null 
 
 function sanitizeDashboardCache(cache: DashboardCache): DashboardCache {
   const mergedAssets = [...cache.activeAssets, ...cache.closedAssets]
-    .map(sanitizeAssetSummary)
+    .map(sanitizeGlobalAssetViewModel)
     .filter((asset): asset is GlobalAssetViewModel => asset !== null)
     .slice(0, LOCAL_STORAGE_LIMITS.maxAssets);
 
@@ -735,7 +736,7 @@ export function getGuardedGlobalAssetCoexistenceDiagnostics(cache: DashboardCach
   hasCoexistingProductReadModel: boolean;
   selectedSource: GuardedSourceSelection["selectedSource"] | "none";
   reason: GuardedSourceSelection["reason"] | "none";
-  compatibilityAssetCount: number;
+  currentAssetCount: number;
   productAssetCount: number;
   blockedMetricAssetCount: number;
 } {
@@ -746,7 +747,7 @@ export function getGuardedGlobalAssetCoexistenceDiagnostics(cache: DashboardCach
     hasCoexistingProductReadModel: Boolean(cache?.globalAssetProductReadModel),
     selectedSource: selection?.selectedSource ?? "none",
     reason: selection?.reason ?? "none",
-    compatibilityAssetCount: (cache?.activeAssets.length ?? 0) + (cache?.closedAssets.length ?? 0),
+    currentAssetCount: (cache?.activeAssets.length ?? 0) + (cache?.closedAssets.length ?? 0),
     productAssetCount: productAssets.length,
     blockedMetricAssetCount: productAssets.filter((asset) => asset.blockedMetrics.length > 0).length,
   };

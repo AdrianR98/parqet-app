@@ -37,7 +37,7 @@ export function prepareDashboardCacheWrite(
 ): PreparedDashboardCacheWrite {
   const nextActiveAssets = enrichAssetsWithMetadata(input.response.activeAssets ?? []);
   const nextClosedAssets = enrichAssetsWithMetadata(input.response.closedAssets ?? []);
-  const compatibilityAssets = [...nextActiveAssets, ...nextClosedAssets];
+  const currentAssets = [...nextActiveAssets, ...nextClosedAssets];
   const responseWithCoexistence = input.response as AssetsApiResponse & {
     globalAssetProductReadModel?: unknown;
   };
@@ -47,7 +47,7 @@ export function prepareDashboardCacheWrite(
     rawGlobalAssetProductReadModel,
   );
   const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-    compatibilityAssets,
+    currentAssets,
     productReadModel: rawGlobalAssetProductReadModel,
     guardEnabled: input.guardEnabled,
   });

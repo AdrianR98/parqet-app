@@ -134,14 +134,14 @@ export type CanonicalDashboardSafeFieldSelection = {
 };
 
 export function selectCanonicalDashboardSafeFieldSource(input: {
-    compatibilityAssets: GlobalAssetViewModel[];
+    currentAssets: GlobalAssetViewModel[];
     productReadModel?: unknown;
     guardEnabled: boolean;
 }): CanonicalDashboardSafeFieldSelection {
     const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
     const selection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "dashboard",
-        compatibilityAssets: input.compatibilityAssets,
+        currentAssets: input.currentAssets,
         productReadModel: input.productReadModel,
         guardEnabled: input.guardEnabled,
     });
@@ -155,19 +155,19 @@ export function selectCanonicalDashboardSafeFieldSource(input: {
 
     return {
         selection,
-        assets: input.compatibilityAssets,
+        assets: input.currentAssets,
     };
 }
 
 export function selectCanonicalAssetTableSafeFieldSource(input: {
-    compatibilityAssets: GlobalAssetViewModel[];
+    currentAssets: GlobalAssetViewModel[];
     productReadModel?: unknown;
     guardEnabled: boolean;
 }): CanonicalDashboardSafeFieldSelection {
     const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
     const selection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "asset_table",
-        compatibilityAssets: input.compatibilityAssets,
+        currentAssets: input.currentAssets,
         productReadModel: input.productReadModel,
         guardEnabled: input.guardEnabled,
     });
@@ -181,14 +181,14 @@ export function selectCanonicalAssetTableSafeFieldSource(input: {
 
     return {
         selection,
-        assets: input.compatibilityAssets,
+        assets: input.currentAssets,
     };
 }
 
 export type GuardedDashboardSourceSelection = CanonicalDashboardSafeFieldSelection;
 
 export function selectGuardedDashboardSource(input: {
-    compatibilityAssets: GlobalAssetViewModel[];
+    currentAssets: GlobalAssetViewModel[];
     productReadModel?: ProductReadModelAssets | null;
     guardEnabled: boolean;
 }): GuardedDashboardSourceSelection {
@@ -196,7 +196,7 @@ export function selectGuardedDashboardSource(input: {
 }
 
 export function selectGuardedAssetTableSource(input: {
-    compatibilityAssets: GlobalAssetViewModel[];
+    currentAssets: GlobalAssetViewModel[];
     productReadModel?: ProductReadModelAssets | null;
     guardEnabled: boolean;
 }): GuardedDashboardSourceSelection {

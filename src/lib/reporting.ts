@@ -201,21 +201,21 @@ export function loadLocalReportModel(): LocalReportModel | null {
         resolvedScope.selectedPortfolioIds.length > 0
             ? resolvedScope.selectedPortfolioIds
             : cache.selectedPortfolioIds;
-    const compatibilityAssets = [...cache.activeAssets, ...cache.closedAssets];
+    const currentAssets = [...cache.activeAssets, ...cache.closedAssets];
     const rawProductReadModel = cache.globalAssetProductReadModel ?? null;
     const productReadModel = readGlobalAssetProductReadModel(
         rawProductReadModel
     );
     const guardedSelection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "reports",
-        compatibilityAssets,
+        currentAssets,
         productReadModel: rawProductReadModel,
         guardEnabled: resolveGlobalAssetProductGuardEnabled(),
     });
     const selectedAssets =
         guardedSelection.selectedSource === "global_asset_product" && productReadModel
             ? buildGlobalAssetViewModelsFromProductReadModel(productReadModel)
-            : compatibilityAssets;
+            : currentAssets;
     const allRows = toReportRows(
         selectedAssets,
         selectedPortfolioIds
