@@ -15,6 +15,12 @@ Last reviewed: 2026-05-26
 - The complete file-level removal inventory and phased migration slices are documented in `docs/ASSET_SUMMARY_REMOVAL_PLAN.md`.
 - Phase 2B implementation completed on branch `refactor/phase-2-asset-summary-deprecation`: runtime/test usage of `AssetSummary` was removed and compatibility projection paths were deleted.
 
+## Phase 3 Planning (Calculation Model Track)
+
+- Refs #384, Refs #387, Refs #393: Phase 3 planning baseline is documented in `docs/CALCULATION_MODEL_PLAN.md`.
+- Scope is planning/documentation only in this step; runtime extraction is intentionally deferred to follow-up slices on `refactor/phase-3-calculation-model`.
+- #393 remains active technical debt and is explicitly sequenced as part of the first implementation slice, not as final architecture.
+
 ## Current Baseline
 
 - Next.js Parqet Integration with Parqet OAuth for authorized portfolio access.
