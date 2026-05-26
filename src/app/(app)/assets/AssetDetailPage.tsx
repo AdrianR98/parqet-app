@@ -26,6 +26,8 @@ import { formatCurrency, formatShares } from "../../../lib/format";
 import { isMeaningfulSymbol } from "../../../lib/asset-display";
 import type { MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../../../lib/market-data/types";
 import type { ActivitiesAuditItem, AssetSummary, PortfolioPosition } from "../../../lib/types";
+import { DASHBOARD_CACHE_CHANGED_EVENT } from "../../../lib/dashboard-cache";
+import { ensureParqetLocalBootstrap } from "../../../lib/parqet-local-bootstrap";
 import AssetLogo from "../../../components/common/AssetLogo";
 import styles from "./AssetDetailPage.module.css";
 
@@ -305,7 +307,31 @@ function resolveSelectedAssetScope(asset: AssetSummary): SelectedAssetScope {
 }
 
 function subscribeToLocalAssetState(onStoreChange: () => void) {
-    return subscribeToLocalSettings(onStoreChange);
+    const unsubscribeLocalSettings = subscribeToLocalSettings(onStoreChange);
+    if (typeof window === "undefined") {
+        return unsubscribeLocalSettings;
+    }
+
+    const handleVisibilityChange = () => {
+        if (!document.hidden) {
+            onStoreChange();
+        }
+    };
+
+    window.addEventListener("storage", onStoreChange);
+    window.addEventListener(DASHBOARD_CACHE_CHANGED_EVENT, onStoreChange);
+    window.addEventListener("pageshow", onStoreChange);
+    window.addEventListener("focus", onStoreChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+        unsubscribeLocalSettings();
+        window.removeEventListener("storage", onStoreChange);
+        window.removeEventListener(DASHBOARD_CACHE_CHANGED_EVENT, onStoreChange);
+        window.removeEventListener("pageshow", onStoreChange);
+        window.removeEventListener("focus", onStoreChange);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
 }
 
 function getLocalAssetStateSnapshot(): string {
@@ -1120,6 +1146,14 @@ export default function AssetDetailPage() {
 
     const currentIsin = viewModel?.asset?.isin?.trim() ?? "";
 
+    useEffect(() => {
+        if (!clientReady || !assetKey || viewModel) {
+            return;
+        }
+
+        void ensureParqetLocalBootstrap();
+    }, [assetKey, clientReady, viewModel]);
+
     const loadMarketData = useCallback(async (signal?: AbortSignal) => {
         if (!currentIsin) {
             setMarketDataResponse({
@@ -1223,7 +1257,7 @@ export default function AssetDetailPage() {
             <main className={styles.page}>
                 <section className={styles.stateBox}>
                     <strong>Lokaler Stand wird vorbereitet</strong>
-                    <p>Asset-Daten werden aus dem lokalen Cache geladen.</p>
+                    <p>Der lokale Datenstand wird automatisch vorbereitet.</p>
                 </section>
             </main>
         );
@@ -1234,7 +1268,7 @@ export default function AssetDetailPage() {
             <main className={styles.page}>
                 <section className={styles.stateBox}>
                     <strong>Asset nicht lokal verfügbar</strong>
-                    <p>Bitte in der Übersicht Daten laden und dann erneut öffnen.</p>
+                    <p>Der lokale Datenstand wird automatisch vorbereitet. Wenn das Asset danach weiterhin fehlt, öffne das Dashboard oder verbinde Parqet erneut.</p>
                     <Link href="/dashboard" className="ui-btn ui-btn-secondary">Zurück zur Übersicht</Link>
                 </section>
             </main>

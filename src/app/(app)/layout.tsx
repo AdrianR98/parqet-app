@@ -21,16 +21,15 @@ export default function AppLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
-    const { appearanceMode, theme, toggleTheme, themeStyle } = useTheme();
+    const { theme, toggleTheme } = useTheme();
 
     const activeView = useMemo(() => getActiveView(pathname), [pathname]);
 
     return (
-        <div className={styles.app} style={themeStyle}>
+        <div className={styles.app}>
             <div className={styles.main}>
                 <HeaderBar
                     theme={theme}
-                    appearanceMode={appearanceMode}
                     activeView={activeView}
                     onToggleThemeAction={toggleTheme}
                 />

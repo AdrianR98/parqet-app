@@ -5,6 +5,8 @@ import {
     safeStringArray,
     safeTrimmedString,
 } from "./local-storage-guards";
+import { DASHBOARD_CACHE_KEY } from "./dashboard-cache";
+import { METADATA_STORAGE_KEY } from "./asset-metadata";
 
 export const APPEARANCE_STORAGE_KEY = "assettrace-appearance-mode-v1";
 export const LEGACY_THEME_STORAGE_KEY = "parqet-theme-v1";
@@ -15,6 +17,7 @@ export const ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY = "assettrace-asset-table-v
 export const ASSET_DETAIL_TIME_RANGE_STORAGE_KEY = "assettrace-asset-detail-time-range-v1";
 export const ASSET_DETAIL_RANGE_SETTINGS_STORAGE_KEY = "assettrace-asset-detail-range-settings-v1";
 export const LOCAL_SETTINGS_CHANGE_EVENT = "assettrace:settings-local-state-change";
+export const APPEARANCE_CHANGE_EVENT = "assettrace:appearance-change";
 
 export const REVEAL_BLOCK_SIZE_OPTIONS = [20, 50, 100] as const;
 export const DEFAULT_REVEAL_BLOCK_SIZE = 50;
@@ -130,6 +133,7 @@ export function saveAppearanceMode(mode: AppearanceMode): void {
 
     try {
         window.localStorage.setItem(APPEARANCE_STORAGE_KEY, mode);
+        window.dispatchEvent(new Event(APPEARANCE_CHANGE_EVENT));
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }
@@ -594,6 +598,30 @@ export function clearLocalAssetTraceState(): void {
         window.localStorage.removeItem(ASSET_TABLE_VISIBLE_COLUMNS_STORAGE_KEY);
         window.localStorage.removeItem(ASSET_DETAIL_TIME_RANGE_STORAGE_KEY);
         window.localStorage.removeItem(ASSET_DETAIL_RANGE_SETTINGS_STORAGE_KEY);
+    } catch {
+        // localStorage-Probleme bewusst ignorieren.
+    }
+}
+
+export function clearParqetLocalUserData(): void {
+    if (!isBrowser()) {
+        return;
+    }
+
+    try {
+        const keysToClear = [
+            DASHBOARD_CACHE_KEY,
+            KNOWN_PORTFOLIOS_STORAGE_KEY,
+            PORTFOLIO_SCOPE_STORAGE_KEY,
+            METADATA_STORAGE_KEY,
+        ];
+
+        for (const key of keysToClear) {
+            window.localStorage.removeItem(key);
+        }
+
+        notifyLocalSettingsChanged();
+        window.dispatchEvent(new Event("storage"));
     } catch {
         // localStorage-Probleme bewusst ignorieren.
     }

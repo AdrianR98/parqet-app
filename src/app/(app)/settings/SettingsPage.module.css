@@ -2,22 +2,13 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-width: 860px;
 }
 
 .hero {
     display: flex;
     flex-direction: column;
-    gap: 10px;
     padding: 24px;
-}
-
-.eyebrow {
-    margin: 0;
-    color: var(--text-soft);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .title {
@@ -26,7 +17,6 @@
     font-size: 30px;
 }
 
-.description,
 .text,
 .meta {
     margin: 0;
@@ -34,9 +24,9 @@
     line-height: 1.5;
 }
 
-.grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.stack {
+    display: flex;
+    flex-direction: column;
     gap: 16px;
 }
 
@@ -59,53 +49,69 @@
     font-size: 18px;
 }
 
-.optionGroup,
-.portfolioList,
-.diagnosticsGrid {
+.optionGroup {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 
-.segmented {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.segmentButton,
-.portfolioItem {
-    min-height: 44px;
-    border: 1px solid var(--panel-border);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text-main);
-}
-
-.segmentButton {
-    cursor: pointer;
-}
-
-.segmentButtonActive {
-    border-color: var(--accent-cyan);
-    background: var(--accent-cyan-soft);
-}
-
-.portfolioItem {
-    display: flex;
+.segmentedControl {
+    display: inline-grid;
+    grid-template-columns: repeat(3, minmax(72px, 1fr));
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
+    width: fit-content;
+    padding: 4px;
+    border: 1px solid var(--border-muted);
+    border-radius: 999px;
+    background: var(--surface-gradient);
+    box-shadow: inset 0 1px 0 var(--surface-elevated-strong), 0 8px 16px rgba(41, 67, 99, 0.08);
 }
 
-.portfolioItem input {
-    accent-color: var(--accent-cyan);
+.segmentedButton {
+    border: 0;
+    background: transparent;
+    color: var(--text-soft);
+    font-size: 12px;
+    line-height: 1;
+    border-radius: 999px;
+    padding: 10px 14px;
+    min-height: 36px;
+    cursor: pointer;
+    transition: color 140ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.segmentedButton:hover,
+.segmentedButton:focus-visible {
+    color: var(--text-main);
+    outline: none;
+}
+
+.segmentedButton:focus-visible {
+    box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.segmentedButtonActive {
+    background: var(--surface-control-active);
+    color: var(--text-main);
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 var(--surface-elevated-strong);
+    transform: translateY(-0.5px);
 }
 
 .actions {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+}
+
+.dangerButton {
+    border-color: var(--danger-soft-border-strong);
+    color: var(--negative);
+    background: var(--danger-soft);
+}
+
+.dangerButton:hover {
+    border-color: var(--negative);
 }
 
 .connectionStatus {
@@ -143,29 +149,12 @@
     background: rgba(250, 204, 21, 0.1);
 }
 
-.diagnosticItem {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid var(--panel-border);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text-soft);
-}
-
-.diagnosticValue {
-    color: var(--text-main);
-    font-weight: 600;
-    text-align: right;
-}
-
 @media (max-width: 1000px) {
-    .grid {
-        grid-template-columns: 1fr;
+    .segmentedControl {
+        width: 100%;
     }
 
-    .segmented {
-        grid-template-columns: 1fr;
+    .segmentedButton {
+        min-width: 0;
     }
 }

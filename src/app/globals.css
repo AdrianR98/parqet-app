@@ -60,6 +60,7 @@
     --chart-series-fallback: #7d93ad;
 }
 
+html[data-theme="dark"],
 html[data-assettrace-theme="dark"] {
     --page-bg: #0d1728;
     --page-bg-2: #0f1f33;

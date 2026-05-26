@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./ActivitiesPage.module.css";
@@ -25,6 +25,11 @@ import {
   notifyBrowserLocalStateChanged,
   useHydrationSafeLocalSnapshot,
 } from "../../../hooks/use-hydration-safe-local-snapshot";
+import { ensureParqetLocalBootstrap } from "../../../lib/parqet-local-bootstrap";
+import {
+  shouldAttemptActivitiesLocalBootstrap,
+  type LocalBootstrapStatus,
+} from "../../../lib/activities-local-bootstrap";
 
 const PAGE_SIZE = 30;
 
@@ -226,6 +231,9 @@ function ActivitiesPageContent() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [preparingLocalData, setPreparingLocalData] = useState(false);
+  const [localBootstrapStatus, setLocalBootstrapStatus] = useState<LocalBootstrapStatus>("idle");
+  const bootstrapAttemptKeyRef = useRef<string | null>(null);
 
   const scopedItems = useMemo(() => {
     const scopedIds = new Set(readModel.scopedPortfolioIds);
@@ -266,6 +274,68 @@ function ActivitiesPageContent() {
     readModel.scope.mode === "manual" &&
     readModel.scope.selectedPortfolioIds.length > 0 &&
     readModel.scopedPortfolioIds.length === 0;
+  const bootstrapAttemptKey = useMemo(() => JSON.stringify({
+    mode: readModel.scope.mode,
+    selectedPortfolioIds: [...readModel.scope.selectedPortfolioIds].sort(),
+    loadedPortfolioIds: [...readModel.loadedPortfolioIds].sort(),
+    generatedAt: readModel.generatedAt ?? null,
+    freshnessStatus: readModel.freshness?.status ?? null,
+    refreshStatus: readModel.freshness?.refreshStatus ?? null,
+    hasLocalData,
+  }), [
+    readModel.scope.mode,
+    readModel.scope.selectedPortfolioIds,
+    readModel.loadedPortfolioIds,
+    readModel.generatedAt,
+    readModel.freshness?.status,
+    readModel.freshness?.refreshStatus,
+    hasLocalData,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrapIfMissing() {
+      if (hasLocalData) {
+        setPreparingLocalData(false);
+        setLocalBootstrapStatus("done");
+        bootstrapAttemptKeyRef.current = null;
+        return;
+      }
+
+      if (!shouldAttemptActivitiesLocalBootstrap({
+        hasLocalData,
+        bootstrapStatus: localBootstrapStatus,
+        attemptKey: bootstrapAttemptKey,
+        attemptedKey: bootstrapAttemptKeyRef.current,
+      })) {
+        return;
+      }
+
+      bootstrapAttemptKeyRef.current = bootstrapAttemptKey;
+      setLocalBootstrapStatus("running");
+      setPreparingLocalData(true);
+
+      const status = await ensureParqetLocalBootstrap();
+      if (!cancelled) {
+        notifyBrowserLocalStateChanged();
+        if (status === "bootstrapped" || status === "already_ready") {
+          setLocalBootstrapStatus("done");
+        } else if (status === "auth_required") {
+          setLocalBootstrapStatus("auth_required");
+        } else {
+          setLocalBootstrapStatus("failed");
+        }
+        setPreparingLocalData(false);
+      }
+    }
+
+    void bootstrapIfMissing();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapAttemptKey, hasLocalData, localBootstrapStatus]);
 
   function updateFilter(next: Partial<ActivityFilters>) {
     if ("portfolioIds" in next) {
@@ -278,6 +348,8 @@ function ActivitiesPageContent() {
   }
 
   function reloadFromLocalCache() {
+    bootstrapAttemptKeyRef.current = null;
+    setLocalBootstrapStatus("idle");
     notifyBrowserLocalStateChanged();
     setUseHydratedPortfolioScope(true);
     setFilters({
@@ -452,10 +524,19 @@ function ActivitiesPageContent() {
       {!hasLocalData ? (
         <section className={`ui-surface ${styles.emptyState}`}>
           <p className={styles.eyebrow}>Keine lokalen Aktivitätsdaten</p>
-          <h2>Aktivitäten zuerst im Dashboard laden</h2>
+          <h2>
+            {preparingLocalData
+              ? "Lokale Aktivitäten werden vorbereitet"
+              : localBootstrapStatus === "failed" || localBootstrapStatus === "auth_required"
+                ? "Lokaler Datenstand konnte nicht vorbereitet werden"
+                : "Lokaler Datenstand noch leer"}
+          </h2>
           <p>
-            Diese Seite startet bewusst keine Parqet- oder Audit-Route. Lade oder aktualisiere die Daten explizit
-            im Dashboard; danach werden die lokalen Snapshot-/Read-Model-Daten hier angezeigt.
+            {preparingLocalData
+              ? "Die App lädt den lokalen Stand automatisch. Bitte kurz warten."
+              : localBootstrapStatus === "failed" || localBootstrapStatus === "auth_required"
+                ? "Der lokale Datenstand konnte nicht automatisch vorbereitet werden. Öffne das Dashboard oder verbinde Parqet erneut, falls die Verbindung abgelaufen ist."
+                : "Noch keine lokalen Aktivitätsdaten verfügbar. Die App versucht automatisch, den lokalen Stand neu aufzubauen."}
           </p>
         </section>
       ) : filteredItems.length === 0 ? (

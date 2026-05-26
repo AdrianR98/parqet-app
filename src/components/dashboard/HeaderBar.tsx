@@ -1,9 +1,6 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import type { TopNavKey } from "../../app/(app)/layout";
-import { getFreshnessStatusLabel, loadLocalActivityReadModel } from "../../lib/local-activity-read-model";
-import { loadDashboardCache } from "../../lib/dashboard-cache";
-import { getConnectionStatusView } from "../../lib/connection-status";
 import {
     loadKnownPortfolios,
     loadPortfolioScope,
@@ -17,7 +14,6 @@ import styles from "./HeaderBar.module.css";
 
 type HeaderBarProps = {
     theme: "light" | "dark";
-    appearanceMode: "system" | "light" | "dark";
     activeView: TopNavKey;
     onToggleThemeAction: () => void;
 };
@@ -27,41 +23,6 @@ const NAV_ITEMS: Array<{ key: TopNavKey; label: string; href: string }> = [
     { key: "activities", label: "Aktivitäten", href: "/activities" },
     { key: "settings", label: "Einstellungen", href: "/settings" },
 ];
-
-const INITIAL_CONNECTION_STATUS = getConnectionStatusView(null);
-const STATUS_SEPARATOR = "\u001f";
-
-function serializeHeaderStatus(
-    connectionStatus = INITIAL_CONNECTION_STATUS,
-    freshnessLabel = "Nicht geladen / Datenstand unbekannt",
-): string {
-    return [
-        connectionStatus.kind,
-        connectionStatus.label,
-        freshnessLabel,
-    ].join(STATUS_SEPARATOR);
-}
-
-function getHeaderStatusSnapshot(): string {
-    const localStatus = loadLocalActivityReadModel();
-    const connectionStatus = getConnectionStatusView(loadDashboardCache());
-
-    return serializeHeaderStatus(
-        connectionStatus,
-        getFreshnessStatusLabel(localStatus),
-    );
-}
-
-function subscribeToHeaderStatus(onStoreChange: () => void) {
-    if (typeof window === "undefined") return () => {};
-    const unsubscribe = subscribeToLocalSettings(onStoreChange);
-    window.addEventListener("assettrace:appearance-change", onStoreChange);
-
-    return () => {
-        unsubscribe();
-        window.removeEventListener("assettrace:appearance-change", onStoreChange);
-    };
-}
 
 function getPortfolioFilterSnapshot(): string {
     const portfolios = loadKnownPortfolios();
@@ -74,22 +35,15 @@ function getPortfolioFilterSnapshot(): string {
 
 export default function HeaderBar({
     theme,
-    appearanceMode,
     activeView,
     onToggleThemeAction,
 }: HeaderBarProps) {
     const [isPortfolioFilterOpen, setIsPortfolioFilterOpen] = useState(false);
-    const headerStatus = useSyncExternalStore(
-        subscribeToHeaderStatus,
-        getHeaderStatusSnapshot,
-        () => serializeHeaderStatus(),
-    );
     const portfolioSnapshot = useSyncExternalStore(
         subscribeToLocalSettings,
         getPortfolioFilterSnapshot,
         () => JSON.stringify({ portfolios: [], selectedPortfolioIds: [] }),
     );
-    const [connectionKind, connectionLabel, freshnessLabel] = headerStatus.split(STATUS_SEPARATOR);
     const { portfolios, selectedPortfolioIds } = useMemo(() => {
         const parsed = JSON.parse(portfolioSnapshot) as {
             portfolios: Array<{ id: string; name: string; currency: string; createdAt: string; distinctBrokers: string[] }>;
@@ -143,10 +97,17 @@ export default function HeaderBar({
                         onResetSelection={handleResetPortfolioFilter}
                     />
                 ) : null}
-                <span className={`${styles.pill} ${styles[`connection_${connectionKind}`]}`}>{connectionLabel}</span>
-                <span className={styles.pill}>{freshnessLabel}</span>
-                <button type="button" className="ui-btn ui-btn-ghost" onClick={onToggleThemeAction}>
-                    {appearanceMode === "system" ? `System (${theme === "dark" ? "Dunkel" : "Hell"})` : theme === "dark" ? "Dunkel" : "Hell"}
+                <button
+                    type="button"
+                    className={styles.themeSwitch}
+                    onClick={onToggleThemeAction}
+                    aria-label={theme === "dark" ? "Darstellung auf hell umstellen" : "Darstellung auf dunkel umstellen"}
+                    aria-checked={theme === "dark"}
+                    role="switch"
+                >
+                    <span className={styles.themeSwitchIcon} aria-hidden="true">☀</span>
+                    <span className={styles.themeSwitchIcon} aria-hidden="true">☾</span>
+                    <span className={`${styles.themeSwitchKnob} ${theme === "dark" ? styles.themeSwitchKnobDark : ""}`} aria-hidden="true" />
                 </button>
             </div>
         </header>
