@@ -5,9 +5,9 @@ import {
     loadPortfolioScope,
     resolvePortfolioScope,
 } from "./app-settings";
-import type { AssetSummary, ReconciliationWarning } from "./types";
+import type { GlobalAssetViewModel, ReconciliationWarning } from "./types";
 import {
-    buildAssetSummariesFromCanonicalSafeFields,
+    buildGlobalAssetViewModelsFromProductReadModel,
     readGlobalAssetProductReadModel,
     selectCanonicalSafeFieldProductSurfaceSource,
     type CanonicalSafeFieldSelection,
@@ -115,7 +115,7 @@ function summarizeQuality(cache: DashboardCache): ReportQualitySummary {
 }
 
 function toReportRows(
-    assets: AssetSummary[],
+    assets: GlobalAssetViewModel[],
     selectedPortfolioIds: string[]
 ): ReportAssetRow[] {
     return assets
@@ -151,7 +151,7 @@ function toReportRows(
 }
 
 function buildBreakdown(
-    assets: AssetSummary[],
+    assets: GlobalAssetViewModel[],
     selectedPortfolioIds: string[]
 ): ReportBreakdownRow[] {
     const selectedIds = new Set(selectedPortfolioIds);
@@ -214,10 +214,7 @@ export function loadLocalReportModel(): LocalReportModel | null {
     });
     const selectedAssets =
         guardedSelection.selectedSource === "global_asset_product" && productReadModel
-            ? buildAssetSummariesFromCanonicalSafeFields({
-                productReadModel,
-                compatibilityAssets,
-            })
+            ? buildGlobalAssetViewModelsFromProductReadModel(productReadModel)
             : compatibilityAssets;
     const allRows = toReportRows(
         selectedAssets,
@@ -265,3 +262,4 @@ export function mapSeverityLabel(
     if (warning.severity === "warning") return "Prüfen";
     return "Hinweis";
 }
+

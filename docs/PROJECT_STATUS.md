@@ -13,6 +13,7 @@ Last reviewed: 2026-05-26
 
 - Refs #384, Refs #386: `AssetSummary` deprecation is now explicit in code and documentation.
 - The complete file-level removal inventory and phased migration slices are documented in `docs/ASSET_SUMMARY_REMOVAL_PLAN.md`.
+- Phase 2B implementation completed on branch `refactor/phase-2-asset-summary-deprecation`: runtime/test usage of `AssetSummary` was removed and compatibility projection paths were deleted.
 
 ## Current Baseline
 

@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AssetSummary } from "../types";
+import type { GlobalAssetViewModel } from "../types";
 import { recordMarketDataRequest } from "./db/repository";
 
 function normalizeIsin(value: string | null | undefined): string {
@@ -21,7 +21,7 @@ function pickText(...values: Array<string | null | undefined>): string | null {
 }
 
 export function buildUnknownMarketDataRequestCandidates(input: {
-    assets: AssetSummary[];
+    assets: GlobalAssetViewModel[];
     knownIsins: Set<string>;
 }): Array<{
     isin: string;
@@ -48,8 +48,8 @@ export function buildUnknownMarketDataRequestCandidates(input: {
 
         candidates.set(isin, {
             isin,
-            name: pickText(asset.instrumentName, asset.name, asset.assetName, asset.metadata?.name),
-            displayName: pickText(asset.instrumentDisplayName, asset.displayName, asset.title, asset.metadata?.displayName),
+            name: pickText(asset.instrument?.name, asset.name, asset.metadata?.name),
+            displayName: pickText(asset.instrument?.displayName, asset.name, asset.metadata?.displayName),
             assetType: pickText(asset.instrument?.assetType, asset.externalMetadata?.assetType, asset.metadata?.assetType, asset.assetMeta?.assetType),
             currency: pickText(asset.instrument?.currency, asset.externalMetadata?.currency, asset.metadata?.currency, asset.assetMeta?.currency),
             wkn: pickText(asset.instrument?.wkn, asset.wkn, asset.metadata?.wkn, asset.externalMetadata?.wkn),
@@ -60,7 +60,7 @@ export function buildUnknownMarketDataRequestCandidates(input: {
 }
 
 export async function recordUnknownMarketDataRequestsFromAssets(input: {
-    assets: AssetSummary[];
+    assets: GlobalAssetViewModel[];
     knownIsins: Set<string>;
 }): Promise<{ attempted: number; recorded: number }> {
     const candidates = buildUnknownMarketDataRequestCandidates(input);
@@ -80,3 +80,4 @@ export async function recordUnknownMarketDataRequestsFromAssets(input: {
         recorded,
     };
 }
+

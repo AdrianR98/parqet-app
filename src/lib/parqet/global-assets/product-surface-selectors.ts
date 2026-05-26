@@ -1,4 +1,4 @@
-import type { AssetSummary, PortfolioPosition } from "../../types";
+import type { GlobalAssetViewModel, PortfolioPosition } from "../../types";
 import type {
   ProductReadModelAssetRow,
   ProductReadModelAssets,
@@ -56,7 +56,7 @@ export type CanonicalSafeFieldSelection = {
 
 export type SelectCanonicalSafeFieldSourceInput = {
   surface: CanonicalSafeFieldSurfaceId;
-  compatibilityAssets: AssetSummary[];
+  compatibilityAssets: GlobalAssetViewModel[];
   productReadModel?: unknown;
   guardEnabled: boolean;
 };
@@ -83,9 +83,7 @@ function uniqueBlockedMetrics(rows: ProductReadModelAssetRow[]): BlockedMetric[]
 }
 
 function blockedMetricsToFallbackFields(metrics: BlockedMetric[]): CanonicalSafeFieldFallbackField[] {
-  const fallbackFields = new Set<CanonicalSafeFieldFallbackField>(
-    ALWAYS_COMPATIBILITY_FALLBACK_FIELDS,
-  );
+  const fallbackFields = new Set<CanonicalSafeFieldFallbackField>(ALWAYS_COMPATIBILITY_FALLBACK_FIELDS);
 
   for (const metric of metrics) {
     if (metric === "market_value") {
@@ -180,7 +178,7 @@ function isScopeCompatibleForCanonicalSafeFieldSelection(state: ProductReadModel
 }
 
 function buildDiagnostics(input: {
-  compatibilityAssets: AssetSummary[];
+  compatibilityAssets: GlobalAssetViewModel[];
   productReadModel: ProductReadModelAssets | null;
 }): CanonicalSafeFieldSelectionDiagnostics {
   const productAssets = input.productReadModel?.assets ?? [];
@@ -296,208 +294,78 @@ export function selectGuardedProductSurfaceSource(
   return selectCanonicalSafeFieldProductSurfaceSource(input);
 }
 
-function mapPortfolioBreakdown(input: {
-  row: ProductReadModelAssetRow;
-  fallback?: AssetSummary;
-}): PortfolioPosition[] {
-  const fallbackByPortfolioId = new Map<string, PortfolioPosition>(
-    (input.fallback?.portfolioBreakdown ?? []).map((entry) => [entry.portfolioId, entry]),
-  );
-
-  const projected = input.row.portfolioBreakdown.map((entry) => {
-    const fallback = fallbackByPortfolioId.get(entry.portfolioId);
-    const netShares = fallback?.netShares ?? 0;
-    const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
-    const avgBuyPrice = fallback?.avgBuyPrice ?? null;
-    const positionValue = fallback?.positionValue ?? null;
-    const unrealizedPnL = fallback?.unrealizedPnL ?? null;
-
-    return {
-      portfolioId: entry.portfolioId,
-      portfolioName: entry.portfolioName ?? fallback?.portfolioName ?? entry.portfolioId,
-      netShares,
-      remainingCostBasis,
-      avgBuyPrice,
-      latestTradePrice: fallback?.latestTradePrice ?? null,
-      marketPrice: fallback?.marketPrice ?? null,
-      positionValue,
-      unrealizedPnL,
-      totalDividendNet: fallback?.totalDividendNet ?? 0,
-    };
-  });
-
-  const productPortfolioIds = new Set(input.row.portfolioBreakdown.map((entry) => entry.portfolioId));
-  const missingCompatibilityEntries =
-    input.fallback?.portfolioBreakdown.filter((entry) => !productPortfolioIds.has(entry.portfolioId)) ??
-    [];
-
-  return [...projected, ...missingCompatibilityEntries];
-}
-
-// Temporary compatibility boundary:
-// Product read-model rows are still projected back into AssetSummary for legacy dashboard surfaces.
-// This bridge is targeted for deletion after all consumers migrate to GlobalAssetViewModel outputs.
-function buildAssetSummaryFromCanonicalSafeFieldRow(input: {
-  row: ProductReadModelAssetRow;
-  fallback?: AssetSummary;
-}): AssetSummary {
-  const { row, fallback } = input;
-  const compatibilityIsin = row.identity.compatibilityIsin?.trim().toUpperCase() ?? null;
-  const rowDisplayName = row.display.displayName.trim();
-  const inferredMissingName =
-    Boolean(compatibilityIsin) &&
-    rowDisplayName.toUpperCase() === compatibilityIsin;
-  const inferredStatus: AssetSummary["instrumentMetadataStatus"] = inferredMissingName
-    ? "missing_name"
-    : "ok";
-  const inferredError = compatibilityIsin
-    ? `Instrumentenname fehlt in market_instruments für ISIN ${compatibilityIsin}`
-    : null;
-  const authoritativeStatus = fallback?.instrumentMetadataStatus ?? inferredStatus;
-  const authoritativeError =
-    fallback?.instrumentMetadataError ??
-    (authoritativeStatus === "ok" ? null : inferredError);
-  const isin =
-    row.identity.compatibilityIsin ??
-    fallback?.isin ??
-    row.identity.stableKey ??
-    row.display.displayName;
-  const authoritativeInstrument = fallback?.instrument ?? null;
-  const isIsinAsset = Boolean(compatibilityIsin) && /^[A-Z0-9]{12}$/.test(compatibilityIsin ?? "");
-  const hasDbInstrumentContext =
-    Boolean(authoritativeInstrument) || typeof fallback?.instrumentMetadataStatus === "string";
-  const dbDisplayName = authoritativeInstrument?.displayName ?? fallback?.instrumentDisplayName ?? null;
-  const dbName = authoritativeInstrument?.name ?? fallback?.instrumentName ?? null;
-  const productDisplayName =
-    dbDisplayName ??
-    dbName ??
-    row.display.displayName?.trim() ??
-    fallback?.displayName ??
-    fallback?.name ??
-    isin;
-  const authoritativeDisplayName = authoritativeStatus === "ok"
-    ? isIsinAsset
-      ? hasDbInstrumentContext
-        ? (dbDisplayName ?? dbName ?? "Stammdaten fehlen")
-        : productDisplayName
-      : productDisplayName
-    : "Stammdaten fehlen";
-  const authoritativeSymbol = isIsinAsset
-    ? hasDbInstrumentContext
-      ? (authoritativeInstrument?.primaryMapping?.symbol ?? null)
-      : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.symbol ?? null)
-    : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.symbol ?? null);
-  const authoritativeWkn = fallback?.wkn ?? row.display.wkn ?? null;
-  const netShares = fallback?.netShares ?? 0;
-  const remainingCostBasis = fallback?.remainingCostBasis ?? 0;
-  const avgBuyPrice = fallback?.avgBuyPrice ?? null;
-  const positionValue = fallback?.positionValue ?? null;
-  const unrealizedPnL = fallback?.unrealizedPnL ?? null;
-  const portfolioBreakdown = mapPortfolioBreakdown({ row, fallback });
-
+function toPortfolioPosition(entry: ProductReadModelAssetRow["portfolioBreakdown"][number]): PortfolioPosition {
   return {
-    isin,
-    portfolioIds: portfolioBreakdown.map((entry) => entry.portfolioId),
-    portfolioNames: portfolioBreakdown.map((entry) => entry.portfolioName),
-    portfolioBreakdown,
-    activityCount: fallback?.activityCount ?? 0,
-    buyCount: fallback?.buyCount ?? 0,
-    sellCount: fallback?.sellCount ?? 0,
-    dividendCount: fallback?.dividendCount ?? 0,
-    totalBoughtShares: fallback?.totalBoughtShares ?? 0,
-    totalSoldShares: fallback?.totalSoldShares ?? 0,
-    netShares,
-    totalInvestedGross: fallback?.totalInvestedGross ?? 0,
-    remainingCostBasis,
-    avgBuyPrice,
-    latestTradePrice: fallback?.latestTradePrice ?? null,
-    marketPrice: fallback?.marketPrice ?? null,
-    marketPriceAt: fallback?.marketPriceAt ?? null,
-    marketPriceSource: fallback?.marketPriceSource ?? null,
-    positionValue,
-    unrealizedPnL,
-    totalDividendNet: fallback?.totalDividendNet ?? 0,
-    latestActivityAt: row.latestActivityAt ?? fallback?.latestActivityAt ?? null,
-    name: authoritativeDisplayName,
-    assetName: authoritativeDisplayName,
-    displayName: authoritativeDisplayName,
-    title: authoritativeDisplayName,
-    instrumentDisplayName: authoritativeDisplayName,
-    instrumentName: dbName ?? fallback?.name ?? productDisplayName,
-    instrumentMetadataStatus: authoritativeStatus,
-    instrumentMetadataError: authoritativeError,
-    instrument: authoritativeInstrument,
-    symbol: authoritativeSymbol,
-    ticker: isIsinAsset
-      ? hasDbInstrumentContext
-        ? (authoritativeInstrument?.primaryMapping?.symbol ?? null)
-        : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.ticker ?? null)
-      : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.ticker ?? null),
-    tickerSymbol: isIsinAsset
-      ? hasDbInstrumentContext
-        ? (authoritativeInstrument?.primaryMapping?.symbol ?? null)
-        : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.tickerSymbol ?? null)
-      : (authoritativeInstrument?.primaryMapping?.symbol ?? fallback?.tickerSymbol ?? null),
-    wkn: authoritativeWkn,
-    metadata: {
-      ...(fallback?.metadata ?? {}),
-      curatedName: authoritativeDisplayName,
-      displayName: authoritativeDisplayName,
-      instrumentDisplayName: authoritativeDisplayName,
-      instrumentMetadataStatus: authoritativeStatus,
-      instrumentMetadataError: authoritativeError,
-    },
-    externalMetadata: {
-      ...(fallback?.externalMetadata ?? {}),
-      curatedName: authoritativeDisplayName,
-      displayName: authoritativeDisplayName,
-      instrumentDisplayName: authoritativeDisplayName,
-      wkn: authoritativeWkn,
-      instrumentMetadataStatus: authoritativeStatus,
-      instrumentMetadataError: authoritativeError,
-    },
-    assetMeta: fallback?.assetMeta ?? null,
+    portfolioId: entry.portfolioId,
+    portfolioName: entry.portfolioName ?? entry.portfolioId,
+    netShares: entry.quantity ?? 0,
+    remainingCostBasis: entry.costBasis.amount ?? 0,
+    avgBuyPrice:
+      entry.quantity != null && entry.quantity > 0 && entry.costBasis.amount != null
+        ? entry.costBasis.amount / entry.quantity
+        : null,
+    latestTradePrice: null,
+    marketPrice: null,
+    positionValue: entry.marketValue.amount,
+    unrealizedPnL: entry.unrealizedPnL.amount,
+    totalDividendNet: entry.dividendsNet.amount ?? 0,
   };
 }
 
-export function buildAssetSummariesFromCanonicalSafeFields(input: {
-  productReadModel: ProductReadModelAssets;
-  compatibilityAssets: AssetSummary[];
-}): AssetSummary[] {
-  const productRowsByIsin = new Map<string, ProductReadModelAssetRow>();
-  const productRowsWithoutCompatibilityIsin: ProductReadModelAssetRow[] = [];
+export function buildGlobalAssetViewModelsFromProductReadModel(
+  productReadModel: ProductReadModelAssets,
+): GlobalAssetViewModel[] {
+  return productReadModel.assets.map((row) => {
+    const isin = row.identity.compatibilityIsin ?? row.identity.stableKey ?? row.display.displayName;
+    const instrumentMetadataStatus: GlobalAssetViewModel["instrumentMetadataStatus"] =
+      row.identity.compatibilityIsin &&
+      row.display.displayName.trim().toUpperCase() === row.identity.compatibilityIsin.trim().toUpperCase()
+        ? "missing_name"
+        : "ok";
+    const portfolioBreakdown = row.portfolioBreakdown.map(toPortfolioPosition);
+    const quantity = row.quantity ?? 0;
+    const remainingCostBasis = row.costBasis.amount ?? 0;
 
-  for (const row of input.productReadModel.assets) {
-    const fallbackIsin = row.identity.compatibilityIsin?.toUpperCase() ?? null;
-
-    if (fallbackIsin) {
-      productRowsByIsin.set(fallbackIsin, row);
-    } else {
-      productRowsWithoutCompatibilityIsin.push(row);
-    }
-  }
-
-  const compatibilityRows = input.compatibilityAssets.map((fallback) => {
-    const row = productRowsByIsin.get(fallback.isin.toUpperCase());
-
-    if (!row) {
-      return fallback;
-    }
-
-    return buildAssetSummaryFromCanonicalSafeFieldRow({ row, fallback });
+    return {
+      isin,
+      portfolioIds: portfolioBreakdown.map((entry) => entry.portfolioId),
+      portfolioNames: portfolioBreakdown.map((entry) => entry.portfolioName),
+      portfolioBreakdown,
+      activityCount: 0,
+      buyCount: 0,
+      sellCount: 0,
+      dividendCount: 0,
+      totalBoughtShares: 0,
+      totalSoldShares: 0,
+      netShares: quantity,
+      totalInvestedGross: remainingCostBasis,
+      remainingCostBasis,
+      avgBuyPrice: quantity > 0 ? remainingCostBasis / quantity : null,
+      latestTradePrice: null,
+      marketPrice: row.marketValue.amount,
+      marketPriceAt: null,
+      marketPriceSource: null,
+      positionValue: row.marketValue.amount,
+      unrealizedPnL: row.unrealizedPnL.amount,
+      totalDividendNet: row.dividendsNet.amount ?? 0,
+      latestActivityAt: row.latestActivityAt,
+      name: row.display.displayName,
+      symbol: row.display.symbol,
+      ticker: row.display.symbol,
+      wkn: row.display.wkn,
+      metadataSource: null,
+      nameSource: null,
+      displayNameSource: null,
+      metadataUpdatedAt: null,
+      instrumentMetadataStatus,
+      instrumentMetadataError:
+        instrumentMetadataStatus === "ok"
+          ? null
+          : `Instrumentenname fehlt in market_instruments für ISIN ${isin}`,
+      instrument: (row as { instrument?: GlobalAssetViewModel["instrument"] }).instrument ?? null,
+      metadata: null,
+      externalMetadata: null,
+      assetMeta: null,
+    };
   });
-
-  const productOnlyRows = productRowsWithoutCompatibilityIsin.map((row) =>
-    buildAssetSummaryFromCanonicalSafeFieldRow({ row }),
-  );
-
-  return [...compatibilityRows, ...productOnlyRows];
-}
-
-export function buildCompatibilityAssetSummariesFromGuardedRows(input: {
-  productReadModel: ProductReadModelAssets;
-  compatibilityAssets: AssetSummary[];
-}): AssetSummary[] {
-  // Alias retained only to keep current call sites stable during phased AssetSummary removal.
-  return buildAssetSummariesFromCanonicalSafeFields(input);
 }

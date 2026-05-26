@@ -1,6 +1,6 @@
-﻿import type {
+import type {
     AssetConsistencyCheck,
-    AssetSummary,
+    GlobalAssetViewModel,
     ConsistencyReport,
 } from "../types";
 
@@ -8,7 +8,7 @@ const SHARE_TOLERANCE = 0.0000001;
 const MONEY_TOLERANCE = 0.01;
 
 // Baut fuer ein einzelnes Asset eine Konsistenzbewertung.
-function buildAssetConsistencyCheck(asset: AssetSummary): AssetConsistencyCheck {
+function buildAssetConsistencyCheck(asset: GlobalAssetViewModel): AssetConsistencyCheck {
     const isNegativeShares = asset.netShares < -SHARE_TOLERANCE;
     const isNegativeCostBasis = asset.remainingCostBasis < -MONEY_TOLERANCE;
 
@@ -61,7 +61,7 @@ function buildAssetConsistencyCheck(asset: AssetSummary): AssetConsistencyCheck 
 
 // Baut den Gesamt-Report fuer alle Assets.
 export function buildConsistencyReport(
-    assets: AssetSummary[]
+    assets: GlobalAssetViewModel[]
 ): ConsistencyReport {
     const checks = assets.map(buildAssetConsistencyCheck);
     const assetsWithWarnings = checks.filter((check) => check.warnings.length > 0);

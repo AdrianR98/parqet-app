@@ -1,4 +1,5 @@
-﻿// src/lib/types.ts
+// src/lib/types.ts
+import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
 
 /**
  * ============================================================
@@ -127,13 +128,11 @@ export type PortfolioPosition = {
  * - transfer linkage status
  * - warning counters direkt am Asset
  *
- * @deprecated Phase 2: `AssetSummary` is scheduled for complete removal.
- * Do not introduce new `AssetSummary` imports/usages.
- * Migrate consumers to `GlobalAsset`, `GlobalAssetMetrics`, and `GlobalAssetViewModel`.
- * See `docs/ASSET_SUMMARY_REMOVAL_PLAN.md` for the scoped removal inventory.
+ * Runtime ViewModel für Dashboard-/Detail-Surfaces.
+ * Phase 2 nutzt diesen Typ als Ersatz für den entfernten GlobalAssetViewModel-Typ.
  */
 
-export type AssetSummary = {
+export type GlobalAssetViewModel = {
   isin: string;
 
   portfolioIds: string[];
@@ -302,16 +301,14 @@ export type AssetsApiResponse = {
   activeAssetCount?: number;
   closedAssetCount?: number;
 
-  /** @deprecated Use product/read-model based output and view-model projections instead of `AssetSummary[]`. */
-  assets?: AssetSummary[];
-  /** @deprecated Use product/read-model based output and view-model projections instead of `AssetSummary[]`. */
-  activeAssets?: AssetSummary[];
-  /** @deprecated Use product/read-model based output and view-model projections instead of `AssetSummary[]`. */
-  closedAssets?: AssetSummary[];
+  assets?: GlobalAssetViewModel[];
+  activeAssets?: GlobalAssetViewModel[];
+  closedAssets?: GlobalAssetViewModel[];
 
   generatedAt?: string;
   freshness?: SnapshotFreshness;
   activityItems?: ActivitiesAuditItem[];
+  globalAssetProductReadModel?: ProductReadModelAssets | null;
   instrumentMetadataSummary?: {
     ok: number;
     missing: number;
@@ -568,3 +565,5 @@ export type SaveActivityOverrideApiResponse = {
   message?: string;
   details?: string;
 };
+
+

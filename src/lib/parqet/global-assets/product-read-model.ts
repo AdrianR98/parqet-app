@@ -763,7 +763,7 @@ export type CreateProductReadModelAssetsInput = {
   providerRequestCount?: number | null;
 };
 
-export type ProductReadModelCompatibilityAssetSummaryInput = {
+export type ProductReadModelCompatibilityAssetInput = {
   isin?: string | null;
   positionValue?: number | null;
   unrealizedPnL?: number | null;
@@ -1114,7 +1114,7 @@ export function projectGlobalAssetsProductReadModel(
 }
 
 export function buildGlobalAssetsProductReadModelComparisonEvidence(input: {
-  compatibilityAssets: ProductReadModelCompatibilityAssetSummaryInput[];
+  compatibilityAssets: ProductReadModelCompatibilityAssetInput[];
   projected: ProductReadModelAssets;
 }): ProductReadModelAssetsComparisonEvidence {
   const compatibility = {

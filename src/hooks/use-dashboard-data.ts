@@ -22,7 +22,7 @@ import {
 } from "../lib/dashboard-helpers";
 import { persistDashboardCacheWrite } from "../lib/dashboard-cache-writer";
 import type {
-  AssetSummary,
+  GlobalAssetViewModel,
   AssetsApiResponse,
   ConsistencyReport,
   DashboardStats,
@@ -43,10 +43,10 @@ type UseDashboardDataResult = {
   loadedPortfolioCount: number;
   showWarningsPanel: boolean;
 
-  activeAssets: AssetSummary[];
-  closedAssets: AssetSummary[];
-  sortedActiveAssets: AssetSummary[];
-  sortedClosedAssets: AssetSummary[];
+  activeAssets: GlobalAssetViewModel[];
+  closedAssets: GlobalAssetViewModel[];
+  sortedActiveAssets: GlobalAssetViewModel[];
+  sortedClosedAssets: GlobalAssetViewModel[];
 
   rawActivityCount: number;
   filteredActivityCount: number;
@@ -87,9 +87,9 @@ const INITIAL_PORTFOLIO_SCOPE: PortfolioScope = {
 };
 const CLOSED_POSITION_EPSILON = 1e-8;
 
-function splitAssetsByPosition(assets: AssetSummary[]): {
-  activeAssets: AssetSummary[];
-  closedAssets: AssetSummary[];
+function splitAssetsByPosition(assets: GlobalAssetViewModel[]): {
+  activeAssets: GlobalAssetViewModel[];
+  closedAssets: GlobalAssetViewModel[];
 } {
   const activeAssets = assets.filter(
     (asset) => asset.netShares > CLOSED_POSITION_EPSILON,
@@ -170,8 +170,8 @@ export function useDashboardData(): UseDashboardDataResult {
     hydratePortfolioSelection,
   } = usePortfolioFilter();
 
-  const [activeAssets, setActiveAssets] = useState<AssetSummary[]>([]);
-  const [closedAssets, setClosedAssets] = useState<AssetSummary[]>([]);
+  const [activeAssets, setActiveAssets] = useState<GlobalAssetViewModel[]>([]);
+  const [closedAssets, setClosedAssets] = useState<GlobalAssetViewModel[]>([]);
   const [rawActivityCount, setRawActivityCount] = useState(0);
   const [filteredActivityCount, setFilteredActivityCount] = useState(0);
   const [assetCount, setAssetCount] = useState(0);
@@ -662,3 +662,4 @@ export function useDashboardData(): UseDashboardDataResult {
     startReconnect,
   };
 }
+

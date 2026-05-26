@@ -1,11 +1,11 @@
-﻿// src/lib/dashboard-cache.ts
+// src/lib/dashboard-cache.ts
 
 import type {
   ActivitiesAuditItem,
   AssetInstrumentPrimaryMapping,
   AssetInstrumentSnapshot,
   AssetMetadata,
-  AssetSummary,
+  GlobalAssetViewModel,
   ConsistencyReport,
   PortfolioPosition,
   ReconciliationWarning,
@@ -44,8 +44,8 @@ export const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
  * Struktur des localStorage-Caches fuer das Dashboard.
  */
 export type DashboardCache = {
-  activeAssets: AssetSummary[];
-  closedAssets: AssetSummary[];
+  activeAssets: GlobalAssetViewModel[];
+  closedAssets: GlobalAssetViewModel[];
   rawActivityCount: number;
   filteredActivityCount: number;
   assetCount: number;
@@ -98,12 +98,12 @@ export function notifyDashboardCacheChanged(): void {
  * wird fuer Test- und Kompatibilitaetsfixtures aber toleriert, solange
  * die restliche v3-Shape gueltig ist.
  */
-function isCacheAssetCompatible(asset: unknown): asset is AssetSummary {
+function isCacheAssetCompatible(asset: unknown): asset is GlobalAssetViewModel {
   if (!asset || typeof asset !== "object") {
     return false;
   }
 
-  const candidate = asset as Partial<AssetSummary>;
+  const candidate = asset as Partial<GlobalAssetViewModel>;
 
   return (
     typeof candidate.isin === "string" &&
@@ -182,7 +182,7 @@ function sanitizePortfolioBreakdownRows(value: unknown): unknown[] {
 
 function sanitizeInstrumentMetadataStatus(
   value: unknown,
-): AssetSummary["instrumentMetadataStatus"] | undefined {
+): GlobalAssetViewModel["instrumentMetadataStatus"] | undefined {
   return value === "ok" ||
     value === "missing" ||
     value === "db_unavailable" ||
@@ -481,12 +481,12 @@ function sanitizeGuardedSourceSelection(value: unknown): GuardedSourceSelection 
   return candidate;
 }
 
-function sanitizeAssetSummary(asset: unknown): AssetSummary | null {
+function sanitizeAssetSummary(asset: unknown): GlobalAssetViewModel | null {
   if (!isCacheAssetCompatible(asset)) {
     return null;
   }
 
-  const candidate = asset as AssetSummary;
+  const candidate = asset as GlobalAssetViewModel;
 
   return {
     ...candidate,
@@ -676,7 +676,7 @@ function sanitizeActivitiesAuditItem(item: unknown): ActivitiesAuditItem | null 
 function sanitizeDashboardCache(cache: DashboardCache): DashboardCache {
   const mergedAssets = [...cache.activeAssets, ...cache.closedAssets]
     .map(sanitizeAssetSummary)
-    .filter((asset): asset is AssetSummary => asset !== null)
+    .filter((asset): asset is GlobalAssetViewModel => asset !== null)
     .slice(0, LOCAL_STORAGE_LIMITS.maxAssets);
 
   const activeAssets = mergedAssets.filter((asset) => asset.netShares > 1e-8);
@@ -836,3 +836,4 @@ export function clearDashboardCache(): void {
     // localStorage-Fehler bewusst ignorieren
   }
 }
+

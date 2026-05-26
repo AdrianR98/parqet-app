@@ -1,5 +1,5 @@
 import type {
-    AssetSummary,
+    GlobalAssetViewModel,
     ConsistencyReport,
     PortfolioPosition,
     ReconciliationWarning,
@@ -40,15 +40,15 @@ function createReadableSlug(label: string): string {
         .slice(0, 80);
 }
 
-export function getAssetDetailKey(asset: Pick<AssetSummary, "isin">): string {
+export function getAssetDetailKey(asset: Pick<GlobalAssetViewModel, "isin">): string {
     return normalizeAssetKey(asset.isin);
 }
 
-export function getAssetDisplayName(asset: AssetSummary): string {
+export function getAssetDisplayName(asset: GlobalAssetViewModel): string {
     return resolveAssetDisplayName(asset);
 }
 
-export function getAssetLogoUrl(asset: AssetSummary): string | null {
+export function getAssetLogoUrl(asset: GlobalAssetViewModel): string | null {
     const candidates = [
         asset.metadata as Record<string, unknown> | undefined,
         asset.externalMetadata as Record<string, unknown> | undefined,
@@ -65,7 +65,7 @@ export function getAssetLogoUrl(asset: AssetSummary): string | null {
     return null;
 }
 
-export function getAssetInitials(asset: AssetSummary): string {
+export function getAssetInitials(asset: GlobalAssetViewModel): string {
     const label = getAssetDisplayName(asset).trim();
 
     if (!label) {
@@ -81,13 +81,13 @@ export function getAssetInitials(asset: AssetSummary): string {
     return label.slice(0, 2).toUpperCase();
 }
 
-export function createAssetSlug(asset: AssetSummary): string {
+export function createAssetSlug(asset: GlobalAssetViewModel): string {
     const label = createReadableSlug(getAssetDisplayName(asset));
 
     return label || asset.isin.toLowerCase();
 }
 
-export function createAssetDetailHref(asset: AssetSummary): string | null {
+export function createAssetDetailHref(asset: GlobalAssetViewModel): string | null {
     const key = getAssetDetailKey(asset);
 
     if (!key) {
@@ -112,7 +112,7 @@ export function createAssetDetailHrefFromParts(input: {
     return `/assets/${slug}?id=${encodeURIComponent(key)}`;
 }
 
-export function findAssetByKey(assets: AssetSummary[], key: string): AssetSummary | null {
+export function findAssetByKey(assets: GlobalAssetViewModel[], key: string): GlobalAssetViewModel | null {
     const normalizedKey = normalizeAssetKey(key);
 
     if (!normalizedKey) {
@@ -123,7 +123,7 @@ export function findAssetByKey(assets: AssetSummary[], key: string): AssetSummar
 }
 
 export function scopeAssetMetrics(
-    asset: AssetSummary,
+    asset: GlobalAssetViewModel,
     selectedPortfolioIds: string[]
 ): ScopedAssetMetrics {
     const selectedIds = new Set(selectedPortfolioIds);
@@ -200,7 +200,7 @@ export function getAssetStatusLabel(
 }
 
 export function getAssetWarnings(params: {
-    asset: AssetSummary;
+    asset: GlobalAssetViewModel;
     consistencyReport: ConsistencyReport | null;
     reconciliationWarnings: ReconciliationWarning[];
 }): AssetDetailWarning[] {
@@ -231,3 +231,4 @@ export function getAssetWarnings(params: {
 
     return [...consistencyWarnings, ...reconciliationWarnings];
 }
+

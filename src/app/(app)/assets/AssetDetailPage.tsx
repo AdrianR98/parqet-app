@@ -25,7 +25,7 @@ import { getActivityTypeLabel, normalizeExactIsin } from "../../../lib/local-act
 import { formatCurrency, formatShares } from "../../../lib/format";
 import { isMeaningfulSymbol } from "../../../lib/asset-display";
 import type { MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../../../lib/market-data/types";
-import type { ActivitiesAuditItem, AssetSummary, PortfolioPosition } from "../../../lib/types";
+import type { ActivitiesAuditItem, GlobalAssetViewModel, PortfolioPosition } from "../../../lib/types";
 import { DASHBOARD_CACHE_CHANGED_EVENT } from "../../../lib/dashboard-cache";
 import { ensureParqetLocalBootstrap } from "../../../lib/parqet-local-bootstrap";
 import AssetLogo from "../../../components/common/AssetLogo";
@@ -274,7 +274,7 @@ type SelectedAssetScope = {
     selectedAssetPortfolioIds: string[];
 };
 
-function resolveSelectedAssetScope(asset: AssetSummary): SelectedAssetScope {
+function resolveSelectedAssetScope(asset: GlobalAssetViewModel): SelectedAssetScope {
     const currentScope = loadPortfolioScope();
     const knownPortfolios = loadKnownPortfolios();
     const assetAvailableIds = uniqueIds([
@@ -1790,3 +1790,4 @@ export default function AssetDetailPage() {
         </main>
     );
 }
+

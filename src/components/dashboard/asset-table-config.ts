@@ -1,6 +1,6 @@
-﻿// src/components/dashboard/asset-table-config.ts
+// src/components/dashboard/asset-table-config.ts
 
-import type { AssetSummary, PortfolioPosition } from "../../lib/types";
+import type { GlobalAssetViewModel, PortfolioPosition } from "../../lib/types";
 
 /**
  * ============================================================
@@ -111,7 +111,7 @@ export function getColumnLabel(key: VisibleColumnKey): string {
  * FORMAT / SAFETY
  * ============================================================
  */
-export function getSafePortfolioBreakdown(asset: AssetSummary): PortfolioPosition[] {
+export function getSafePortfolioBreakdown(asset: GlobalAssetViewModel): PortfolioPosition[] {
     return Array.isArray(asset.portfolioBreakdown) ? asset.portfolioBreakdown : [];
 }
 
@@ -145,18 +145,18 @@ function compareValues(
 }
 
 export function sortAssets(
-    assets: AssetSummary[],
+    assets: GlobalAssetViewModel[],
     sortKey: AssetSortKey,
     sortDirection: "asc" | "desc"
-): AssetSummary[] {
+): GlobalAssetViewModel[] {
     const next = [...assets];
 
     next.sort((a, b) => {
         switch (sortKey) {
             case "name":
                 return compareValues(
-                    normalizeNullableString(a.name ?? a.assetName ?? a.isin),
-                    normalizeNullableString(b.name ?? b.assetName ?? b.isin),
+                    normalizeNullableString(a.name ?? a.isin),
+                    normalizeNullableString(b.name ?? b.isin),
                     sortDirection
                 );
 

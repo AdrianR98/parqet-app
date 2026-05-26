@@ -1,10 +1,10 @@
-﻿// src/lib/dashboard-helpers.ts
+// src/lib/dashboard-helpers.ts
 
-import type { AssetSummary, DashboardStats } from "./types";
+import type { GlobalAssetViewModel, DashboardStats } from "./types";
 import { FIVE_DAYS_MS } from "./dashboard-cache";
 import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
 import {
-    buildAssetSummariesFromCanonicalSafeFields,
+    buildGlobalAssetViewModelsFromProductReadModel,
     readGlobalAssetProductReadModel,
     selectCanonicalSafeFieldProductSurfaceSource,
     type CanonicalSafeFieldSelection,
@@ -37,8 +37,8 @@ export function resolveGlobalAssetProductGuardEnabled(rawValue?: string): boolea
  * konsistent bleibt.
  */
 export function buildDashboardStats(params: {
-    activeAssets: AssetSummary[];
-    closedAssets: AssetSummary[];
+    activeAssets: GlobalAssetViewModel[];
+    closedAssets: GlobalAssetViewModel[];
     rawActivityCount: number;
     filteredActivityCount: number;
     assetCount: number;
@@ -85,7 +85,7 @@ export function buildDashboardStats(params: {
  * Das entspricht der gewohnten Priorisierung im Dashboard:
  * grosse Positionen zuerst.
  */
-export function sortActiveAssets(assets: AssetSummary[]): AssetSummary[] {
+export function sortActiveAssets(assets: GlobalAssetViewModel[]): GlobalAssetViewModel[] {
     return [...assets].sort((a, b) => {
         const aValue = a.positionValue ?? 0;
         const bValue = b.positionValue ?? 0;
@@ -107,7 +107,7 @@ export function sortActiveAssets(assets: AssetSummary[]): AssetSummary[] {
  * Bei geschlossenen Positionen ist die zeitliche Relevanz meist sinnvoller
  * als der Positionswert, da letzterer haeufig 0 ist.
  */
-export function sortClosedAssets(assets: AssetSummary[]): AssetSummary[] {
+export function sortClosedAssets(assets: GlobalAssetViewModel[]): GlobalAssetViewModel[] {
     return [...assets].sort((a, b) => {
         const aTime = a.latestActivityAt ? new Date(a.latestActivityAt).getTime() : 0;
         const bTime = b.latestActivityAt ? new Date(b.latestActivityAt).getTime() : 0;
@@ -130,11 +130,11 @@ export function isDashboardDataStale(lastUpdatedAt: string | null): boolean {
 
 export type CanonicalDashboardSafeFieldSelection = {
     selection: CanonicalSafeFieldSelection;
-    assets: AssetSummary[];
+    assets: GlobalAssetViewModel[];
 };
 
 export function selectCanonicalDashboardSafeFieldSource(input: {
-    compatibilityAssets: AssetSummary[];
+    compatibilityAssets: GlobalAssetViewModel[];
     productReadModel?: unknown;
     guardEnabled: boolean;
 }): CanonicalDashboardSafeFieldSelection {
@@ -149,10 +149,7 @@ export function selectCanonicalDashboardSafeFieldSource(input: {
     if (selection.selectedSource === "global_asset_product" && productReadModel) {
         return {
             selection,
-            assets: buildAssetSummariesFromCanonicalSafeFields({
-                productReadModel,
-                compatibilityAssets: input.compatibilityAssets,
-            }),
+            assets: buildGlobalAssetViewModelsFromProductReadModel(productReadModel),
         };
     }
 
@@ -163,7 +160,7 @@ export function selectCanonicalDashboardSafeFieldSource(input: {
 }
 
 export function selectCanonicalAssetTableSafeFieldSource(input: {
-    compatibilityAssets: AssetSummary[];
+    compatibilityAssets: GlobalAssetViewModel[];
     productReadModel?: unknown;
     guardEnabled: boolean;
 }): CanonicalDashboardSafeFieldSelection {
@@ -178,10 +175,7 @@ export function selectCanonicalAssetTableSafeFieldSource(input: {
     if (selection.selectedSource === "global_asset_product" && productReadModel) {
         return {
             selection,
-            assets: buildAssetSummariesFromCanonicalSafeFields({
-                productReadModel,
-                compatibilityAssets: input.compatibilityAssets,
-            }),
+            assets: buildGlobalAssetViewModelsFromProductReadModel(productReadModel),
         };
     }
 
@@ -194,7 +188,7 @@ export function selectCanonicalAssetTableSafeFieldSource(input: {
 export type GuardedDashboardSourceSelection = CanonicalDashboardSafeFieldSelection;
 
 export function selectGuardedDashboardSource(input: {
-    compatibilityAssets: AssetSummary[];
+    compatibilityAssets: GlobalAssetViewModel[];
     productReadModel?: ProductReadModelAssets | null;
     guardEnabled: boolean;
 }): GuardedDashboardSourceSelection {
@@ -202,9 +196,10 @@ export function selectGuardedDashboardSource(input: {
 }
 
 export function selectGuardedAssetTableSource(input: {
-    compatibilityAssets: AssetSummary[];
+    compatibilityAssets: GlobalAssetViewModel[];
     productReadModel?: ProductReadModelAssets | null;
     guardEnabled: boolean;
 }): GuardedDashboardSourceSelection {
     return selectCanonicalAssetTableSafeFieldSource(input);
 }
+

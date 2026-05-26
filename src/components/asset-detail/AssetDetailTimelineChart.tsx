@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { AssetDetailWarning, ScopedAssetMetrics } from "../../lib/asset-detail";
-import type { AssetSummary } from "../../lib/types";
+import type { GlobalAssetViewModel } from "../../lib/types";
 import { formatCurrency } from "../../lib/format";
 import styles from "./AssetDetailTimelineChart.module.css";
 
@@ -112,7 +112,7 @@ function getPortfolioContext(metrics: ScopedAssetMetrics): string | undefined {
 }
 
 function buildTimelineEvents(params: {
-    asset: AssetSummary;
+    asset: GlobalAssetViewModel;
     metrics: ScopedAssetMetrics;
     warnings: AssetDetailWarning[];
 }): TimelineEvent[] {
@@ -190,7 +190,7 @@ export function AssetDetailTimelineChart({
     metrics,
     warnings,
 }: {
-    asset: AssetSummary;
+    asset: GlobalAssetViewModel;
     metrics: ScopedAssetMetrics;
     warnings: AssetDetailWarning[];
 }) {
@@ -383,3 +383,4 @@ export function AssetDetailTimelineChart({
         </div>
     );
 }
+

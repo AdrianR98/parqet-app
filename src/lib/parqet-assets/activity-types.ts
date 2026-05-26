@@ -9,7 +9,7 @@
 // - keine parallelen Metadata-Typdefinitionen
 // ============================================================
 
-import type { AssetMetadata, AssetSummary } from "../types";
+import type { AssetMetadata, GlobalAssetViewModel } from "../types";
 
 /**
  * Portfolio-Typ aus der Parqet Connect API.
@@ -97,11 +97,11 @@ export type Activity = {
 /**
  * Interner Akkumulator waehrend der Gruppierung.
  *
- * Der Akkumulator basiert bewusst direkt auf AssetSummary, damit:
+ * Der Akkumulator basiert bewusst direkt auf GlobalAssetViewModel, damit:
  * - Gruppierungslogik und finaler Rueckgabetyp konsistent bleiben
  * - neue Felder wie portfolioBreakdown nicht doppelt gepflegt werden muessen
  */
-export type AssetAccumulator = AssetSummary;
+export type AssetAccumulator = GlobalAssetViewModel;
 
 // ============================================================
 // Asset metadata map by ISIN

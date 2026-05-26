@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AssetSummary } from "../../lib/types";
+import type { GlobalAssetViewModel } from "../../lib/types";
 import { getAssetInitials, getAssetResolvedLogoUrl } from "../../lib/asset-display";
 import styles from "./AssetLogo.module.css";
 
@@ -84,7 +84,7 @@ function markFailedLogoUrl(url: string) {
 }
 
 type AssetLogoProps = {
-    asset: AssetSummary;
+    asset: GlobalAssetViewModel;
     displayName: string;
     className?: string;
     imageClassName?: string;
@@ -133,3 +133,4 @@ export default function AssetLogo({
         />
     );
 }
+

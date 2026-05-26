@@ -16,7 +16,7 @@ import {
 import { loadLocalReportModel } from "../../src/lib/reporting";
 import { DASHBOARD_CACHE_KEY } from "../../src/lib/dashboard-cache";
 import { runGlobalAssetPipeline, createSyntheticActivity } from "./global-assets-test-helpers";
-import type { AssetSummary } from "../../src/lib/types";
+import type { GlobalAssetViewModel } from "../../src/lib/types";
 
 type LocalStorageMock = {
   getItem: (key: string) => string | null;
@@ -54,7 +54,7 @@ function installWindowWithLocalStorage(seed?: Record<string, string>): void {
   });
 }
 
-function createCompatibilityAssetsFixture(): AssetSummary[] {
+function createCompatibilityAssetsFixture(): GlobalAssetViewModel[] {
   return [
     {
       isin: "DEMO00000011",

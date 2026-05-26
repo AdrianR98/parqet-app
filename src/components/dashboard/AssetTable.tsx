@@ -4,10 +4,10 @@ import { flexRender, getCoreRowModel, getSortedRowModel, type SortingState, type
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import styles from "./AssetTable.module.css";
 import { getAssetTableColumns, renderExpandedRow, type AssetTableColumnKey } from "./asset-table-columns";
-import type { AssetSummary } from "../../lib/types";
+import type { GlobalAssetViewModel } from "../../lib/types";
 import { DEFAULT_REVEAL_BLOCK_SIZE, loadAssetTableVisibleColumns, loadRevealBlockSize, saveAssetTableVisibleColumns, subscribeToLocalSettings } from "../../lib/app-settings";
 
-type AssetTableProps = { assets: AssetSummary[]; loading?: boolean; emptyTitle?: string; emptyDescription?: string };
+type AssetTableProps = { assets: GlobalAssetViewModel[]; loading?: boolean; emptyTitle?: string; emptyDescription?: string };
 
 const FIXED_COLUMNS: AssetTableColumnKey[] = ["name", "positionValue", "actions"];
 const ALL_COLUMNS: AssetTableColumnKey[] = ["name", "remainingCostBasis", "positionValue", "unrealizedPnL", "totalDividendNet", "allocation", "actions"];
@@ -148,3 +148,4 @@ export default function AssetTable({ assets, loading = false, emptyTitle = "Kein
         </div>
     );
 }
+
