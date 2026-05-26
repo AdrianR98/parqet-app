@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // src/app/api/parqet/assets/route.ts
 // ------------------------------------------------------------
 // Diese Route orchestriert:
@@ -16,7 +16,7 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
-import type { ActivitiesAuditItem, AssetSummary } from "../../../../lib/types";
+import type { ActivitiesAuditItem, GlobalAssetViewModel } from "../../../../lib/types";
 import {
   clearParqetTokenCookies,
   getCookieValue,
@@ -249,7 +249,7 @@ type InstrumentMetadataResolution = {
   metadataUpdatedAt: string | null;
   nameSource: string | null;
   displayNameSource: string | null;
-  marketDataStatus: NonNullable<AssetSummary["instrument"]>["marketDataStatus"];
+  marketDataStatus: NonNullable<GlobalAssetViewModel["instrument"]>["marketDataStatus"];
   marketDataStatusReason: string | null;
   marketDataSuccessorIsin: string | null;
   marketDataSuccessorSymbol: string | null;
@@ -257,7 +257,7 @@ type InstrumentMetadataResolution = {
 
 function mapPrimaryMappingToInstrument(
   mapping: DbMarketSymbolMapping | null | undefined,
-): NonNullable<AssetSummary["instrument"]>["primaryMapping"] {
+): NonNullable<GlobalAssetViewModel["instrument"]>["primaryMapping"] {
   if (!mapping) {
     return null;
   }
@@ -277,7 +277,7 @@ function buildInstrumentSnapshot(input: {
   isin: string;
   resolution: InstrumentMetadataResolution;
   primaryMapping?: DbMarketSymbolMapping | null;
-}): NonNullable<AssetSummary["instrument"]> {
+}): NonNullable<GlobalAssetViewModel["instrument"]> {
   return {
     isin: input.isin,
     displayName: input.resolution.instrumentDisplayName,
@@ -373,7 +373,7 @@ function resolveInstrumentMetadataForIsin(input: {
   const finalName = isMeaningfulInstrumentName(curatedName, normalizedIsin)
     ? curatedName
     : null;
-  const status: AssetSummary["instrumentMetadataStatus"] =
+  const status: GlobalAssetViewModel["instrumentMetadataStatus"] =
     finalDisplayName && finalName ? "ok" : "missing_name";
 
   return {
@@ -472,11 +472,11 @@ function isWeakCurrency(value: string | null | undefined): boolean {
 }
 
 function applyMarketInstrumentMetadataOverlay(
-  asset: AssetSummary,
+  asset: GlobalAssetViewModel,
   marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>,
   primaryMappingsByIsin: Record<string, DbMarketSymbolMapping>,
   marketMetadataDbAvailable: boolean,
-): AssetSummary {
+): GlobalAssetViewModel {
   const normalizedIsin = normalizeLookupIsin(asset.isin);
   if (!normalizedIsin) {
     return {
@@ -510,7 +510,7 @@ function applyMarketInstrumentMetadataOverlay(
     resolution.status === "ok" ? resolution.instrumentDisplayName : null;
   const finalName =
     resolution.status === "ok" ? resolution.instrumentName : null;
-  const status: AssetSummary["instrumentMetadataStatus"] = resolution.status;
+  const status: GlobalAssetViewModel["instrumentMetadataStatus"] = resolution.status;
   const statusError = resolution.error;
   const primaryMapping = primaryMappingsByIsin[normalizedIsin] ?? null;
   const instrumentSnapshot = buildInstrumentSnapshot({
@@ -524,12 +524,6 @@ function applyMarketInstrumentMetadataOverlay(
   return {
     ...asset,
     name: finalName ?? INSTRUMENT_METADATA_MISSING_TITLE,
-    assetName: finalName ?? INSTRUMENT_METADATA_MISSING_TITLE,
-    displayName: finalDisplayName ?? INSTRUMENT_METADATA_MISSING_TITLE,
-    title: finalDisplayName ?? finalName ?? INSTRUMENT_METADATA_MISSING_TITLE,
-    curatedName: finalDisplayName ?? finalName,
-    instrumentDisplayName: finalDisplayName ?? null,
-    instrumentName: finalName ?? null,
     instrumentMetadataStatus: status,
     instrumentMetadataError: statusError,
     instrument: instrumentSnapshot,
@@ -543,8 +537,6 @@ function applyMarketInstrumentMetadataOverlay(
       resolution.metadataUpdatedAt ?? asset.metadataUpdatedAt ?? null,
     metadata: {
       ...(asset.metadata ?? {}),
-      curatedName: finalDisplayName ?? finalName ?? null,
-      displayName: finalDisplayName ?? finalName ?? null,
       name: finalName ?? null,
       wkn: resolution.wkn ?? existingWkn ?? asset.wkn ?? null,
       symbol: instrumentSnapshot.primaryMapping?.symbol ?? null,
@@ -554,8 +546,6 @@ function applyMarketInstrumentMetadataOverlay(
         resolution.displayNameSource ?? asset.metadata?.displayNameSource ?? null,
       metadataUpdatedAt:
         resolution.metadataUpdatedAt ?? asset.metadata?.metadataUpdatedAt ?? null,
-      instrumentDisplayName: finalDisplayName ?? null,
-      instrumentName: finalName ?? null,
       instrumentMetadataStatus: status,
       instrumentMetadataError: statusError,
       assetType:
@@ -569,11 +559,7 @@ function applyMarketInstrumentMetadataOverlay(
     },
     externalMetadata: {
       ...(asset.externalMetadata ?? {}),
-      curatedName: finalDisplayName ?? finalName ?? null,
       name: finalName ?? null,
-      displayName: finalDisplayName ?? null,
-      assetName: finalName ?? null,
-      title: finalDisplayName ?? finalName ?? null,
       wkn: resolution.wkn ?? existingWkn ?? asset.externalMetadata?.wkn ?? null,
       symbol: instrumentSnapshot.primaryMapping?.symbol ?? null,
       assetType:
@@ -746,10 +732,10 @@ export async function GET(req: Request) {
       let marketMetadataDbAvailable = true;
       try {
         marketMetadataByIsin = await getMarketInstrumentMetadataByIsins(
-          correctedAssets.map((asset: AssetSummary) => asset.isin),
+          correctedAssets.map((asset: GlobalAssetViewModel) => asset.isin),
         );
         primaryMappingsByIsin = await getPrimarySymbolMappingsByIsins(
-          correctedAssets.map((asset: AssetSummary) => asset.isin),
+          correctedAssets.map((asset: GlobalAssetViewModel) => asset.isin),
         );
       } catch (error) {
         marketMetadataDbAvailable = false;
@@ -765,8 +751,8 @@ export async function GET(req: Request) {
         }
       }
 
-      const enrichedAssets: AssetSummary[] = correctedAssets.map(
-        (asset: AssetSummary) => {
+      const enrichedAssets: GlobalAssetViewModel[] = correctedAssets.map(
+        (asset: GlobalAssetViewModel) => {
           return {
             ...asset,
             externalMetadata: { ...(asset.externalMetadata ?? {}) },
@@ -774,7 +760,7 @@ export async function GET(req: Request) {
         },
       );
 
-      const assetsWithMarketMetadata: AssetSummary[] = enrichedAssets.map((asset) =>
+      const assetsWithMarketMetadata: GlobalAssetViewModel[] = enrichedAssets.map((asset) =>
         applyMarketInstrumentMetadataOverlay(
           asset,
           marketMetadataByIsin,
@@ -796,11 +782,11 @@ export async function GET(req: Request) {
       }
 
       const activeAssets = assetsWithMarketMetadata.filter(
-        (asset: AssetSummary) => asset.netShares > CLOSED_POSITION_EPSILON,
+        (asset: GlobalAssetViewModel) => asset.netShares > CLOSED_POSITION_EPSILON,
       );
 
       const closedAssets = assetsWithMarketMetadata.filter(
-        (asset: AssetSummary) => asset.netShares <= CLOSED_POSITION_EPSILON,
+        (asset: GlobalAssetViewModel) => asset.netShares <= CLOSED_POSITION_EPSILON,
       );
 
       const consistencyReport = buildConsistencyReport(assetsWithMarketMetadata);
@@ -1002,3 +988,4 @@ export async function GET(req: Request) {
     );
   }
 }
+

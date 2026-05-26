@@ -5,7 +5,7 @@ import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
 import styles from "./AssetTable.module.css";
-import type { AssetSummary } from "../../lib/types";
+import type { GlobalAssetViewModel } from "../../lib/types";
 import { createAssetDetailHref } from "../../lib/asset-detail";
 import { formatCurrency } from "../../lib/format";
 import { getSafePortfolioBreakdown } from "./asset-table-config";
@@ -14,7 +14,7 @@ import AssetLogo from "../common/AssetLogo";
 
 export type AssetTableColumnKey = "name" | "remainingCostBasis" | "positionValue" | "unrealizedPnL" | "totalDividendNet" | "allocation" | "actions";
 
-const columnHelper = createColumnHelper<AssetSummary>();
+const columnHelper = createColumnHelper<GlobalAssetViewModel>();
 
 async function copyTextToClipboard(value: string): Promise<boolean> {
     if (!value.trim()) {
@@ -76,7 +76,7 @@ function CopyableIdentifier({
     );
 }
 
-function AssetMetaLine({ asset }: { asset: AssetSummary }) {
+function AssetMetaLine({ asset }: { asset: GlobalAssetViewModel }) {
     const subtitleParts = buildInstrumentSubtitleParts(asset);
 
     if (subtitleParts.length === 0) {
@@ -179,7 +179,7 @@ export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: 
     ];
 }
 
-function renderBreakdownCell(columnId: AssetTableColumnKey, asset: AssetSummary, entry: ReturnType<typeof getSafePortfolioBreakdown>[number]) {
+function renderBreakdownCell(columnId: AssetTableColumnKey, asset: GlobalAssetViewModel, entry: ReturnType<typeof getSafePortfolioBreakdown>[number]) {
     switch (columnId) {
         case "name":
             return <span className={styles.breakdownName}>↳ {entry.portfolioName}</span>;
@@ -204,7 +204,7 @@ function renderBreakdownCell(columnId: AssetTableColumnKey, asset: AssetSummary,
     }
 }
 
-export function renderExpandedRow(asset: AssetSummary, visibleColumnIds: AssetTableColumnKey[]) {
+export function renderExpandedRow(asset: GlobalAssetViewModel, visibleColumnIds: AssetTableColumnKey[]) {
     const breakdown = getSafePortfolioBreakdown(asset);
 
     return (
@@ -219,3 +219,4 @@ export function renderExpandedRow(asset: AssetSummary, visibleColumnIds: AssetTa
         </Fragment>
     );
 }
+

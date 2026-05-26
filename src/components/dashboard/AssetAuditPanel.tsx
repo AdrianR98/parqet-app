@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import styles from "./AssetAuditPanel.module.css";
@@ -6,14 +6,14 @@ import type {
     ActivitiesAuditApiResponse,
     ActivitiesAuditItem,
     ActivityOverrideField,
-    AssetSummary,
+    GlobalAssetViewModel,
     SaveActivityOverrideApiResponse,
     ReconciliationWarning,
 } from "../../lib/types";
 import { formatCurrency } from "../../lib/format";
 
 type AssetAuditPanelProps = {
-    asset: AssetSummary | null;
+    asset: GlobalAssetViewModel | null;
     data: ActivitiesAuditApiResponse | null;
     loading: boolean;
     error: string | null;
@@ -481,3 +481,4 @@ export default function AssetAuditPanel({
         </aside>
     );
 }
+

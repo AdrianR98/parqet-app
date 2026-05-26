@@ -6,7 +6,7 @@ import DataWarningsPanel from "../../../components/dashboard/DataWarningsPanel";
 import HeroSection, { type AllocationSegment } from "../../../components/dashboard/HeroSection";
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
 import { getAssetDisplayName, getAssetSubtitle } from "../../../lib/asset-display";
-import type { AssetSummary } from "../../../lib/types";
+import type { GlobalAssetViewModel } from "../../../lib/types";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
 const DASHBOARD_ALLOCATION_PALETTE = [
@@ -27,7 +27,7 @@ const DASHBOARD_ALLOCATION_PALETTE = [
     "var(--chart-series-15)",
 ] as const;
 
-function getAssetTypeLabel(asset: AssetSummary): "Kryptowährungen" | "Wertpapiere" | "Sonstige" {
+function getAssetTypeLabel(asset: GlobalAssetViewModel): "Kryptowährungen" | "Wertpapiere" | "Sonstige" {
     const typeCandidate = [asset.metadata?.assetType, asset.externalMetadata?.assetType, asset.assetMeta?.assetType]
         .find((value) => typeof value === "string")
         ?.toLowerCase() ?? "";
@@ -43,11 +43,11 @@ function getAssetTypeLabel(asset: AssetSummary): "Kryptowährungen" | "Wertpapie
     return "Sonstige";
 }
 
-function isCryptoAsset(asset: AssetSummary): boolean {
+function isCryptoAsset(asset: GlobalAssetViewModel): boolean {
     return getAssetTypeLabel(asset) === "Kryptowährungen";
 }
 
-function scopeAssetToSelection(asset: AssetSummary, selectedPortfolioIds: string[]): AssetSummary | null {
+function scopeAssetToSelection(asset: GlobalAssetViewModel, selectedPortfolioIds: string[]): GlobalAssetViewModel | null {
     const selectedSet = new Set(selectedPortfolioIds);
     const breakdown = asset.portfolioBreakdown.filter((entry) => selectedSet.has(entry.portfolioId));
 
@@ -77,7 +77,7 @@ function scopeAssetToSelection(asset: AssetSummary, selectedPortfolioIds: string
     };
 }
 
-function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
+function buildAllocationSegments(assets: GlobalAssetViewModel[]): AllocationSegment[] {
     const MAX_INDIVIDUAL_SEGMENTS = 15;
     const validAssets = assets
         .map((asset) => ({ label: getAssetDisplayName(asset), value: asset.positionValue ?? 0 }))
@@ -105,7 +105,7 @@ function buildAllocationSegments(assets: AssetSummary[]): AllocationSegment[] {
     return segments;
 }
 
-function matchesSearch(asset: AssetSummary, query: string): boolean {
+function matchesSearch(asset: GlobalAssetViewModel, query: string): boolean {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {
         return true;
@@ -117,7 +117,6 @@ function matchesSearch(asset: AssetSummary, query: string): boolean {
         asset.isin,
         asset.symbol,
         asset.ticker,
-        asset.tickerSymbol,
         asset.portfolioNames.join(" "),
     ]
         .filter((entry): entry is string => Boolean(entry))
@@ -142,7 +141,7 @@ export default function DashboardPage() {
         const allAssets = [...sortedActiveAssets, ...sortedClosedAssets];
         return allAssets
             .map((asset) => scopeAssetToSelection(asset, selectedPortfolioIds))
-            .filter((asset): asset is AssetSummary => asset != null);
+            .filter((asset): asset is GlobalAssetViewModel => asset != null);
     }, [selectedPortfolioIds, sortedActiveAssets, sortedClosedAssets]);
 
     const activeAssets = useMemo(
@@ -217,3 +216,4 @@ export default function DashboardPage() {
         </>
     );
 }
+

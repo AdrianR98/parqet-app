@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AssetSummary } from "../../lib/types";
+import type { GlobalAssetViewModel } from "../../lib/types";
 import AssetTable from "./AssetTable";
 import styles from "./CollapsibleAssetTableSection.module.css";
 import { loadAssetTableVisibleColumns, saveAssetTableVisibleColumns } from "../../lib/app-settings";
@@ -10,7 +10,7 @@ import type { AssetTableColumnKey } from "./asset-table-columns";
 type Props = {
     title: string;
     subtitle?: string;
-    assets: AssetSummary[];
+    assets: GlobalAssetViewModel[];
     loading?: boolean;
     emptyTitle?: string;
     emptyDescription?: string;
@@ -91,3 +91,4 @@ export default function CollapsibleAssetTableSection({ title, subtitle, assets, 
         </section>
     );
 }
+

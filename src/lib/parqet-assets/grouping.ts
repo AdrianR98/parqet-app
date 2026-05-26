@@ -1,6 +1,6 @@
 // src/lib/grouping.ts
 
-import type { AssetSummary, PortfolioPosition } from "../types";
+import type { GlobalAssetViewModel, PortfolioPosition } from "../types";
 import type { Activity, AssetAccumulator } from "./activity-types";
 import { getActivityAssetMeta, toNumber } from "./activity-utils";
 
@@ -13,7 +13,7 @@ import { getActivityAssetMeta, toNumber } from "./activity-utils";
 export function groupActivitiesByIsin(
     activities: Activity[],
     portfolioNameById: Map<string, string>
-): AssetSummary[] {
+): GlobalAssetViewModel[] {
     const grouped = new Map<string, AssetAccumulator>();
 
     // Chronologisch sortieren, damit Buy/Sell-Reihenfolge fuer die

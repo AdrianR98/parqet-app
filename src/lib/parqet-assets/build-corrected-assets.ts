@@ -1,4 +1,4 @@
-﻿import type { AssetSummary, PortfolioPosition } from "../types";
+import type { GlobalAssetViewModel, PortfolioPosition } from "../types";
 import type { NormalizedActivity } from "./normalization";
 
 type AssetAccumulator = {
@@ -162,7 +162,7 @@ function recalculateAsset(acc: AssetAccumulator): void {
 export function buildCorrectedAssets(
     activities: NormalizedActivity[],
     portfolioNameById: Map<string, string>
-): AssetSummary[] {
+): GlobalAssetViewModel[] {
     const grouped = new Map<string, AssetAccumulator>();
 
     const sortedActivities = [...activities].sort((a, b) => {

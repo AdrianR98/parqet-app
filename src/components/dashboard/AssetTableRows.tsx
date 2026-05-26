@@ -6,7 +6,7 @@ import { Fragment, memo, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import styles from "./AssetTable.module.css";
-import type { AssetSummary } from "../../lib/types";
+import type { GlobalAssetViewModel } from "../../lib/types";
 import { createAssetDetailHref } from "../../lib/asset-detail";
 import { formatCurrency, formatDate, formatShares } from "../../lib/format";
 import {
@@ -15,7 +15,7 @@ import {
 } from "./asset-table-config";
 
 type AssetTableRowsProps = {
-    assets: AssetSummary[];
+    assets: GlobalAssetViewModel[];
     visibleColumns: VisibleColumnKey[];
     expandedIsins: string[];
     onToggleExpandedAction: (isin: string) => void;
@@ -36,21 +36,17 @@ type AssetTableRowsProps = {
  * - Status-Badges
  */
 
-function getDisplayName(asset: AssetSummary): string {
+function getDisplayName(asset: GlobalAssetViewModel): string {
     return (
         asset.name ??
-        asset.assetName ??
-        asset.displayName ??
-        asset.title ??
         asset.symbol ??
         asset.ticker ??
-        asset.tickerSymbol ??
         asset.wkn ??
         asset.isin
     );
 }
 
-function getLogoUrl(asset: AssetSummary): string | null {
+function getLogoUrl(asset: GlobalAssetViewModel): string | null {
     const candidates = [
         asset.metadata as Record<string, unknown> | undefined,
         asset.externalMetadata as Record<string, unknown> | undefined,
@@ -67,7 +63,7 @@ function getLogoUrl(asset: AssetSummary): string | null {
     return null;
 }
 
-function getInitials(asset: AssetSummary): string {
+function getInitials(asset: GlobalAssetViewModel): string {
     const label = getDisplayName(asset).trim();
 
     if (!label) {
@@ -83,7 +79,7 @@ function getInitials(asset: AssetSummary): string {
     return label.slice(0, 2).toUpperCase();
 }
 
-function renderCell(asset: AssetSummary, columnKey: VisibleColumnKey) {
+function renderCell(asset: GlobalAssetViewModel, columnKey: VisibleColumnKey) {
     switch (columnKey) {
         case "name": {
             const logoUrl = getLogoUrl(asset);
@@ -150,7 +146,7 @@ function renderCell(asset: AssetSummary, columnKey: VisibleColumnKey) {
 }
 
 type AssetTableRowProps = {
-    asset: AssetSummary;
+    asset: GlobalAssetViewModel;
     visibleColumns: VisibleColumnKey[];
     isExpanded: boolean;
     onToggleExpandedAction: (isin: string) => void;
@@ -271,3 +267,4 @@ function AssetTableRows({
 }
 
 export default memo(AssetTableRows);
+

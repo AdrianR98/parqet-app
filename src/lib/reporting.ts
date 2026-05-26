@@ -5,9 +5,9 @@ import {
     loadPortfolioScope,
     resolvePortfolioScope,
 } from "./app-settings";
-import type { AssetSummary, ReconciliationWarning } from "./types";
+import type { GlobalAssetViewModel, ReconciliationWarning } from "./types";
 import {
-    buildAssetSummariesFromCanonicalSafeFields,
+    buildGlobalAssetViewModelsFromProductReadModel,
     readGlobalAssetProductReadModel,
     selectCanonicalSafeFieldProductSurfaceSource,
     type CanonicalSafeFieldSelection,
@@ -115,7 +115,7 @@ function summarizeQuality(cache: DashboardCache): ReportQualitySummary {
 }
 
 function toReportRows(
-    assets: AssetSummary[],
+    assets: GlobalAssetViewModel[],
     selectedPortfolioIds: string[]
 ): ReportAssetRow[] {
     return assets
@@ -151,7 +151,7 @@ function toReportRows(
 }
 
 function buildBreakdown(
-    assets: AssetSummary[],
+    assets: GlobalAssetViewModel[],
     selectedPortfolioIds: string[]
 ): ReportBreakdownRow[] {
     const selectedIds = new Set(selectedPortfolioIds);
@@ -201,24 +201,21 @@ export function loadLocalReportModel(): LocalReportModel | null {
         resolvedScope.selectedPortfolioIds.length > 0
             ? resolvedScope.selectedPortfolioIds
             : cache.selectedPortfolioIds;
-    const compatibilityAssets = [...cache.activeAssets, ...cache.closedAssets];
+    const currentAssets = [...cache.activeAssets, ...cache.closedAssets];
     const rawProductReadModel = cache.globalAssetProductReadModel ?? null;
     const productReadModel = readGlobalAssetProductReadModel(
         rawProductReadModel
     );
     const guardedSelection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "reports",
-        compatibilityAssets,
+        currentAssets,
         productReadModel: rawProductReadModel,
         guardEnabled: resolveGlobalAssetProductGuardEnabled(),
     });
     const selectedAssets =
         guardedSelection.selectedSource === "global_asset_product" && productReadModel
-            ? buildAssetSummariesFromCanonicalSafeFields({
-                productReadModel,
-                compatibilityAssets,
-            })
-            : compatibilityAssets;
+            ? buildGlobalAssetViewModelsFromProductReadModel(productReadModel)
+            : currentAssets;
     const allRows = toReportRows(
         selectedAssets,
         selectedPortfolioIds
@@ -265,3 +262,4 @@ export function mapSeverityLabel(
     if (warning.severity === "warning") return "Prüfen";
     return "Hinweis";
 }
+

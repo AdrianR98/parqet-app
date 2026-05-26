@@ -3,13 +3,13 @@ import { enrichAssetsWithMetadata } from "./asset-metadata";
 import { saveDashboardCache, type DashboardCache } from "./dashboard-cache";
 import { selectCanonicalDashboardSafeFieldSource } from "./dashboard-helpers";
 import { readGlobalAssetProductReadModel } from "./parqet/global-assets/product-surface-selectors";
-import type { AssetSummary, AssetsApiResponse } from "./types";
+import type { GlobalAssetViewModel, AssetsApiResponse } from "./types";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
 
-function splitAssetsByPosition(assets: AssetSummary[]): {
-  activeAssets: AssetSummary[];
-  closedAssets: AssetSummary[];
+function splitAssetsByPosition(assets: GlobalAssetViewModel[]): {
+  activeAssets: GlobalAssetViewModel[];
+  closedAssets: GlobalAssetViewModel[];
 } {
   return {
     activeAssets: assets.filter((asset) => asset.netShares > CLOSED_POSITION_EPSILON),
@@ -26,9 +26,9 @@ export type PrepareDashboardCacheWriteInput = {
 
 export type PreparedDashboardCacheWrite = {
   generatedAt: string;
-  selectedAssets: AssetSummary[];
-  selectedActiveAssets: AssetSummary[];
-  selectedClosedAssets: AssetSummary[];
+  selectedAssets: GlobalAssetViewModel[];
+  selectedActiveAssets: GlobalAssetViewModel[];
+  selectedClosedAssets: GlobalAssetViewModel[];
   cachePayload: DashboardCache;
 };
 
@@ -37,7 +37,7 @@ export function prepareDashboardCacheWrite(
 ): PreparedDashboardCacheWrite {
   const nextActiveAssets = enrichAssetsWithMetadata(input.response.activeAssets ?? []);
   const nextClosedAssets = enrichAssetsWithMetadata(input.response.closedAssets ?? []);
-  const compatibilityAssets = [...nextActiveAssets, ...nextClosedAssets];
+  const currentAssets = [...nextActiveAssets, ...nextClosedAssets];
   const responseWithCoexistence = input.response as AssetsApiResponse & {
     globalAssetProductReadModel?: unknown;
   };
@@ -47,7 +47,7 @@ export function prepareDashboardCacheWrite(
     rawGlobalAssetProductReadModel,
   );
   const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-    compatibilityAssets,
+    currentAssets,
     productReadModel: rawGlobalAssetProductReadModel,
     guardEnabled: input.guardEnabled,
   });
@@ -90,3 +90,4 @@ export function persistDashboardCacheWrite(
   notifyLocalSettingsChanged();
   return prepared;
 }
+

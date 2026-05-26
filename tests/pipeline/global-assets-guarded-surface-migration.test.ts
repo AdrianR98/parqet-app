@@ -16,7 +16,7 @@ import {
 import { loadLocalReportModel } from "../../src/lib/reporting";
 import { DASHBOARD_CACHE_KEY } from "../../src/lib/dashboard-cache";
 import { runGlobalAssetPipeline, createSyntheticActivity } from "./global-assets-test-helpers";
-import type { AssetSummary } from "../../src/lib/types";
+import type { GlobalAssetViewModel } from "../../src/lib/types";
 
 type LocalStorageMock = {
   getItem: (key: string) => string | null;
@@ -54,7 +54,7 @@ function installWindowWithLocalStorage(seed?: Record<string, string>): void {
   });
 }
 
-function createCompatibilityAssetsFixture(): AssetSummary[] {
+function createCompatibilityAssetsFixture(): GlobalAssetViewModel[] {
   return [
     {
       isin: "DEMO00000011",
@@ -269,7 +269,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
     const projected = buildProjectedProductReadModel();
     const compatibilityAssets = createCompatibilityAssetsFixture();
     const evidence = buildGlobalAssetsProductReadModelComparisonEvidence({
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       projected,
     });
 
@@ -286,7 +286,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
 
     const disabledSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: projected,
       guardEnabled: false,
     });
@@ -295,7 +295,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
 
     const staleSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "reports",
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: {
         ...projected,
         metadata: {
@@ -310,7 +310,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
 
     const scopeMismatchSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "asset_table",
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: {
         ...projected,
         metadata: {
@@ -325,7 +325,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
 
     const readySelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: projected,
       guardEnabled: true,
     });
@@ -344,7 +344,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
 
     const invalidSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: { assets: [] },
       guardEnabled: true,
     });
@@ -353,7 +353,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
 
     const emptySelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "reports",
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: {
         ...projected,
         assets: [],
@@ -432,15 +432,15 @@ describe("canonical global-asset safe-field migration selectors", () => {
     const compatibilityAssets = createCompatibilityAssetsFixture();
     const fallbackRows = buildAssetSummariesFromCanonicalSafeFields({
       productReadModel: projectedWithForcedValuationValues,
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
     });
     const dashboardSelection = selectCanonicalDashboardSafeFieldSource({
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
     });
     const assetTableSelection = selectCanonicalAssetTableSafeFieldSource({
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
       productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
     });
@@ -480,7 +480,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
     };
     const selectedRows = buildAssetSummariesFromCanonicalSafeFields({
       productReadModel: projectedMissingSecondAsset,
-      compatibilityAssets,
+      currentAssets: compatibilityAssets,
     });
 
     expect(selectedRows).toHaveLength(2);

@@ -1,4 +1,5 @@
-﻿// src/lib/types.ts
+// src/lib/types.ts
+import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
 
 /**
  * ============================================================
@@ -126,9 +127,12 @@ export type PortfolioPosition = {
  * - override summary
  * - transfer linkage status
  * - warning counters direkt am Asset
+ *
+ * Runtime ViewModel für Dashboard-/Detail-Surfaces.
+ * Phase 2 nutzt diesen Typ als Ersatz für den entfernten AssetSummary-Runtime-View-Typ.
  */
 
-export type AssetSummary = {
+export type GlobalAssetViewModel = {
   isin: string;
 
   portfolioIds: string[];
@@ -297,13 +301,14 @@ export type AssetsApiResponse = {
   activeAssetCount?: number;
   closedAssetCount?: number;
 
-  assets?: AssetSummary[];
-  activeAssets?: AssetSummary[];
-  closedAssets?: AssetSummary[];
+  assets?: GlobalAssetViewModel[];
+  activeAssets?: GlobalAssetViewModel[];
+  closedAssets?: GlobalAssetViewModel[];
 
   generatedAt?: string;
   freshness?: SnapshotFreshness;
   activityItems?: ActivitiesAuditItem[];
+  globalAssetProductReadModel?: ProductReadModelAssets | null;
   instrumentMetadataSummary?: {
     ok: number;
     missing: number;
@@ -560,3 +565,5 @@ export type SaveActivityOverrideApiResponse = {
   message?: string;
   details?: string;
 };
+
+
