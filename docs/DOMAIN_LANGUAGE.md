@@ -10,7 +10,7 @@ A normalized cross-portfolio asset identity used to represent one economic instr
 
 ### Product Read Model
 
-The query-focused representation used by app views and APIs to serve portfolio/product information efficiently without redefining upstream source contracts.
+The UI and route-safe projection used by app views and route handlers to present portfolio/product information without mutating upstream source records. A Product Read Model must carry explicit source, freshness, scope, confidence, warnings, blocked metrics, and value classification so consumers can distinguish trusted values from constrained or partial outputs.
 
 ### Compatibility Path
 
@@ -22,7 +22,7 @@ The traceable origin and transformation chain for security-related identifiers a
 
 ### Asset Family
 
-A grouping concept for related instruments that share classification characteristics (for example equity, ETF, fund, bond, cash equivalent, or derivative groupings).
+A lineage-aware grouping of a current or primary instrument together with historical or related instruments. Asset Family is used for display and analysis continuity across symbol/identifier changes and related mappings, without mutating or rewriting raw activity records.
 
 ### Corporate Action Event
 
