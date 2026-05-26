@@ -26,6 +26,8 @@ Current operator workflow details are documented in [docs/MARKET_DATA_PIPELINE.m
 - [docs/ROADMAP.md](docs/ROADMAP.md)
 - [docs/PIPELINE_INVENTORY.md](docs/PIPELINE_INVENTORY.md)
 - [docs/V1_GUARDRAILS.md](docs/V1_GUARDRAILS.md)
+- [docs/AI_WORKFLOW_ADOPTION.md](docs/AI_WORKFLOW_ADOPTION.md)
+- [docs/DOMAIN_LANGUAGE.md](docs/DOMAIN_LANGUAGE.md)
 
 ## Local Development
 

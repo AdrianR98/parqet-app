@@ -56,3 +56,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local understand-anything outputs (never commit generated graphs/meta/ignore)
+**/.understand-anything/

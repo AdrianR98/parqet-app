@@ -95,3 +95,15 @@ flowchart TD
 ```
 
 These read sets are implementation context, not a complete merge gate. Review and merge checks may require additional documents from `docs/DEVELOPMENT_WORKFLOW.md`, `docs/V1_GUARDRAILS.md`, ADRs or issue-specific references.
+
+## Decision Interview Trigger
+
+Before Codex execution, ChatGPT must run a decision-interview step for broad or risky data-model work.
+
+Trigger this step when a task proposes any of the following:
+
+- Changes to Product Read Model structure, semantics, or projection behavior.
+- New or changed provider contracts, compatibility paths, lineage rules, or blocked metrics.
+- Cross-cutting updates that can affect privacy boundaries, security lineage, or API-budget behavior.
+
+The decision interview must resolve scope, non-goals, migration/removal expectations, acceptance criteria, and risk controls before handing off to Codex.
