@@ -1,6 +1,6 @@
 # Calculation Model Plan (Phase 3)
 
-Status: active plan, Slice 6 asset-detail scope extraction started  
+Status: implementation complete for Phase 3 scope on this branch (through Slice 7 cleanup)  
 Linked issues: Refs #384, Refs #387, Refs #393  
 Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-model` (same branch / same PR thread)
 
@@ -9,7 +9,7 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
 - First boundary typing was introduced in code for `GlobalAssetViewModel` field groups (identity/display, metrics, portfolio breakdown, metadata, temporary continuity).
 - Runtime fallback selection was reclassified from generic PRM-unavailable wording to explicit `runtime_assets_fallback`.
 - `currentAssets` naming in canonical-safe-source selectors/helpers was replaced with `runtimeFallbackAssets` to reflect non-canonical fallback semantics.
-- #393 remains open: fields are classified and documented, but not yet removed.
+- #393 follow-up is now partially resolved: fallback/source terminology and boundary classification are complete; temporary continuity fields still remain where runtime/UI consumers depend on them.
 
 ## Slice 2 implementation note (2026-05-27)
 
@@ -81,6 +81,18 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
   instead of owning scope intersection logic.
 - This keeps asset-detail scoped metric calculation and selected-portfolio filtering
   clustered in lib helper boundaries.
+
+## Slice 7 completion note (2026-05-27)
+
+- Extracted asset-detail portfolio breakdown display metric calculations from
+  `src/app/(app)/assets/AssetDetailPage.tsx` into
+  `src/lib/calculations/view-model-aggregates.ts`:
+  - `buildPortfolioBreakdownDisplayEntries`
+  - shared share/value display threshold and percent shaping logic
+- Removed remaining "compatibility fallback" wording in runtime selector consumers:
+  - `src/lib/dashboard-helpers.ts`
+  - `src/lib/reporting.ts`
+- Result: asset-detail page now consumes helper-produced portfolio-breakdown display metrics instead of owning these calculations.
 
 ## 1. Current calculation inventory
 
@@ -242,16 +254,15 @@ Hard rule reaffirmed: UI components must not own metric calculation logic.
 - Verification command: `npm run build`
 - #393 sequencing: after Slice 1 boundary cleanup starts.
 
-Remaining direct calculation hotspots after Slice 6:
+Remaining direct calculation hotspots after Slice 7:
 - `src/app/(app)/dashboard/page.tsx`
 - `src/lib/reporting.ts`
 - `src/components/dashboard/asset-table-columns.tsx` (display formatting only; ratio formula moved to helper)
 - `src/components/asset-detail/AssetDetailTimelineChart.tsx` (timeline clustering/range shaping)
 
-Recommended next slice focus:
-- Continue with either:
-  - timeline/event shaping helper extraction from `AssetDetailTimelineChart.tsx`, or
-  - metric-gates/performance extraction from Product Read Model to unify valuation-nullability semantics.
+Phase 3 closeout note:
+- These remaining hotspots are intentionally UI/timeline presentation shaping or report formatting.
+- Reusable financial/scoped metric logic is now calculation-layer owned.
 
 ### Slice 3: Extract dividend + reconciliation calculators
 
@@ -316,16 +327,25 @@ Recommended next slice focus:
 
 ## `currentAssets` fallback classification
 
-- Classify as: **compatibility fallback source** (already-loaded runtime projection), not canonical calculation source.
+- Classify as: **runtime fallback state** (already-loaded runtime projection), not canonical calculation source.
 - Policy:
   - allowed when PRM is missing/invalid/not fresh/scope-mismatch/empty.
   - must remain visible in guarded diagnostics and be explicitly traceable.
 
-## Sequencing decision
+## #393 status after Phase 3 closeout
 
-- #393 should start in the **first implementation slice** (Slice 1), before deeper calculator extraction.
-- Reason: extraction should target cleaned contracts, not re-embed legacy field debt.
-- #393 remains accepted technical debt from PR #392 until these Slice 1 decisions are implemented.
+- Completed in this branch:
+  - canonical guarded-source naming uses `runtime_assets_fallback`
+  - no compatibility-source selection path remains
+  - runtime fallback is explicitly modeled as non-canonical calculation output
+  - continuity field group is explicit (`GlobalAssetViewModelTemporaryContinuityFields`)
+- Still open (exact remaining consumers):
+  - `buyCount` / `sellCount` / `dividendCount` and `latestActivityAt` are still consumed by
+    `src/components/asset-detail/AssetDetailTimelineChart.tsx` and dashboard/report sorting.
+  - continuity counters remain populated by legacy runtime builders and zero-initialized in PRM projection builder for shape continuity.
+- Decision:
+  - keep these fields temporarily to avoid broad UI/reporting churn in Phase 3.
+  - removal/migration should happen as part of a dedicated post-Phase-3 view-model cleanup pass.
 
 ## 6. Non-goals (Phase 3 planning + extraction)
 

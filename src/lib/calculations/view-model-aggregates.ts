@@ -44,8 +44,19 @@ export type AllocationSegment = {
   color: string;
 };
 
+export type PortfolioBreakdownDisplayEntry = {
+  entry: GlobalAssetViewModel["portfolioBreakdown"][number];
+  hasDisplayableShares: boolean;
+  hasDisplayableValue: boolean;
+  sharePercent: number | null;
+};
+
 function uniqueNonEmpty(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function isDisplayableMagnitude(value: number, epsilon: number): boolean {
+  return Number.isFinite(value) && Math.abs(value) >= epsilon;
 }
 
 export function calculateAllocationRatioPercent(input: {
@@ -60,6 +71,51 @@ export function calculateAllocationRatioPercent(input: {
   }
 
   return (value / total) * 100;
+}
+
+export function buildPortfolioBreakdownDisplayEntries(
+  entries: GlobalAssetViewModel["portfolioBreakdown"],
+  options: {
+    shareEpsilon: number;
+    valueEpsilon: number;
+  },
+): PortfolioBreakdownDisplayEntry[] {
+  const totalShares = entries.reduce((sum, entry) => {
+    const shares = Number(entry.netShares);
+
+    if (!isDisplayableMagnitude(shares, options.shareEpsilon) || shares <= 0) {
+      return sum;
+    }
+
+    return sum + shares;
+  }, 0);
+
+  return entries.map((entry) => {
+    const shares = Number(entry.netShares);
+    const value = Number(entry.positionValue);
+    const hasDisplayableShares = isDisplayableMagnitude(
+      shares,
+      options.shareEpsilon,
+    );
+    const hasDisplayableValue = isDisplayableMagnitude(
+      value,
+      options.valueEpsilon,
+    );
+    const sharePercent =
+      hasDisplayableShares &&
+      shares > 0 &&
+      Number.isFinite(totalShares) &&
+      totalShares > 0
+        ? (shares / totalShares) * 100
+        : null;
+
+    return {
+      entry,
+      hasDisplayableShares,
+      hasDisplayableValue,
+      sharePercent,
+    };
+  });
 }
 
 export function buildAllocationSegmentsFromAssets(

@@ -26,6 +26,9 @@ Last reviewed: 2026-05-27
 - Slice 4 has started on the same branch/PR thread: Product Read Model -> `GlobalAssetViewModel` projection moved into `src/lib/view-models/global-asset-view-model-builder.ts`, and guarded source selectors are now focused on validation/selection/diagnostics only.
 - Slice 5 has started on the same branch/PR thread: dashboard allocation segment shaping and allocation ratio formulas were moved into shared calculation helpers in `src/lib/calculations/view-model-aggregates.ts`.
 - Slice 6 has started on the same branch/PR thread: asset detail selected-portfolio scope resolution moved from `AssetDetailPage.tsx` into `src/lib/asset-detail.ts` (`resolveSelectedAssetScope`), reducing page-owned calculation/scope logic.
+- Slice 7 closeout is completed on the same branch/PR thread: asset-detail portfolio-breakdown display metric shaping was moved into `src/lib/calculations/view-model-aggregates.ts`, and remaining runtime fallback wording was aligned to `runtime_assets_fallback` / runtime fallback state terminology.
+- Phase 3 implementation is now complete for the planned modular-calculation scope on `refactor/phase-3-calculation-model`.
+- #393 is partially resolved in this PR: fallback/source semantics are finalized, but a small set of temporary continuity fields is still intentionally retained for timeline/report sorting consumers and is documented as explicit remaining debt.
 
 ## Current Baseline
 

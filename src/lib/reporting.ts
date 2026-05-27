@@ -193,7 +193,7 @@ export function loadLocalReportModel(): LocalReportModel | null {
         productReadModel: rawProductReadModel,
         guardEnabled: resolveGlobalAssetProductGuardEnabled(),
     });
-    // `runtimeFallbackAssets` is a compatibility source, not canonical calculation output.
+    // `runtimeFallbackAssets` is already-loaded runtime fallback state, not canonical calculation output.
     const selectedAssets =
         guardedSelection.selectedSource === "global_asset_product" && productReadModel
             ? buildGlobalAssetViewModelsFromProductReadModel(productReadModel)

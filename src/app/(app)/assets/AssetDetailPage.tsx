@@ -27,6 +27,7 @@ import type { MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../.
 import type { ActivitiesAuditItem, GlobalAssetViewModel, PortfolioPosition } from "../../../lib/types";
 import { DASHBOARD_CACHE_CHANGED_EVENT } from "../../../lib/dashboard-cache";
 import { ensureParqetLocalBootstrap } from "../../../lib/parqet-local-bootstrap";
+import { buildPortfolioBreakdownDisplayEntries } from "../../../lib/calculations/view-model-aggregates";
 import AssetLogo from "../../../components/common/AssetLogo";
 import styles from "./AssetDetailPage.module.css";
 
@@ -316,14 +317,10 @@ function PortfolioBreakdown({
         return <div className={styles.inlineEmpty}>Keine Portfolio-Anteile im aktuell ausgewählten Scope.</div>;
     }
 
-    const totalShares = entries.reduce((sum, entry) => {
-        const shares = Number(entry.netShares);
-        const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
-        if (!hasDisplayableShares || shares <= 0) {
-            return sum;
-        }
-        return sum + shares;
-    }, 0);
+    const displayEntries = buildPortfolioBreakdownDisplayEntries(entries, {
+        shareEpsilon: PORTFOLIO_BREAKDOWN_SHARE_EPSILON,
+        valueEpsilon: PORTFOLIO_BREAKDOWN_VALUE_EPSILON,
+    });
 
     const sharePercentFormatter = new Intl.NumberFormat("de-DE", {
         minimumFractionDigits: 1,
@@ -332,15 +329,7 @@ function PortfolioBreakdown({
 
     return (
         <div className={styles.breakdownList}>
-            {entries.map((entry) => {
-                const shares = Number(entry.netShares);
-                const value = Number(entry.positionValue);
-                const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
-                const hasDisplayableValue = Number.isFinite(value) && Math.abs(value) >= PORTFOLIO_BREAKDOWN_VALUE_EPSILON;
-                const sharePercent =
-                    hasDisplayableShares && shares > 0 && Number.isFinite(totalShares) && totalShares > 0
-                        ? (shares / totalShares) * 100
-                        : null;
+            {displayEntries.map(({ entry, hasDisplayableShares, hasDisplayableValue, sharePercent }) => {
                 const color = portfolioColors[entry.portfolioId];
 
                 return (

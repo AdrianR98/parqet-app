@@ -126,7 +126,7 @@ export type CanonicalDashboardSafeFieldSelection = {
     /**
      * Selected asset surface.
      * - `global_asset_product` => canonical Product Read Model projection
-     * - `runtime_assets_fallback` => compatibility fallback from already-loaded runtime assets
+     * - `runtime_assets_fallback` => already-loaded runtime data used only as fallback state
      */
     assets: GlobalAssetViewModel[];
 };
