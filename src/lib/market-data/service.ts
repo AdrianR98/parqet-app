@@ -1,6 +1,8 @@
 import "server-only";
 
 import {
+    findLatestMarketPriceByAssetKey,
+    findLatestMarketPricesByAssetKeys,
     getLatestDailyPriceDateByIsin,
     getDailyPricesByIsin,
     getInstrumentByIsin,
@@ -10,9 +12,36 @@ import {
 } from "./db/repository";
 import { downsampleHistoryPoints, resolveFromDateForPeriod, type HistoryPeriod } from "./history-utils";
 import type { MarketDataResponse } from "./types";
+import type { AssetLatestMarketPriceSnapshot } from "./db/types-core";
 
 function normalizeLookupIsin(value: string): string {
     return value.replace(/\s+/g, "").toUpperCase();
+}
+
+export async function getLatestMarketPriceByIsin(input: {
+    isin: string;
+    provider?: string;
+}): Promise<AssetLatestMarketPriceSnapshot | null> {
+    return findLatestMarketPriceByAssetKey({
+        assetKeyType: "isin",
+        assetKeyValue: normalizeLookupIsin(input.isin),
+        provider: input.provider,
+    });
+}
+
+export async function getLatestMarketPricesByIsins(input: {
+    isins: string[];
+    provider?: string;
+}): Promise<Record<string, AssetLatestMarketPriceSnapshot>> {
+    const keys = Array.from(new Set(input.isins.map((isin) => normalizeLookupIsin(isin)).filter((isin) => isin.length > 0))).map((isin) => ({
+        assetKeyType: "isin",
+        assetKeyValue: isin,
+    }));
+
+    return findLatestMarketPricesByAssetKeys({
+        keys,
+        provider: input.provider,
+    });
 }
 
 function isStaleLatestDate(latestPriceDate: string | null): boolean {

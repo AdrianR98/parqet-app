@@ -2,7 +2,9 @@
 import { PostgresConfigError, queryPostgres, withPostgresClient } from "../../db/postgres-core";
 import type {
     AddMarketDataRunItemInput,
+    AssetLatestMarketPriceSnapshot,
     CreateMarketDataRunInput,
+    DbAsset,
     DbMarketAction,
     DbMarketInstrument,
     DbMarketInstrumentMetadata,
@@ -26,6 +28,9 @@ import type {
     EnrichMarketInstrumentsFromReferencesResult,
     EnrichMarketInstrumentsFromTradingUniverseInput,
     EnrichMarketInstrumentsFromTradingUniverseResult,
+    FindAssetInput,
+    FindLatestMarketPriceByAssetKeyInput,
+    FindLatestMarketPricesByAssetKeysInput,
     DbMarketReferenceInstrument,
     DbMarketReferenceSource,
     DbXetraReferenceCandidate,
@@ -65,6 +70,22 @@ export class MarketDataRepositoryError extends Error {
 
 function normalizeIsin(isin: string): string {
     return isin.replace(/\s+/g, "").toUpperCase();
+}
+
+function normalizeAssetKeyType(value: string): string {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+        throw new MarketDataRepositoryError("invalid_input", "asset_key_type fehlt.");
+    }
+    return normalized;
+}
+
+function normalizeAssetKeyValue(value: string): string {
+    const normalized = value.trim();
+    if (!normalized) {
+        throw new MarketDataRepositoryError("invalid_input", "asset_key_value fehlt.");
+    }
+    return normalized;
 }
 
 function assertIsin(isin: string): string {
@@ -283,6 +304,37 @@ function normalizeInstrumentStatus(status: string): MarketDataInstrumentStatus {
     return normalized as MarketDataInstrumentStatus;
 }
 
+function mapAssetRow(row: Record<string, unknown>): DbAsset {
+    return {
+        id: String(row.id),
+        assetKeyType: String(row.asset_key_type),
+        assetKeyValue: String(row.asset_key_value),
+        isin: row.isin === null ? null : String(row.isin),
+        wkn: row.wkn === null ? null : String(row.wkn),
+        displayName: row.display_name === null ? null : String(row.display_name),
+        assetType: row.asset_type === null ? null : String(row.asset_type),
+        currency: row.currency === null ? null : String(row.currency),
+        exchange: row.exchange === null ? null : String(row.exchange),
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
+    };
+}
+
+function mapLatestMarketPriceSnapshotRow(row: Record<string, unknown>): AssetLatestMarketPriceSnapshot {
+    return {
+        assetId: String(row.asset_id),
+        assetKeyType: String(row.asset_key_type),
+        assetKeyValue: String(row.asset_key_value),
+        isin: row.isin === null ? null : String(row.isin),
+        provider: String(row.provider),
+        priceAmount: Number(row.close_price),
+        currency: row.currency === null ? null : String(row.currency),
+        priceDate: normalizeDbDateValue(row.price_date),
+        priceTimestamp: row.price_timestamp === null ? null : String(row.price_timestamp),
+        updatedAt: String(row.updated_at),
+    };
+}
+
 const MARKET_DATA_REQUEST_STATUSES = new Set<MarketDataRequestStatus>([
     "pending",
     "known_instrument",
@@ -325,6 +377,149 @@ function mapMarketDataRequestRow(row: Record<string, unknown>): DbMarketDataRequ
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
     };
+}
+
+export async function findAsset(input: FindAssetInput): Promise<DbAsset | null> {
+    try {
+        if ("isin" in input) {
+            const normalizedIsin = assertIsin(input.isin);
+            const result = await queryPostgres<Record<string, unknown>>(
+                `select id, asset_key_type, asset_key_value, isin, wkn, display_name, asset_type, currency, exchange, created_at, updated_at
+                 from assets
+                 where isin = $1
+                 limit 1`,
+                [normalizedIsin],
+            );
+            const row = result.rows[0];
+            return row ? mapAssetRow(row) : null;
+        }
+
+        const assetKeyType = normalizeAssetKeyType(input.assetKeyType);
+        const assetKeyValue = normalizeAssetKeyValue(input.assetKeyValue);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select id, asset_key_type, asset_key_value, isin, wkn, display_name, asset_type, currency, exchange, created_at, updated_at
+             from assets
+             where asset_key_type = $1
+               and asset_key_value = $2
+             limit 1`,
+            [assetKeyType, assetKeyValue],
+        );
+        const row = result.rows[0];
+        return row ? mapAssetRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function findLatestMarketPriceByAssetKey(
+    input: FindLatestMarketPriceByAssetKeyInput,
+): Promise<AssetLatestMarketPriceSnapshot | null> {
+    try {
+        const assetKeyType = normalizeAssetKeyType(input.assetKeyType);
+        const assetKeyValue = normalizeAssetKeyValue(input.assetKeyValue);
+        const provider = input.provider?.trim().toLowerCase() || null;
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select
+                p.asset_id,
+                a.asset_key_type,
+                a.asset_key_value,
+                a.isin,
+                p.provider,
+                p.close_price,
+                p.currency,
+                p.price_date,
+                p.price_timestamp,
+                p.updated_at
+             from assets a
+             join lateral (
+                select p.asset_id, p.provider, p.close_price, p.currency, p.price_date, p.price_timestamp, p.updated_at
+                from asset_daily_prices p
+                where p.asset_id = a.id
+                  and ($3::text is null or p.provider = $3)
+                order by p.price_date desc, p.updated_at desc
+                limit 1
+             ) p on true
+             where a.asset_key_type = $1
+               and a.asset_key_value = $2
+             limit 1`,
+            [assetKeyType, assetKeyValue, provider],
+        );
+        const row = result.rows[0];
+        return row ? mapLatestMarketPriceSnapshotRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function findLatestMarketPricesByAssetKeys(
+    input: FindLatestMarketPricesByAssetKeysInput,
+): Promise<Record<string, AssetLatestMarketPriceSnapshot>> {
+    try {
+        const provider = input.provider?.trim().toLowerCase() || null;
+        const keys = input.keys
+            .map((key) => ({
+                assetKeyType: normalizeAssetKeyType(key.assetKeyType),
+                assetKeyValue: normalizeAssetKeyValue(key.assetKeyValue),
+            }))
+            .filter((key, index, array) => array.findIndex((item) => item.assetKeyType === key.assetKeyType && item.assetKeyValue === key.assetKeyValue) === index);
+
+        if (keys.length === 0) {
+            return {};
+        }
+
+        const assetKeyTypes = keys.map((key) => key.assetKeyType);
+        const assetKeyValues = keys.map((key) => key.assetKeyValue);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with input_keys as (
+                select *
+                from unnest($1::text[], $2::text[]) as t(asset_key_type, asset_key_value)
+             ),
+             target_assets as (
+                select a.id, a.asset_key_type, a.asset_key_value, a.isin
+                from assets a
+                join input_keys k
+                  on k.asset_key_type = a.asset_key_type
+                 and k.asset_key_value = a.asset_key_value
+             ),
+             latest_prices as (
+                select distinct on (p.asset_id)
+                    p.asset_id,
+                    p.provider,
+                    p.close_price,
+                    p.currency,
+                    p.price_date,
+                    p.price_timestamp,
+                    p.updated_at
+                from asset_daily_prices p
+                join target_assets a on a.id = p.asset_id
+                where ($3::text is null or p.provider = $3)
+                order by p.asset_id, p.price_date desc, p.updated_at desc
+             )
+             select
+                a.id as asset_id,
+                a.asset_key_type,
+                a.asset_key_value,
+                a.isin,
+                p.provider,
+                p.close_price,
+                p.currency,
+                p.price_date,
+                p.price_timestamp,
+                p.updated_at
+             from target_assets a
+             join latest_prices p on p.asset_id = a.id`,
+            [assetKeyTypes, assetKeyValues, provider],
+        );
+
+        const mapped: Record<string, AssetLatestMarketPriceSnapshot> = {};
+        for (const row of result.rows) {
+            const item = mapLatestMarketPriceSnapshotRow(row);
+            mapped[`${item.assetKeyType}:${item.assetKeyValue}`] = item;
+        }
+        return mapped;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
 }
 
 export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrument | null> {

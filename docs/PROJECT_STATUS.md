@@ -42,6 +42,7 @@ Last reviewed: 2026-05-27
   - #398 source/timestamp/confidence provenance fields.
 - First implementation slice is now started on the same branch/PR thread: additive schema migration `006_asset_reference_data_schema.sql` introduces target Asset/reference-data tables while legacy `market_*` tables remain active during transition.
 - Intentional transition state: runtime/admin reads still use legacy tables until repository/service cutover slices are implemented.
+- Slice 4 latest-market-price read support is now started on the same branch/PR thread: Asset-oriented repository/service functions read from `assets` + `asset_daily_prices` and derive latest market price snapshots without introducing `asset_latest_prices`.
 
 ## Current Baseline
 

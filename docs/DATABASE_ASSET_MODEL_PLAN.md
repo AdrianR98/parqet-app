@@ -582,3 +582,42 @@ Intentional transition/breakage note:
 - Legacy tables (`market_*`) are intentionally retained in this slice.
 - Runtime/API/admin repository code still reads legacy tables until Slice 3 query rewrite and cutover.
 - During transition, dual-schema coexistence is expected; this is intentional and documented.
+
+## 20) Implementation status: Slice 4 latestMarketPrice read contract (PR #399)
+
+Implemented repository functions (Asset-oriented, new schema):
+
+- `findAsset(input)`:
+  - resolves `assets` identity by:
+    - `{ isin }`, or
+    - `{ assetKeyType, assetKeyValue }`
+- `findLatestMarketPriceByAssetKey(input)`:
+  - derives latest market price from `asset_daily_prices`
+  - key input: `assetKeyType + assetKeyValue` (optional provider filter)
+- `findLatestMarketPricesByAssetKeys(input)`:
+  - bulk latest-market-price read for many keys
+  - returns a keyed snapshot map for efficient multi-asset lookup
+
+Implemented service helpers:
+
+- `getLatestMarketPriceByIsin({ isin, provider? })`
+- `getLatestMarketPricesByIsins({ isins, provider? })`
+
+Snapshot shape returned by latest-market-price reads:
+
+- `assetId`
+- `assetKeyType`
+- `assetKeyValue`
+- `isin`
+- `provider`
+- `priceAmount`
+- `currency`
+- `priceDate`
+- `priceTimestamp`
+- `updatedAt`
+
+Hard boundary reaffirmed:
+
+- latest-market-price is derived from `asset_daily_prices` only.
+- No `asset_latest_prices` persisted table was introduced.
+- No private/user runtime `latestTradePrice` persistence was introduced in reference-data tables.
