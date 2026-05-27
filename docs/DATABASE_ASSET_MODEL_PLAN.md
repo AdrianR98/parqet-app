@@ -559,3 +559,26 @@ None in this planning task. No Parqet API, yfinance, OpenFIGI, or other provider
 ## Privacy/data impact
 
 None in this planning task. No private portfolio payloads/tokens/exports were used.
+
+## 19) Implementation status: first schema slice (PR #399)
+
+- Implemented as additive migration: `006_asset_reference_data_schema.sql`.
+- Added target tables and indexes for:
+  - `assets`
+  - `asset_symbol_mappings`
+  - `asset_daily_prices`
+  - `dividend_events`
+  - `corporate_action_events`
+  - `reference_data_sources`
+  - `reference_data_import_runs`
+  - `reference_data_import_run_items`
+  - `reference_data_request_logs`
+- Explicitly not created:
+  - `asset_latest_prices`
+  - `asset_events`
+
+Intentional transition/breakage note:
+
+- Legacy tables (`market_*`) are intentionally retained in this slice.
+- Runtime/API/admin repository code still reads legacy tables until Slice 3 query rewrite and cutover.
+- During transition, dual-schema coexistence is expected; this is intentional and documented.

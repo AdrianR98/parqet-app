@@ -40,6 +40,8 @@ Last reviewed: 2026-05-27
   - #396 transfer/cost-basis semantics with reference-event context,
   - #397 currency/FX boundary for PRM money metrics,
   - #398 source/timestamp/confidence provenance fields.
+- First implementation slice is now started on the same branch/PR thread: additive schema migration `006_asset_reference_data_schema.sql` introduces target Asset/reference-data tables while legacy `market_*` tables remain active during transition.
+- Intentional transition state: runtime/admin reads still use legacy tables until repository/service cutover slices are implemented.
 
 ## Current Baseline
 
