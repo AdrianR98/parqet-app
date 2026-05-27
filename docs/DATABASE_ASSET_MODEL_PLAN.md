@@ -6,226 +6,262 @@ Branch rule: all Phase 4 tasks stay on `refactor/phase-4-database-asset-model` (
 
 ## 1) Current DB / market-data inventory
 
-### Table/entity/module inventory
+### Current tables/entities
 
-| Current name | Current purpose | Current domain term | Main fields (visible) | Current read/write paths | Current consumers | Risk |
-| --- | --- | --- | --- | --- | --- | --- |
-| `market_instruments` | Core market identity + display metadata + status flags keyed by ISIN | Instrument (legacy) | `id`, `isin` (unique), `name`, `display_name`, `asset_type`, `currency`, `wkn`, `metadata_source`, `name_source`, `display_name_source`, `market_data_status`, successor fields, timestamps | Read/write via `src/lib/market-data/db/repository-core.ts`; upsert in runtime unknown-request path and admin/CLI import flows | `/api/parqet/assets` overlay, `/api/market-data/history`, admin status/instruments/unmapped | Medium |
-| `market_symbol_mappings` | Provider symbol binding to instrument | Instrument mapping (legacy) | `instrument_id`, `provider`, `symbol`, `exchange`, `currency`, `is_primary`, `is_active`, `verified_at`, `notes`; unique `(provider,symbol)` and `(instrument_id,provider,symbol)` | Read/write in repository and scripts (`promote`, `transfer`, `add candidate`, manual import) | history API symbol resolution, admin mappings/unmapped/status | High (global uniqueness + provider dependence) |
-| `market_prices_daily` | Daily OHLCV history | Instrument price history (legacy) | `instrument_id`, `provider`, `symbol`, `date`, `open/high/low/close/adj_close`, `volume`, `currency`, `source`, `imported_at`; PK `(instrument_id,provider,date)` | Upsert by backfill/incremental/json import; read via history service and admin overviews | `/api/market-data/history`, admin mappings/instruments/status | High (growth + latest query cost) |
-| `market_actions` | Generic market actions including dividends/splits | Instrument action history (legacy) | `instrument_id`, `provider`, `symbol`, `action_type`, `date`, `amount`, `ratio`, `currency`, `source`, `imported_at`; PK `(instrument_id,provider,action_type,date)` | Upsert by imports/incremental; read in history service/admin | `/api/market-data/history` (currently dividend-only projection), admin status/instruments/unmapped | High (mixed event semantics) |
-| `market_data_runs` | Import run header/provenance | Run/provenance | `id`, `provider`, `run_type`, `status`, `started_at`, `finished_at`, counters, `error_message` | Create/finish in scripts and repository helpers | admin runs | Low |
-| `market_data_run_items` | Per-symbol result for a run | Run item/provenance | `run_id`, `instrument_id`, `provider`, `symbol`, `status`, imported counters, first/last date, error | Write in scripts/repo; read in admin runs query | admin runs | Low |
-| `market_data_requests` | Runtime queue of unknown ISINs seen in user flow | Request queue | `isin` (unique), metadata snapshots, `seen_count`, `status`, `source`, timestamps | Written best-effort from `/api/parqet/assets` via `recordUnknownMarketDataRequestsFromAssets`; read in admin requests | admin requests + operator workflow | Medium |
-| `market_reference_sources` | Metadata source registry (trading universe, imports) | Reference source | `source_key`, `display_name`, `source_type`, file/row metadata | Written by import/sync tooling; read in status summary | admin status | Low |
-| `market_reference_instruments` | Imported reference universe rows | Reference instrument (legacy wording) | ISIN/WKN/name/symbol/mnemonic/exchange/MIC/type/category/segment/raw payload | Written by reference import scripts and enrichment helpers | enrichment flows, status reporting | Medium |
+- `market_instruments`
+- `market_symbol_mappings`
+- `market_prices_daily`
+- `market_actions`
+- `market_data_runs`
+- `market_data_run_items`
+- `market_data_requests`
+- `market_reference_sources`
+- `market_reference_instruments`
 
-### Additional module inventory (non-table)
+### Current read/write paths
 
-| Module | Current purpose | Current term use | Risk |
-| --- | --- | --- | --- |
-| `src/lib/market-data/service.ts` | DB-only history API orchestration; resolves primary mapping, reads daily prices/actions | Instrument-first naming in messages and contracts | Medium |
-| `src/lib/market-data/runtime-requests.ts` | Builds unknown-ISIN request candidates from runtime assets | Asset input -> Instrument DB rows | Medium |
-| `src/lib/market-data/db/admin-*.ts` + admin routes | Read-only admin filtering/triage/status | Instrument/mapping terminology | Low |
-| `scripts/*market-data*.mjs` + `scripts/yfinance/*` | Provider export/import/validation/backfill/update workflows | Instrument terms, provider-centric | Medium |
+- Repository/data access: `src/lib/market-data/db/repository-core.ts` and admin db modules.
+- Runtime read paths:
+  - `/api/market-data/history` -> reads daily prices/actions from DB only.
+  - `/api/parqet/assets` -> reads instrument metadata/mappings and logs unknown ISIN requests.
+- Admin read paths:
+  - `/api/admin/market-data/status`
+  - `/api/admin/market-data/instruments`
+  - `/api/admin/market-data/mappings`
+  - `/api/admin/market-data/unmapped`
+  - `/api/admin/market-data/requests`
+  - `/api/admin/market-data/runs`
+- Provider/import workflows: scripts in `scripts/*market-data*.mjs` and `scripts/yfinance/*`.
 
-### Visible index/query pattern inventory
+### Current query/index patterns (visible)
 
-- `market_instruments`: unique ISIN lookups dominate (`getInstrumentByIsin`, joins by `id`).
-- `market_symbol_mappings`: provider/symbol uniqueness, primary/active selection, verified scans.
-- `market_prices_daily`: time-series scans by `(instrument_id, provider, date)` and latest-date queries.
-- `market_actions`: scans by `(instrument_id, provider, date)` and action-type filtering.
-- Admin overview queries currently materialize broad CTE aggregates without pagination at SQL level, then API-layer filter/slice.
+- ISIN identity lookups and joins from `market_instruments`.
+- Provider/symbol uniqueness and primary selection in `market_symbol_mappings`.
+- Range and latest-date history scans in `market_prices_daily`.
+- Mixed action-type scans in `market_actions`.
+- Admin CTE summary/coverage queries over instruments, mappings, prices, actions.
+
+### Privacy boundary (current)
+
+- Private user Parqet activity/trade data remains runtime/browser/server cache data.
+- Public/reference market data is persisted in server-side market-data DB tables.
+- Runtime request logging stores ISIN/reference hints only, not private activity payloads.
 
 ## 2) Current data flow
 
 ### Provider/import flow into DB
 
-1. Operator/admin workflow selects mapped symbols (`market_symbol_mappings`, mostly `yfinance`).
-2. `scripts/yfinance/export-history.py` fetches prices/actions.
-3. JSON import or incremental/backfill scripts call repository upserts.
-4. Upserts write `market_prices_daily` + `market_actions`; run provenance written to `market_data_runs` + `market_data_run_items`.
-5. Mapping/validation workflows update `market_symbol_mappings` (verified, primary, notes/status).
+1. Symbol mappings are curated/validated (mainly yfinance).
+2. Export scripts fetch public/reference price/action data.
+3. Import/backfill/incremental scripts upsert DB tables.
+4. Run provenance is stored in run + run-item tables.
+5. Admin surfaces review coverage, mapping quality, and import status.
 
 ### DB read flow into admin
 
-- `/api/admin/market-data/status` -> summary CTE counts + reference source counts.
-- `/api/admin/market-data/instruments` -> instrument overview with primary mapping and latest/first/last prices.
-- `/api/admin/market-data/mappings` -> mapping overview + latest per-symbol close.
-- `/api/admin/market-data/unmapped` -> triage list for missing/failed/unverified/legacy/derivative candidates.
-- `/api/admin/market-data/requests` -> unknown ISIN queue from runtime sightings.
-- `/api/admin/market-data/runs` -> run/run-item operational provenance.
+- Admin endpoints consume repository summary/overview/triage queries for operations and curation.
 
 ### DB read flow into API/dashboard/PRM
 
-- `/api/market-data/history` reads via `getMarketDataHistory` (DB-only).
-- `/api/parqet/assets` reads instrument metadata + primary mappings for overlay and records unknown requests best-effort.
-- PRM/dashboard valuation still primarily runtime-derived; market DB currently enriches identity/display and history endpoints, not canonical valuation metrics.
+- History API serves DB-only price history.
+- Assets API overlays DB reference metadata/mappings on runtime asset models.
+- PRM valuation integration is planned in Phase 4 follow-up slices (#395/#397).
 
-### Privacy boundary
+## 3) Naming layers (canonical for Phase 4)
 
-- Private user portfolio/activity data remains in Parqet runtime pipeline and browser/server runtime caches.
-- Public/reference market data is stored in server-side market-data DB tables above.
-- Runtime unknown-request queue stores only ISIN + lightweight metadata hints, not private activity payloads.
+Source-of-truth vocabulary: `docs/DOMAIN_LANGUAGE.md`.
 
-## 3) Target Asset-oriented terminology
+### A) Database table names (target)
 
-Current `Instrument` naming remains for legacy documentation of current state only. Target naming for Phase 4 storage model:
+- `assets`
+- `asset_symbol_mappings`
+- `asset_daily_prices`
+- `dividend_events`
+- `corporate_action_events`
+- `reference_data_sources`
+- `reference_data_import_runs`
+- `reference_data_import_run_items`
+- `reference_data_request_logs`
 
-- `asset_identities` (target for `market_instruments`)
-- `asset_symbol_mappings` (target for `market_symbol_mappings`)
-- `asset_daily_prices` (target for `market_prices_daily`)
-- `asset_dividend_events` (split from current generic action table)
-- `asset_corporate_action_events` (split for split/merge/capital events)
-- optional umbrella `asset_events` read model (normalized event stream view/table if needed)
-- `market_import_runs` + `market_import_run_items` (rename of run provenance tables)
-- `market_price_observations` (or fields inside daily table) with explicit provenance fields:
-  - `price_source_provider`
-  - `price_source_symbol`
-  - `price_source_exchange`
-  - `source_event_time` / `as_of_time`
-  - `imported_at`
-  - `source_confidence` / `validation_status`
+### B) Database column names (target style)
 
-## 4) Price history scale strategy
+- Use `asset_id` (not `instrument_id`).
+- Keep normalized technical columns explicit: `provider`, `symbol`, `currency`, `source`, timestamps.
+- Price fields remain daily-bar oriented in `asset_daily_prices` (`open`, `high`, `low`, `close`, optional `adj_close`, `volume`).
+- Event tables keep explicit event-type fields per table (no generic catch-all required in first target).
 
-### Expected growth
+### C) Low-level query/repository types
 
-- Daily bars scale linearly with `asset_count * provider_count * trading_days`.
-- With multi-year retention and expanding universe, `market_prices_daily` becomes dominant table volume.
+- Repository contracts should migrate to Asset naming (`Asset`, `AssetSymbolMapping`, `AssetDailyPrice`, `DividendEvent`, `CorporateActionEvent`, `ReferenceDataImportRun`).
+- Query/helper functions should prefer explicit names such as `getLatestDailyPriceByAssetIsin`.
+
+### D) Domain model names
+
+- Use `Asset` / `GlobalAsset`.
+- `AssetEvent` remains domain umbrella term.
+- `DividendEvent` and `CorporateActionEvent` remain explicit subtypes.
+
+### E) API/ViewModel names
+
+- Keep `GlobalAssetViewModel` naming for app/domain output.
+- Runtime/API contracts must not reintroduce Instrument as target domain term.
+
+### F) Import/script names
+
+- Prefer `reference-data-*` naming over broad `market-data-*` where touched in follow-up implementation.
+- Scripts remain operational/provider scoped, but naming should reflect reference-data boundary.
+
+## 4) Current -> target table mapping matrix
+
+| Current | Target direction | Notes |
+| --- | --- | --- |
+| `market_instruments` | `assets` | Replace legacy Instrument table naming with Asset identity naming. |
+| `market_symbol_mappings` | `asset_symbol_mappings` | Preserve provider/symbol mapping semantics with Asset naming. |
+| `market_prices_daily` | `asset_daily_prices` | Persisted public/reference daily prices. |
+| `market_actions` | split into `dividend_events` + `corporate_action_events` | Event split required; no mandatory unified `asset_events` table in first target. |
+| `market_data_runs` | `reference_data_import_runs` | Rename to reference-data import provenance scope. |
+| `market_data_run_items` | `reference_data_import_run_items` | Per-item provenance under reference-data import naming. |
+| `market_data_requests` | `reference_data_request_logs` | Runtime-discovered unknown asset requests as reference-data queue/log. |
+| `market_reference_sources` | `reference_data_sources` | Source registry naming aligned to reference-data scope. |
+| `market_reference_instruments` | mapped into `assets` + `reference_data_sources` provenance | Reference instrument rows feed asset identity enrichment; no Instrument target naming. |
+
+## 5) Price concept clarification
+
+- `asset_daily_prices`: persisted public/reference daily provider prices.
+- `latestMarketPrice`: derived by query/repository function from `asset_daily_prices` (latest daily row per asset/provider policy).
+- `latestTradePrice`: private runtime value derived from Parqet user activities.
+- Hard rule: no private user-derived `latestTradePrice` persistence in public/reference DB tables.
+
+### Explicitly not target table now
+
+- `asset_latest_prices` is rejected as a normal persisted target table for this phase.
+- Reason: latest market price is derived from `asset_daily_prices`; adding a separate persisted latest-price table is optional later optimization only if query/performance evidence requires it.
+
+## 6) AssetEvent clarification
+
+- `AssetEvent` is a domain/code umbrella term (per `docs/DOMAIN_LANGUAGE.md`).
+- Database first target remains explicit event tables:
+  - `dividend_events`
+  - `corporate_action_events`
+- No required `asset_events` DB table in first schema target.
+
+### Optional later direction
+
+- A shared base/event-union table can be considered later only if dedupe, provenance unification, or polymorphic event query pressure makes it necessary.
+
+## 7) Price history scale strategy
+
+### Growth risk
+
+- `asset_daily_prices` remains the main volume driver (`assets * providers * trading days`).
 
 ### Primary query patterns
 
-- latest price per asset/provider/symbol
-- range history by asset + period
-- admin scans for coverage gaps (has prices / latest date)
+- latest daily price per asset/provider
+- date-range history per asset
+- admin coverage checks (has prices, latest date)
 
-### Index and constraint direction
+### Likely index/constraint direction
 
-- Keep uniqueness at asset-provider-date granularity (`asset_id`, `provider`, `date`).
-- Add/keep latest-read friendly index on `(asset_id, provider, date desc)`.
-- Keep provider/symbol/date access path for operational checks.
-- Consider partial index for active primary mappings in mapping table.
+- uniqueness at `asset_id + provider + date`
+- latest-read index on `(asset_id, provider, date desc)`
+- provider/symbol/date path for operational diagnostics
 
-### Deduplication strategy
+### Deduplication + provenance
 
-- Upserts remain idempotent by unique keys.
-- Normalize provider/symbol casing before write.
-- Preserve `source` + import timestamp for provenance and debugging.
+- idempotent upsert by unique keys
+- normalized provider/symbol
+- keep provenance columns (`source`, `imported_at`, provider/symbol context)
 
-### Partitioning decision
+### Partitioning stance
 
-- Not required in first Phase 4 slice.
-- Add partitioning trigger criteria (row count/size/query latency thresholds) and prepare migration path.
-- Candidate later strategy: range partition by `date` (year/quarter) with local indexes.
+- Not required now.
+- Revisit with explicit thresholds (row count, table size, query latency, maintenance cost).
 
-### Latest-price cache/read model
+## 8) Implications for linked issues
 
-- Add explicit latest-price read model (table or SQL view/materialized view) keyed by asset/provider.
-- Use it for overlay/valuation reads to avoid repeated `max(date)` scans.
-- Refresh on ingest (transactional upsert hook or scheduled refresh), never via UI-triggered provider calls.
+### #395 market-price overlay
 
-## 5) Market-price overlay implications (#395)
+- Implement repository function/read model for latest market price derived from `asset_daily_prices`.
+- Required fields: price amount, currency, date/timestamp, provider/source, freshness classification.
+- No provider calls from rendering/UI.
+- No silent substitution of `latestTradePrice` as market price.
 
-### Required DB read contract
+### #397 currency/FX
 
-Create a dedicated repository function/read model for "latest market price per Asset/ISIN" returning:
+- Native price currency lives on persisted daily price/event rows.
+- Reporting-currency conversion is a later FX layer concern.
+- Mixed-currency aggregates must remain explicit/guarded until FX exists.
 
-- `assetId` / `isin`
-- `priceAmount`
-- `priceCurrency`
-- `priceDate` and optional `priceTimestamp`
-- `provider` / `source`
-- freshness classification (`fresh`, `stale`, `missing`, `unknown`)
+### #396 transfer/cost-basis
 
-### PRM valuation field requirements
+- Cost basis remains activity-derived domain logic.
+- Reference DB may provide corporate-action context inputs only.
+- No persistence of private user transfer/trade values in reference tables.
 
-PRM valuation overlay should consume explicit fields only:
+### #398 source/timestamp/confidence
 
-- price amount
-- currency
-- date/timestamp
-- provider/source
-- freshness/staleness classification
+- Provenance fields should be explicit in price/event read models.
+- Freshness/staleness/confidence must be query-visible and auditable.
 
-### Guardrails
-
-- No provider calls from UI/rendering.
-- No silent `latestTradePrice -> marketPrice` substitution.
-- Missing market price must remain explicit (`missing`/`stale`) and auditable.
-
-## 6) Currency/FX implications (#397)
-
-- Native market price currency remains stored at price/event level (`currency`) and optionally asset identity default currency.
-- Future reporting-currency conversion should live in a separate FX layer/read model, not by mutating native price history.
-- Until FX is implemented:
-  - keep mixed-currency metrics explicitly labeled,
-  - block or mark aggregates that would imply converted totals,
-  - avoid pseudo-conversion using latest trade currency assumptions.
-
-## 7) Transfer/cost-basis implications (#396)
-
-- Cost basis remains activity-derived domain logic (Phase 3 boundaries), not market-price-table derived.
-- DB may need reference corporate-action metadata (split ratios/effective dates/successor hints) to support consistent transfer/cost-basis interpretation.
-- Transfer matching itself stays activity-derived; market DB should provide only reference context inputs.
-
-## 8) Phase 4 implementation slices (same branch/PR thread)
+## 9) Phase 4 implementation slices (revised)
 
 ### Slice 1: DB/model inventory and naming plan
 
-- Purpose: lock current inventory + target asset terminology and boundaries.
-- Likely files: `docs/DATABASE_ASSET_MODEL_PLAN.md`, `docs/PROJECT_STATUS.md`, optional boundary docs.
-- Risk: Low.
-- Verification: targeted `rg` inventory + doc review.
+- Purpose: lock naming and boundary decisions.
 - Breakage acceptable: No (docs only).
 
-### Slice 2: repository/query naming cleanup
+### Slice 2B: target schema draft using revised table names
 
-- Purpose: introduce Asset-oriented repository naming and adapter layer while preserving behavior.
-- Likely files: `src/lib/market-data/db/repository*.ts`, `types-core.ts`, admin db modules.
-- Risk: Medium.
-- Verification: targeted typecheck/tests for touched modules.
+- Purpose: draft target schema naming plan with:
+  - `assets`
+  - `asset_symbol_mappings`
+  - `asset_daily_prices`
+  - `dividend_events`
+  - `corporate_action_events`
+  - `reference_data_sources`
+  - `reference_data_import_runs`
+  - `reference_data_import_run_items`
+  - `reference_data_request_logs`
+- Breakage acceptable: No runtime breakage; planning/spec only until migration slice is explicitly approved.
+
+### Slice 3: repository/service rewrite to target names
+
+- Purpose: move low-level naming/contracts from Instrument/market_data_* to Asset/reference_data_*.
 - Breakage acceptable: No.
 
-### Slice 3: latest market price read model / overlay interface
+### Slice 4: latest market price read model for #395
 
-- Purpose: establish canonical latest-price query contract for #395.
-- Likely files: market-data repository/service/history overlay modules, PRM integration adapters.
-- Risk: High.
-- Verification: query-level tests + route contract checks.
+- Purpose: derive latest market price from `asset_daily_prices` via query/repository function.
+- Explicitly not: introducing `asset_latest_prices` as required persisted table.
 - Breakage acceptable: No.
 
-### Slice 4: event model split direction (`DividendEvent` / `CorporateActionEvent` / `AssetEvent`)
+### Slice 5: dividend/corporate-action event split
 
-- Purpose: separate event semantics from generic `market_actions`.
-- Likely files: schema planning docs + repository/event read-model modules.
-- Risk: High.
-- Verification: backfill/dedup checks + event projection tests.
-- Breakage acceptable: Controlled internal breakage only behind migration plan.
+- Purpose: split generic action model into `dividend_events` and `corporate_action_events`.
+- Breakage acceptable: controlled migration behavior only.
 
-### Slice 5: indexes/scale/dedupe strategy
+### Slice 6: indexes/scale/dedupe strategy
 
-- Purpose: optimize growth path and latest-price reads.
-- Likely files: migration plans (future), repository SQL, admin status metrics.
-- Risk: Medium-High.
-- Verification: explain-plan/perf checks in staging data.
-- Breakage acceptable: No for runtime contracts; migration windows planned.
-
-### Slice 6: docs/tests/final audit
-
-- Purpose: close Phase 4 with aligned docs, naming, and validation coverage.
-- Likely files: docs + tests around market-data repository/service contracts.
-- Risk: Medium.
-- Verification: full targeted verification suite for touched areas.
+- Purpose: enforce uniqueness, optimize latest/history queries, define partition trigger policy.
 - Breakage acceptable: No.
 
-## 9) Non-goals
+### Slice 7: final audit
 
+- Purpose: docs/contracts/tests alignment and final boundary checks.
+- Breakage acceptable: No.
+
+## 10) Non-goals
+
+- No schema migration in this task.
+- No runtime behavior/code changes in this task.
+- No provider calls.
 - No `SecurityLineage` implementation.
-- No UI lineage toggle.
-- No global Instrument rename outside DB/market-data scope unless explicitly planned.
-- No provider calls from rendering/UI routes.
-- No private user activity persistence in market-data reference tables.
+- No persistence of private user activity/trade prices in public/reference DB tables.
+- No Instrument as target naming.
+- No required target tables:
+  - `asset_latest_prices`
+  - `asset_events`
 
 ## API budget impact
 
