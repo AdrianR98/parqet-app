@@ -5,9 +5,9 @@ import {
   projectGlobalAssetsProductReadModel,
 } from "../../src/lib/parqet/global-assets/product-read-model";
 import {
-  buildGlobalAssetViewModelsFromProductReadModel,
   selectCanonicalSafeFieldProductSurfaceSource,
 } from "../../src/lib/parqet/global-assets/product-surface-selectors";
+import { buildGlobalAssetViewModelsFromProductReadModel } from "../../src/lib/view-models/global-asset-view-model-builder";
 import {
   selectCanonicalAssetTableSafeFieldSource,
   selectCanonicalDashboardSafeFieldSource,

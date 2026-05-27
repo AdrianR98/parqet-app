@@ -1,6 +1,6 @@
 # Calculation Model Plan (Phase 3)
 
-Status: active plan, Slice 3 UI/reporting aggregate extraction started  
+Status: active plan, Slice 4 PRM view-model builder boundary started  
 Linked issues: Refs #384, Refs #387, Refs #393  
 Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-model` (same branch / same PR thread)
 
@@ -41,6 +41,22 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
   - `src/lib/dashboard-cache-writer.ts`
   - `src/components/dashboard/AssetTable.tsx`
 - Result: UI/reporting files now consume calculation helpers instead of owning aggregation formulas directly.
+
+## Slice 4 implementation note (2026-05-27)
+
+- Product Read Model -> `GlobalAssetViewModel` projection was extracted from
+  `src/lib/parqet/global-assets/product-surface-selectors.ts` into
+  `src/lib/view-models/global-asset-view-model-builder.ts`.
+- `product-surface-selectors.ts` now owns only:
+  - Product Read Model read/validation
+  - source/guard selection
+  - blocked-metric and affected-field diagnostics.
+- Rewired consumers:
+  - `src/lib/dashboard-helpers.ts`
+  - `src/lib/reporting.ts`
+  - `tests/pipeline/global-assets-guarded-surface-migration.test.ts`
+- Projection math now reuses `calculateAvgBuyPrice` from
+  `src/lib/calculations/global-asset-metrics.ts`.
 
 ## 1. Current calculation inventory
 
@@ -202,15 +218,16 @@ Hard rule reaffirmed: UI components must not own metric calculation logic.
 - Verification command: `npm run build`
 - #393 sequencing: after Slice 1 boundary cleanup starts.
 
-Remaining direct calculation hotspots after Slice 3:
+Remaining direct calculation hotspots after Slice 4:
 - `src/lib/asset-detail.ts`
 - `src/app/(app)/dashboard/page.tsx`
-- `src/lib/parqet/global-assets/product-surface-selectors.ts`
 - `src/lib/reporting.ts`
 - `src/components/dashboard/asset-table-columns.tsx` (allocation ratio display formula)
 
 Recommended next slice focus:
-- Continue with Slice 4 by extracting PRM projection metric formulas (`avgBuyPrice`, portfolio row projection math, blocked-metric/affected-field policy) from `product-surface-selectors.ts` into dedicated calculation/gate helpers.
+- Continue with metric-gates/performance extraction from Product Read Model and
+  unify valuation-availability semantics so report/dashboard totals can share one
+  canonical nullability policy.
 
 ### Slice 3: Extract dividend + reconciliation calculators
 

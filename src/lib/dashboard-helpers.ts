@@ -4,12 +4,12 @@ import type { GlobalAssetViewModel, DashboardStats } from "./types";
 import { FIVE_DAYS_MS } from "./dashboard-cache";
 import type { ProductReadModelAssets } from "./parqet/global-assets/product-read-model";
 import {
-    buildGlobalAssetViewModelsFromProductReadModel,
     readGlobalAssetProductReadModel,
     selectCanonicalSafeFieldProductSurfaceSource,
     type CanonicalSafeFieldSelection,
 } from "./parqet/global-assets/product-surface-selectors";
 import { aggregateAssetValueTotals } from "./calculations/view-model-aggregates";
+import { buildGlobalAssetViewModelsFromProductReadModel } from "./view-models/global-asset-view-model-builder";
 
 export function resolveGlobalAssetProductGuardEnabled(rawValue?: string): boolean {
     const value = rawValue ?? process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED;

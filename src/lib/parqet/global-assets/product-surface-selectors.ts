@@ -1,4 +1,4 @@
-import type { GlobalAssetViewModel, PortfolioPosition } from "../../types";
+import type { GlobalAssetViewModel } from "../../types";
 import type {
   ProductReadModelAssetRow,
   ProductReadModelAssets,
@@ -310,82 +310,4 @@ export function selectGuardedProductSurfaceSource(
   input: SelectGuardedSourceInput,
 ): GuardedSourceSelection {
   return selectCanonicalSafeFieldProductSurfaceSource(input);
-}
-
-function toPortfolioPosition(entry: ProductReadModelAssetRow["portfolioBreakdown"][number]): PortfolioPosition {
-  return {
-    portfolioId: entry.portfolioId,
-    portfolioName: entry.portfolioName ?? entry.portfolioId,
-    netShares: entry.quantity ?? 0,
-    remainingCostBasis: entry.costBasis.amount ?? 0,
-    avgBuyPrice:
-      entry.quantity != null && entry.quantity > 0 && entry.costBasis.amount != null
-        ? entry.costBasis.amount / entry.quantity
-        : null,
-    latestTradePrice: null,
-    marketPrice: null,
-    positionValue: entry.marketValue.amount,
-    unrealizedPnL: entry.unrealizedPnL.amount,
-    totalDividendNet: entry.dividendsNet.amount ?? 0,
-  };
-}
-
-export function buildGlobalAssetViewModelsFromProductReadModel(
-  productReadModel: ProductReadModelAssets,
-): GlobalAssetViewModel[] {
-  return productReadModel.assets.map((row) => {
-    const isin = row.identity.compatibilityIsin ?? row.identity.stableKey ?? row.display.displayName;
-    const instrumentMetadataStatus: GlobalAssetViewModel["instrumentMetadataStatus"] =
-      row.identity.compatibilityIsin &&
-      row.display.displayName.trim().toUpperCase() === row.identity.compatibilityIsin.trim().toUpperCase()
-        ? "missing_name"
-        : "ok";
-    const portfolioBreakdown = row.portfolioBreakdown.map(toPortfolioPosition);
-    const quantity = row.quantity ?? 0;
-    const remainingCostBasis = row.costBasis.amount ?? 0;
-
-    // Phase-3 transition: continuity counters stay shape-compatible but are
-    // explicitly non-canonical placeholders for legacy runtime consumers.
-    return {
-      isin,
-      portfolioIds: portfolioBreakdown.map((entry) => entry.portfolioId),
-      portfolioNames: portfolioBreakdown.map((entry) => entry.portfolioName),
-      portfolioBreakdown,
-      activityCount: 0,
-      buyCount: 0,
-      sellCount: 0,
-      dividendCount: 0,
-      totalBoughtShares: 0,
-      totalSoldShares: 0,
-      netShares: quantity,
-      totalInvestedGross: remainingCostBasis,
-      remainingCostBasis,
-      avgBuyPrice: quantity > 0 ? remainingCostBasis / quantity : null,
-      latestTradePrice: null,
-      marketPrice: row.marketValue.amount,
-      marketPriceAt: null,
-      marketPriceSource: null,
-      positionValue: row.marketValue.amount,
-      unrealizedPnL: row.unrealizedPnL.amount,
-      totalDividendNet: row.dividendsNet.amount ?? 0,
-      latestActivityAt: row.latestActivityAt,
-      name: row.display.displayName,
-      symbol: row.display.symbol,
-      ticker: row.display.symbol,
-      wkn: row.display.wkn,
-      metadataSource: null,
-      nameSource: null,
-      displayNameSource: null,
-      metadataUpdatedAt: null,
-      instrumentMetadataStatus,
-      instrumentMetadataError:
-        instrumentMetadataStatus === "ok"
-          ? null
-          : `Instrumentenname fehlt in market_instruments für ISIN ${isin}`,
-      instrument: (row as { instrument?: GlobalAssetViewModel["instrument"] }).instrument ?? null,
-      metadata: null,
-      externalMetadata: null,
-      assetMeta: null,
-    };
-  });
 }

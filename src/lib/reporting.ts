@@ -7,7 +7,6 @@ import {
 } from "./app-settings";
 import type { GlobalAssetViewModel, ReconciliationWarning } from "./types";
 import {
-    buildGlobalAssetViewModelsFromProductReadModel,
     readGlobalAssetProductReadModel,
     selectCanonicalSafeFieldProductSurfaceSource,
     type CanonicalSafeFieldSelection,
@@ -17,6 +16,7 @@ import {
     aggregateAssetValueTotals,
     aggregatePortfolioBreakdownByName,
 } from "./calculations/view-model-aggregates";
+import { buildGlobalAssetViewModelsFromProductReadModel } from "./view-models/global-asset-view-model-builder";
 
 export type ReportAssetRow = {
     name: string;
