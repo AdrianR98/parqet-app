@@ -44,6 +44,7 @@ Last reviewed: 2026-05-27
 - Intentional transition state: runtime/admin reads still use legacy tables until repository/service cutover slices are implemented.
 - Slice 4 latest-market-price read support is now started on the same branch/PR thread: Asset-oriented repository/service functions read from `assets` + `asset_daily_prices` and derive latest market price snapshots without introducing `asset_latest_prices`.
 - Migration `006_asset_reference_data_schema.sql` has now been manually validated locally by the user via `npm run db:market:migrate`; target tables were created and legacy `market_*` tables remain during staged transition.
+- Phase 4 local backfill utility now exists: `npm run db:market:backfill:asset-reference` (optional `-- --dry-run`) to copy legacy `market_*` data into new Asset/reference-data tables without dropping legacy tables.
 
 ## Current Baseline
 

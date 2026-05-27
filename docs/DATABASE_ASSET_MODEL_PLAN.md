@@ -665,3 +665,44 @@ Release recommendation status:
 
 - Local/test validation is successful.
 - Production migration rollout is still not recommended until repository/service cutover and transition checks are stable.
+
+## 22) Legacy-to-target backfill script (Phase 4)
+
+Script:
+
+- `npm run db:market:backfill:asset-reference`
+- dry-run: `npm run db:market:backfill:asset-reference -- --dry-run`
+
+File:
+
+- `scripts/backfill-asset-reference-data.mjs`
+
+Behavior:
+
+- Idempotent legacy-to-target upsert/copy flow from `market_*` to new Asset/reference-data tables.
+- Default mode writes and commits.
+- `--dry-run` executes the same mapping/upsert logic inside one DB transaction and rolls it back.
+- Legacy tables are never dropped, truncated, or mutated.
+
+Implemented source -> target mapping:
+
+- `market_instruments` -> `assets` (`asset_key_type='isin'`, `asset_key_value=isin`)
+- `market_symbol_mappings` -> `asset_symbol_mappings`
+- `market_prices_daily` -> `asset_daily_prices`
+- `market_reference_sources` -> `reference_data_sources`
+- `market_data_runs` -> `reference_data_import_runs` (legacy summary mapped to `summary_json`)
+- `market_data_run_items` -> `reference_data_import_run_items`
+- `market_data_requests` -> `reference_data_request_logs` (as `parqet_runtime` / `asset_discovery`)
+- `market_actions` -> `dividend_events` (dividend/capital_gain) and `corporate_action_events` (split/reverse_split/merger/spin_off/spinoff/corporate_action) when date is present
+
+Conservative unresolved/skip rules:
+
+- Rows that cannot be mapped to a safe `assets` identity are skipped and counted.
+- `market_actions` rows with unknown `action_type` are skipped and counted.
+- `market_actions` rows with classification but missing date are skipped and counted.
+- `market_reference_instruments` rows without valid ISIN are counted as unresolved; no synthetic asset identities are created.
+
+Transition note:
+
+- Backfill exists to populate new tables for staged cutover/parity checks.
+- Legacy `market_*` tables remain in place until repository/admin/runtime parity is verified.
