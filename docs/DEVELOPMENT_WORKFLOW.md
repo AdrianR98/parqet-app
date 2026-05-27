@@ -1,6 +1,6 @@
 # Development Workflow
 
-Status: active 
+Status: active
 
 ## Operating Model
 
@@ -13,7 +13,6 @@ The repository uses a controlled collaboration model:
 
 English is the source-of-truth language. German translation files are maintained through the Translation-Agent process after activation.
 
-
 ## Source Of Truth
 
 Operational rules live in `prompts/*.yaml`.
@@ -25,8 +24,6 @@ Human-readable workflow rules live in this document.
 Issues contain work-specific details. Chat conversations are used for specification and review, but merged repository files become the durable source of truth.
 
 If YAML and this document conflict for Codex or agent behavior, the YAML rule governs operationally and the conflict must be fixed.
-
-The GitHub Project Board is a working view, not the source of truth. Board setup and label guidance live in `docs/GITHUB_PROJECT_BOARD.md`.
 
 ## API Budget Principle
 
@@ -143,8 +140,8 @@ All agents stop on privacy or secret suspicion. No agent may enrich, copy, commi
 ### Current Agents
 
 - Codex: bounded implementation agent; never creates PRs and never merges.
-- Issue-Agent: limited metadata Automation-Agent after implementation; see P0.1 rules before use.
-- Translation-Agent: manually started workflow after P0.1-6; may create Draft translation PRs.
+- Issue-Agent: limited metadata Automation-Agent after separate activation.
+- Translation-Agent: manually started workflow after separate activation; may create Draft translation PRs.
 - Docs-Agent: ChatGPT role for documentation impact checks; no app code.
 - Review-Agent: ChatGPT role for PR reviews; may comment or merge only when explicitly instructed.
 - CI-Agent: documented/manual role; may later summarize CI failures; no automatic fixes.
@@ -270,7 +267,7 @@ For API/data-facing changes, reviewers must look for hidden provider calls, broa
 
 Before v1 release-readiness decisions, reviewers should use `docs/V1_API_BUDGET_QA_CHECKLIST.md` to manually verify provider-call-safe local UI flows without requiring real provider calls.
 
-After larger PRs, check whether roadmap, docs, issues and changelog need updates.
+After larger PRs, check whether durable docs, issues and changelog need updates.
 
 ## Review Levels
 
@@ -320,7 +317,6 @@ Check documentation as relevant:
 - `docs/V1_GUARDRAILS.md` for v1 data, API-budget, privacy, diagnostics and export rules.
 - `docs/V1_API_BUDGET_QA_CHECKLIST.md` for manual provider-call-safe UI flow verification before v1 release readiness.
 - `docs/LOCAL_QUICKSTART.md` for local usage and explicit refresh guidance.
-- `docs/ROADMAP.md` for larger direction or priority changes.
 - `docs/PROJECT_PRODUCT_BRIEF.md` for product goal/scope changes.
 - `docs/ARCHITECTURE.md` for current architecture/target-state changes.
 - ADRs for durable architecture, workflow or data decisions, including `docs/adr/0005-v1-snapshot-cache.md` for the v1 snapshot cache and production storage boundary.
