@@ -102,7 +102,7 @@ agents:
       - modify repository files
   Translation-Agent:
     type: Automation-Agent
-    current_level: own PR after P0.1-6 implementation
+    current_level: own PR after separate activation
     trigger_v1: workflow_dispatch only
     allowed_outputs:
       - branch
@@ -197,7 +197,7 @@ github:
     - Update PR body after review fixes when scope, files, verification, risks or known gaps changed.
   reviews:
     levels:
-      Mini: small docs/prompt/text/template changes without app code
+      Mini: small docs/prompt/text fixes without app code
       Normal: standard code, medium docs/governance, scripts, package.json, UI
       Full: Auth/OAuth, tokens, Parqet API, data pipeline, persistence, caching, security, Branch Protection, large refactors
     categories:
