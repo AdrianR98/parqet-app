@@ -129,41 +129,20 @@ export type PortfolioPosition = {
  * - warning counters direkt am Asset
  *
  * Runtime ViewModel für Dashboard-/Detail-Surfaces.
- * Phase 2 nutzt diesen Typ als Ersatz für den entfernten AssetSummary-Runtime-View-Typ.
+ * Phase 2 nutzt diesen Typ als Ersatz für den entfernten Legacy-Runtime-Summary-Typ.
+ *
+ * Phase 3 (#387 / #393):
+ * Dieses Runtime-ViewModel bleibt vorerst kompatibel, wird aber explizit in
+ * Boundary-Gruppen getrennt, damit spätere Calculation-Module klar von
+ * Display-/Metadata- und Übergangsfeldern getrennt werden.
  */
 
-export type GlobalAssetViewModel = {
+/**
+ * Identity + Display:
+ * UI-identifizierende und benennende Felder. Keine finanzielle Berechnungslogik.
+ */
+export type GlobalAssetViewModelIdentityDisplayFields = {
   isin: string;
-
-  portfolioIds: string[];
-  portfolioNames: string[];
-
-  portfolioBreakdown: PortfolioPosition[];
-
-  activityCount: number;
-  buyCount: number;
-  sellCount: number;
-  dividendCount: number;
-
-  totalBoughtShares: number;
-  totalSoldShares: number;
-  netShares: number;
-
-  totalInvestedGross: number;
-  remainingCostBasis: number;
-  avgBuyPrice: number | null;
-
-  latestTradePrice: number | null;
-  marketPrice: number | null;
-  marketPriceAt: string | null;
-  marketPriceSource: string | null;
-
-  positionValue: number | null;
-  unrealizedPnL: number | null;
-
-  totalDividendNet: number;
-
-  latestActivityAt: string | null;
 
   name?: string | null;
   assetName?: string | null;
@@ -173,7 +152,41 @@ export type GlobalAssetViewModel = {
   symbol?: string | null;
   ticker?: string | null;
   tickerSymbol?: string | null;
+  wkn?: string | null;
+};
 
+/**
+ * Calculated metrics:
+ * Fachliche Kennzahlen, die langfristig aus dedizierten Calculation-Modulen kommen sollen.
+ */
+export type GlobalAssetViewModelMetricFields = {
+  netShares: number;
+  remainingCostBasis: number;
+  avgBuyPrice: number | null;
+  latestTradePrice: number | null;
+  marketPrice: number | null;
+  marketPriceAt: string | null;
+  marketPriceSource: string | null;
+  positionValue: number | null;
+  unrealizedPnL: number | null;
+  totalDividendNet: number;
+};
+
+/**
+ * Portfolio breakdown fields:
+ * Scope-fähige Portfolio-Anteile pro Asset.
+ */
+export type GlobalAssetViewModelPortfolioBreakdownFields = {
+  portfolioIds: string[];
+  portfolioNames: string[];
+  portfolioBreakdown: PortfolioPosition[];
+};
+
+/**
+ * Metadata fields:
+ * Anzeige-/Referenzmetadaten, keine primäre Kennzahlenquelle.
+ */
+export type GlobalAssetViewModelMetadataFields = {
   wkn?: string | null;
   curatedName?: string | null;
   metadataSource?: string | null;
@@ -190,6 +203,45 @@ export type GlobalAssetViewModel = {
   externalMetadata?: Partial<AssetMetadata> | null;
   assetMeta?: Partial<AssetMetadata> | null;
 };
+
+/**
+ * Temporary continuity fields (Phase 3 transition):
+ * Diese Felder stammen aus der Legacy-Activity->ViewModel-Pipeline und bleiben
+ * vorübergehend für Runtime-Kompatibilität bestehen.
+ *
+ * Wichtig:
+ * - nicht als kanonische Calculation-Snapshot-Felder behandeln
+ * - später in dedizierte Calculation-/Audit-Strukturen verschieben oder entfernen
+ */
+export type GlobalAssetViewModelTemporaryContinuityFields = {
+  activityCount: number;
+  buyCount: number;
+  sellCount: number;
+  dividendCount: number;
+  totalBoughtShares: number;
+  totalSoldShares: number;
+  totalInvestedGross: number;
+  latestActivityAt: string | null;
+};
+
+export const GLOBAL_ASSET_TEMPORARY_CONTINUITY_FIELD_KEYS: ReadonlyArray<
+  keyof GlobalAssetViewModelTemporaryContinuityFields
+> = [
+  "activityCount",
+  "buyCount",
+  "sellCount",
+  "dividendCount",
+  "totalBoughtShares",
+  "totalSoldShares",
+  "totalInvestedGross",
+  "latestActivityAt",
+];
+
+export type GlobalAssetViewModel = GlobalAssetViewModelIdentityDisplayFields &
+  GlobalAssetViewModelMetricFields &
+  GlobalAssetViewModelPortfolioBreakdownFields &
+  GlobalAssetViewModelMetadataFields &
+  GlobalAssetViewModelTemporaryContinuityFields;
 
 /**
  * ============================================================

@@ -324,10 +324,11 @@ export function useDashboardData(): UseDashboardDataResult {
     ];
     const rawGlobalAssetProductReadModel = cached.globalAssetProductReadModel ?? null;
     const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-      currentAssets: cachedAssets,
+      runtimeFallbackAssets: cachedAssets,
       productReadModel: rawGlobalAssetProductReadModel,
       guardEnabled: guardedGlobalAssetProductEnabled,
     });
+    // This selection may still resolve to runtime fallback for compatibility.
     const selectedAssets = splitAssetsByPosition(
       canonicalSafeFieldSelection.assets,
     );

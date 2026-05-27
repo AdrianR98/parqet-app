@@ -1,8 +1,15 @@
 # Calculation Model Plan (Phase 3)
 
-Status: planning only  
+Status: active plan, Slice 1 boundary bootstrap started  
 Linked issues: Refs #384, Refs #387, Refs #393  
 Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-model` (same branch / same PR thread)
+
+## Slice 1 implementation note (2026-05-27)
+
+- First boundary typing was introduced in code for `GlobalAssetViewModel` field groups (identity/display, metrics, portfolio breakdown, metadata, temporary continuity).
+- Runtime fallback selection was reclassified from generic PRM-unavailable wording to explicit `runtime_assets_fallback`.
+- `currentAssets` naming in canonical-safe-source selectors/helpers was replaced with `runtimeFallbackAssets` to reflect non-canonical fallback semantics.
+- #393 remains open: fields are classified and documented, but not yet removed.
 
 ## 1. Current calculation inventory
 

@@ -2,7 +2,7 @@
 
 Status: Active baseline aligned to current architecture
 Owner: AdrianR98
-Last reviewed: 2026-05-26
+Last reviewed: 2026-05-27
 
 ## Active Documentation Refactor Context
 
@@ -20,6 +20,7 @@ Last reviewed: 2026-05-26
 - Refs #384, Refs #387, Refs #393: Phase 3 planning baseline is documented in `docs/CALCULATION_MODEL_PLAN.md`.
 - Scope is planning/documentation only in this step; runtime extraction is intentionally deferred to follow-up slices on `refactor/phase-3-calculation-model`.
 - #393 remains active technical debt and is explicitly sequenced as part of the first implementation slice, not as final architecture.
+- Slice 1 boundary bootstrap is now in progress on `refactor/phase-3-calculation-model`: runtime fallback classification is explicit (`runtime_assets_fallback`) and `GlobalAssetViewModel` field groups are typed/documented for later extraction.
 
 ## Current Baseline
 

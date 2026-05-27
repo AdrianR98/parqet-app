@@ -201,21 +201,22 @@ export function loadLocalReportModel(): LocalReportModel | null {
         resolvedScope.selectedPortfolioIds.length > 0
             ? resolvedScope.selectedPortfolioIds
             : cache.selectedPortfolioIds;
-    const currentAssets = [...cache.activeAssets, ...cache.closedAssets];
+    const runtimeFallbackAssets = [...cache.activeAssets, ...cache.closedAssets];
     const rawProductReadModel = cache.globalAssetProductReadModel ?? null;
     const productReadModel = readGlobalAssetProductReadModel(
         rawProductReadModel
     );
     const guardedSelection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "reports",
-        currentAssets,
+        runtimeFallbackAssets,
         productReadModel: rawProductReadModel,
         guardEnabled: resolveGlobalAssetProductGuardEnabled(),
     });
+    // `runtimeFallbackAssets` is a compatibility source, not canonical calculation output.
     const selectedAssets =
         guardedSelection.selectedSource === "global_asset_product" && productReadModel
             ? buildGlobalAssetViewModelsFromProductReadModel(productReadModel)
-            : currentAssets;
+            : runtimeFallbackAssets;
     const allRows = toReportRows(
         selectedAssets,
         selectedPortfolioIds

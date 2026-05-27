@@ -8,7 +8,7 @@ Last updated: 2026-05-27
 - `AssetSummary` is removed from runtime code (`src/**`) and tests (`tests/**`).
 - No ProductReadModel-to-`AssetSummary` compatibility projection remains.
 - Runtime surfaces now use `GlobalAssetViewModel` and Product Read Model outputs.
-- Active compatibility selector fallback is removed: guarded selection is now either `global_asset_product` or explicit `product_read_model_unavailable`.
+- Active compatibility selector fallback is removed: guarded selection is now either `global_asset_product` or explicit `runtime_assets_fallback`.
 
 ## Runtime Removal Result
 

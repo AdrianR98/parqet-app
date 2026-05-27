@@ -37,7 +37,7 @@ export function prepareDashboardCacheWrite(
 ): PreparedDashboardCacheWrite {
   const nextActiveAssets = enrichAssetsWithMetadata(input.response.activeAssets ?? []);
   const nextClosedAssets = enrichAssetsWithMetadata(input.response.closedAssets ?? []);
-  const currentAssets = [...nextActiveAssets, ...nextClosedAssets];
+  const runtimeFallbackAssets = [...nextActiveAssets, ...nextClosedAssets];
   const responseWithCoexistence = input.response as AssetsApiResponse & {
     globalAssetProductReadModel?: unknown;
   };
@@ -47,10 +47,11 @@ export function prepareDashboardCacheWrite(
     rawGlobalAssetProductReadModel,
   );
   const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-    currentAssets,
+    runtimeFallbackAssets,
     productReadModel: rawGlobalAssetProductReadModel,
     guardEnabled: input.guardEnabled,
   });
+  // Fallback assets stay available for compatibility when PRM cannot be selected.
   const selectedAssets = canonicalSafeFieldSelection.assets;
   const selectedByPosition = splitAssetsByPosition(selectedAssets);
   const generatedAt =

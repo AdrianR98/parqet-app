@@ -130,18 +130,23 @@ export function isDashboardDataStale(lastUpdatedAt: string | null): boolean {
 
 export type CanonicalDashboardSafeFieldSelection = {
     selection: CanonicalSafeFieldSelection;
+    /**
+     * Selected asset surface.
+     * - `global_asset_product` => canonical Product Read Model projection
+     * - `runtime_assets_fallback` => compatibility fallback from already-loaded runtime assets
+     */
     assets: GlobalAssetViewModel[];
 };
 
 export function selectCanonicalDashboardSafeFieldSource(input: {
-    currentAssets: GlobalAssetViewModel[];
+    runtimeFallbackAssets: GlobalAssetViewModel[];
     productReadModel?: unknown;
     guardEnabled: boolean;
 }): CanonicalDashboardSafeFieldSelection {
     const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
     const selection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "dashboard",
-        currentAssets: input.currentAssets,
+        runtimeFallbackAssets: input.runtimeFallbackAssets,
         productReadModel: input.productReadModel,
         guardEnabled: input.guardEnabled,
     });
@@ -155,19 +160,19 @@ export function selectCanonicalDashboardSafeFieldSource(input: {
 
     return {
         selection,
-        assets: input.currentAssets,
+        assets: input.runtimeFallbackAssets,
     };
 }
 
 export function selectCanonicalAssetTableSafeFieldSource(input: {
-    currentAssets: GlobalAssetViewModel[];
+    runtimeFallbackAssets: GlobalAssetViewModel[];
     productReadModel?: unknown;
     guardEnabled: boolean;
 }): CanonicalDashboardSafeFieldSelection {
     const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
     const selection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "asset_table",
-        currentAssets: input.currentAssets,
+        runtimeFallbackAssets: input.runtimeFallbackAssets,
         productReadModel: input.productReadModel,
         guardEnabled: input.guardEnabled,
     });
@@ -181,14 +186,14 @@ export function selectCanonicalAssetTableSafeFieldSource(input: {
 
     return {
         selection,
-        assets: input.currentAssets,
+        assets: input.runtimeFallbackAssets,
     };
 }
 
 export type GuardedDashboardSourceSelection = CanonicalDashboardSafeFieldSelection;
 
 export function selectGuardedDashboardSource(input: {
-    currentAssets: GlobalAssetViewModel[];
+    runtimeFallbackAssets: GlobalAssetViewModel[];
     productReadModel?: ProductReadModelAssets | null;
     guardEnabled: boolean;
 }): GuardedDashboardSourceSelection {
@@ -196,7 +201,7 @@ export function selectGuardedDashboardSource(input: {
 }
 
 export function selectGuardedAssetTableSource(input: {
-    currentAssets: GlobalAssetViewModel[];
+    runtimeFallbackAssets: GlobalAssetViewModel[];
     productReadModel?: ProductReadModelAssets | null;
     guardEnabled: boolean;
 }): GuardedDashboardSourceSelection {

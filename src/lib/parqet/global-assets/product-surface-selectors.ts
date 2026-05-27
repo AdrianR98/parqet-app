@@ -14,7 +14,7 @@ export type CanonicalSafeFieldSurfaceId = "dashboard" | "asset_table" | "reports
 
 export type CanonicalSafeFieldProductSource =
   | "global_asset_product"
-  | "product_read_model_unavailable";
+  | "runtime_assets_fallback";
 
 export type CanonicalSafeFieldSelectionReason =
   | "guard_disabled"
@@ -35,7 +35,7 @@ export type CanonicalSafeFieldAffectedField =
 
 export type CanonicalSafeFieldSelectionDiagnostics = {
   readModelId: string | null;
-  currentAssetCount: number;
+  runtimeFallbackAssetCount: number;
   productAssetCount: number;
   blockedMetricAssetCount: number;
   blockedMetricCount: number;
@@ -59,7 +59,11 @@ export type CanonicalSafeFieldSelection = {
 
 export type SelectCanonicalSafeFieldSourceInput = {
   surface: CanonicalSafeFieldSurfaceId;
-  currentAssets: GlobalAssetViewModel[];
+  /**
+   * Already-loaded runtime assets used as compatibility fallback when the
+   * Product Read Model is unavailable for canonical field selection.
+   */
+  runtimeFallbackAssets: GlobalAssetViewModel[];
   productReadModel?: unknown;
   guardEnabled: boolean;
 };
@@ -181,7 +185,7 @@ function isScopeCompatibleForCanonicalSafeFieldSelection(state: ProductReadModel
 }
 
 function buildDiagnostics(input: {
-  currentAssets: GlobalAssetViewModel[];
+  runtimeFallbackAssets: GlobalAssetViewModel[];
   productReadModel: ProductReadModelAssets | null;
 }): CanonicalSafeFieldSelectionDiagnostics {
   const productAssets = input.productReadModel?.assets ?? [];
@@ -190,7 +194,7 @@ function buildDiagnostics(input: {
 
   return {
     readModelId: input.productReadModel?.metadata.readModelId ?? null,
-    currentAssetCount: input.currentAssets.length,
+    runtimeFallbackAssetCount: input.runtimeFallbackAssets.length,
     productAssetCount: productAssets.length,
     blockedMetricAssetCount: productAssets.filter((row) => row.blockedMetrics.length > 0).length,
     blockedMetricCount: blockedMetrics.length,
@@ -213,7 +217,7 @@ function buildUnavailableSelection(input: {
 }): CanonicalSafeFieldSelection {
   return {
     surface: input.surface,
-    selectedSource: "product_read_model_unavailable",
+    selectedSource: "runtime_assets_fallback",
     reason: input.reason,
     blockedMetrics: input.blockedMetrics,
     affectedFields: input.affectedFields,
@@ -226,7 +230,7 @@ export function selectCanonicalSafeFieldProductSurfaceSource(
 ): CanonicalSafeFieldSelection {
   const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
   const diagnostics = buildDiagnostics({
-    currentAssets: input.currentAssets,
+    runtimeFallbackAssets: input.runtimeFallbackAssets,
     productReadModel,
   });
   const blockedMetrics = uniqueBlockedMetrics(productReadModel?.assets ?? []);
@@ -262,7 +266,7 @@ export function selectCanonicalSafeFieldProductSurfaceSource(
     });
   }
 
-  if (input.currentAssets.length > 0 && productReadModel.assets.length === 0) {
+  if (input.runtimeFallbackAssets.length > 0 && productReadModel.assets.length === 0) {
     return buildUnavailableSelection({
       surface: input.surface,
       reason: "product_read_model_empty",
@@ -340,6 +344,8 @@ export function buildGlobalAssetViewModelsFromProductReadModel(
     const quantity = row.quantity ?? 0;
     const remainingCostBasis = row.costBasis.amount ?? 0;
 
+    // Phase-3 transition: continuity counters stay shape-compatible but are
+    // explicitly non-canonical placeholders for legacy runtime consumers.
     return {
       isin,
       portfolioIds: portfolioBreakdown.map((entry) => entry.portfolioId),
