@@ -31,6 +31,16 @@ Last reviewed: 2026-05-27
 - Phase 3 implementation is now complete for the planned modular-calculation scope on `refactor/phase-3-calculation-model`.
 - #393 is partially resolved in this PR: fallback/source semantics are finalized, but a small set of temporary continuity fields is still intentionally retained for timeline/report sorting consumers and is documented as explicit remaining debt.
 
+## Phase 4 Kickoff (Database Asset Model + Scale Strategy)
+
+- Refs #384, Refs #388, Refs #395, Refs #396, Refs #397, Refs #398: Phase 4 planning baseline is now documented in `docs/DATABASE_ASSET_MODEL_PLAN.md`.
+- This first Phase 4 task is inventory/planning only: current DB/market-data entities, naming gaps, data-flow boundaries and price-history scale strategy were documented without runtime/schema changes.
+- Follow-up execution slices stay on branch `refactor/phase-4-database-asset-model` and are sequenced to support:
+  - #395 latest market-price overlay read model,
+  - #396 transfer/cost-basis semantics with reference-event context,
+  - #397 currency/FX boundary for PRM money metrics,
+  - #398 source/timestamp/confidence provenance fields.
+
 ## Current Baseline
 
 - Next.js Parqet Integration with Parqet OAuth for authorized portfolio access.
