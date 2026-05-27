@@ -1,6 +1,6 @@
 # Calculation Model Plan (Phase 3)
 
-Status: active plan, Slice 5 UI-side allocation extraction started  
+Status: active plan, Slice 6 asset-detail scope extraction started  
 Linked issues: Refs #384, Refs #387, Refs #393  
 Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-model` (same branch / same PR thread)
 
@@ -69,6 +69,18 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
 - Rewired consumers:
   - `src/app/(app)/dashboard/page.tsx` now consumes helper-based allocation segment shaping/sorting.
   - `src/components/dashboard/asset-table-columns.tsx` now consumes helper-based allocation ratio calculation.
+
+## Slice 6 implementation note (2026-05-27)
+
+- Extracted asset-detail portfolio scope resolution from
+  `src/app/(app)/assets/AssetDetailPage.tsx` into
+  `src/lib/asset-detail.ts`:
+  - `resolveSelectedAssetScope`
+  - `SelectedAssetScope`
+- Result: asset detail page now consumes helper-provided selected scope ids/mode
+  instead of owning scope intersection logic.
+- This keeps asset-detail scoped metric calculation and selected-portfolio filtering
+  clustered in lib helper boundaries.
 
 ## 1. Current calculation inventory
 
@@ -230,16 +242,16 @@ Hard rule reaffirmed: UI components must not own metric calculation logic.
 - Verification command: `npm run build`
 - #393 sequencing: after Slice 1 boundary cleanup starts.
 
-Remaining direct calculation hotspots after Slice 5:
-- `src/lib/asset-detail.ts`
+Remaining direct calculation hotspots after Slice 6:
 - `src/app/(app)/dashboard/page.tsx`
 - `src/lib/reporting.ts`
 - `src/components/dashboard/asset-table-columns.tsx` (display formatting only; ratio formula moved to helper)
+- `src/components/asset-detail/AssetDetailTimelineChart.tsx` (timeline clustering/range shaping)
 
 Recommended next slice focus:
-- Continue with metric-gates/performance extraction from Product Read Model and
-  unify valuation-availability semantics so report/dashboard totals and PRM projection
-  paths share one canonical nullability policy.
+- Continue with either:
+  - timeline/event shaping helper extraction from `AssetDetailTimelineChart.tsx`, or
+  - metric-gates/performance extraction from Product Read Model to unify valuation-nullability semantics.
 
 ### Slice 3: Extract dividend + reconciliation calculators
 

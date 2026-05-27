@@ -25,6 +25,7 @@ Last reviewed: 2026-05-27
 - Slice 3 has started on the same branch/PR thread: shared UI/reporting aggregation helpers now live in `src/lib/calculations/view-model-aggregates.ts`, and dashboard/reporting surfaces consume these helpers instead of duplicating scoped math.
 - Slice 4 has started on the same branch/PR thread: Product Read Model -> `GlobalAssetViewModel` projection moved into `src/lib/view-models/global-asset-view-model-builder.ts`, and guarded source selectors are now focused on validation/selection/diagnostics only.
 - Slice 5 has started on the same branch/PR thread: dashboard allocation segment shaping and allocation ratio formulas were moved into shared calculation helpers in `src/lib/calculations/view-model-aggregates.ts`.
+- Slice 6 has started on the same branch/PR thread: asset detail selected-portfolio scope resolution moved from `AssetDetailPage.tsx` into `src/lib/asset-detail.ts` (`resolveSelectedAssetScope`), reducing page-owned calculation/scope logic.
 
 ## Current Baseline
 

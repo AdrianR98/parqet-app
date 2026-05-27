@@ -6,6 +6,11 @@ import type {
 } from "./types";
 import { getAssetDisplayName as resolveAssetDisplayName } from "./asset-display";
 import { scopeAssetAggregationToPortfolioSelection } from "./calculations/view-model-aggregates";
+import {
+    loadKnownPortfolios,
+    loadPortfolioScope,
+    resolvePortfolioScope,
+} from "./app-settings";
 
 export type AssetDetailWarning = {
     label: "Hinweis" | "Prüfen" | "Eingeschränkt";
@@ -27,6 +32,11 @@ export type ScopedAssetMetrics = {
     marketPrice: number | null;
 };
 
+export type SelectedAssetScope = {
+    mode: "all" | "manual";
+    selectedAssetPortfolioIds: string[];
+};
+
 function normalizeAssetKey(value: string | null | undefined): string {
     return value?.trim().toUpperCase() ?? "";
 }
@@ -39,6 +49,10 @@ function createReadableSlug(label: string): string {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
         .slice(0, 80);
+}
+
+function uniqueIds(ids: string[]): string[] {
+    return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
 }
 
 export function getAssetDetailKey(asset: Pick<GlobalAssetViewModel, "isin">): string {
@@ -158,6 +172,44 @@ export function scopeAssetMetrics(
         totalDividendNet: scoped.totalDividendNet,
         latestTradePrice: scoped.latestTradePrice,
         marketPrice: scoped.marketPrice,
+    };
+}
+
+export function resolveSelectedAssetScope(asset: GlobalAssetViewModel): SelectedAssetScope {
+    const currentScope = loadPortfolioScope();
+    const knownPortfolios = loadKnownPortfolios();
+    const assetAvailableIds = uniqueIds([
+        ...asset.portfolioBreakdown.map((entry) => entry.portfolioId),
+        ...asset.portfolioIds,
+    ]);
+    const assetAvailableIdSet = new Set(assetAvailableIds);
+
+    if (currentScope.mode === "all") {
+        if (knownPortfolios.length > 0) {
+            const globalScope = resolvePortfolioScope(currentScope, knownPortfolios);
+            const intersection = globalScope.selectedPortfolioIds.filter((id) =>
+                assetAvailableIdSet.has(id)
+            );
+            return {
+                mode: "all",
+                selectedAssetPortfolioIds:
+                    intersection.length > 0 ? intersection : assetAvailableIds,
+            };
+        }
+
+        return { mode: "all", selectedAssetPortfolioIds: assetAvailableIds };
+    }
+
+    const selectedManualIds =
+        knownPortfolios.length > 0
+            ? resolvePortfolioScope(currentScope, knownPortfolios).selectedPortfolioIds
+            : uniqueIds(currentScope.selectedPortfolioIds);
+
+    return {
+        mode: "manual",
+        selectedAssetPortfolioIds: selectedManualIds.filter((id) =>
+            assetAvailableIdSet.has(id)
+        ),
     };
 }
 

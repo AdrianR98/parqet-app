@@ -5,9 +5,7 @@ import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, us
 import { useSearchParams } from "next/navigation";
 import {
     loadAssetDetailRangeSettings,
-    loadKnownPortfolios,
     loadPortfolioScope,
-    resolvePortfolioScope,
     saveAssetDetailRangeSettings,
     subscribeToLocalSettings,
 } from "../../../lib/app-settings";
@@ -18,6 +16,7 @@ import {
     getAssetDisplayName,
     getAssetStatusLabel,
     getAssetWarnings,
+    resolveSelectedAssetScope,
     scopeAssetMetrics,
 } from "../../../lib/asset-detail";
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
@@ -261,49 +260,8 @@ function marketDataMessageForStatus(status: MarketDataStatus, message?: string):
     return "Kursdaten konnten nicht geladen werden.";
 }
 
-function uniqueIds(ids: string[]): string[] {
-    return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
-}
-
 function sanitizeCagrYears(candidate: unknown, fallback: number): number {
     return DIVIDEND_CAGR_OPTIONS.includes(candidate as (typeof DIVIDEND_CAGR_OPTIONS)[number]) ? Number(candidate) : fallback;
-}
-
-type SelectedAssetScope = {
-    mode: "all" | "manual";
-    selectedAssetPortfolioIds: string[];
-};
-
-function resolveSelectedAssetScope(asset: GlobalAssetViewModel): SelectedAssetScope {
-    const currentScope = loadPortfolioScope();
-    const knownPortfolios = loadKnownPortfolios();
-    const assetAvailableIds = uniqueIds([
-        ...asset.portfolioBreakdown.map((entry) => entry.portfolioId),
-        ...asset.portfolioIds,
-    ]);
-    const assetAvailableIdSet = new Set(assetAvailableIds);
-
-    if (currentScope.mode === "all") {
-        if (knownPortfolios.length > 0) {
-            const globalScope = resolvePortfolioScope(currentScope, knownPortfolios);
-            const intersection = globalScope.selectedPortfolioIds.filter((id) => assetAvailableIdSet.has(id));
-            return {
-                mode: "all",
-                selectedAssetPortfolioIds: intersection.length > 0 ? intersection : assetAvailableIds,
-            };
-        }
-
-        return { mode: "all", selectedAssetPortfolioIds: assetAvailableIds };
-    }
-
-    const selectedManualIds = knownPortfolios.length > 0
-        ? resolvePortfolioScope(currentScope, knownPortfolios).selectedPortfolioIds
-        : uniqueIds(currentScope.selectedPortfolioIds);
-
-    return {
-        mode: "manual",
-        selectedAssetPortfolioIds: selectedManualIds.filter((id) => assetAvailableIdSet.has(id)),
-    };
 }
 
 function subscribeToLocalAssetState(onStoreChange: () => void) {
