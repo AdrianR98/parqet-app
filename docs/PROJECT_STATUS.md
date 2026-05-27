@@ -24,6 +24,7 @@ Last reviewed: 2026-05-27
 - Slice 2 has started on the same branch/PR thread: first shared calculation boundary module (`src/lib/calculations/global-asset-metrics.ts`) is wired into legacy runtime builders (`build-corrected-assets`/`grouping`) while preserving current output shape.
 - Slice 3 has started on the same branch/PR thread: shared UI/reporting aggregation helpers now live in `src/lib/calculations/view-model-aggregates.ts`, and dashboard/reporting surfaces consume these helpers instead of duplicating scoped math.
 - Slice 4 has started on the same branch/PR thread: Product Read Model -> `GlobalAssetViewModel` projection moved into `src/lib/view-models/global-asset-view-model-builder.ts`, and guarded source selectors are now focused on validation/selection/diagnostics only.
+- Slice 5 has started on the same branch/PR thread: dashboard allocation segment shaping and allocation ratio formulas were moved into shared calculation helpers in `src/lib/calculations/view-model-aggregates.ts`.
 
 ## Current Baseline
 

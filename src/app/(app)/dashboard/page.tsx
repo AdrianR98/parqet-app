@@ -9,6 +9,7 @@ import { getAssetDisplayName, getAssetSubtitle } from "../../../lib/asset-displa
 import type { GlobalAssetViewModel } from "../../../lib/types";
 import {
     aggregateAssetValueTotals,
+    buildAllocationSegmentsFromAssets,
     scopeAssetToPortfolioSelection,
     splitAssetsByPosition,
 } from "../../../lib/calculations/view-model-aggregates";
@@ -51,31 +52,12 @@ function isCryptoAsset(asset: GlobalAssetViewModel): boolean {
 }
 
 function buildAllocationSegments(assets: GlobalAssetViewModel[]): AllocationSegment[] {
-    const MAX_INDIVIDUAL_SEGMENTS = 15;
-    const validAssets = assets
-        .map((asset) => ({ label: getAssetDisplayName(asset), value: asset.positionValue ?? 0 }))
-        .filter((asset) => asset.value > 0)
-        .sort((left, right) => right.value - left.value);
-
-    if (validAssets.length === 0) {
-        return [];
-    }
-
-    const topAssets = validAssets.slice(0, MAX_INDIVIDUAL_SEGMENTS);
-    const remainder = validAssets
-        .slice(MAX_INDIVIDUAL_SEGMENTS)
-        .reduce((sum, asset) => sum + asset.value, 0);
-    const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
-        label: asset.label,
-        value: asset.value,
-        color: DASHBOARD_ALLOCATION_PALETTE[index] ?? DASHBOARD_ALLOCATION_PALETTE[DASHBOARD_ALLOCATION_PALETTE.length - 1],
-    }));
-
-    if (remainder > 0) {
-        segments.push({ label: "Weitere", value: remainder, color: "var(--chart-series-other)" });
-    }
-
-    return segments;
+    return buildAllocationSegmentsFromAssets(assets, {
+        maxIndividualSegments: 15,
+        palette: DASHBOARD_ALLOCATION_PALETTE,
+        otherColor: "var(--chart-series-other)",
+        getLabel: getAssetDisplayName,
+    });
 }
 
 function matchesSearch(asset: GlobalAssetViewModel, query: string): boolean {

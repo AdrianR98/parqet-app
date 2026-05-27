@@ -60,7 +60,7 @@ export type CanonicalSafeFieldSelection = {
 export type SelectCanonicalSafeFieldSourceInput = {
   surface: CanonicalSafeFieldSurfaceId;
   /**
-   * Already-loaded runtime assets used as compatibility fallback when the
+   * Already-loaded runtime assets used as runtime fallback data when the
    * Product Read Model is unavailable for canonical field selection.
    */
   runtimeFallbackAssets: GlobalAssetViewModel[];

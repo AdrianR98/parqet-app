@@ -38,8 +38,73 @@ export type PortfolioBreakdownAggregate = {
   totalDividendNet: number;
 };
 
+export type AllocationSegment = {
+  label: string;
+  value: number;
+  color: string;
+};
+
 function uniqueNonEmpty(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+export function calculateAllocationRatioPercent(input: {
+  value: number | null | undefined;
+  total: number | null | undefined;
+}): number {
+  const value = input.value ?? 0;
+  const total = input.total ?? 0;
+
+  if (total <= 0) {
+    return 0;
+  }
+
+  return (value / total) * 100;
+}
+
+export function buildAllocationSegmentsFromAssets(
+  assets: GlobalAssetViewModel[],
+  options: {
+    maxIndividualSegments: number;
+    palette: readonly string[];
+    otherColor: string;
+    getLabel: (asset: GlobalAssetViewModel) => string;
+  },
+): AllocationSegment[] {
+  const validAssets = assets
+    .map((asset) => ({
+      label: options.getLabel(asset),
+      value: asset.positionValue ?? 0,
+    }))
+    .filter((asset) => asset.value > 0)
+    .sort((left, right) => right.value - left.value);
+
+  if (validAssets.length === 0) {
+    return [];
+  }
+
+  const topAssets = validAssets.slice(0, options.maxIndividualSegments);
+  const remainder = validAssets
+    .slice(options.maxIndividualSegments)
+    .reduce((sum, asset) => sum + asset.value, 0);
+  const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
+    label: asset.label,
+    value: asset.value,
+    color:
+      options.palette[index] ??
+      options.palette[options.palette.length - 1] ??
+      options.otherColor,
+  }));
+
+  if (remainder > 0) {
+    segments.push({
+      label: "Weitere",
+      value: remainder,
+      color: options.otherColor,
+    });
+  }
+
+  return segments;
 }
 
 export function splitAssetsByPosition(
@@ -223,4 +288,3 @@ export function aggregatePortfolioBreakdownByName(
     a.portfolioName.localeCompare(b.portfolioName, "de-DE"),
   );
 }
-

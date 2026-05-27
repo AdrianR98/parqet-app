@@ -10,6 +10,7 @@ import { createAssetDetailHref } from "../../lib/asset-detail";
 import { formatCurrency } from "../../lib/format";
 import { getSafePortfolioBreakdown } from "./asset-table-config";
 import { buildInstrumentSubtitleParts, getAssetDisplayName } from "../../lib/asset-display";
+import { calculateAllocationRatioPercent } from "../../lib/calculations/view-model-aggregates";
 import AssetLogo from "../common/AssetLogo";
 
 export type AssetTableColumnKey = "name" | "remainingCostBasis" | "positionValue" | "unrealizedPnL" | "totalDividendNet" | "allocation" | "actions";
@@ -152,8 +153,10 @@ export function getAssetTableColumns(expandedIsins: string[], setExpandedIsins: 
             id: "allocation",
             header: "Allokation",
             cell: ({ row }) => {
-                const value = row.original.positionValue ?? 0;
-                const ratio = totalPositionValue > 0 ? (value / totalPositionValue) * 100 : 0;
+                const ratio = calculateAllocationRatioPercent({
+                    value: row.original.positionValue,
+                    total: totalPositionValue,
+                });
                 return <span className={styles.allocationCell}>{ratio.toFixed(1)} %</span>;
             },
         }),
@@ -192,9 +195,10 @@ function renderBreakdownCell(columnId: AssetTableColumnKey, asset: GlobalAssetVi
         case "totalDividendNet":
             return formatCurrency(entry.totalDividendNet);
         case "allocation": {
-            const assetPosition = asset.positionValue ?? 0;
-            const rowPosition = entry.positionValue ?? 0;
-            const ratio = assetPosition > 0 ? (rowPosition / assetPosition) * 100 : 0;
+            const ratio = calculateAllocationRatioPercent({
+                value: entry.positionValue,
+                total: asset.positionValue,
+            });
             return `${ratio.toFixed(1)} %`;
         }
         case "actions":

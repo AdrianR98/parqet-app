@@ -1,6 +1,6 @@
 # Calculation Model Plan (Phase 3)
 
-Status: active plan, Slice 4 PRM view-model builder boundary started  
+Status: active plan, Slice 5 UI-side allocation extraction started  
 Linked issues: Refs #384, Refs #387, Refs #393  
 Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-model` (same branch / same PR thread)
 
@@ -57,6 +57,18 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
   - `tests/pipeline/global-assets-guarded-surface-migration.test.ts`
 - Projection math now reuses `calculateAvgBuyPrice` from
   `src/lib/calculations/global-asset-metrics.ts`.
+
+## Slice 5 implementation note (2026-05-27)
+
+- Removed legacy wording in `product-surface-selectors.ts` comments:
+  - from "compatibility fallback" to "runtime fallback data".
+- Extracted UI-side allocation calculation cluster into
+  `src/lib/calculations/view-model-aggregates.ts`:
+  - `buildAllocationSegmentsFromAssets`
+  - `calculateAllocationRatioPercent`
+- Rewired consumers:
+  - `src/app/(app)/dashboard/page.tsx` now consumes helper-based allocation segment shaping/sorting.
+  - `src/components/dashboard/asset-table-columns.tsx` now consumes helper-based allocation ratio calculation.
 
 ## 1. Current calculation inventory
 
@@ -218,16 +230,16 @@ Hard rule reaffirmed: UI components must not own metric calculation logic.
 - Verification command: `npm run build`
 - #393 sequencing: after Slice 1 boundary cleanup starts.
 
-Remaining direct calculation hotspots after Slice 4:
+Remaining direct calculation hotspots after Slice 5:
 - `src/lib/asset-detail.ts`
 - `src/app/(app)/dashboard/page.tsx`
 - `src/lib/reporting.ts`
-- `src/components/dashboard/asset-table-columns.tsx` (allocation ratio display formula)
+- `src/components/dashboard/asset-table-columns.tsx` (display formatting only; ratio formula moved to helper)
 
 Recommended next slice focus:
 - Continue with metric-gates/performance extraction from Product Read Model and
-  unify valuation-availability semantics so report/dashboard totals can share one
-  canonical nullability policy.
+  unify valuation-availability semantics so report/dashboard totals and PRM projection
+  paths share one canonical nullability policy.
 
 ### Slice 3: Extract dividend + reconciliation calculators
 
