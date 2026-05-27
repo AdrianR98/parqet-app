@@ -5,9 +5,7 @@ import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, us
 import { useSearchParams } from "next/navigation";
 import {
     loadAssetDetailRangeSettings,
-    loadKnownPortfolios,
     loadPortfolioScope,
-    resolvePortfolioScope,
     saveAssetDetailRangeSettings,
     subscribeToLocalSettings,
 } from "../../../lib/app-settings";
@@ -18,6 +16,7 @@ import {
     getAssetDisplayName,
     getAssetStatusLabel,
     getAssetWarnings,
+    resolveSelectedAssetScope,
     scopeAssetMetrics,
 } from "../../../lib/asset-detail";
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
@@ -28,6 +27,7 @@ import type { MarketDataPoint, MarketDataResponse, MarketDataStatus } from "../.
 import type { ActivitiesAuditItem, GlobalAssetViewModel, PortfolioPosition } from "../../../lib/types";
 import { DASHBOARD_CACHE_CHANGED_EVENT } from "../../../lib/dashboard-cache";
 import { ensureParqetLocalBootstrap } from "../../../lib/parqet-local-bootstrap";
+import { buildPortfolioBreakdownDisplayEntries } from "../../../lib/calculations/view-model-aggregates";
 import AssetLogo from "../../../components/common/AssetLogo";
 import styles from "./AssetDetailPage.module.css";
 
@@ -261,49 +261,8 @@ function marketDataMessageForStatus(status: MarketDataStatus, message?: string):
     return "Kursdaten konnten nicht geladen werden.";
 }
 
-function uniqueIds(ids: string[]): string[] {
-    return Array.from(new Set(ids.filter((id) => typeof id === "string" && id.length > 0)));
-}
-
 function sanitizeCagrYears(candidate: unknown, fallback: number): number {
     return DIVIDEND_CAGR_OPTIONS.includes(candidate as (typeof DIVIDEND_CAGR_OPTIONS)[number]) ? Number(candidate) : fallback;
-}
-
-type SelectedAssetScope = {
-    mode: "all" | "manual";
-    selectedAssetPortfolioIds: string[];
-};
-
-function resolveSelectedAssetScope(asset: GlobalAssetViewModel): SelectedAssetScope {
-    const currentScope = loadPortfolioScope();
-    const knownPortfolios = loadKnownPortfolios();
-    const assetAvailableIds = uniqueIds([
-        ...asset.portfolioBreakdown.map((entry) => entry.portfolioId),
-        ...asset.portfolioIds,
-    ]);
-    const assetAvailableIdSet = new Set(assetAvailableIds);
-
-    if (currentScope.mode === "all") {
-        if (knownPortfolios.length > 0) {
-            const globalScope = resolvePortfolioScope(currentScope, knownPortfolios);
-            const intersection = globalScope.selectedPortfolioIds.filter((id) => assetAvailableIdSet.has(id));
-            return {
-                mode: "all",
-                selectedAssetPortfolioIds: intersection.length > 0 ? intersection : assetAvailableIds,
-            };
-        }
-
-        return { mode: "all", selectedAssetPortfolioIds: assetAvailableIds };
-    }
-
-    const selectedManualIds = knownPortfolios.length > 0
-        ? resolvePortfolioScope(currentScope, knownPortfolios).selectedPortfolioIds
-        : uniqueIds(currentScope.selectedPortfolioIds);
-
-    return {
-        mode: "manual",
-        selectedAssetPortfolioIds: selectedManualIds.filter((id) => assetAvailableIdSet.has(id)),
-    };
 }
 
 function subscribeToLocalAssetState(onStoreChange: () => void) {
@@ -358,14 +317,10 @@ function PortfolioBreakdown({
         return <div className={styles.inlineEmpty}>Keine Portfolio-Anteile im aktuell ausgewählten Scope.</div>;
     }
 
-    const totalShares = entries.reduce((sum, entry) => {
-        const shares = Number(entry.netShares);
-        const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
-        if (!hasDisplayableShares || shares <= 0) {
-            return sum;
-        }
-        return sum + shares;
-    }, 0);
+    const displayEntries = buildPortfolioBreakdownDisplayEntries(entries, {
+        shareEpsilon: PORTFOLIO_BREAKDOWN_SHARE_EPSILON,
+        valueEpsilon: PORTFOLIO_BREAKDOWN_VALUE_EPSILON,
+    });
 
     const sharePercentFormatter = new Intl.NumberFormat("de-DE", {
         minimumFractionDigits: 1,
@@ -374,15 +329,7 @@ function PortfolioBreakdown({
 
     return (
         <div className={styles.breakdownList}>
-            {entries.map((entry) => {
-                const shares = Number(entry.netShares);
-                const value = Number(entry.positionValue);
-                const hasDisplayableShares = Number.isFinite(shares) && Math.abs(shares) >= PORTFOLIO_BREAKDOWN_SHARE_EPSILON;
-                const hasDisplayableValue = Number.isFinite(value) && Math.abs(value) >= PORTFOLIO_BREAKDOWN_VALUE_EPSILON;
-                const sharePercent =
-                    hasDisplayableShares && shares > 0 && Number.isFinite(totalShares) && totalShares > 0
-                        ? (shares / totalShares) * 100
-                        : null;
+            {displayEntries.map(({ entry, hasDisplayableShares, hasDisplayableValue, sharePercent }) => {
                 const color = portfolioColors[entry.portfolioId];
 
                 return (

@@ -1,4 +1,4 @@
-import type { GlobalAssetViewModel, PortfolioPosition } from "../../types";
+import type { GlobalAssetViewModel } from "../../types";
 import type {
   ProductReadModelAssetRow,
   ProductReadModelAssets,
@@ -14,7 +14,7 @@ export type CanonicalSafeFieldSurfaceId = "dashboard" | "asset_table" | "reports
 
 export type CanonicalSafeFieldProductSource =
   | "global_asset_product"
-  | "product_read_model_unavailable";
+  | "runtime_assets_fallback";
 
 export type CanonicalSafeFieldSelectionReason =
   | "guard_disabled"
@@ -35,7 +35,7 @@ export type CanonicalSafeFieldAffectedField =
 
 export type CanonicalSafeFieldSelectionDiagnostics = {
   readModelId: string | null;
-  currentAssetCount: number;
+  runtimeFallbackAssetCount: number;
   productAssetCount: number;
   blockedMetricAssetCount: number;
   blockedMetricCount: number;
@@ -59,7 +59,11 @@ export type CanonicalSafeFieldSelection = {
 
 export type SelectCanonicalSafeFieldSourceInput = {
   surface: CanonicalSafeFieldSurfaceId;
-  currentAssets: GlobalAssetViewModel[];
+  /**
+   * Already-loaded runtime assets used as runtime fallback data when the
+   * Product Read Model is unavailable for canonical field selection.
+   */
+  runtimeFallbackAssets: GlobalAssetViewModel[];
   productReadModel?: unknown;
   guardEnabled: boolean;
 };
@@ -181,7 +185,7 @@ function isScopeCompatibleForCanonicalSafeFieldSelection(state: ProductReadModel
 }
 
 function buildDiagnostics(input: {
-  currentAssets: GlobalAssetViewModel[];
+  runtimeFallbackAssets: GlobalAssetViewModel[];
   productReadModel: ProductReadModelAssets | null;
 }): CanonicalSafeFieldSelectionDiagnostics {
   const productAssets = input.productReadModel?.assets ?? [];
@@ -190,7 +194,7 @@ function buildDiagnostics(input: {
 
   return {
     readModelId: input.productReadModel?.metadata.readModelId ?? null,
-    currentAssetCount: input.currentAssets.length,
+    runtimeFallbackAssetCount: input.runtimeFallbackAssets.length,
     productAssetCount: productAssets.length,
     blockedMetricAssetCount: productAssets.filter((row) => row.blockedMetrics.length > 0).length,
     blockedMetricCount: blockedMetrics.length,
@@ -213,7 +217,7 @@ function buildUnavailableSelection(input: {
 }): CanonicalSafeFieldSelection {
   return {
     surface: input.surface,
-    selectedSource: "product_read_model_unavailable",
+    selectedSource: "runtime_assets_fallback",
     reason: input.reason,
     blockedMetrics: input.blockedMetrics,
     affectedFields: input.affectedFields,
@@ -226,7 +230,7 @@ export function selectCanonicalSafeFieldProductSurfaceSource(
 ): CanonicalSafeFieldSelection {
   const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
   const diagnostics = buildDiagnostics({
-    currentAssets: input.currentAssets,
+    runtimeFallbackAssets: input.runtimeFallbackAssets,
     productReadModel,
   });
   const blockedMetrics = uniqueBlockedMetrics(productReadModel?.assets ?? []);
@@ -262,7 +266,7 @@ export function selectCanonicalSafeFieldProductSurfaceSource(
     });
   }
 
-  if (input.currentAssets.length > 0 && productReadModel.assets.length === 0) {
+  if (input.runtimeFallbackAssets.length > 0 && productReadModel.assets.length === 0) {
     return buildUnavailableSelection({
       surface: input.surface,
       reason: "product_read_model_empty",
@@ -306,80 +310,4 @@ export function selectGuardedProductSurfaceSource(
   input: SelectGuardedSourceInput,
 ): GuardedSourceSelection {
   return selectCanonicalSafeFieldProductSurfaceSource(input);
-}
-
-function toPortfolioPosition(entry: ProductReadModelAssetRow["portfolioBreakdown"][number]): PortfolioPosition {
-  return {
-    portfolioId: entry.portfolioId,
-    portfolioName: entry.portfolioName ?? entry.portfolioId,
-    netShares: entry.quantity ?? 0,
-    remainingCostBasis: entry.costBasis.amount ?? 0,
-    avgBuyPrice:
-      entry.quantity != null && entry.quantity > 0 && entry.costBasis.amount != null
-        ? entry.costBasis.amount / entry.quantity
-        : null,
-    latestTradePrice: null,
-    marketPrice: null,
-    positionValue: entry.marketValue.amount,
-    unrealizedPnL: entry.unrealizedPnL.amount,
-    totalDividendNet: entry.dividendsNet.amount ?? 0,
-  };
-}
-
-export function buildGlobalAssetViewModelsFromProductReadModel(
-  productReadModel: ProductReadModelAssets,
-): GlobalAssetViewModel[] {
-  return productReadModel.assets.map((row) => {
-    const isin = row.identity.compatibilityIsin ?? row.identity.stableKey ?? row.display.displayName;
-    const instrumentMetadataStatus: GlobalAssetViewModel["instrumentMetadataStatus"] =
-      row.identity.compatibilityIsin &&
-      row.display.displayName.trim().toUpperCase() === row.identity.compatibilityIsin.trim().toUpperCase()
-        ? "missing_name"
-        : "ok";
-    const portfolioBreakdown = row.portfolioBreakdown.map(toPortfolioPosition);
-    const quantity = row.quantity ?? 0;
-    const remainingCostBasis = row.costBasis.amount ?? 0;
-
-    return {
-      isin,
-      portfolioIds: portfolioBreakdown.map((entry) => entry.portfolioId),
-      portfolioNames: portfolioBreakdown.map((entry) => entry.portfolioName),
-      portfolioBreakdown,
-      activityCount: 0,
-      buyCount: 0,
-      sellCount: 0,
-      dividendCount: 0,
-      totalBoughtShares: 0,
-      totalSoldShares: 0,
-      netShares: quantity,
-      totalInvestedGross: remainingCostBasis,
-      remainingCostBasis,
-      avgBuyPrice: quantity > 0 ? remainingCostBasis / quantity : null,
-      latestTradePrice: null,
-      marketPrice: row.marketValue.amount,
-      marketPriceAt: null,
-      marketPriceSource: null,
-      positionValue: row.marketValue.amount,
-      unrealizedPnL: row.unrealizedPnL.amount,
-      totalDividendNet: row.dividendsNet.amount ?? 0,
-      latestActivityAt: row.latestActivityAt,
-      name: row.display.displayName,
-      symbol: row.display.symbol,
-      ticker: row.display.symbol,
-      wkn: row.display.wkn,
-      metadataSource: null,
-      nameSource: null,
-      displayNameSource: null,
-      metadataUpdatedAt: null,
-      instrumentMetadataStatus,
-      instrumentMetadataError:
-        instrumentMetadataStatus === "ok"
-          ? null
-          : `Instrumentenname fehlt in market_instruments für ISIN ${isin}`,
-      instrument: (row as { instrument?: GlobalAssetViewModel["instrument"] }).instrument ?? null,
-      metadata: null,
-      externalMetadata: null,
-      assetMeta: null,
-    };
-  });
 }

@@ -7,12 +7,16 @@ import {
 } from "./app-settings";
 import type { GlobalAssetViewModel, ReconciliationWarning } from "./types";
 import {
-    buildGlobalAssetViewModelsFromProductReadModel,
     readGlobalAssetProductReadModel,
     selectCanonicalSafeFieldProductSurfaceSource,
     type CanonicalSafeFieldSelection,
 } from "./parqet/global-assets/product-surface-selectors";
 import { resolveGlobalAssetProductGuardEnabled } from "./dashboard-helpers";
+import {
+    aggregateAssetValueTotals,
+    aggregatePortfolioBreakdownByName,
+} from "./calculations/view-model-aggregates";
+import { buildGlobalAssetViewModelsFromProductReadModel } from "./view-models/global-asset-view-model-builder";
 
 export type ReportAssetRow = {
     name: string;
@@ -154,37 +158,14 @@ function buildBreakdown(
     assets: GlobalAssetViewModel[],
     selectedPortfolioIds: string[]
 ): ReportBreakdownRow[] {
-    const selectedIds = new Set(selectedPortfolioIds);
-    const hasManualScope = selectedIds.size > 0;
-    const byPortfolio = new Map<string, ReportBreakdownRow>();
-
-    for (const asset of assets) {
-        for (const entry of asset.portfolioBreakdown) {
-            if (hasManualScope && !selectedIds.has(entry.portfolioId)) {
-                continue;
-            }
-
-            const current = byPortfolio.get(entry.portfolioName) ?? {
-                portfolioName: entry.portfolioName,
-                activeAssets: 0,
-                closedAssets: 0,
-                positionValue: 0,
-                unrealizedPnL: 0,
-                totalDividendNet: 0,
-            };
-
-            if (entry.netShares > 0) current.activeAssets += 1;
-            if (entry.netShares === 0) current.closedAssets += 1;
-            current.positionValue = (current.positionValue ?? 0) + (entry.positionValue ?? 0);
-            current.unrealizedPnL = (current.unrealizedPnL ?? 0) + (entry.unrealizedPnL ?? 0);
-            current.totalDividendNet += entry.totalDividendNet;
-            byPortfolio.set(entry.portfolioName, current);
-        }
-    }
-
-    return Array.from(byPortfolio.values()).sort((a, b) =>
-        a.portfolioName.localeCompare(b.portfolioName, "de-DE")
-    );
+    return aggregatePortfolioBreakdownByName(assets, selectedPortfolioIds).map((row) => ({
+        portfolioName: row.portfolioName,
+        activeAssets: row.activeAssets,
+        closedAssets: row.closedAssets,
+        positionValue: row.positionValue,
+        unrealizedPnL: row.unrealizedPnL,
+        totalDividendNet: row.totalDividendNet,
+    }));
 }
 
 export function loadLocalReportModel(): LocalReportModel | null {
@@ -201,21 +182,22 @@ export function loadLocalReportModel(): LocalReportModel | null {
         resolvedScope.selectedPortfolioIds.length > 0
             ? resolvedScope.selectedPortfolioIds
             : cache.selectedPortfolioIds;
-    const currentAssets = [...cache.activeAssets, ...cache.closedAssets];
+    const runtimeFallbackAssets = [...cache.activeAssets, ...cache.closedAssets];
     const rawProductReadModel = cache.globalAssetProductReadModel ?? null;
     const productReadModel = readGlobalAssetProductReadModel(
         rawProductReadModel
     );
     const guardedSelection = selectCanonicalSafeFieldProductSurfaceSource({
         surface: "reports",
-        currentAssets,
+        runtimeFallbackAssets,
         productReadModel: rawProductReadModel,
         guardEnabled: resolveGlobalAssetProductGuardEnabled(),
     });
+    // `runtimeFallbackAssets` is already-loaded runtime fallback state, not canonical calculation output.
     const selectedAssets =
         guardedSelection.selectedSource === "global_asset_product" && productReadModel
             ? buildGlobalAssetViewModelsFromProductReadModel(productReadModel)
-            : currentAssets;
+            : runtimeFallbackAssets;
     const allRows = toReportRows(
         selectedAssets,
         selectedPortfolioIds
@@ -224,6 +206,13 @@ export function loadLocalReportModel(): LocalReportModel | null {
     const closedAssets = allRows.filter((row) => row.status === "Geschlossen").length;
     const hasPositionValues = allRows.some((row) => row.positionValue != null);
     const hasPnlValues = allRows.some((row) => row.unrealizedPnL != null);
+    const rowTotals = aggregateAssetValueTotals(
+        allRows.map((row) => ({
+            positionValue: row.positionValue,
+            unrealizedPnL: row.unrealizedPnL,
+            totalDividendNet: row.totalDividendNet ?? 0,
+        }))
+    );
 
     return {
         cache,
@@ -240,15 +229,12 @@ export function loadLocalReportModel(): LocalReportModel | null {
         guardedSelection,
         totals: {
             totalPositionValue: hasPositionValues
-                ? allRows.reduce((sum, row) => sum + (row.positionValue ?? 0), 0)
+                ? rowTotals.totalPositionValue
                 : null,
             totalUnrealizedPnL: hasPnlValues
-                ? allRows.reduce((sum, row) => sum + (row.unrealizedPnL ?? 0), 0)
+                ? rowTotals.totalUnrealizedPnL
                 : null,
-            totalDividendNet: allRows.reduce(
-                (sum, row) => sum + (row.totalDividendNet ?? 0),
-                0
-            ),
+            totalDividendNet: rowTotals.totalDividendNet,
             activeAssets,
             closedAssets,
         },

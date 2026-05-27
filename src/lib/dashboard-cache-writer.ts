@@ -4,18 +4,7 @@ import { saveDashboardCache, type DashboardCache } from "./dashboard-cache";
 import { selectCanonicalDashboardSafeFieldSource } from "./dashboard-helpers";
 import { readGlobalAssetProductReadModel } from "./parqet/global-assets/product-surface-selectors";
 import type { GlobalAssetViewModel, AssetsApiResponse } from "./types";
-
-const CLOSED_POSITION_EPSILON = 1e-8;
-
-function splitAssetsByPosition(assets: GlobalAssetViewModel[]): {
-  activeAssets: GlobalAssetViewModel[];
-  closedAssets: GlobalAssetViewModel[];
-} {
-  return {
-    activeAssets: assets.filter((asset) => asset.netShares > CLOSED_POSITION_EPSILON),
-    closedAssets: assets.filter((asset) => asset.netShares <= CLOSED_POSITION_EPSILON),
-  };
-}
+import { splitAssetsByPosition } from "./calculations/view-model-aggregates";
 
 export type PrepareDashboardCacheWriteInput = {
   response: AssetsApiResponse;
@@ -37,7 +26,7 @@ export function prepareDashboardCacheWrite(
 ): PreparedDashboardCacheWrite {
   const nextActiveAssets = enrichAssetsWithMetadata(input.response.activeAssets ?? []);
   const nextClosedAssets = enrichAssetsWithMetadata(input.response.closedAssets ?? []);
-  const currentAssets = [...nextActiveAssets, ...nextClosedAssets];
+  const runtimeFallbackAssets = [...nextActiveAssets, ...nextClosedAssets];
   const responseWithCoexistence = input.response as AssetsApiResponse & {
     globalAssetProductReadModel?: unknown;
   };
@@ -47,10 +36,11 @@ export function prepareDashboardCacheWrite(
     rawGlobalAssetProductReadModel,
   );
   const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-    currentAssets,
+    runtimeFallbackAssets,
     productReadModel: rawGlobalAssetProductReadModel,
     guardEnabled: input.guardEnabled,
   });
+  // Fallback assets stay available for compatibility when PRM cannot be selected.
   const selectedAssets = canonicalSafeFieldSelection.assets;
   const selectedByPosition = splitAssetsByPosition(selectedAssets);
   const generatedAt =

@@ -278,6 +278,9 @@ export type PortfolioBreakdown = {
   marketValue?: MoneyValue | null;
   costBasis?: MoneyValue | null;
   pnl?: MoneyValue | null;
+  dividendsNet?: MoneyValue | null;
+  fees?: MoneyValue | null;
+  taxes?: MoneyValue | null;
   avgBuyPrice?: MoneyValue | null;
   shareOfGlobalPosition?: number | null;
   status: PortfolioBreakdownStatus;

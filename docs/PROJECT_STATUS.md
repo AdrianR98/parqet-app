@@ -2,7 +2,7 @@
 
 Status: Active baseline aligned to current architecture
 Owner: AdrianR98
-Last reviewed: 2026-05-26
+Last reviewed: 2026-05-27
 
 ## Active Documentation Refactor Context
 
@@ -14,6 +14,22 @@ Last reviewed: 2026-05-26
 - Refs #384, Refs #386: `AssetSummary` deprecation is now explicit in code and documentation.
 - The complete file-level removal inventory and phased migration slices are documented in `docs/ASSET_SUMMARY_REMOVAL_PLAN.md`.
 - Phase 2B implementation completed on branch `refactor/phase-2-asset-summary-deprecation`: runtime/test usage of `AssetSummary` was removed and compatibility projection paths were deleted.
+
+## Phase 3 Planning (Calculation Model Track)
+
+- Refs #384, Refs #387, Refs #393: Phase 3 planning baseline is documented in `docs/CALCULATION_MODEL_PLAN.md`.
+- Scope is planning/documentation only in this step; runtime extraction is intentionally deferred to follow-up slices on `refactor/phase-3-calculation-model`.
+- #393 remains active technical debt and is explicitly sequenced as part of the first implementation slice, not as final architecture.
+- Slice 1 boundary bootstrap is now in progress on `refactor/phase-3-calculation-model`: runtime fallback classification is explicit (`runtime_assets_fallback`) and `GlobalAssetViewModel` field groups are typed/documented for later extraction.
+- Slice 2 has started on the same branch/PR thread: first shared calculation boundary module (`src/lib/calculations/global-asset-metrics.ts`) is wired into legacy runtime builders (`build-corrected-assets`/`grouping`) while preserving current output shape.
+- Slice 3 has started on the same branch/PR thread: shared UI/reporting aggregation helpers now live in `src/lib/calculations/view-model-aggregates.ts`, and dashboard/reporting surfaces consume these helpers instead of duplicating scoped math.
+- Slice 4 has started on the same branch/PR thread: Product Read Model -> `GlobalAssetViewModel` projection moved into `src/lib/view-models/global-asset-view-model-builder.ts`, and guarded source selectors are now focused on validation/selection/diagnostics only.
+- Slice 5 has started on the same branch/PR thread: dashboard allocation segment shaping and allocation ratio formulas were moved into shared calculation helpers in `src/lib/calculations/view-model-aggregates.ts`.
+- Slice 6 has started on the same branch/PR thread: asset detail selected-portfolio scope resolution moved from `AssetDetailPage.tsx` into `src/lib/asset-detail.ts` (`resolveSelectedAssetScope`), reducing page-owned calculation/scope logic.
+- Slice 7 closeout is completed on the same branch/PR thread: asset-detail portfolio-breakdown display metric shaping was moved into `src/lib/calculations/view-model-aggregates.ts`, and remaining runtime fallback wording was aligned to `runtime_assets_fallback` / runtime fallback state terminology.
+- Slice 8 PRM-parity work is in progress on the same branch/PR thread: upstream global-asset aggregation and PRM projection now populate dashboard-critical valuation/cost-basis/dividend metrics (including portfolio-breakdown money metrics) so canonical dashboard/asset-table surfaces can consume PRM data directly.
+- Phase 3 implementation is now complete for the planned modular-calculation scope on `refactor/phase-3-calculation-model`.
+- #393 is partially resolved in this PR: fallback/source semantics are finalized, but a small set of temporary continuity fields is still intentionally retained for timeline/report sorting consumers and is documented as explicit remaining debt.
 
 ## Current Baseline
 

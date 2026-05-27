@@ -6,6 +6,7 @@ import styles from "./AssetTable.module.css";
 import { getAssetTableColumns, renderExpandedRow, type AssetTableColumnKey } from "./asset-table-columns";
 import type { GlobalAssetViewModel } from "../../lib/types";
 import { DEFAULT_REVEAL_BLOCK_SIZE, loadAssetTableVisibleColumns, loadRevealBlockSize, saveAssetTableVisibleColumns, subscribeToLocalSettings } from "../../lib/app-settings";
+import { aggregateAssetValueTotals } from "../../lib/calculations/view-model-aggregates";
 
 type AssetTableProps = { assets: GlobalAssetViewModel[]; loading?: boolean; emptyTitle?: string; emptyDescription?: string };
 
@@ -54,7 +55,10 @@ export default function AssetTable({ assets, loading = false, emptyTitle = "Kein
     const [visibleAssetCount, setVisibleAssetCount] = useState(DEFAULT_REVEAL_BLOCK_SIZE);
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => toVisibilityState(loadAssetTableVisibleColumns(ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, FIXED_COLUMNS) as AssetTableColumnKey[]));
 
-    const totalPositionValue = useMemo(() => assets.reduce((sum, asset) => sum + (asset.positionValue ?? 0), 0), [assets]);
+    const totalPositionValue = useMemo(
+        () => aggregateAssetValueTotals(assets).totalPositionValue,
+        [assets]
+    );
     const columns = useMemo(() => getAssetTableColumns(expandedIsins, setExpandedIsins, totalPositionValue), [expandedIsins, totalPositionValue]);
 
     const table = useReactTable({

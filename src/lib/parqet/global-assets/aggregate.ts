@@ -1,5 +1,14 @@
 import { applyGlobalAssetPositionOverrides } from "./overrides";
 import {
+  applyBuyPositionDelta,
+  applySellLikePositionDelta,
+  applyTransferInPositionDelta,
+  calculatePositionMetrics,
+  normalizePositionRounding,
+  sumDividendNet,
+  updateLatestTradePrice,
+} from "../../calculations/global-asset-metrics";
+import {
   ActivitiesNormalizationResult,
   AssetConfidence,
   BlockedMetric,
@@ -167,6 +176,41 @@ function collectCurrencies(values: Array<MoneyValue | null | undefined>): string
   return Array.from(new Set(values.filter(isMoneyValue).map((value) => value.currency)));
 }
 
+function sumMoneyValuesWithoutWarning(
+  values: Array<MoneyValue | null | undefined>,
+): MoneyValue | null {
+  const presentValues = values.filter(isMoneyValue);
+
+  if (presentValues.length === 0) {
+    return null;
+  }
+
+  const currencies = collectCurrencies(presentValues);
+
+  if (currencies.length !== 1) {
+    return null;
+  }
+
+  return {
+    amount: presentValues.reduce((sum, value) => sum + value.amount, 0),
+    currency: currencies[0],
+  };
+}
+
+function getActivityCurrency(activity: NormalizedActivity): string | null {
+  return (
+    activity.pricePerShare?.currency ??
+    activity.amounts.amountNet?.currency ??
+    activity.amounts.amount?.currency ??
+    activity.activityCurrency ??
+    null
+  );
+}
+
+function getCostBasisAmountForBuy(activity: NormalizedActivity): number {
+  return activity.amounts.amountNet?.amount ?? activity.amounts.amount?.amount ?? 0;
+}
+
 function sumMoneyValues(
   values: Array<MoneyValue | null | undefined>,
   context: { assetKey: GlobalAssetKey; metric: BlockedMetric; label: string },
@@ -321,8 +365,67 @@ function buildPortfolioBreakdowns(input: {
   }
 
   return Array.from(groups.entries()).map(([portfolioId, portfolioActivities]) => {
-    const rawQuantity = portfolioActivities.reduce((sum, activity) => sum + quantityEffect(activity), 0);
-    const quantity = normalizeQuantityForStatus(rawQuantity);
+    let netShares = 0;
+    let remainingCostBasis = 0;
+    let latestTradePrice: number | null = null;
+    let totalDividendNet = 0;
+
+    for (const activity of portfolioActivities) {
+      const quantity = activity.quantity ?? 0;
+
+      if (activity.activityType === "buy" || activity.activityType === "deposit") {
+        const next = applyBuyPositionDelta(
+          { netShares, remainingCostBasis },
+          { shares: quantity, amount: getCostBasisAmountForBuy(activity) },
+        );
+        netShares = next.netShares;
+        remainingCostBasis = next.remainingCostBasis;
+      } else if (activity.activityType === "transfer_in") {
+        const next = applyTransferInPositionDelta(
+          { netShares, remainingCostBasis },
+          { shares: quantity },
+        );
+        netShares = next.netShares;
+        remainingCostBasis = next.remainingCostBasis;
+      } else if (
+        activity.activityType === "sell" ||
+        activity.activityType === "withdrawal" ||
+        activity.activityType === "transfer_out"
+      ) {
+        const next = applySellLikePositionDelta(
+          { netShares, remainingCostBasis },
+          { shares: quantity },
+        );
+        netShares = next.netShares;
+        remainingCostBasis = next.remainingCostBasis;
+      } else if (activity.activityType === "dividend") {
+        totalDividendNet = sumDividendNet({
+          currentTotalDividendNet: totalDividendNet,
+          amount: activity.amounts.amount?.amount ?? 0,
+          amountNet: activity.amounts.amountNet?.amount ?? 0,
+        });
+      }
+
+      const tradePrice = activity.pricePerShare?.amount ?? null;
+      if (
+        tradePrice != null &&
+        (activity.activityType === "buy" ||
+          activity.activityType === "sell" ||
+          activity.activityType === "deposit" ||
+          activity.activityType === "withdrawal" ||
+          activity.activityType === "transfer_in" ||
+          activity.activityType === "transfer_out")
+      ) {
+        latestTradePrice = updateLatestTradePrice(latestTradePrice, tradePrice);
+      }
+    }
+
+    const rounded = normalizePositionRounding({
+      netShares: normalizeQuantityForStatus(netShares),
+      remainingCostBasis,
+    });
+    const computedQuantity = normalizeQuantityForStatus(rounded.netShares);
+    const quantity = computedQuantity;
     const status: PortfolioBreakdownStatus = isPositiveQuantity(quantity)
       ? "active"
       : quantity === 0
@@ -358,14 +461,62 @@ function buildPortfolioBreakdowns(input: {
       input.unresolvedDecisionCandidates.push(unresolvedDecisionCandidate);
     }
 
+    const metrics = calculatePositionMetrics({
+      netShares: quantity,
+      remainingCostBasis: rounded.remainingCostBasis,
+      latestTradePrice,
+      marketPrice: null,
+    });
+    const priceCurrencies = collectCurrencies(
+      portfolioActivities.map((activity) => {
+        if (
+          activity.activityType === "buy" ||
+          activity.activityType === "sell" ||
+          activity.activityType === "deposit" ||
+          activity.activityType === "withdrawal" ||
+          activity.activityType === "transfer_in" ||
+          activity.activityType === "transfer_out"
+        ) {
+          const currency = getActivityCurrency(activity);
+          return currency ? { amount: 0, currency } : null;
+        }
+
+        return null;
+      }),
+    );
+    const valuationCurrency = priceCurrencies.length === 1 ? priceCurrencies[0] : null;
+    const dividendsCurrencies = collectCurrencies(
+      portfolioActivities
+        .filter((activity) => activity.activityType === "dividend")
+        .map((activity) => activity.amounts.amountNet ?? activity.amounts.amount),
+    );
+    const dividendsCurrency =
+      dividendsCurrencies.length === 1 ? dividendsCurrencies[0] : null;
+
     return {
       portfolioId,
       portfolioName: portfolioActivities[0]?.portfolioContext.portfolioName ?? null,
       quantity,
-      marketValue: null,
-      costBasis: null,
-      pnl: null,
-      avgBuyPrice: null,
+      marketValue:
+        metrics.positionValue != null && valuationCurrency
+          ? { amount: metrics.positionValue, currency: valuationCurrency }
+          : null,
+      costBasis: valuationCurrency
+        ? { amount: rounded.remainingCostBasis, currency: valuationCurrency }
+        : null,
+      pnl:
+        metrics.unrealizedPnL != null && valuationCurrency
+          ? { amount: metrics.unrealizedPnL, currency: valuationCurrency }
+          : null,
+      dividendsNet: dividendsCurrency
+        ? { amount: totalDividendNet, currency: dividendsCurrency }
+        : null,
+      fees: null,
+      taxes: null,
+      avgBuyPrice:
+        valuationCurrency && metrics.avgBuyPrice != null
+          ? { amount: metrics.avgBuyPrice, currency: valuationCurrency }
+          : null,
       shareOfGlobalPosition: null,
       status,
       warnings: breakdownWarnings,
@@ -507,6 +658,20 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     );
   }
 
+  const totalMarketValue = sumMoneyValuesWithoutWarning(
+    portfolioBreakdowns.map((breakdown) => breakdown.marketValue),
+  );
+  const totalCostBasis = sumMoneyValuesWithoutWarning(
+    portfolioBreakdowns.map((breakdown) => breakdown.costBasis),
+  );
+  const totalUnrealizedPnL = sumMoneyValuesWithoutWarning(
+    portfolioBreakdowns.map((breakdown) => breakdown.pnl),
+  );
+  const totalDividendsNet =
+    sumMoneyValuesWithoutWarning(
+      portfolioBreakdowns.map((breakdown) => breakdown.dividendsNet),
+    ) ?? dividendsNet;
+
   const status: GlobalAssetStatus = isNegativeQuantity(totalQuantity)
     ? "unknown"
     : portfolioBreakdowns.some((breakdown) => breakdown.status === "active")
@@ -532,10 +697,10 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     status,
     totals: {
       quantity: totalQuantity,
-      marketValue: null,
-      costBasis: null,
-      unrealizedPnL: null,
-      dividendsNet,
+      marketValue: totalMarketValue,
+      costBasis: totalCostBasis,
+      unrealizedPnL: totalUnrealizedPnL,
+      dividendsNet: totalDividendsNet,
       fees,
       taxes,
     },

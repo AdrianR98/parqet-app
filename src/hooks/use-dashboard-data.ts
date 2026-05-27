@@ -20,6 +20,7 @@ import {
   sortActiveAssets,
   sortClosedAssets,
 } from "../lib/dashboard-helpers";
+import { splitAssetsByPosition } from "../lib/calculations/view-model-aggregates";
 import { persistDashboardCacheWrite } from "../lib/dashboard-cache-writer";
 import type {
   GlobalAssetViewModel,
@@ -85,22 +86,6 @@ const INITIAL_PORTFOLIO_SCOPE: PortfolioScope = {
   mode: "all",
   selectedPortfolioIds: [],
 };
-const CLOSED_POSITION_EPSILON = 1e-8;
-
-function splitAssetsByPosition(assets: GlobalAssetViewModel[]): {
-  activeAssets: GlobalAssetViewModel[];
-  closedAssets: GlobalAssetViewModel[];
-} {
-  const activeAssets = assets.filter(
-    (asset) => asset.netShares > CLOSED_POSITION_EPSILON,
-  );
-  const closedAssets = assets.filter(
-    (asset) => asset.netShares <= CLOSED_POSITION_EPSILON,
-  );
-
-  return { activeAssets, closedAssets };
-}
-
 function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
     return false;
@@ -324,10 +309,11 @@ export function useDashboardData(): UseDashboardDataResult {
     ];
     const rawGlobalAssetProductReadModel = cached.globalAssetProductReadModel ?? null;
     const canonicalSafeFieldSelection = selectCanonicalDashboardSafeFieldSource({
-      currentAssets: cachedAssets,
+      runtimeFallbackAssets: cachedAssets,
       productReadModel: rawGlobalAssetProductReadModel,
       guardEnabled: guardedGlobalAssetProductEnabled,
     });
+    // This selection may still resolve to runtime fallback for compatibility.
     const selectedAssets = splitAssetsByPosition(
       canonicalSafeFieldSelection.assets,
     );

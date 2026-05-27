@@ -763,7 +763,11 @@ export type CreateProductReadModelAssetsInput = {
   providerRequestCount?: number | null;
 };
 
-export type ProductReadModelCompatibilityAssetInput = {
+/**
+ * Runtime fallback asset shape used for comparison diagnostics only.
+ * This input is not the canonical Product Read Model calculation output.
+ */
+export type ProductReadModelRuntimeFallbackAssetInput = {
   isin?: string | null;
   positionValue?: number | null;
   unrealizedPnL?: number | null;
@@ -997,15 +1001,15 @@ function buildAssetRowFromGlobalAsset(input: {
         costBasis: breakdownCostBasis,
         unrealizedPnL: breakdownUnrealizedPnL,
         dividendsNet: mapMoneyMetric(
-          null,
+          breakdown.dividendsNet,
           breakdownBlockedMetrics.filter((metric) => metric === "dividends"),
         ),
         fees: mapMoneyMetric(
-          null,
+          breakdown.fees,
           breakdownBlockedMetrics.filter((metric) => metric === "fees"),
         ),
         taxes: mapMoneyMetric(
-          null,
+          breakdown.taxes,
           breakdownBlockedMetrics.filter((metric) => metric === "taxes"),
         ),
         warnings: breakdownWarnings,
@@ -1114,21 +1118,21 @@ export function projectGlobalAssetsProductReadModel(
 }
 
 export function buildGlobalAssetsProductReadModelComparisonEvidence(input: {
-  currentAssets: ProductReadModelCompatibilityAssetInput[];
+  runtimeFallbackAssets: ProductReadModelRuntimeFallbackAssetInput[];
   projected: ProductReadModelAssets;
 }): ProductReadModelAssetsComparisonEvidence {
   const currentSurface = {
-    assetCount: input.currentAssets.length,
-    assetWithPositionValueCount: input.currentAssets.filter(
+    assetCount: input.runtimeFallbackAssets.length,
+    assetWithPositionValueCount: input.runtimeFallbackAssets.filter(
       (asset) => asset.positionValue != null,
     ).length,
-    assetWithUnrealizedPnLCount: input.currentAssets.filter(
+    assetWithUnrealizedPnLCount: input.runtimeFallbackAssets.filter(
       (asset) => asset.unrealizedPnL != null,
     ).length,
-    assetWithDividendCount: input.currentAssets.filter(
+    assetWithDividendCount: input.runtimeFallbackAssets.filter(
       (asset) => asset.totalDividendNet != null,
     ).length,
-    assetWithQuantityCount: input.currentAssets.filter((asset) => asset.netShares != null).length,
+    assetWithQuantityCount: input.runtimeFallbackAssets.filter((asset) => asset.netShares != null).length,
   };
   const projectedByStatus: Record<ProductReadModelAssetStatus, number> = {
     active: 0,

@@ -5,9 +5,9 @@ import {
   projectGlobalAssetsProductReadModel,
 } from "../../src/lib/parqet/global-assets/product-read-model";
 import {
-  buildAssetSummariesFromCanonicalSafeFields,
   selectCanonicalSafeFieldProductSurfaceSource,
 } from "../../src/lib/parqet/global-assets/product-surface-selectors";
+import { buildGlobalAssetViewModelsFromProductReadModel } from "../../src/lib/view-models/global-asset-view-model-builder";
 import {
   selectCanonicalAssetTableSafeFieldSource,
   selectCanonicalDashboardSafeFieldSource,
@@ -54,7 +54,7 @@ function installWindowWithLocalStorage(seed?: Record<string, string>): void {
   });
 }
 
-function createCompatibilityAssetsFixture(): GlobalAssetViewModel[] {
+function createRuntimeFallbackAssetsFixture(): GlobalAssetViewModel[] {
   return [
     {
       isin: "DEMO00000011",
@@ -260,42 +260,54 @@ describe("canonical global-asset safe-field migration selectors", () => {
     expect(projected.assets[0]?.identity.stableKey).toBe("isin:DEMO00000011");
     expect(projected.assets[0]?.portfolioBreakdown.length).toBeGreaterThan(1);
     expect(projected.assets[0]?.quantity).toBe(3);
-    expect(projected.assets[0]?.marketValue.valueClassification).toBe("blocked");
+    expect(projected.assets[0]?.marketValue.valueClassification).toBe("app_calculated");
+    expect(projected.assets[0]?.marketValue.amount).toBe(280);
+    expect(projected.assets[0]?.costBasis.amount).toBe(500);
+    expect(projected.assets[0]?.unrealizedPnL.amount).toBe(-220);
+    expect(projected.assets[0]?.dividendsNet.amount).toBe(12);
+    expect(projected.assets[0]?.portfolioBreakdown[0]?.marketValue.amount).not.toBeNull();
+    expect(projected.assets[0]?.portfolioBreakdown[0]?.costBasis.amount).not.toBeNull();
+    expect(projected.assets[0]?.portfolioBreakdown[0]?.unrealizedPnL.amount).not.toBeNull();
+    expect(
+      projected.assets[0]?.portfolioBreakdown.some(
+        (entry) => entry.dividendsNet.amount != null,
+      ),
+    ).toBe(true);
     expect(projected.assets[1]?.status).toBe("closed");
     expect(projected.assets[1]?.quantity).toBe(0);
   });
 
   it("builds count-safe old/new comparison evidence", () => {
     const projected = buildProjectedProductReadModel();
-    const compatibilityAssets = createCompatibilityAssetsFixture();
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
     const evidence = buildGlobalAssetsProductReadModelComparisonEvidence({
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       projected,
     });
 
     expect(evidence.compatibility.assetCount).toBe(2);
     expect(evidence.projected.assetCount).toBe(2);
     expect(evidence.projected.withQuantityCount).toBe(2);
-    expect(evidence.projected.withMarketValueCount).toBe(0);
+    expect(evidence.projected.withMarketValueCount).toBe(2);
     expect(evidence.delta.assetCount).toBe(0);
   });
 
   it("selects canonical safe-field source for dashboard/asset-table/reports only when enabled and ready", () => {
     const projected = buildProjectedProductReadModel();
-    const compatibilityAssets = createCompatibilityAssetsFixture();
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
 
     const disabledSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: projected,
       guardEnabled: false,
     });
-    expect(disabledSelection.selectedSource).toBe("compatibility");
-    expect(disabledSelection.reason).toBe("guard_not_enabled");
+    expect(disabledSelection.selectedSource).toBe("runtime_assets_fallback");
+    expect(disabledSelection.reason).toBe("guard_disabled");
 
     const staleSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "reports",
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: {
         ...projected,
         metadata: {
@@ -305,12 +317,12 @@ describe("canonical global-asset safe-field migration selectors", () => {
       },
       guardEnabled: true,
     });
-    expect(staleSelection.selectedSource).toBe("compatibility");
+    expect(staleSelection.selectedSource).toBe("runtime_assets_fallback");
     expect(staleSelection.reason).toBe("product_read_model_not_fresh");
 
     const scopeMismatchSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "asset_table",
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: {
         ...projected,
         metadata: {
@@ -320,12 +332,12 @@ describe("canonical global-asset safe-field migration selectors", () => {
       },
       guardEnabled: true,
     });
-    expect(scopeMismatchSelection.selectedSource).toBe("compatibility");
+    expect(scopeMismatchSelection.selectedSource).toBe("runtime_assets_fallback");
     expect(scopeMismatchSelection.reason).toBe("product_read_model_scope_mismatch");
 
     const readySelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: projected,
       guardEnabled: true,
     });
@@ -338,33 +350,33 @@ describe("canonical global-asset safe-field migration selectors", () => {
     expect(readySelection.diagnostics.providerRequestCount).toBe(0);
   });
 
-  it("falls back to compatibility for invalid or empty product read-model data", () => {
+  it("falls back to runtime fallback for invalid or empty product read-model data", () => {
     const projected = buildProjectedProductReadModel();
-    const compatibilityAssets = createCompatibilityAssetsFixture();
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
 
     const invalidSelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "dashboard",
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: { assets: [] },
       guardEnabled: true,
     });
-    expect(invalidSelection.selectedSource).toBe("compatibility");
+    expect(invalidSelection.selectedSource).toBe("runtime_assets_fallback");
     expect(invalidSelection.reason).toBe("product_read_model_invalid");
 
     const emptySelection = selectCanonicalSafeFieldProductSurfaceSource({
       surface: "reports",
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: {
         ...projected,
         assets: [],
       },
       guardEnabled: true,
     });
-    expect(emptySelection.selectedSource).toBe("compatibility");
-    expect(emptySelection.reason).toBe("product_read_model_missing");
+    expect(emptySelection.selectedSource).toBe("runtime_assets_fallback");
+    expect(emptySelection.reason).toBe("product_read_model_empty");
   });
 
-  it("keeps valuation/performance and transfer-sensitive fields compatibility-backed while using canonical product safe fields", () => {
+  it("keeps canonical safe-field source on product read model and projects PRM valuation metrics into runtime rows", () => {
     const projected = buildProjectedProductReadModel();
     const projectedWithForcedValuationValues = {
       ...projected,
@@ -429,71 +441,70 @@ describe("canonical global-asset safe-field migration selectors", () => {
           : asset,
       ),
     };
-    const compatibilityAssets = createCompatibilityAssetsFixture();
-    const fallbackRows = buildAssetSummariesFromCanonicalSafeFields({
-      productReadModel: projectedWithForcedValuationValues,
-      currentAssets: compatibilityAssets,
-    });
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
+    const projectedRows = buildGlobalAssetViewModelsFromProductReadModel(
+      projectedWithForcedValuationValues
+    );
     const dashboardSelection = selectCanonicalDashboardSafeFieldSource({
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
     });
     const assetTableSelection = selectCanonicalAssetTableSafeFieldSource({
-      currentAssets: compatibilityAssets,
+      runtimeFallbackAssets,
       productReadModel: projectedWithForcedValuationValues,
       guardEnabled: true,
     });
 
-    expect(fallbackRows[0]?.name).toBe("Guarded Product Asset");
-    expect(fallbackRows[0]?.portfolioBreakdown[0]?.portfolioName).toBe(
+    expect(projectedRows[0]?.name).toBe("Guarded Product Asset");
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.portfolioName).toBe(
       "Guarded Portfolio One",
     );
-    expect(fallbackRows[0]?.positionValue).toBe(336);
-    expect(fallbackRows[0]?.unrealizedPnL).toBe(36);
-    expect(fallbackRows[0]?.netShares).toBe(3);
-    expect(fallbackRows[0]?.remainingCostBasis).toBe(300);
-    expect(fallbackRows[0]?.avgBuyPrice).toBe(100);
-    expect(fallbackRows[0]?.totalDividendNet).toBe(12);
-    expect(fallbackRows[0]?.portfolioBreakdown[0]?.positionValue).toBe(336);
-    expect(fallbackRows[0]?.portfolioBreakdown[0]?.unrealizedPnL).toBe(36);
-    expect(fallbackRows[0]?.portfolioBreakdown[0]?.netShares).toBe(3);
-    expect(fallbackRows[0]?.portfolioBreakdown[0]?.totalDividendNet).toBe(12);
+    expect(projectedRows[0]?.positionValue).toBe(999_999);
+    expect(projectedRows[0]?.unrealizedPnL).toBe(777_777);
+    expect(projectedRows[0]?.netShares).toBe(999);
+    expect(projectedRows[0]?.remainingCostBasis).toBe(888_888);
+    expect(projectedRows[0]?.avgBuyPrice).toBe(889.7777777777778);
+    expect(projectedRows[0]?.totalDividendNet).toBe(666_666);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.positionValue).toBe(444_444);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.unrealizedPnL).toBe(222_222);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.netShares).toBe(444);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.totalDividendNet).toBe(111_111);
     expect(dashboardSelection.selection.selectedSource).toBe("global_asset_product");
     expect(assetTableSelection.selection.selectedSource).toBe("global_asset_product");
-    expect(dashboardSelection.selection.fallbackFields).toContain("position_value");
-    expect(dashboardSelection.selection.fallbackFields).toContain("unrealized_pnl");
-    expect(dashboardSelection.selection.fallbackFields).toContain("remaining_cost_basis");
-    expect(dashboardSelection.selection.fallbackFields).toContain("avg_buy_price");
-    expect(dashboardSelection.selection.fallbackFields).toContain("net_shares");
-    expect(dashboardSelection.selection.fallbackFields).toContain("total_dividend_net");
+    expect(dashboardSelection.selection.affectedFields).toContain("position_value");
+    expect(dashboardSelection.selection.affectedFields).toContain("unrealized_pnl");
+    expect(dashboardSelection.selection.affectedFields).toContain("remaining_cost_basis");
+    expect(dashboardSelection.selection.affectedFields).toContain("avg_buy_price");
+    expect(dashboardSelection.selection.affectedFields).toContain("net_shares");
+    expect(dashboardSelection.selection.affectedFields).toContain("total_dividend_net");
   });
 
-  it("preserves compatibility rows when canonical product safe-field rows are missing", () => {
+  it("keeps runtime fallback rows when product read model is empty", () => {
     const projected = buildProjectedProductReadModel();
-    const compatibilityAssets = createCompatibilityAssetsFixture();
-    const projectedMissingSecondAsset = {
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
+    const projectedWithoutAssets = {
       ...projected,
-      assets: projected.assets.filter(
-        (asset) => asset.identity.compatibilityIsin !== "DEMO00000012",
-      ),
+      assets: [],
     };
-    const selectedRows = buildAssetSummariesFromCanonicalSafeFields({
-      productReadModel: projectedMissingSecondAsset,
-      currentAssets: compatibilityAssets,
+    const selection = selectCanonicalSafeFieldProductSurfaceSource({
+      surface: "dashboard",
+      runtimeFallbackAssets,
+      productReadModel: projectedWithoutAssets,
+      guardEnabled: true,
     });
 
-    expect(selectedRows).toHaveLength(2);
-    expect(selectedRows[0]?.isin).toBe("DEMO00000011");
-    expect(selectedRows[1]?.isin).toBe("DEMO00000012");
-    expect(selectedRows[1]?.name).toBe("Demo Asset Two");
+    expect(selection.selectedSource).toBe("runtime_assets_fallback");
+    expect(selection.reason).toBe("product_read_model_empty");
+    expect(selection.diagnostics.runtimeFallbackAssetCount).toBe(2);
+    expect(selection.diagnostics.productAssetCount).toBe(0);
   });
 });
 
 describe("reports canonical safe-field source integration", () => {
   it("uses canonical reports safe-field source by default when local coexistence cache is ready", () => {
     const projected = buildProjectedProductReadModel();
-    const compatibilityAssets = createCompatibilityAssetsFixture();
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
     const projectedWithSafeIdentity = {
       ...projected,
       assets: projected.assets.map((asset) =>
@@ -511,8 +522,8 @@ describe("reports canonical safe-field source integration", () => {
 
     installWindowWithLocalStorage({
       [DASHBOARD_CACHE_KEY]: JSON.stringify({
-        activeAssets: compatibilityAssets.filter((asset) => asset.netShares > 0),
-        closedAssets: compatibilityAssets.filter((asset) => asset.netShares === 0),
+        activeAssets: runtimeFallbackAssets.filter((asset) => asset.netShares > 0),
+        closedAssets: runtimeFallbackAssets.filter((asset) => asset.netShares === 0),
         rawActivityCount: 5,
         filteredActivityCount: 5,
         assetCount: 2,
@@ -549,18 +560,18 @@ describe("reports canonical safe-field source integration", () => {
     expect(report?.guardedSelection.reason).toBe("product_read_model_ready");
     expect(report?.assets[0]?.name).toBe("Guarded Report Asset");
     expect(report?.assets.length).toBe(2);
-    expect(report?.totals.totalPositionValue).toBe(336);
-    expect(report?.totals.totalUnrealizedPnL).toBe(36);
+    expect(report?.totals.totalPositionValue).toBe(280);
+    expect(report?.totals.totalUnrealizedPnL).toBe(-220);
   });
 
-  it("falls back to compatibility report source when old cache has no global asset product model", () => {
+  it("falls back to runtime fallback report source when old cache has no global asset product model", () => {
     process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED = "true";
-    const compatibilityAssets = createCompatibilityAssetsFixture();
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
 
     installWindowWithLocalStorage({
       [DASHBOARD_CACHE_KEY]: JSON.stringify({
-        activeAssets: compatibilityAssets.filter((asset) => asset.netShares > 0),
-        closedAssets: compatibilityAssets.filter((asset) => asset.netShares === 0),
+        activeAssets: runtimeFallbackAssets.filter((asset) => asset.netShares > 0),
+        closedAssets: runtimeFallbackAssets.filter((asset) => asset.netShares === 0),
         rawActivityCount: 5,
         filteredActivityCount: 5,
         assetCount: 2,
@@ -592,22 +603,22 @@ describe("reports canonical safe-field source integration", () => {
     const report = loadLocalReportModel();
 
     expect(report).not.toBeNull();
-    expect(report?.guardedSelection.selectedSource).toBe("compatibility");
+    expect(report?.guardedSelection.selectedSource).toBe("runtime_assets_fallback");
     expect(report?.guardedSelection.reason).toBe("product_read_model_missing");
     expect(report?.assets.length).toBe(2);
     expect(report?.totals.totalPositionValue).toBe(336);
     expect(report?.totals.totalUnrealizedPnL).toBe(36);
   });
 
-  it("falls back to compatibility report source when product read model is stale", () => {
+  it("falls back to runtime fallback report source when product read model is stale", () => {
     process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED = "true";
     const projected = buildProjectedProductReadModel();
-    const compatibilityAssets = createCompatibilityAssetsFixture();
+    const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
 
     installWindowWithLocalStorage({
       [DASHBOARD_CACHE_KEY]: JSON.stringify({
-        activeAssets: compatibilityAssets.filter((asset) => asset.netShares > 0),
-        closedAssets: compatibilityAssets.filter((asset) => asset.netShares === 0),
+        activeAssets: runtimeFallbackAssets.filter((asset) => asset.netShares > 0),
+        closedAssets: runtimeFallbackAssets.filter((asset) => asset.netShares === 0),
         rawActivityCount: 5,
         filteredActivityCount: 5,
         assetCount: 2,
@@ -646,7 +657,7 @@ describe("reports canonical safe-field source integration", () => {
     const report = loadLocalReportModel();
 
     expect(report).not.toBeNull();
-    expect(report?.guardedSelection.selectedSource).toBe("compatibility");
+    expect(report?.guardedSelection.selectedSource).toBe("runtime_assets_fallback");
     expect(report?.guardedSelection.reason).toBe("product_read_model_not_fresh");
     expect(report?.assets.length).toBe(2);
     expect(report?.totals.totalPositionValue).toBe(336);
@@ -654,16 +665,16 @@ describe("reports canonical safe-field source integration", () => {
   });
 
   it.each(["false", "off", "0"])(
-    "supports rollback by forcing compatibility report source when guard flag is %s",
+    "supports rollback by forcing runtime fallback report source when guard flag is %s",
     (rawFlagValue) => {
       process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED = rawFlagValue;
       const projected = buildProjectedProductReadModel();
-      const compatibilityAssets = createCompatibilityAssetsFixture();
+      const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
 
       installWindowWithLocalStorage({
         [DASHBOARD_CACHE_KEY]: JSON.stringify({
-          activeAssets: compatibilityAssets.filter((asset) => asset.netShares > 0),
-          closedAssets: compatibilityAssets.filter((asset) => asset.netShares === 0),
+          activeAssets: runtimeFallbackAssets.filter((asset) => asset.netShares > 0),
+          closedAssets: runtimeFallbackAssets.filter((asset) => asset.netShares === 0),
           rawActivityCount: 5,
           filteredActivityCount: 5,
           assetCount: 2,
@@ -696,8 +707,8 @@ describe("reports canonical safe-field source integration", () => {
       const report = loadLocalReportModel();
 
       expect(report).not.toBeNull();
-      expect(report?.guardedSelection.selectedSource).toBe("compatibility");
-      expect(report?.guardedSelection.reason).toBe("guard_not_enabled");
+      expect(report?.guardedSelection.selectedSource).toBe("runtime_assets_fallback");
+      expect(report?.guardedSelection.reason).toBe("guard_disabled");
       expect(report?.totals.totalPositionValue).toBe(336);
       expect(report?.totals.totalUnrealizedPnL).toBe(36);
     },

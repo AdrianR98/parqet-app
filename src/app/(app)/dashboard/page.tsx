@@ -7,8 +7,12 @@ import HeroSection, { type AllocationSegment } from "../../../components/dashboa
 import { useDashboardData } from "../../../hooks/use-dashboard-data";
 import { getAssetDisplayName, getAssetSubtitle } from "../../../lib/asset-display";
 import type { GlobalAssetViewModel } from "../../../lib/types";
-
-const CLOSED_POSITION_EPSILON = 1e-8;
+import {
+    aggregateAssetValueTotals,
+    buildAllocationSegmentsFromAssets,
+    scopeAssetToPortfolioSelection,
+    splitAssetsByPosition,
+} from "../../../lib/calculations/view-model-aggregates";
 const DASHBOARD_ALLOCATION_PALETTE = [
     "var(--chart-series-1)",
     "var(--chart-series-2)",
@@ -47,62 +51,13 @@ function isCryptoAsset(asset: GlobalAssetViewModel): boolean {
     return getAssetTypeLabel(asset) === "Kryptowährungen";
 }
 
-function scopeAssetToSelection(asset: GlobalAssetViewModel, selectedPortfolioIds: string[]): GlobalAssetViewModel | null {
-    const selectedSet = new Set(selectedPortfolioIds);
-    const breakdown = asset.portfolioBreakdown.filter((entry) => selectedSet.has(entry.portfolioId));
-
-    if (breakdown.length === 0) {
-        return null;
-    }
-
-    const hasPositionValue = breakdown.some((entry) => entry.positionValue != null);
-    const hasUnrealizedPnL = breakdown.some((entry) => entry.unrealizedPnL != null);
-    const netShares = breakdown.reduce((sum, entry) => sum + entry.netShares, 0);
-    const remainingCostBasis = breakdown.reduce((sum, entry) => sum + entry.remainingCostBasis, 0);
-    const totalDividendNet = breakdown.reduce((sum, entry) => sum + entry.totalDividendNet, 0);
-    const positionValue = breakdown.reduce((sum, entry) => sum + (entry.positionValue ?? 0), 0);
-    const unrealizedPnL = breakdown.reduce((sum, entry) => sum + (entry.unrealizedPnL ?? 0), 0);
-
-    return {
-        ...asset,
-        portfolioBreakdown: breakdown,
-        portfolioIds: breakdown.map((entry) => entry.portfolioId),
-        portfolioNames: breakdown.map((entry) => entry.portfolioName),
-        netShares,
-        remainingCostBasis,
-        avgBuyPrice: netShares > 0 ? remainingCostBasis / netShares : null,
-        positionValue: hasPositionValue ? positionValue : null,
-        unrealizedPnL: hasUnrealizedPnL ? unrealizedPnL : null,
-        totalDividendNet,
-    };
-}
-
 function buildAllocationSegments(assets: GlobalAssetViewModel[]): AllocationSegment[] {
-    const MAX_INDIVIDUAL_SEGMENTS = 15;
-    const validAssets = assets
-        .map((asset) => ({ label: getAssetDisplayName(asset), value: asset.positionValue ?? 0 }))
-        .filter((asset) => asset.value > 0)
-        .sort((left, right) => right.value - left.value);
-
-    if (validAssets.length === 0) {
-        return [];
-    }
-
-    const topAssets = validAssets.slice(0, MAX_INDIVIDUAL_SEGMENTS);
-    const remainder = validAssets
-        .slice(MAX_INDIVIDUAL_SEGMENTS)
-        .reduce((sum, asset) => sum + asset.value, 0);
-    const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
-        label: asset.label,
-        value: asset.value,
-        color: DASHBOARD_ALLOCATION_PALETTE[index] ?? DASHBOARD_ALLOCATION_PALETTE[DASHBOARD_ALLOCATION_PALETTE.length - 1],
-    }));
-
-    if (remainder > 0) {
-        segments.push({ label: "Weitere", value: remainder, color: "var(--chart-series-other)" });
-    }
-
-    return segments;
+    return buildAllocationSegmentsFromAssets(assets, {
+        maxIndividualSegments: 15,
+        palette: DASHBOARD_ALLOCATION_PALETTE,
+        otherColor: "var(--chart-series-other)",
+        getLabel: getAssetDisplayName,
+    });
 }
 
 function matchesSearch(asset: GlobalAssetViewModel, query: string): boolean {
@@ -140,32 +95,37 @@ export default function DashboardPage() {
     const scopedAssets = useMemo(() => {
         const allAssets = [...sortedActiveAssets, ...sortedClosedAssets];
         return allAssets
-            .map((asset) => scopeAssetToSelection(asset, selectedPortfolioIds))
+            .map((asset) => scopeAssetToPortfolioSelection(asset, selectedPortfolioIds))
             .filter((asset): asset is GlobalAssetViewModel => asset != null);
     }, [selectedPortfolioIds, sortedActiveAssets, sortedClosedAssets]);
 
-    const activeAssets = useMemo(
-        () => scopedAssets
-            .filter((asset) => asset.netShares > CLOSED_POSITION_EPSILON)
-            .sort((left, right) => (right.positionValue ?? 0) - (left.positionValue ?? 0)),
+    const scopedByPosition = useMemo(
+        () => splitAssetsByPosition(scopedAssets),
         [scopedAssets],
     );
-    const closedAssets = useMemo(
-        () => scopedAssets
-            .filter((asset) => asset.netShares <= CLOSED_POSITION_EPSILON)
+    const activeAssets = useMemo(
+        () => [...scopedByPosition.activeAssets]
             .sort((left, right) => (right.positionValue ?? 0) - (left.positionValue ?? 0)),
-        [scopedAssets],
+        [scopedByPosition.activeAssets],
+    );
+    const closedAssets = useMemo(
+        () => [...scopedByPosition.closedAssets]
+            .sort((left, right) => (right.positionValue ?? 0) - (left.positionValue ?? 0)),
+        [scopedByPosition.closedAssets],
     );
     const activeSecurities = useMemo(() => activeAssets.filter((asset) => !isCryptoAsset(asset)), [activeAssets]);
     const activeCrypto = useMemo(() => activeAssets.filter((asset) => isCryptoAsset(asset)), [activeAssets]);
     const soldSecurities = useMemo(() => closedAssets.filter((asset) => !isCryptoAsset(asset)), [closedAssets]);
     const soldCrypto = useMemo(() => closedAssets.filter((asset) => isCryptoAsset(asset)), [closedAssets]);
     const allocationSegments = useMemo(() => buildAllocationSegments(activeSecurities), [activeSecurities]);
-    const scopedTotals = useMemo(() => ({
-        totalPositionValue: scopedAssets.reduce((sum, asset) => sum + (asset.positionValue ?? 0), 0),
-        totalUnrealizedPnL: scopedAssets.reduce((sum, asset) => sum + (asset.unrealizedPnL ?? 0), 0),
-        totalDividendNet: scopedAssets.reduce((sum, asset) => sum + (asset.totalDividendNet ?? 0), 0),
-    }), [scopedAssets]);
+    const scopedTotals = useMemo(() => {
+        const totals = aggregateAssetValueTotals(scopedAssets);
+        return {
+            totalPositionValue: totals.totalPositionValue,
+            totalUnrealizedPnL: totals.totalUnrealizedPnL,
+            totalDividendNet: totals.totalDividendNet,
+        };
+    }, [scopedAssets]);
 
     const filteredActiveSecurities = useMemo(() => activeSecurities.filter((asset) => matchesSearch(asset, searchQuery)), [activeSecurities, searchQuery]);
     const filteredActiveCrypto = useMemo(() => activeCrypto.filter((asset) => matchesSearch(asset, searchQuery)), [activeCrypto, searchQuery]);

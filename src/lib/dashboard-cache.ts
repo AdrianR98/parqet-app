@@ -460,7 +460,7 @@ function sanitizeGuardedSourceSelection(value: unknown): GuardedSourceSelection 
 
   const selectedSourceValid =
     candidate.selectedSource === "global_asset_product" ||
-    candidate.selectedSource === "product_read_model_unavailable";
+    candidate.selectedSource === "runtime_assets_fallback";
   const reasonValid =
     candidate.reason === "guard_disabled" ||
     candidate.reason === "product_read_model_missing" ||
