@@ -1001,15 +1001,15 @@ function buildAssetRowFromGlobalAsset(input: {
         costBasis: breakdownCostBasis,
         unrealizedPnL: breakdownUnrealizedPnL,
         dividendsNet: mapMoneyMetric(
-          null,
+          breakdown.dividendsNet,
           breakdownBlockedMetrics.filter((metric) => metric === "dividends"),
         ),
         fees: mapMoneyMetric(
-          null,
+          breakdown.fees,
           breakdownBlockedMetrics.filter((metric) => metric === "fees"),
         ),
         taxes: mapMoneyMetric(
-          null,
+          breakdown.taxes,
           breakdownBlockedMetrics.filter((metric) => metric === "taxes"),
         ),
         warnings: breakdownWarnings,

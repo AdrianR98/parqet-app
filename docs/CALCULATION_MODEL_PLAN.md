@@ -94,6 +94,19 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
   - `src/lib/reporting.ts`
 - Result: asset-detail page now consumes helper-produced portfolio-breakdown display metrics instead of owning these calculations.
 
+## Slice 8 PRM parity note (2026-05-27)
+
+- Phase 3 focus moved explicitly from runtime fallback patching to Product Read Model parity for dashboard-critical metrics.
+- Upstream aggregation now populates financial totals and portfolio-breakdown metrics consumed by PRM:
+  - quantity/netShares
+  - marketValue/positionValue
+  - costBasis/remainingCostBasis
+  - unrealizedPnL
+  - dividendsNet/totalDividendNet
+  - portfolio breakdown quantity/marketValue/costBasis/unrealizedPnL/dividendsNet
+- `product-read-model.ts` now projects breakdown dividends/fees/taxes from aggregation values instead of hardcoded null for dividends.
+- Runtime fallback source selection policy was not changed; no fallback-preference fix was introduced.
+
 ## 1. Current calculation inventory
 
 ### Inventory matrix
@@ -263,6 +276,7 @@ Remaining direct calculation hotspots after Slice 7:
 Phase 3 closeout note:
 - These remaining hotspots are intentionally UI/timeline presentation shaping or report formatting.
 - Reusable financial/scoped metric logic is now calculation-layer owned.
+- PRM parity progress note: dashboard-critical PRM metric coverage is materially increased; remaining gaps are mainly market-data-derived fields (`latestTradePrice`, `marketPrice` source attribution) and legacy continuity counters not represented in PRM.
 
 ### Slice 3: Extract dividend + reconciliation calculators
 

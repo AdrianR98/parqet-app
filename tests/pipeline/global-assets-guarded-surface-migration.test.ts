@@ -260,7 +260,19 @@ describe("canonical global-asset safe-field migration selectors", () => {
     expect(projected.assets[0]?.identity.stableKey).toBe("isin:DEMO00000011");
     expect(projected.assets[0]?.portfolioBreakdown.length).toBeGreaterThan(1);
     expect(projected.assets[0]?.quantity).toBe(3);
-    expect(projected.assets[0]?.marketValue.valueClassification).toBe("blocked");
+    expect(projected.assets[0]?.marketValue.valueClassification).toBe("app_calculated");
+    expect(projected.assets[0]?.marketValue.amount).toBe(280);
+    expect(projected.assets[0]?.costBasis.amount).toBe(500);
+    expect(projected.assets[0]?.unrealizedPnL.amount).toBe(-220);
+    expect(projected.assets[0]?.dividendsNet.amount).toBe(12);
+    expect(projected.assets[0]?.portfolioBreakdown[0]?.marketValue.amount).not.toBeNull();
+    expect(projected.assets[0]?.portfolioBreakdown[0]?.costBasis.amount).not.toBeNull();
+    expect(projected.assets[0]?.portfolioBreakdown[0]?.unrealizedPnL.amount).not.toBeNull();
+    expect(
+      projected.assets[0]?.portfolioBreakdown.some(
+        (entry) => entry.dividendsNet.amount != null,
+      ),
+    ).toBe(true);
     expect(projected.assets[1]?.status).toBe("closed");
     expect(projected.assets[1]?.quantity).toBe(0);
   });
@@ -276,7 +288,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
     expect(evidence.compatibility.assetCount).toBe(2);
     expect(evidence.projected.assetCount).toBe(2);
     expect(evidence.projected.withQuantityCount).toBe(2);
-    expect(evidence.projected.withMarketValueCount).toBe(0);
+    expect(evidence.projected.withMarketValueCount).toBe(2);
     expect(evidence.delta.assetCount).toBe(0);
   });
 
@@ -364,7 +376,7 @@ describe("canonical global-asset safe-field migration selectors", () => {
     expect(emptySelection.reason).toBe("product_read_model_empty");
   });
 
-  it("keeps valuation/performance and transfer-sensitive fields runtime-fallback-backed while using canonical product safe fields", () => {
+  it("keeps canonical safe-field source on product read model and projects PRM valuation metrics into runtime rows", () => {
     const projected = buildProjectedProductReadModel();
     const projectedWithForcedValuationValues = {
       ...projected,
@@ -430,51 +442,9 @@ describe("canonical global-asset safe-field migration selectors", () => {
       ),
     };
     const runtimeFallbackAssets = createRuntimeFallbackAssetsFixture();
-    const fallbackByIsin = new Map(
-      runtimeFallbackAssets.map((asset) => [asset.isin, asset])
-    );
     const projectedRows = buildGlobalAssetViewModelsFromProductReadModel(
       projectedWithForcedValuationValues
     );
-    const selectedRows = projectedRows.map((asset) => {
-      const fallbackAsset = fallbackByIsin.get(asset.isin);
-      if (!fallbackAsset) {
-        return asset;
-      }
-
-      return {
-        ...asset,
-        netShares: fallbackAsset.netShares,
-        remainingCostBasis: fallbackAsset.remainingCostBasis,
-        avgBuyPrice: fallbackAsset.avgBuyPrice,
-        positionValue: fallbackAsset.positionValue,
-        unrealizedPnL: fallbackAsset.unrealizedPnL,
-        totalDividendNet: fallbackAsset.totalDividendNet,
-        latestTradePrice: fallbackAsset.latestTradePrice,
-        marketPrice: fallbackAsset.marketPrice,
-        portfolioBreakdown: asset.portfolioBreakdown.map((entry) => {
-          const fallbackEntry = fallbackAsset.portfolioBreakdown.find(
-            (candidate) => candidate.portfolioId === entry.portfolioId
-          );
-
-          if (!fallbackEntry) {
-            return entry;
-          }
-
-          return {
-            ...entry,
-            netShares: fallbackEntry.netShares,
-            remainingCostBasis: fallbackEntry.remainingCostBasis,
-            avgBuyPrice: fallbackEntry.avgBuyPrice,
-            positionValue: fallbackEntry.positionValue,
-            unrealizedPnL: fallbackEntry.unrealizedPnL,
-            totalDividendNet: fallbackEntry.totalDividendNet,
-            latestTradePrice: fallbackEntry.latestTradePrice,
-            marketPrice: fallbackEntry.marketPrice,
-          };
-        }),
-      };
-    });
     const dashboardSelection = selectCanonicalDashboardSafeFieldSource({
       runtimeFallbackAssets,
       productReadModel: projectedWithForcedValuationValues,
@@ -486,20 +456,20 @@ describe("canonical global-asset safe-field migration selectors", () => {
       guardEnabled: true,
     });
 
-    expect(selectedRows[0]?.name).toBe("Guarded Product Asset");
-    expect(selectedRows[0]?.portfolioBreakdown[0]?.portfolioName).toBe(
+    expect(projectedRows[0]?.name).toBe("Guarded Product Asset");
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.portfolioName).toBe(
       "Guarded Portfolio One",
     );
-    expect(selectedRows[0]?.positionValue).toBe(336);
-    expect(selectedRows[0]?.unrealizedPnL).toBe(36);
-    expect(selectedRows[0]?.netShares).toBe(3);
-    expect(selectedRows[0]?.remainingCostBasis).toBe(300);
-    expect(selectedRows[0]?.avgBuyPrice).toBe(100);
-    expect(selectedRows[0]?.totalDividendNet).toBe(12);
-    expect(selectedRows[0]?.portfolioBreakdown[0]?.positionValue).toBe(336);
-    expect(selectedRows[0]?.portfolioBreakdown[0]?.unrealizedPnL).toBe(36);
-    expect(selectedRows[0]?.portfolioBreakdown[0]?.netShares).toBe(3);
-    expect(selectedRows[0]?.portfolioBreakdown[0]?.totalDividendNet).toBe(12);
+    expect(projectedRows[0]?.positionValue).toBe(999_999);
+    expect(projectedRows[0]?.unrealizedPnL).toBe(777_777);
+    expect(projectedRows[0]?.netShares).toBe(999);
+    expect(projectedRows[0]?.remainingCostBasis).toBe(888_888);
+    expect(projectedRows[0]?.avgBuyPrice).toBe(889.7777777777778);
+    expect(projectedRows[0]?.totalDividendNet).toBe(666_666);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.positionValue).toBe(444_444);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.unrealizedPnL).toBe(222_222);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.netShares).toBe(444);
+    expect(projectedRows[0]?.portfolioBreakdown[0]?.totalDividendNet).toBe(111_111);
     expect(dashboardSelection.selection.selectedSource).toBe("global_asset_product");
     expect(assetTableSelection.selection.selectedSource).toBe("global_asset_product");
     expect(dashboardSelection.selection.affectedFields).toContain("position_value");
@@ -590,8 +560,8 @@ describe("reports canonical safe-field source integration", () => {
     expect(report?.guardedSelection.reason).toBe("product_read_model_ready");
     expect(report?.assets[0]?.name).toBe("Guarded Report Asset");
     expect(report?.assets.length).toBe(2);
-    expect(report?.totals.totalPositionValue).toBeNull();
-    expect(report?.totals.totalUnrealizedPnL).toBeNull();
+    expect(report?.totals.totalPositionValue).toBe(280);
+    expect(report?.totals.totalUnrealizedPnL).toBe(-220);
   });
 
   it("falls back to runtime fallback report source when old cache has no global asset product model", () => {

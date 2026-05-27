@@ -27,6 +27,7 @@ Last reviewed: 2026-05-27
 - Slice 5 has started on the same branch/PR thread: dashboard allocation segment shaping and allocation ratio formulas were moved into shared calculation helpers in `src/lib/calculations/view-model-aggregates.ts`.
 - Slice 6 has started on the same branch/PR thread: asset detail selected-portfolio scope resolution moved from `AssetDetailPage.tsx` into `src/lib/asset-detail.ts` (`resolveSelectedAssetScope`), reducing page-owned calculation/scope logic.
 - Slice 7 closeout is completed on the same branch/PR thread: asset-detail portfolio-breakdown display metric shaping was moved into `src/lib/calculations/view-model-aggregates.ts`, and remaining runtime fallback wording was aligned to `runtime_assets_fallback` / runtime fallback state terminology.
+- Slice 8 PRM-parity work is in progress on the same branch/PR thread: upstream global-asset aggregation and PRM projection now populate dashboard-critical valuation/cost-basis/dividend metrics (including portfolio-breakdown money metrics) so canonical dashboard/asset-table surfaces can consume PRM data directly.
 - Phase 3 implementation is now complete for the planned modular-calculation scope on `refactor/phase-3-calculation-model`.
 - #393 is partially resolved in this PR: fallback/source semantics are finalized, but a small set of temporary continuity fields is still intentionally retained for timeline/report sorting consumers and is documented as explicit remaining debt.
 
