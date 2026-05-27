@@ -1,6 +1,6 @@
 # Calculation Model Plan (Phase 3)
 
-Status: active plan, Slice 2 position/cost-basis extraction started  
+Status: active plan, Slice 3 UI/reporting aggregate extraction started  
 Linked issues: Refs #384, Refs #387, Refs #393  
 Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-model` (same branch / same PR thread)
 
@@ -23,6 +23,24 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
   - dividend net summation and rounding normalization.
 - `src/lib/parqet-assets/consistency.ts` now reuses shared tolerance constants from the same calculation module.
 - Output API/UI shape remains unchanged in this slice; `GlobalAssetViewModel` temporary continuity fields are still present by design.
+
+## Slice 3 implementation note (2026-05-27)
+
+- Added shared view/report aggregation module: `src/lib/calculations/view-model-aggregates.ts`.
+- Extracted and centralized:
+  - scoped portfolio re-aggregation for `GlobalAssetViewModel`
+  - active/closed split (`netShares` epsilon policy)
+  - safe totals aggregation (`positionValue`, `unrealizedPnL`, `totalDividendNet`)
+  - reporting portfolio breakdown aggregation by portfolio name.
+- Rewired consumers:
+  - `src/app/(app)/dashboard/page.tsx`
+  - `src/lib/reporting.ts`
+  - `src/lib/asset-detail.ts`
+  - `src/lib/dashboard-helpers.ts`
+  - `src/hooks/use-dashboard-data.ts`
+  - `src/lib/dashboard-cache-writer.ts`
+  - `src/components/dashboard/AssetTable.tsx`
+- Result: UI/reporting files now consume calculation helpers instead of owning aggregation formulas directly.
 
 ## 1. Current calculation inventory
 
@@ -184,14 +202,15 @@ Hard rule reaffirmed: UI components must not own metric calculation logic.
 - Verification command: `npm run build`
 - #393 sequencing: after Slice 1 boundary cleanup starts.
 
-Remaining direct calculation hotspots after Slice 2:
+Remaining direct calculation hotspots after Slice 3:
 - `src/lib/asset-detail.ts`
 - `src/app/(app)/dashboard/page.tsx`
 - `src/lib/parqet/global-assets/product-surface-selectors.ts`
 - `src/lib/reporting.ts`
+- `src/components/dashboard/asset-table-columns.tsx` (allocation ratio display formula)
 
 Recommended next slice focus:
-- Continue with Slice 3/4 by extracting shared scoped aggregators used by `asset-detail.ts`, dashboard page, and reporting to remove UI-owned re-aggregation formulas.
+- Continue with Slice 4 by extracting PRM projection metric formulas (`avgBuyPrice`, portfolio row projection math, blocked-metric/affected-field policy) from `product-surface-selectors.ts` into dedicated calculation/gate helpers.
 
 ### Slice 3: Extract dividend + reconciliation calculators
 

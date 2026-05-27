@@ -5,6 +5,7 @@ import type {
     ReconciliationWarning,
 } from "./types";
 import { getAssetDisplayName as resolveAssetDisplayName } from "./asset-display";
+import { scopeAssetAggregationToPortfolioSelection } from "./calculations/view-model-aggregates";
 
 export type AssetDetailWarning = {
     label: "Hinweis" | "Prüfen" | "Eingeschränkt";
@@ -126,58 +127,37 @@ export function scopeAssetMetrics(
     asset: GlobalAssetViewModel,
     selectedPortfolioIds: string[]
 ): ScopedAssetMetrics {
-    const selectedIds = new Set(selectedPortfolioIds);
-    const hasManualScope = selectedIds.size > 0;
-    const portfolioBreakdown = asset.portfolioBreakdown.filter((entry) => {
-        return !hasManualScope || selectedIds.has(entry.portfolioId);
-    });
+    const scoped = scopeAssetAggregationToPortfolioSelection(
+        asset,
+        selectedPortfolioIds
+    );
 
-    if (portfolioBreakdown.length === asset.portfolioBreakdown.length) {
+    if (!scoped) {
         return {
-            portfolioBreakdown,
-            portfolioCount: portfolioBreakdown.length,
-            netShares: asset.netShares,
-            remainingCostBasis: asset.remainingCostBasis,
-            avgBuyPrice: asset.avgBuyPrice,
-            positionValue: asset.positionValue,
-            unrealizedPnL: asset.unrealizedPnL,
-            totalDividendNet: asset.totalDividendNet,
+            portfolioBreakdown: [],
+            portfolioCount: 0,
+            netShares: 0,
+            remainingCostBasis: 0,
+            avgBuyPrice: null,
+            positionValue: null,
+            unrealizedPnL: null,
+            totalDividendNet: 0,
             latestTradePrice: asset.latestTradePrice,
             marketPrice: asset.marketPrice,
         };
     }
 
-    const netShares = portfolioBreakdown.reduce((sum, entry) => sum + entry.netShares, 0);
-    const remainingCostBasis = portfolioBreakdown.reduce(
-        (sum, entry) => sum + entry.remainingCostBasis,
-        0
-    );
-    const positionValue = portfolioBreakdown.reduce((sum, entry) => {
-        return entry.positionValue == null ? sum : sum + entry.positionValue;
-    }, 0);
-    const unrealizedPnL = portfolioBreakdown.reduce((sum, entry) => {
-        return entry.unrealizedPnL == null ? sum : sum + entry.unrealizedPnL;
-    }, 0);
-    const totalDividendNet = portfolioBreakdown.reduce(
-        (sum, entry) => sum + entry.totalDividendNet,
-        0
-    );
-
     return {
-        portfolioBreakdown,
-        portfolioCount: portfolioBreakdown.length,
-        netShares,
-        remainingCostBasis,
-        avgBuyPrice: netShares > 0 ? remainingCostBasis / netShares : null,
-        positionValue: portfolioBreakdown.some((entry) => entry.positionValue != null)
-            ? positionValue
-            : null,
-        unrealizedPnL: portfolioBreakdown.some((entry) => entry.unrealizedPnL != null)
-            ? unrealizedPnL
-            : null,
-        totalDividendNet,
-        latestTradePrice: asset.latestTradePrice,
-        marketPrice: asset.marketPrice,
+        portfolioBreakdown: scoped.portfolioBreakdown,
+        portfolioCount: scoped.portfolioBreakdown.length,
+        netShares: scoped.netShares,
+        remainingCostBasis: scoped.remainingCostBasis,
+        avgBuyPrice: scoped.avgBuyPrice,
+        positionValue: scoped.positionValue,
+        unrealizedPnL: scoped.unrealizedPnL,
+        totalDividendNet: scoped.totalDividendNet,
+        latestTradePrice: scoped.latestTradePrice,
+        marketPrice: scoped.marketPrice,
     };
 }
 

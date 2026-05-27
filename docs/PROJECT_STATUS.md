@@ -22,6 +22,7 @@ Last reviewed: 2026-05-27
 - #393 remains active technical debt and is explicitly sequenced as part of the first implementation slice, not as final architecture.
 - Slice 1 boundary bootstrap is now in progress on `refactor/phase-3-calculation-model`: runtime fallback classification is explicit (`runtime_assets_fallback`) and `GlobalAssetViewModel` field groups are typed/documented for later extraction.
 - Slice 2 has started on the same branch/PR thread: first shared calculation boundary module (`src/lib/calculations/global-asset-metrics.ts`) is wired into legacy runtime builders (`build-corrected-assets`/`grouping`) while preserving current output shape.
+- Slice 3 has started on the same branch/PR thread: shared UI/reporting aggregation helpers now live in `src/lib/calculations/view-model-aggregates.ts`, and dashboard/reporting surfaces consume these helpers instead of duplicating scoped math.
 
 ## Current Baseline
 

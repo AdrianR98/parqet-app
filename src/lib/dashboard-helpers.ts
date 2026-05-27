@@ -9,6 +9,7 @@ import {
     selectCanonicalSafeFieldProductSurfaceSource,
     type CanonicalSafeFieldSelection,
 } from "./parqet/global-assets/product-surface-selectors";
+import { aggregateAssetValueTotals } from "./calculations/view-model-aggregates";
 
 export function resolveGlobalAssetProductGuardEnabled(rawValue?: string): boolean {
     const value = rawValue ?? process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED;
@@ -57,15 +58,7 @@ export function buildDashboardStats(params: {
 
     const allAssets = [...activeAssets, ...closedAssets];
 
-    let totalDividendNet = 0;
-    let totalPositionValue = 0;
-    let totalUnrealizedPnL = 0;
-
-    for (const asset of allAssets) {
-        totalDividendNet += asset.totalDividendNet;
-        totalPositionValue += asset.positionValue ?? 0;
-        totalUnrealizedPnL += asset.unrealizedPnL ?? 0;
-    }
+    const totals = aggregateAssetValueTotals(allAssets);
 
     return {
         rawActivityCount,
@@ -73,9 +66,9 @@ export function buildDashboardStats(params: {
         assetCount,
         activeAssetCount,
         closedAssetCount,
-        totalDividendNet,
-        totalPositionValue,
-        totalUnrealizedPnL,
+        totalDividendNet: totals.totalDividendNet,
+        totalPositionValue: totals.totalPositionValue,
+        totalUnrealizedPnL: totals.totalUnrealizedPnL,
     };
 }
 
