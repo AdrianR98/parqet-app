@@ -621,3 +621,47 @@ Hard boundary reaffirmed:
 - latest-market-price is derived from `asset_daily_prices` only.
 - No `asset_latest_prices` persisted table was introduced.
 - No private/user runtime `latestTradePrice` persistence was introduced in reference-data tables.
+
+## 21) Migration 006 local validation note
+
+Manual local validation was performed by the user via:
+
+- `npm run db:market:migrate`
+
+Observed migration execution order:
+
+1. `001_market_data.sql`
+2. `002_market_reference_instruments.sql`
+3. `003_market_instrument_display_metadata.sql`
+4. `004_market_instrument_status.sql`
+5. `005_market_data_requests.sql`
+6. `006_asset_reference_data_schema.sql`
+
+Result:
+
+- Migration run completed successfully.
+- New target tables are present in local DB:
+  - `assets`
+  - `asset_symbol_mappings`
+  - `asset_daily_prices`
+  - `dividend_events`
+  - `corporate_action_events`
+  - `reference_data_sources`
+  - `reference_data_import_runs`
+  - `reference_data_import_run_items`
+  - `reference_data_request_logs`
+- Legacy transition tables remain present (expected staged cutover):
+  - `market_actions`
+  - `market_data_requests`
+  - `market_data_run_items`
+  - `market_data_runs`
+  - `market_instruments`
+  - `market_prices_daily`
+  - `market_reference_instruments`
+  - `market_reference_sources`
+  - `market_symbol_mappings`
+
+Release recommendation status:
+
+- Local/test validation is successful.
+- Production migration rollout is still not recommended until repository/service cutover and transition checks are stable.
