@@ -3,9 +3,13 @@ import type {
     GlobalAssetViewModel,
     ConsistencyReport,
 } from "../types";
+import {
+    DEFAULT_MONEY_TOLERANCE,
+    DEFAULT_SHARE_TOLERANCE,
+} from "../calculations/global-asset-metrics";
 
-const SHARE_TOLERANCE = 0.0000001;
-const MONEY_TOLERANCE = 0.01;
+const SHARE_TOLERANCE = DEFAULT_SHARE_TOLERANCE;
+const MONEY_TOLERANCE = DEFAULT_MONEY_TOLERANCE;
 
 // Baut fuer ein einzelnes Asset eine Konsistenzbewertung.
 function buildAssetConsistencyCheck(asset: GlobalAssetViewModel): AssetConsistencyCheck {

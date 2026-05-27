@@ -3,6 +3,16 @@
 import type { GlobalAssetViewModel, PortfolioPosition } from "../types";
 import type { Activity, AssetAccumulator } from "./activity-types";
 import { getActivityAssetMeta, toNumber } from "./activity-utils";
+import {
+    applyBuyPositionDelta,
+    applySellLikePositionDelta,
+    calculatePositionMetrics,
+    incrementTotalBoughtShares,
+    incrementTotalSoldShares,
+    normalizePositionRounding,
+    sumDividendNet,
+    updateLatestTradePrice,
+} from "../calculations/global-asset-metrics";
 
 // Gruppiert alle relevanten Activities nach ISIN und berechnet daraus
 // die zentrale Asset-Sicht fuer das Dashboard.
@@ -126,76 +136,87 @@ export function groupActivitiesByIsin(
 
         if (activity.type === "buy") {
             item.buyCount += 1;
-            item.totalBoughtShares += shares;
-            item.netShares += shares;
+            item.totalBoughtShares = incrementTotalBoughtShares(
+                item.totalBoughtShares,
+                shares
+            );
             item.totalInvestedGross += amount;
-            item.remainingCostBasis += amount;
+            const assetNext = applyBuyPositionDelta(item, { shares, amount });
+            item.netShares = assetNext.netShares;
+            item.remainingCostBasis = assetNext.remainingCostBasis;
 
-            portfolioEntry.netShares += shares;
-            portfolioEntry.remainingCostBasis += amount;
+            const portfolioNext = applyBuyPositionDelta(portfolioEntry, {
+                shares,
+                amount,
+            });
+            portfolioEntry.netShares = portfolioNext.netShares;
+            portfolioEntry.remainingCostBasis = portfolioNext.remainingCostBasis;
 
-            if (price > 0) {
-                item.latestTradePrice = price;
-                portfolioEntry.latestTradePrice = price;
-            }
+            item.latestTradePrice = updateLatestTradePrice(item.latestTradePrice, price);
+            portfolioEntry.latestTradePrice = updateLatestTradePrice(
+                portfolioEntry.latestTradePrice,
+                price
+            );
         }
 
         if (activity.type === "sell") {
             item.sellCount += 1;
-            item.totalSoldShares += shares;
+            item.totalSoldShares = incrementTotalSoldShares(
+                item.totalSoldShares,
+                shares
+            );
 
-            const currentAvgBuyPrice =
-                item.netShares > 0 ? item.remainingCostBasis / item.netShares : 0;
+            const assetNext = applySellLikePositionDelta(item, { shares });
+            item.remainingCostBasis = assetNext.remainingCostBasis;
+            item.netShares = assetNext.netShares;
 
-            const removedCostBasis = currentAvgBuyPrice * shares;
-            item.remainingCostBasis -= removedCostBasis;
-            item.netShares -= shares;
-
-            const portfolioAvgBuyPrice =
-                portfolioEntry.netShares > 0
-                    ? portfolioEntry.remainingCostBasis / portfolioEntry.netShares
-                    : 0;
-
-            const removedPortfolioCostBasis = portfolioAvgBuyPrice * shares;
-            portfolioEntry.remainingCostBasis -= removedPortfolioCostBasis;
-            portfolioEntry.netShares -= shares;
+            const portfolioNext = applySellLikePositionDelta(portfolioEntry, {
+                shares,
+            });
+            portfolioEntry.remainingCostBasis = portfolioNext.remainingCostBasis;
+            portfolioEntry.netShares = portfolioNext.netShares;
 
             // Rundungsreste glattziehen
-            if (item.netShares < 0 && Math.abs(item.netShares) < 0.0000001) {
-                item.netShares = 0;
-            }
+            const normalizedAssetPosition = normalizePositionRounding(
+                {
+                    netShares: item.netShares,
+                    remainingCostBasis: item.remainingCostBasis,
+                },
+                { moneyTolerance: 0.0000001 }
+            );
+            item.netShares = normalizedAssetPosition.netShares;
+            item.remainingCostBasis = normalizedAssetPosition.remainingCostBasis;
 
-            if (
-                item.remainingCostBasis < 0 &&
-                Math.abs(item.remainingCostBasis) < 0.0000001
-            ) {
-                item.remainingCostBasis = 0;
-            }
+            const normalizedPortfolioPosition = normalizePositionRounding(
+                {
+                    netShares: portfolioEntry.netShares,
+                    remainingCostBasis: portfolioEntry.remainingCostBasis,
+                },
+                { moneyTolerance: 0.0000001 }
+            );
+            portfolioEntry.netShares = normalizedPortfolioPosition.netShares;
+            portfolioEntry.remainingCostBasis =
+                normalizedPortfolioPosition.remainingCostBasis;
 
-            if (
-                portfolioEntry.netShares < 0 &&
-                Math.abs(portfolioEntry.netShares) < 0.0000001
-            ) {
-                portfolioEntry.netShares = 0;
-            }
-
-            if (
-                portfolioEntry.remainingCostBasis < 0 &&
-                Math.abs(portfolioEntry.remainingCostBasis) < 0.0000001
-            ) {
-                portfolioEntry.remainingCostBasis = 0;
-            }
-
-            if (price > 0) {
-                item.latestTradePrice = price;
-                portfolioEntry.latestTradePrice = price;
-            }
+            item.latestTradePrice = updateLatestTradePrice(item.latestTradePrice, price);
+            portfolioEntry.latestTradePrice = updateLatestTradePrice(
+                portfolioEntry.latestTradePrice,
+                price
+            );
         }
 
         if (activity.type === "dividend") {
             item.dividendCount += 1;
-            item.totalDividendNet += amountNet || amount;
-            portfolioEntry.totalDividendNet += amountNet || amount;
+            item.totalDividendNet = sumDividendNet({
+                currentTotalDividendNet: item.totalDividendNet,
+                amount,
+                amountNet,
+            });
+            portfolioEntry.totalDividendNet = sumDividendNet({
+                currentTotalDividendNet: portfolioEntry.totalDividendNet,
+                amount,
+                amountNet,
+            });
         }
 
         if (
@@ -207,37 +228,26 @@ export function groupActivitiesByIsin(
         }
 
         // Gesamtwerte fuer das Asset neu berechnen
-        item.avgBuyPrice =
-            item.netShares > 0 ? item.remainingCostBasis / item.netShares : null;
-
-        const effectivePrice = item.marketPrice ?? item.latestTradePrice;
-
-        item.positionValue =
-            effectivePrice !== null ? item.netShares * effectivePrice : null;
-
-        item.unrealizedPnL =
-            item.positionValue !== null
-                ? item.positionValue - item.remainingCostBasis
-                : null;
+        const assetMetrics = calculatePositionMetrics({
+            netShares: item.netShares,
+            remainingCostBasis: item.remainingCostBasis,
+            latestTradePrice: item.latestTradePrice,
+            marketPrice: item.marketPrice,
+        });
+        item.avgBuyPrice = assetMetrics.avgBuyPrice;
+        item.positionValue = assetMetrics.positionValue;
+        item.unrealizedPnL = assetMetrics.unrealizedPnL;
 
         // Werte fuer das einzelne Portfolio neu berechnen
-        portfolioEntry.avgBuyPrice =
-            portfolioEntry.netShares > 0
-                ? portfolioEntry.remainingCostBasis / portfolioEntry.netShares
-                : null;
-
-        const effectivePortfolioPrice =
-            portfolioEntry.marketPrice ?? portfolioEntry.latestTradePrice;
-
-        portfolioEntry.positionValue =
-            effectivePortfolioPrice !== null
-                ? portfolioEntry.netShares * effectivePortfolioPrice
-                : null;
-
-        portfolioEntry.unrealizedPnL =
-            portfolioEntry.positionValue !== null
-                ? portfolioEntry.positionValue - portfolioEntry.remainingCostBasis
-                : null;
+        const portfolioMetrics = calculatePositionMetrics({
+            netShares: portfolioEntry.netShares,
+            remainingCostBasis: portfolioEntry.remainingCostBasis,
+            latestTradePrice: portfolioEntry.latestTradePrice,
+            marketPrice: portfolioEntry.marketPrice,
+        });
+        portfolioEntry.avgBuyPrice = portfolioMetrics.avgBuyPrice;
+        portfolioEntry.positionValue = portfolioMetrics.positionValue;
+        portfolioEntry.unrealizedPnL = portfolioMetrics.unrealizedPnL;
     }
 
     return Array.from(grouped.values())

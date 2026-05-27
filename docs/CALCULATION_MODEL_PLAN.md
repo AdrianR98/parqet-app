@@ -1,6 +1,6 @@
 # Calculation Model Plan (Phase 3)
 
-Status: active plan, Slice 1 boundary bootstrap started  
+Status: active plan, Slice 2 position/cost-basis extraction started  
 Linked issues: Refs #384, Refs #387, Refs #393  
 Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-model` (same branch / same PR thread)
 
@@ -10,6 +10,19 @@ Branch rule: all Phase 3 follow-up tasks stay on `refactor/phase-3-calculation-m
 - Runtime fallback selection was reclassified from generic PRM-unavailable wording to explicit `runtime_assets_fallback`.
 - `currentAssets` naming in canonical-safe-source selectors/helpers was replaced with `runtimeFallbackAssets` to reflect non-canonical fallback semantics.
 - #393 remains open: fields are classified and documented, but not yet removed.
+
+## Slice 2 implementation note (2026-05-27)
+
+- A first shared calculation boundary module was added: `src/lib/calculations/global-asset-metrics.ts`.
+- Legacy runtime builders `src/lib/parqet-assets/build-corrected-assets.ts` and `src/lib/parqet-assets/grouping.ts` now consume shared pure helpers for:
+  - buy/sell/transfer position deltas
+  - `totalBoughtShares` / `totalSoldShares`
+  - `remainingCostBasis` proportional reduction on sell-like events
+  - `avgBuyPrice`, `positionValue`, `unrealizedPnL`
+  - `latestTradePrice` update policy
+  - dividend net summation and rounding normalization.
+- `src/lib/parqet-assets/consistency.ts` now reuses shared tolerance constants from the same calculation module.
+- Output API/UI shape remains unchanged in this slice; `GlobalAssetViewModel` temporary continuity fields are still present by design.
 
 ## 1. Current calculation inventory
 
@@ -164,13 +177,21 @@ Hard rule reaffirmed: UI components must not own metric calculation logic.
 - Purpose: move net shares, buy/sell totals, cost basis, avg buy price, active/closed classification into shared calculators.
 - Files likely changed:
   - `src/lib/parqet-assets/build-corrected-assets.ts`
-  - new `src/lib/parqet/calculation-model/position-calculator.ts`
-  - new `src/lib/parqet/calculation-model/cost-basis-calculator.ts`
-  - `src/lib/asset-detail.ts`
-  - `src/app/(app)/dashboard/page.tsx`
+  - `src/lib/parqet-assets/grouping.ts`
+  - `src/lib/parqet-assets/consistency.ts`
+  - new `src/lib/calculations/global-asset-metrics.ts`
 - Risk: High (behavior-sensitive and currently duplicated in UI).
 - Verification command: `npm run build`
 - #393 sequencing: after Slice 1 boundary cleanup starts.
+
+Remaining direct calculation hotspots after Slice 2:
+- `src/lib/asset-detail.ts`
+- `src/app/(app)/dashboard/page.tsx`
+- `src/lib/parqet/global-assets/product-surface-selectors.ts`
+- `src/lib/reporting.ts`
+
+Recommended next slice focus:
+- Continue with Slice 3/4 by extracting shared scoped aggregators used by `asset-detail.ts`, dashboard page, and reporting to remove UI-owned re-aggregation formulas.
 
 ### Slice 3: Extract dividend + reconciliation calculators
 

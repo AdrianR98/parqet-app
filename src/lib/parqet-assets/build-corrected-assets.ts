@@ -1,5 +1,16 @@
 import type { GlobalAssetViewModel, PortfolioPosition } from "../types";
 import type { NormalizedActivity } from "./normalization";
+import {
+    applyBuyPositionDelta,
+    applySellLikePositionDelta,
+    applyTransferInPositionDelta,
+    calculatePositionMetrics,
+    incrementTotalBoughtShares,
+    incrementTotalSoldShares,
+    normalizePositionRounding,
+    sumDividendNet,
+    updateLatestTradePrice,
+} from "../calculations/global-asset-metrics";
 
 type AssetAccumulator = {
     isin: string;
@@ -120,35 +131,29 @@ function createEmptyAssetAccumulator(isin: string): AssetAccumulator {
 }
 
 function recalculatePortfolioPosition(position: PortfolioPosition): void {
-    position.avgBuyPrice =
-        position.netShares > 0
-            ? position.remainingCostBasis / position.netShares
-            : null;
+    const metrics = calculatePositionMetrics({
+        netShares: position.netShares,
+        remainingCostBasis: position.remainingCostBasis,
+        latestTradePrice: position.latestTradePrice,
+        marketPrice: position.marketPrice,
+    });
 
-    const effectivePrice = position.marketPrice ?? position.latestTradePrice;
-
-    position.positionValue =
-        effectivePrice !== null ? position.netShares * effectivePrice : null;
-
-    position.unrealizedPnL =
-        position.positionValue !== null
-            ? position.positionValue - position.remainingCostBasis
-            : null;
+    position.avgBuyPrice = metrics.avgBuyPrice;
+    position.positionValue = metrics.positionValue;
+    position.unrealizedPnL = metrics.unrealizedPnL;
 }
 
 function recalculateAsset(acc: AssetAccumulator): void {
-    acc.avgBuyPrice =
-        acc.netShares > 0 ? acc.remainingCostBasis / acc.netShares : null;
+    const metrics = calculatePositionMetrics({
+        netShares: acc.netShares,
+        remainingCostBasis: acc.remainingCostBasis,
+        latestTradePrice: acc.latestTradePrice,
+        marketPrice: acc.marketPrice,
+    });
 
-    const effectivePrice = acc.marketPrice ?? acc.latestTradePrice;
-
-    acc.positionValue =
-        effectivePrice !== null ? acc.netShares * effectivePrice : null;
-
-    acc.unrealizedPnL =
-        acc.positionValue !== null
-            ? acc.positionValue - acc.remainingCostBasis
-            : null;
+    acc.avgBuyPrice = metrics.avgBuyPrice;
+    acc.positionValue = metrics.positionValue;
+    acc.unrealizedPnL = metrics.unrealizedPnL;
 }
 
 /**
@@ -215,83 +220,99 @@ export function buildCorrectedAssets(
 
         if (activity.type === "buy") {
             item.buyCount += 1;
-            item.totalBoughtShares += shares;
-            item.netShares += shares;
+            item.totalBoughtShares = incrementTotalBoughtShares(
+                item.totalBoughtShares,
+                shares
+            );
             item.totalInvestedGross += amount;
-            item.remainingCostBasis += amount;
+            const assetNext = applyBuyPositionDelta(item, { shares, amount });
+            item.netShares = assetNext.netShares;
+            item.remainingCostBasis = assetNext.remainingCostBasis;
 
-            portfolioEntry.netShares += shares;
-            portfolioEntry.remainingCostBasis += amount;
+            const portfolioNext = applyBuyPositionDelta(portfolioEntry, {
+                shares,
+                amount,
+            });
+            portfolioEntry.netShares = portfolioNext.netShares;
+            portfolioEntry.remainingCostBasis = portfolioNext.remainingCostBasis;
 
-            if (price > 0) {
-                item.latestTradePrice = price;
-                portfolioEntry.latestTradePrice = price;
-            }
+            item.latestTradePrice = updateLatestTradePrice(item.latestTradePrice, price);
+            portfolioEntry.latestTradePrice = updateLatestTradePrice(
+                portfolioEntry.latestTradePrice,
+                price
+            );
         }
 
         if (activity.type === "sell") {
             item.sellCount += 1;
-            item.totalSoldShares += shares;
+            item.totalSoldShares = incrementTotalSoldShares(
+                item.totalSoldShares,
+                shares
+            );
 
-            const currentAvgBuyPrice =
-                item.netShares > 0 ? item.remainingCostBasis / item.netShares : 0;
+            const assetNext = applySellLikePositionDelta(item, { shares });
+            item.netShares = assetNext.netShares;
+            item.remainingCostBasis = assetNext.remainingCostBasis;
 
-            const removedCostBasis = currentAvgBuyPrice * shares;
-            item.remainingCostBasis -= removedCostBasis;
-            item.netShares -= shares;
+            const portfolioNext = applySellLikePositionDelta(portfolioEntry, {
+                shares,
+            });
+            portfolioEntry.netShares = portfolioNext.netShares;
+            portfolioEntry.remainingCostBasis = portfolioNext.remainingCostBasis;
 
-            const portfolioAvgBuyPrice =
-                portfolioEntry.netShares > 0
-                    ? portfolioEntry.remainingCostBasis / portfolioEntry.netShares
-                    : 0;
-
-            const removedPortfolioCostBasis = portfolioAvgBuyPrice * shares;
-            portfolioEntry.remainingCostBasis -= removedPortfolioCostBasis;
-            portfolioEntry.netShares -= shares;
-
-            if (price > 0) {
-                item.latestTradePrice = price;
-                portfolioEntry.latestTradePrice = price;
-            }
+            item.latestTradePrice = updateLatestTradePrice(item.latestTradePrice, price);
+            portfolioEntry.latestTradePrice = updateLatestTradePrice(
+                portfolioEntry.latestTradePrice,
+                price
+            );
         }
 
         if (activity.type === "transfer_in") {
-            item.netShares += shares;
-            portfolioEntry.netShares += shares;
+            const assetNext = applyTransferInPositionDelta(item, { shares });
+            item.netShares = assetNext.netShares;
 
-            if (price > 0) {
-                item.latestTradePrice = price;
-                portfolioEntry.latestTradePrice = price;
-            }
+            const portfolioNext = applyTransferInPositionDelta(portfolioEntry, {
+                shares,
+            });
+            portfolioEntry.netShares = portfolioNext.netShares;
+
+            item.latestTradePrice = updateLatestTradePrice(item.latestTradePrice, price);
+            portfolioEntry.latestTradePrice = updateLatestTradePrice(
+                portfolioEntry.latestTradePrice,
+                price
+            );
         }
 
         if (activity.type === "transfer_out") {
-            const currentAvgBuyPrice =
-                item.netShares > 0 ? item.remainingCostBasis / item.netShares : 0;
+            const assetNext = applySellLikePositionDelta(item, { shares });
+            item.netShares = assetNext.netShares;
+            item.remainingCostBasis = assetNext.remainingCostBasis;
 
-            const removedCostBasis = currentAvgBuyPrice * shares;
-            item.remainingCostBasis -= removedCostBasis;
-            item.netShares -= shares;
+            const portfolioNext = applySellLikePositionDelta(portfolioEntry, {
+                shares,
+            });
+            portfolioEntry.netShares = portfolioNext.netShares;
+            portfolioEntry.remainingCostBasis = portfolioNext.remainingCostBasis;
 
-            const portfolioAvgBuyPrice =
-                portfolioEntry.netShares > 0
-                    ? portfolioEntry.remainingCostBasis / portfolioEntry.netShares
-                    : 0;
-
-            const removedPortfolioCostBasis = portfolioAvgBuyPrice * shares;
-            portfolioEntry.remainingCostBasis -= removedPortfolioCostBasis;
-            portfolioEntry.netShares -= shares;
-
-            if (price > 0) {
-                item.latestTradePrice = price;
-                portfolioEntry.latestTradePrice = price;
-            }
+            item.latestTradePrice = updateLatestTradePrice(item.latestTradePrice, price);
+            portfolioEntry.latestTradePrice = updateLatestTradePrice(
+                portfolioEntry.latestTradePrice,
+                price
+            );
         }
 
         if (activity.type === "dividend") {
             item.dividendCount += 1;
-            item.totalDividendNet += amountNet || amount;
-            portfolioEntry.totalDividendNet += amountNet || amount;
+            item.totalDividendNet = sumDividendNet({
+                currentTotalDividendNet: item.totalDividendNet,
+                amount,
+                amountNet,
+            });
+            portfolioEntry.totalDividendNet = sumDividendNet({
+                currentTotalDividendNet: portfolioEntry.totalDividendNet,
+                amount,
+                amountNet,
+            });
         }
 
         if (
@@ -302,30 +323,25 @@ export function buildCorrectedAssets(
             item.latestActivityAt = activity.datetime;
         }
 
-        if (item.netShares < 0 && Math.abs(item.netShares) < 0.0000001) {
-            item.netShares = 0;
-        }
+        const normalizedAssetPosition = normalizePositionRounding(
+            {
+                netShares: item.netShares,
+                remainingCostBasis: item.remainingCostBasis,
+            },
+            { moneyTolerance: 0.01 }
+        );
+        item.netShares = normalizedAssetPosition.netShares;
+        item.remainingCostBasis = normalizedAssetPosition.remainingCostBasis;
 
-        if (
-            item.remainingCostBasis < 0 &&
-            Math.abs(item.remainingCostBasis) < 0.01
-        ) {
-            item.remainingCostBasis = 0;
-        }
-
-        if (
-            portfolioEntry.netShares < 0 &&
-            Math.abs(portfolioEntry.netShares) < 0.0000001
-        ) {
-            portfolioEntry.netShares = 0;
-        }
-
-        if (
-            portfolioEntry.remainingCostBasis < 0 &&
-            Math.abs(portfolioEntry.remainingCostBasis) < 0.01
-        ) {
-            portfolioEntry.remainingCostBasis = 0;
-        }
+        const normalizedPortfolioPosition = normalizePositionRounding(
+            {
+                netShares: portfolioEntry.netShares,
+                remainingCostBasis: portfolioEntry.remainingCostBasis,
+            },
+            { moneyTolerance: 0.01 }
+        );
+        portfolioEntry.netShares = normalizedPortfolioPosition.netShares;
+        portfolioEntry.remainingCostBasis = normalizedPortfolioPosition.remainingCostBasis;
 
         recalculatePortfolioPosition(portfolioEntry);
         recalculateAsset(item);
