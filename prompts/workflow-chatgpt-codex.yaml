@@ -222,7 +222,6 @@ documentation:
     - README.md
     - CHANGELOG.md
     - docs/PROJECT_STATUS.md
-    - docs/ROADMAP.md
     - docs/PROJECT_PRODUCT_BRIEF.md
     - docs/ARCHITECTURE.md
     - docs/adr/**
