@@ -245,8 +245,7 @@ It is a target contract, not a claim that every KPI is already correct in the ap
 - SecurityLineage behavior: `supported`
 - currency/FX assumptions: Block mixed-currency totals unless converted explicitly.
 - confidence/freshness/blocker rules: Missing fee currency or ambiguous activity mapping downgrades confidence.
-- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`, `Settings-configurable`
-- UI relevance note: The current Hero `Investiert` card is a valid target for this KPI, but the Hero must expose or explain which invested-capital variant is selected because this KPI is configurable by nature.
+- UI relevance: `Asset Detail`, `Reports`, `Settings-configurable`
 - implementation target layer: `aggregation`
 - known current gaps: Current asset and breakdown PRM fields exist but are usually `null`; fee totals are not yet complete in the shared KPI surface.
 
@@ -378,7 +377,8 @@ It is a target contract, not a claim that every KPI is already correct in the ap
 - SecurityLineage behavior: `gated`
 - currency/FX assumptions: Same as cost basis.
 - confidence/freshness/blocker rules: Must expose the denominator variant clearly; block when basis lineage is incomplete.
-- UI relevance: `Asset Detail`, `Reports`, `Settings-configurable`
+- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`, `Settings-configurable`
+- UI relevance note: The current Hero `Investiert` card is a valid target for this KPI, but the Hero must expose or explain which invested-capital variant is selected because this KPI is configurable by nature.
 - implementation target layer: `calculations`
 - known current gaps: The target denominator policy is not yet implemented or exposed consistently; default may equal remaining cost basis until richer variants arrive.
 
