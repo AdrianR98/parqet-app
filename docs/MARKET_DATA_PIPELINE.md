@@ -20,25 +20,24 @@ Provider calls are restricted to explicit Admin/CLI workflows.
 
 ## Current Market-Data Tables
 
-- `market_instruments`
-- `market_symbol_mappings`
-- `market_prices_daily`
-- `market_actions`
-- `market_data_runs`
-- `market_data_run_items`
-- `market_data_requests`
+- `assets`
+- `asset_symbol_mappings`
+- `asset_daily_prices`
+- `dividend_events`
+- `corporate_action_events`
+- `reference_data_sources`
+- `reference_data_import_runs`
+- `reference_data_import_run_items`
+- `reference_data_request_logs`
+- `reference_data_asset_candidates`
 
 Current migrations:
 
-- `001_market_data.sql`
-- `002_market_reference_instruments.sql`
-- `003_market_instrument_display_metadata.sql`
-- `004_market_instrument_status.sql`
-- `005_market_data_requests.sql`
+- `001_asset_reference_data_baseline.sql`
 
 ## Market Actions Scope
 
-`market_actions` can store generic market actions (including dividends and splits).
+`dividend_events` and `corporate_action_events` store the current public/reference event data.
 Current runtime/UI history exposure is dividend-focused.
 Corporate-action/lineage expansion is future work.
 
@@ -56,7 +55,7 @@ Corporate-action/lineage expansion is future work.
 
 ## Unknown Asset Queue
 
-Runtime may enqueue unknown ISIN sightings into `market_data_requests` (DB-only, best-effort).
+Runtime may enqueue unknown ISIN sightings into `reference_data_request_logs` (DB-only, best-effort).
 Resolution/import/validation/promotion remains Admin/CLI workflow only.
 
 ## Safety Rules
