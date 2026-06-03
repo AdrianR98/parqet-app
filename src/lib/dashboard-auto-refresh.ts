@@ -1,7 +1,7 @@
 export type DashboardAutoRefreshReason =
   | "missing_cache"
   | "stale_cache"
-  | "portfolio_scope_changed";
+  | "portfolios_missing_from_cache";
 
 export type DashboardAutoRefreshDecision = {
   shouldRefresh: boolean;
@@ -17,7 +17,7 @@ type ShouldAutoRefreshInput = {
   selectedPortfolioIds: string[];
   hasCachedData: boolean;
   isCacheStale: boolean;
-  hasPendingPortfolioSelection: boolean;
+  hasPortfoliosMissingFromCache: boolean;
   alreadyExecutedKeys: Set<string>;
 };
 
@@ -42,8 +42,8 @@ export function shouldAutoRefreshDashboardData(
 
   const reason: DashboardAutoRefreshReason | null = !input.hasCachedData
     ? "missing_cache"
-    : input.hasPendingPortfolioSelection
-      ? "portfolio_scope_changed"
+    : input.hasPortfoliosMissingFromCache
+      ? "portfolios_missing_from_cache"
       : input.isCacheStale
         ? "stale_cache"
         : null;

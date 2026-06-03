@@ -231,18 +231,37 @@ function mapMarketPriceSnapshotsByIsin(
     priceSource: string | null;
   }
 > {
-  return Object.fromEntries(
-    Object.entries(snapshotsByIsin).map(([isin, snapshot]) => [
-      normalizeLookupIsin(isin),
-      {
-        priceAmount: snapshot.priceAmount,
-        currency: snapshot.currency ?? null,
-        priceDate: snapshot.priceDate ?? null,
-        priceTimestamp: snapshot.priceTimestamp ?? null,
-        priceSource: snapshot.provider ?? null,
-      },
-    ]),
-  );
+  const mapped: Record<
+    string,
+    {
+      priceAmount: number;
+      currency: string | null;
+      priceDate: string | null;
+      priceTimestamp: string | null;
+      priceSource: string | null;
+    }
+  > = {};
+
+  for (const snapshot of Object.values(snapshotsByIsin)) {
+    const rawIsin =
+      snapshot.isin ??
+      (snapshot.assetKeyType === "isin" ? snapshot.assetKeyValue : null);
+    const normalizedIsin = normalizeLookupIsin(rawIsin);
+
+    if (!normalizedIsin) {
+      continue;
+    }
+
+    mapped[normalizedIsin] = {
+      priceAmount: snapshot.priceAmount,
+      currency: snapshot.currency ?? null,
+      priceDate: snapshot.priceDate ?? null,
+      priceTimestamp: snapshot.priceTimestamp ?? null,
+      priceSource: snapshot.provider ?? null,
+    };
+  }
+
+  return mapped;
 }
 
 function isStaleMarketPriceSnapshot(snapshot: AssetLatestMarketPriceSnapshot): boolean {

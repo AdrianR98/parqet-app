@@ -11,7 +11,7 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: ["p1"],
             hasCachedData: false,
             isCacheStale: false,
-            hasPendingPortfolioSelection: false,
+            hasPortfoliosMissingFromCache: false,
             alreadyExecutedKeys: new Set<string>(),
         });
 
@@ -27,7 +27,7 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: ["p1"],
             hasCachedData: false,
             isCacheStale: false,
-            hasPendingPortfolioSelection: false,
+            hasPortfoliosMissingFromCache: false,
             alreadyExecutedKeys: new Set<string>(),
         });
 
@@ -47,7 +47,7 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: [],
             hasCachedData: false,
             isCacheStale: false,
-            hasPendingPortfolioSelection: false,
+            hasPortfoliosMissingFromCache: false,
             alreadyExecutedKeys: new Set<string>(),
         });
 
@@ -67,7 +67,7 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: ["p42"],
             hasCachedData: false,
             isCacheStale: false,
-            hasPendingPortfolioSelection: false,
+            hasPortfoliosMissingFromCache: false,
             alreadyExecutedKeys: new Set<string>(),
         });
 
@@ -87,7 +87,7 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: ["p2"],
             hasCachedData: true,
             isCacheStale: true,
-            hasPendingPortfolioSelection: false,
+            hasPortfoliosMissingFromCache: false,
             alreadyExecutedKeys: new Set<string>(),
         });
 
@@ -95,7 +95,7 @@ describe("shouldAutoRefreshDashboardData", () => {
         expect(decision.shouldRefresh).toBe(true);
     });
 
-    it("returns true when portfolio scope changed", () => {
+    it("returns true only when selected portfolios are missing from cache", () => {
         const decision = shouldAutoRefreshDashboardData({
             loadingPortfolios: false,
             loadingAssets: false,
@@ -104,14 +104,34 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: ["p2", "p1"],
             hasCachedData: true,
             isCacheStale: false,
-            hasPendingPortfolioSelection: true,
+            hasPortfoliosMissingFromCache: true,
             alreadyExecutedKeys: new Set<string>(),
         });
 
         expect(decision).toEqual({
             shouldRefresh: true,
-            reason: "portfolio_scope_changed",
-            executionKey: "portfolio_scope_changed:p1|p2",
+            reason: "portfolios_missing_from_cache",
+            executionKey: "portfolios_missing_from_cache:p1|p2",
+        });
+    });
+
+    it("does not refresh when portfolio selection changes within loaded cache scope", () => {
+        const decision = shouldAutoRefreshDashboardData({
+            loadingPortfolios: false,
+            loadingAssets: false,
+            refreshingAssets: false,
+            hasPortfolios: true,
+            selectedPortfolioIds: ["p2", "p1"],
+            hasCachedData: true,
+            isCacheStale: false,
+            hasPortfoliosMissingFromCache: false,
+            alreadyExecutedKeys: new Set<string>(),
+        });
+
+        expect(decision).toEqual({
+            shouldRefresh: false,
+            reason: null,
+            executionKey: null,
         });
     });
 
@@ -124,7 +144,7 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: ["p1"],
             hasCachedData: false,
             isCacheStale: false,
-            hasPendingPortfolioSelection: false,
+            hasPortfoliosMissingFromCache: false,
             alreadyExecutedKeys: new Set<string>(),
         });
 
@@ -141,7 +161,7 @@ describe("shouldAutoRefreshDashboardData", () => {
             selectedPortfolioIds: ["p1"],
             hasCachedData: false,
             isCacheStale: false,
-            hasPendingPortfolioSelection: false,
+            hasPortfoliosMissingFromCache: false,
             alreadyExecutedKeys: executedKeys,
         });
 

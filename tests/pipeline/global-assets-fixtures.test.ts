@@ -165,6 +165,39 @@ describe("global asset synthetic fixtures", () => {
     expect(aggregation.assets[0]?.portfolioBreakdowns[0]?.pnl?.amount).toBeCloseTo(269.07, 2);
   });
 
+  it("market_price_overlay_vanguard_large_position: applies market overlay for prm valuation path", () => {
+    const normalization = normalizeActivities([
+      createSyntheticActivity({
+        activityId: "activity_vanguard_large_1",
+        type: "buy",
+        datetime: "2026-06-01T10:00:00.000Z",
+        isin: "IE00B8GKDB10",
+        shares: 86.6166,
+        currency: "EUR",
+        price: 72.90033718118316,
+        amount: 6314.42,
+        amountNet: 6314.42,
+      }),
+    ]);
+
+    const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
+      marketPriceOverlaysByIsin: {
+        IE00B8GKDB10: {
+          priceAmount: 77.949997,
+          currency: "EUR",
+          priceDate: "2026-06-03",
+          priceTimestamp: "2026-06-03T17:00:00.000Z",
+          priceSource: "market_data_db",
+        },
+      },
+    });
+
+    expect(aggregation.assets[0]?.valuation?.sourceKind).toBe("market_data_db");
+    expect(aggregation.assets[0]?.totals.marketValue?.amount).toBeCloseTo(6751.76, 2);
+    expect(aggregation.assets[0]?.totals.unrealizedPnL?.amount).toBeCloseTo(437.34, 2);
+    expect(aggregation.assets[0]?.warnings.some((warning) => warning.code === "MARKET_PRICE_FALLBACK_USED")).toBe(false);
+  });
+
   it("market_price_fallback: keeps latest trade price as explicit degraded fallback", () => {
     const normalization = normalizeActivities([
       createSyntheticActivity({
