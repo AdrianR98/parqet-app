@@ -40,7 +40,7 @@ set
     asset_type = coalesce(a.asset_type, i.asset_type),
     currency = coalesce(a.currency, i.currency),
     wkn = coalesce(a.wkn, i.wkn),
-    exchange = coalesce(a.exchange, i.exchange),
+    exchange = coalesce(a.exchange, legacy_mapping.exchange),
     metadata_source = coalesce(a.metadata_source, i.metadata_source),
     metadata_updated_at = coalesce(a.metadata_updated_at, i.metadata_updated_at),
     name_source = coalesce(a.name_source, i.name_source),
@@ -52,6 +52,13 @@ set
     market_data_successor_symbol = coalesce(a.market_data_successor_symbol, i.market_data_successor_symbol),
     market_data_status_updated_at = coalesce(a.market_data_status_updated_at, i.market_data_status_updated_at)
 from public.market_instruments i
+left join lateral (
+    select m.exchange
+    from public.market_symbol_mappings m
+    where m.instrument_id = i.id
+    order by m.is_primary desc, m.is_active desc, m.verified_at desc nulls last, m.updated_at desc, m.created_at desc
+    limit 1
+) legacy_mapping on true
 where a.asset_key_type = 'isin'
   and a.asset_key_value = upper(regexp_replace(i.isin, '\s+', '', 'g'));
 
@@ -371,7 +378,7 @@ select
     'asset_discovery' as request_type,
     r.isin as request_key,
     r.status,
-    coalesce(r.last_seen_at, r.created_at, now()) as requested_at,
+    coalesce(r.last_seen_at, r.first_seen_at, now()) as requested_at,
     r.isin,
     r.name,
     r.display_name,
@@ -383,7 +390,7 @@ select
     r.seen_count,
     r.source,
     r.notes,
-    r.created_at,
+    coalesce(r.first_seen_at, now()),
     r.updated_at
 from public.market_data_requests r
 on conflict (provider, request_type, request_key)
@@ -431,7 +438,7 @@ select
     null as requested_by,
     jsonb_build_object('legacy_run_type', r.run_type, 'provider', r.provider, 'requested_symbols', r.requested_symbols) as parameters_json,
     jsonb_build_object('successful_symbols', r.successful_symbols, 'failed_symbols', r.failed_symbols, 'error_message', r.error_message) as summary_json,
-    coalesce(r.started_at, r.created_at, now()) as created_at,
+    coalesce(r.started_at, now()) as created_at,
     r.run_type,
     r.provider,
     r.requested_symbols,
@@ -485,7 +492,7 @@ select
     ri.error_message,
     null as raw_payload_reference,
     null as raw_payload_hash,
-    coalesce(ri.first_date, ri.created_at, now()) as created_at,
+    coalesce(r.started_at, now()) as created_at,
     ri.instrument_id,
     ri.symbol,
     ri.points_imported,
@@ -494,8 +501,26 @@ select
     ri.last_date,
     ri.error_message
 from public.market_data_run_items ri
+join public.market_data_runs r
+  on r.id = ri.run_id
 left join public.assets a
-  on a.id = ri.instrument_id
+  on a.asset_key_type = 'isin'
+ and a.asset_key_value = upper(
+        regexp_replace(
+            coalesce(
+                (
+                    select i.isin
+                    from public.market_instruments i
+                    where i.id = ri.instrument_id
+                    limit 1
+                ),
+                ''
+            ),
+            '\s+',
+            '',
+            'g'
+        )
+    )
 on conflict (id)
 do update set
     run_id = excluded.run_id,
