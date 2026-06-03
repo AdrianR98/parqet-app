@@ -27,25 +27,10 @@ async function runMarketDataMigrationFile(fileName: string): Promise<void> {
     }
 }
 
-export async function runMarketDataMigration001(): Promise<void> {
-    await runMarketDataMigrationFile("001_market_data.sql");
-}
-
-export async function runMarketDataMigration002(): Promise<void> {
-    await runMarketDataMigrationFile("002_market_reference_instruments.sql");
+export async function runAssetReferenceDataBaselineMigration(): Promise<void> {
+    await runMarketDataMigrationFile("001_asset_reference_data_baseline.sql");
 }
 
 export async function runMarketDataMigrations(): Promise<void> {
-    await runMarketDataMigration001();
-    await runMarketDataMigration002();
-    await runMarketDataMigrationFile("003_market_instrument_display_metadata.sql");
-    await runMarketDataMigrationFile("004_market_instrument_status.sql");
-    await runMarketDataMigrationFile("005_market_data_requests.sql");
-    await runMarketDataMigrationFile("006_asset_reference_data_schema.sql");
-    await runMarketDataMigrationFile("007_asset_daily_prices_latest_provider_index.sql");
-    await runMarketDataMigrationFile("008_drop_legacy_price_table_and_redundant_indexes.sql");
-    await runMarketDataMigrationFile("009_trim_asset_daily_prices_before_2000.sql");
-    await runMarketDataMigrationFile("010_enable_rls_asset_reference_tables.sql");
-    await runMarketDataMigrationFile("011_expand_asset_reference_curation_model.sql");
-    await runMarketDataMigrationFile("012_drop_legacy_market_tables.sql");
+    await runAssetReferenceDataBaselineMigration();
 }

@@ -4,6 +4,11 @@ Status: planning baseline (no schema/runtime changes)
 Linked issues: Refs #384, Refs #388, Refs #395, Refs #396, Refs #397, Refs #398
 Branch rule: all Phase 4 tasks stay on `refactor/phase-4-database-asset-model` (same branch, no new PR)
 
+Implementation note:
+
+- The active Phase 4 migration path has since been squashed into `src/lib/market-data/db/migrations/001_asset_reference_data_baseline.sql`.
+- The old staged `001`-`012` migration chain is retained here as historical context only and is no longer part of the normal runner path.
+
 ## 1) Current DB / market-data inventory
 
 ### Current tables/entities
@@ -560,10 +565,10 @@ None in this planning task. No Parqet API, yfinance, OpenFIGI, or other provider
 
 None in this planning task. No private portfolio payloads/tokens/exports were used.
 
-## 19) Implementation status: first schema slice (PR #399)
+## 19) Implementation status: current baseline squash (PR #401)
 
-- Implemented as additive migration: `006_asset_reference_data_schema.sql`.
-- Added target tables and indexes for:
+- The active baseline is now the single additive migration `001_asset_reference_data_baseline.sql`.
+- It creates the current tables and indexes for:
   - `assets`
   - `asset_symbol_mappings`
   - `asset_daily_prices`
@@ -573,15 +578,17 @@ None in this planning task. No private portfolio payloads/tokens/exports were us
   - `reference_data_import_runs`
   - `reference_data_import_run_items`
   - `reference_data_request_logs`
+  - `reference_data_asset_candidates`
+- It also includes the current curation/status/reference fields from the later Phase 4 staging step and keeps the migration additive for already-populated databases.
 - Explicitly not created:
   - `asset_latest_prices`
   - `asset_events`
 
-Intentional transition/breakage note:
+Intentional baseline note:
 
-- Legacy tables (`market_*`) are intentionally retained in this slice.
-- Runtime/API/admin repository code still reads legacy tables until Slice 3 query rewrite and cutover.
-- During transition, dual-schema coexistence is expected; this is intentional and documented.
+- The active baseline does not create legacy `market_*` tables.
+- Existing populated databases are preserved in place; no destructive cleanup is performed by the baseline migration.
+- Runtime/API/admin code should now rely on the current Asset/reference-data schema only.
 
 ## 20) Implementation status: Slice 4 latestMarketPrice read contract (PR #399)
 
@@ -624,7 +631,7 @@ Hard boundary reaffirmed:
 
 ## 21) Migration 006 local validation note
 
-Manual local validation was performed by the user via:
+This is a historical validation note from the pre-squash staged chain. Manual local validation was performed by the user via:
 
 - `npm run db:market:migrate`
 
@@ -709,9 +716,9 @@ Transition note:
 
 Status:
 
-- Migration `012_drop_legacy_market_tables.sql` has been added as the final cleanup step after the Asset/reference cutover and migration 011 validation.
-- Active `src/**` and `scripts/**` no longer depend on the legacy tables targeted by this cleanup migration.
-- Historical migrations remain intact; this migration is the first place where legacy table removal is intentionally encoded.
+- The old `012_drop_legacy_market_tables.sql` cleanup step is historical only and is no longer part of the active migration runner path.
+- The squashed baseline now preserves existing populated databases and does not drop legacy tables.
+- Historical migrations remain in this document only for context.
 
 Drop order:
 

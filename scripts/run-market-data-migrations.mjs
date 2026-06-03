@@ -10,18 +10,7 @@ async function main() {
 
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
     const migrationFiles = [
-        "001_market_data.sql",
-        "002_market_reference_instruments.sql",
-        "003_market_instrument_display_metadata.sql",
-        "004_market_instrument_status.sql",
-        "005_market_data_requests.sql",
-        "006_asset_reference_data_schema.sql",
-        "007_asset_daily_prices_latest_provider_index.sql",
-        "008_drop_legacy_price_table_and_redundant_indexes.sql",
-        "009_trim_asset_daily_prices_before_2000.sql",
-        "010_enable_rls_asset_reference_tables.sql",
-        "011_expand_asset_reference_curation_model.sql",
-        "012_drop_legacy_market_tables.sql",
+        "001_asset_reference_data_baseline.sql",
     ];
 
     await withPostgresClient(async (client) => {
