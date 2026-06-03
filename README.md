@@ -29,6 +29,8 @@ Current operator workflow details are documented in [docs/MARKET_DATA_PIPELINE.m
 - [docs/DOMAIN_LANGUAGE.md](docs/DOMAIN_LANGUAGE.md)
 - [docs/DOMAIN_MODEL_BOUNDARIES.md](docs/DOMAIN_MODEL_BOUNDARIES.md)
 - [docs/DATABASE_ASSET_MODEL_PLAN.md](docs/DATABASE_ASSET_MODEL_PLAN.md)
+- [docs/KPI_CATALOG.md](docs/KPI_CATALOG.md)
+- [docs/PRM_FIELD_LINEAGE.md](docs/PRM_FIELD_LINEAGE.md)
 
 ## Local Development
 
