@@ -3,6 +3,7 @@ import styles from "./HeroSection.module.css";
 import { formatCurrency } from "../../lib/format";
 
 export type AllocationSegment = {
+    key: string;
     label: string;
     value: number;
     color: string;
@@ -95,7 +96,7 @@ export default function HeroSection({
                                 />
                                 {donutSegments.map((segment, index) => (
                                     <circle
-                                        key={segment.label}
+                                        key={segment.key}
                                         className={styles.donutSegment}
                                         cx="48"
                                         cy="48"
