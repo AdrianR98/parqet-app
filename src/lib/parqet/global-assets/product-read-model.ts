@@ -691,11 +691,22 @@ export type ProductReadModelAssetMoneyMetric = {
   blockedMetrics: BlockedMetric[];
 };
 
+export type ProductReadModelAssetValuation = {
+  marketPrice: ProductReadModelAssetMoneyMetric;
+  latestTradePrice: ProductReadModelAssetMoneyMetric;
+  priceDate: string | null;
+  priceTimestamp: string | null;
+  priceSource: string | null;
+  sourceKind: "market_data_db" | "latest_trade_price_fallback" | "missing";
+  freshnessState: "fresh" | "stale" | "missing" | "unknown";
+};
+
 export type ProductReadModelAssetPortfolioBreakdown = {
   portfolioId: string;
   portfolioName: string | null;
   status: string;
   quantity: number | null;
+  valuation: ProductReadModelAssetValuation;
   marketValue: ProductReadModelAssetMoneyMetric;
   costBasis: ProductReadModelAssetMoneyMetric;
   unrealizedPnL: ProductReadModelAssetMoneyMetric;
@@ -713,6 +724,7 @@ export type ProductReadModelAssetRow = {
   status: ProductReadModelAssetStatus;
   quantity: number | null;
   quantityValueClassification: ProductReadModelValueClassification;
+  valuation: ProductReadModelAssetValuation;
   marketValue: ProductReadModelAssetMoneyMetric;
   costBasis: ProductReadModelAssetMoneyMetric;
   unrealizedPnL: ProductReadModelAssetMoneyMetric;
@@ -933,6 +945,7 @@ function buildAssetRowFromGlobalAsset(input: {
     quantity,
     quantityValueClassification:
       quantity === null ? "preliminary" : blockedMetrics.includes("position") ? "blocked" : "app_calculated",
+    valuation: mapValuationSnapshot(input.asset.valuation),
     marketValue: mapMoneyMetric(input.asset.totals.marketValue, metricBlockedMetrics.marketValue),
     costBasis: mapMoneyMetric(input.asset.totals.costBasis, metricBlockedMetrics.costBasis),
     unrealizedPnL: mapMoneyMetric(
@@ -997,6 +1010,7 @@ function buildAssetRowFromGlobalAsset(input: {
         portfolioName: breakdown.portfolioName ?? null,
         status: breakdown.status,
         quantity: breakdown.quantity ?? null,
+        valuation: mapValuationSnapshot(breakdown.valuation),
         marketValue: breakdownMarketValue,
         costBasis: breakdownCostBasis,
         unrealizedPnL: breakdownUnrealizedPnL,
@@ -1177,5 +1191,19 @@ export function buildGlobalAssetsProductReadModelComparisonEvidence(input: {
         projected.withUnrealizedPnLCount - currentSurface.assetWithUnrealizedPnLCount,
       dividendsCoverage: projected.withDividendsCount - currentSurface.assetWithDividendCount,
     },
+  };
+}
+
+function mapValuationSnapshot(
+  valuation: GlobalAsset["valuation"] | GlobalAsset["portfolioBreakdowns"][number]["valuation"],
+): ProductReadModelAssetValuation {
+  return {
+    marketPrice: mapMoneyMetric(valuation?.marketPrice, []),
+    latestTradePrice: mapMoneyMetric(valuation?.latestTradePrice, []),
+    priceDate: valuation?.priceDate ?? null,
+    priceTimestamp: valuation?.priceTimestamp ?? null,
+    priceSource: valuation?.priceSource ?? null,
+    sourceKind: valuation?.sourceKind ?? "missing",
+    freshnessState: valuation?.freshnessState ?? "missing",
   };
 }

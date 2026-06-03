@@ -41,6 +41,7 @@ import {
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 import { buildGlobalAssetProductReadModelFromActivityContext } from "../../../../lib/parqet/global-assets/coexistence";
+import { getLatestMarketPricesByIsins } from "../../../../lib/market-data/service";
 import {
   chooseCuratedDisplayName,
   getMarketInstrumentMetadataByIsins,
@@ -50,6 +51,7 @@ import {
 } from "../../../../lib/market-data/db/repository";
 import { recordUnknownMarketDataRequestsFromAssets } from "../../../../lib/market-data/runtime-requests";
 import type {
+  AssetLatestMarketPriceSnapshot,
   DbMarketInstrumentMetadata,
   DbMarketSymbolMapping,
 } from "../../../../lib/market-data/db/types-core";
@@ -211,6 +213,32 @@ function normalizeWeakText(value: string | null | undefined): string | null {
 
 function normalizeLookupIsin(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+function mapMarketPriceSnapshotsByIsin(
+  snapshotsByIsin: Record<string, AssetLatestMarketPriceSnapshot>,
+): Record<
+  string,
+  {
+    priceAmount: number;
+    currency: string | null;
+    priceDate: string | null;
+    priceTimestamp: string | null;
+    priceSource: string | null;
+  }
+> {
+  return Object.fromEntries(
+    Object.entries(snapshotsByIsin).map(([isin, snapshot]) => [
+      normalizeLookupIsin(isin),
+      {
+        priceAmount: snapshot.priceAmount,
+        currency: snapshot.currency ?? null,
+        priceDate: snapshot.priceDate ?? null,
+        priceTimestamp: snapshot.priceTimestamp ?? null,
+        priceSource: snapshot.provider ?? null,
+      },
+    ]),
+  );
 }
 
 function getMarketMetadataForIsin(
@@ -715,6 +743,22 @@ export async function GET(req: Request) {
         activityContext.portfolioNameById,
       );
 
+      let marketPriceSnapshotsByIsin: Record<string, AssetLatestMarketPriceSnapshot> = {};
+      try {
+        marketPriceSnapshotsByIsin = await getLatestMarketPricesByIsins({
+          isins: correctedAssets.map((asset: GlobalAssetViewModel) => asset.isin),
+        });
+      } catch (error) {
+        if (error instanceof MarketDataRepositoryError) {
+          console.warn(
+            "[parqet-assets] market price overlay unavailable:",
+            error.code,
+          );
+        } else {
+          console.warn("[parqet-assets] market price overlay failed");
+        }
+      }
+
       // ====================================================
       // Lokale Metadaten laden
       // ----------------------------------------------------
@@ -819,6 +863,9 @@ export async function GET(req: Request) {
           activityContext,
           requestedPortfolioIds: portfolioIds,
           generatedAt,
+          marketPriceOverlaysByIsin: mapMarketPriceSnapshotsByIsin(
+            marketPriceSnapshotsByIsin,
+          ),
         });
       const globalAssetProductReadModel =
         overlayGlobalAssetProductDisplayFromMarketMetadata({

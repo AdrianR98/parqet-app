@@ -15,6 +15,8 @@ import {
   GlobalAsset,
   GlobalAssetAggregationResult,
   GlobalAssetKey,
+  GlobalAssetValuationFreshnessState,
+  GlobalAssetValuationSnapshot,
   GlobalAssetOverrideDecisionType,
   GlobalAssetStatus,
   GlobalAssetTimelineEntry,
@@ -31,6 +33,16 @@ import {
   UnresolvedDecisionCandidate,
   WarningMetadata,
 } from "./types";
+
+export type GlobalAssetMarketPriceOverlay = {
+  priceAmount: number;
+  currency: string | null;
+  priceDate: string | null;
+  priceTimestamp: string | null;
+  priceSource: string | null;
+};
+
+export type GlobalAssetMarketPriceOverlaysByIsin = Record<string, GlobalAssetMarketPriceOverlay>;
 
 const QUANTITY_EPSILON = 0.000001;
 const RATIO_TOLERANCE = 0.0001;
@@ -211,6 +223,97 @@ function getCostBasisAmountForBuy(activity: NormalizedActivity): number {
   return activity.amounts.amountNet?.amount ?? activity.amounts.amount?.amount ?? 0;
 }
 
+function normalizeLookupIsin(value: string | null | undefined): string {
+  return (value ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+function getAssetIsin(assetKey: GlobalAssetKey, activities: NormalizedActivity[]): string | null {
+  if (assetKey.type === "isin") {
+    return normalizeLookupIsin(assetKey.value);
+  }
+
+  const candidate = activities.find((activity) => activity.assetIdentity.isin)?.assetIdentity.isin;
+  const normalized = normalizeLookupIsin(candidate);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function deriveValuationFreshnessState(priceDate: string | null): GlobalAssetValuationFreshnessState {
+  if (!priceDate) {
+    return "unknown";
+  }
+
+  const date = new Date(`${priceDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) {
+    return "unknown";
+  }
+
+  const ageMs = Date.now() - date.getTime();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  return ageMs > sevenDaysMs ? "stale" : "fresh";
+}
+
+function buildValuationSnapshot(input: {
+  overlay: GlobalAssetMarketPriceOverlay | null;
+  fallbackLatestTradePrice: number | null;
+  fallbackCurrency: string | null;
+}): GlobalAssetValuationSnapshot {
+  if (input.overlay) {
+    const overlayCurrency = input.overlay.currency ?? input.fallbackCurrency ?? null;
+    return {
+      marketPrice: overlayCurrency
+        ? {
+            amount: input.overlay.priceAmount,
+            currency: overlayCurrency,
+          }
+        : null,
+      latestTradePrice:
+        input.fallbackLatestTradePrice != null && input.fallbackCurrency
+          ? {
+              amount: input.fallbackLatestTradePrice,
+              currency: input.fallbackCurrency,
+            }
+          : null,
+      priceDate: input.overlay.priceDate,
+      priceTimestamp: input.overlay.priceTimestamp,
+      priceSource: input.overlay.priceSource,
+      sourceKind: "market_data_db",
+      freshnessState: deriveValuationFreshnessState(input.overlay.priceDate),
+    };
+  }
+
+  if (input.fallbackLatestTradePrice != null && input.fallbackCurrency) {
+    return {
+      marketPrice: null,
+      latestTradePrice: {
+        amount: input.fallbackLatestTradePrice,
+        currency: input.fallbackCurrency,
+      },
+      priceDate: null,
+      priceTimestamp: null,
+      priceSource: "latest_trade_price",
+      sourceKind: "latest_trade_price_fallback",
+      freshnessState: "unknown",
+    };
+  }
+
+  return {
+    marketPrice: null,
+    latestTradePrice: null,
+    priceDate: null,
+    priceTimestamp: null,
+    priceSource: null,
+    sourceKind: "missing",
+    freshnessState: "missing",
+  };
+}
+
+function getEffectiveValuationCurrency(input: {
+  valuation: GlobalAssetValuationSnapshot;
+  fallbackCurrency: string | null;
+}): string | null {
+  return input.valuation.marketPrice?.currency ?? input.valuation.latestTradePrice?.currency ?? input.fallbackCurrency;
+}
+
 function sumMoneyValues(
   values: Array<MoneyValue | null | undefined>,
   context: { assetKey: GlobalAssetKey; metric: BlockedMetric; label: string },
@@ -341,6 +444,8 @@ function buildPortfolioBreakdowns(input: {
   activities: NormalizedActivity[];
   warnings: ReconciliationWarning[];
   unresolvedDecisionCandidates: UnresolvedDecisionCandidate[];
+  marketPriceOverlay: GlobalAssetMarketPriceOverlay | null;
+  assetLatestTradePrice: number | null;
 }): PortfolioBreakdown[] {
   const groups = new Map<string, NormalizedActivity[]>();
 
@@ -367,7 +472,6 @@ function buildPortfolioBreakdowns(input: {
   return Array.from(groups.entries()).map(([portfolioId, portfolioActivities]) => {
     let netShares = 0;
     let remainingCostBasis = 0;
-    let latestTradePrice: number | null = null;
     let totalDividendNet = 0;
 
     for (const activity of portfolioActivities) {
@@ -406,18 +510,6 @@ function buildPortfolioBreakdowns(input: {
         });
       }
 
-      const tradePrice = activity.pricePerShare?.amount ?? null;
-      if (
-        tradePrice != null &&
-        (activity.activityType === "buy" ||
-          activity.activityType === "sell" ||
-          activity.activityType === "deposit" ||
-          activity.activityType === "withdrawal" ||
-          activity.activityType === "transfer_in" ||
-          activity.activityType === "transfer_out")
-      ) {
-        latestTradePrice = updateLatestTradePrice(latestTradePrice, tradePrice);
-      }
     }
 
     const rounded = normalizePositionRounding({
@@ -461,12 +553,6 @@ function buildPortfolioBreakdowns(input: {
       input.unresolvedDecisionCandidates.push(unresolvedDecisionCandidate);
     }
 
-    const metrics = calculatePositionMetrics({
-      netShares: quantity,
-      remainingCostBasis: rounded.remainingCostBasis,
-      latestTradePrice,
-      marketPrice: null,
-    });
     const priceCurrencies = collectCurrencies(
       portfolioActivities.map((activity) => {
         if (
@@ -484,7 +570,25 @@ function buildPortfolioBreakdowns(input: {
         return null;
       }),
     );
-    const valuationCurrency = priceCurrencies.length === 1 ? priceCurrencies[0] : null;
+    const tradeCurrency = priceCurrencies.length === 1 ? priceCurrencies[0] : null;
+    const valuation = buildValuationSnapshot({
+      overlay: input.marketPriceOverlay,
+      fallbackLatestTradePrice: input.assetLatestTradePrice,
+      fallbackCurrency: tradeCurrency,
+    });
+    const valuationCurrency = getEffectiveValuationCurrency({
+      valuation,
+      fallbackCurrency: tradeCurrency,
+    });
+    const metrics = calculatePositionMetrics({
+      netShares: quantity,
+      remainingCostBasis: rounded.remainingCostBasis,
+      latestTradePrice:
+        valuation.sourceKind === "latest_trade_price_fallback"
+          ? valuation.latestTradePrice?.amount ?? null
+          : null,
+      marketPrice: valuation.marketPrice?.amount ?? null,
+    });
     const dividendsCurrencies = collectCurrencies(
       portfolioActivities
         .filter((activity) => activity.activityType === "dividend")
@@ -517,6 +621,7 @@ function buildPortfolioBreakdowns(input: {
         valuationCurrency && metrics.avgBuyPrice != null
           ? { amount: metrics.avgBuyPrice, currency: valuationCurrency }
           : null,
+      valuation,
       shareOfGlobalPosition: null,
       status,
       warnings: breakdownWarnings,
@@ -548,7 +653,11 @@ function deriveAssetConfidence(warnings: ReconciliationWarning[]): AssetConfiden
   };
 }
 
-function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]): GlobalAsset {
+function buildAsset(
+  assetKey: GlobalAssetKey,
+  activities: NormalizedActivity[],
+  marketPriceOverlaysByIsin: GlobalAssetMarketPriceOverlaysByIsin = {},
+): GlobalAsset {
   const warnings: ReconciliationWarning[] = [];
   const unresolvedDecisionCandidates: UnresolvedDecisionCandidate[] = [];
 
@@ -575,11 +684,32 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     }))
   );
 
+  let latestTradePrice: number | null = null;
+  for (const activity of activities) {
+    const tradePrice = activity.pricePerShare?.amount ?? null;
+    if (
+      tradePrice != null &&
+      (activity.activityType === "buy" ||
+        activity.activityType === "sell" ||
+        activity.activityType === "deposit" ||
+        activity.activityType === "withdrawal" ||
+        activity.activityType === "transfer_in" ||
+        activity.activityType === "transfer_out")
+    ) {
+      latestTradePrice = updateLatestTradePrice(latestTradePrice, tradePrice);
+    }
+  }
+
+  const assetIsin = getAssetIsin(assetKey, activities);
+  const marketPriceOverlay = assetIsin ? marketPriceOverlaysByIsin[assetIsin] ?? null : null;
+
   const portfolioBreakdowns = buildPortfolioBreakdowns({
     assetKey,
     activities,
     warnings,
     unresolvedDecisionCandidates,
+    marketPriceOverlay,
+    assetLatestTradePrice: latestTradePrice,
   });
   const rawTotalQuantity = portfolioBreakdowns.reduce((sum, breakdown) => sum + (breakdown.quantity ?? 0), 0);
   const totalQuantity = normalizeQuantityForStatus(rawTotalQuantity);
@@ -607,6 +737,46 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     activities.map((activity) => (activity.activityCurrency ? { amount: 0, currency: activity.activityCurrency } : null))
   );
   const hasMixedCurrencies = currencies.length > 1;
+  const valuation = buildValuationSnapshot({
+    overlay: marketPriceOverlay,
+    fallbackLatestTradePrice: latestTradePrice,
+    fallbackCurrency: currencies.length === 1 ? currencies[0] : null,
+  });
+
+  if (valuation.sourceKind === "latest_trade_price_fallback") {
+    warnings.push(
+      createAggregationWarning({
+        code: "MARKET_PRICE_FALLBACK_USED",
+        severity: "Warning",
+        message: "Current market price is missing; valuation falls back to latest trade price.",
+        debugMessage: "Slice 2 keeps latestTradePrice only as an explicit degraded fallback path.",
+        assetKey,
+        blockedMetrics: ["confidence"],
+      }),
+    );
+  } else if (valuation.sourceKind === "missing") {
+    warnings.push(
+      createAggregationWarning({
+        code: "MISSING_MARKET_PRICE",
+        severity: "Warning",
+        message: "Current market price is missing, so valuation metrics are blocked.",
+        debugMessage: "Neither market-data overlay nor latest trade fallback was available.",
+        assetKey,
+        blockedMetrics: ["market_value", "unrealized_pnl", "confidence"],
+      }),
+    );
+  } else if (valuation.freshnessState === "stale") {
+    warnings.push(
+      createAggregationWarning({
+        code: "STALE_MARKET_PRICE",
+        severity: "Warning",
+        message: "Current market price is stale; valuation is preliminary.",
+        debugMessage: "Latest DB market price is older than the freshness threshold.",
+        assetKey,
+        blockedMetrics: ["confidence"],
+      }),
+    );
+  }
 
   if (hasMixedCurrencies) {
     warnings.push(
@@ -691,6 +861,7 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
     },
     timeline,
     portfolioBreakdowns,
+    valuation,
     warnings,
     unresolvedDecisionCandidates,
     confidence: deriveAssetConfidence(warnings),
@@ -707,7 +878,10 @@ function buildAsset(assetKey: GlobalAssetKey, activities: NormalizedActivity[]):
   };
 }
 
-export function buildGlobalAssets(activities: NormalizedActivity[]): GlobalAssetAggregationResult {
+export function buildGlobalAssets(
+  activities: NormalizedActivity[],
+  options: { marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin } = {},
+): GlobalAssetAggregationResult {
   const overrideResult = applyGlobalAssetPositionOverrides(activities);
   const activitiesWithOverrides = overrideResult.activities;
   const groups = new Map<string, { assetKey: GlobalAssetKey; activities: NormalizedActivity[] }>();
@@ -740,7 +914,13 @@ export function buildGlobalAssets(activities: NormalizedActivity[]): GlobalAsset
     groups.set(groupKey, group);
   }
 
-  const assets = Array.from(groups.values()).map((group) => buildAsset(group.assetKey, group.activities));
+  const assets = Array.from(groups.values()).map((group) =>
+    buildAsset(
+      group.assetKey,
+      group.activities,
+      options.marketPriceOverlaysByIsin,
+    ),
+  );
   const assetWarnings = assets.flatMap((asset) => asset.warnings);
   const assetDecisionCandidates = assets.flatMap((asset) => asset.unresolvedDecisionCandidates ?? []);
   const allWarnings = [...warnings, ...assetWarnings];
@@ -772,9 +952,10 @@ export function buildGlobalAssets(activities: NormalizedActivity[]): GlobalAsset
 }
 
 export function buildGlobalAssetsFromNormalizationResult(
-  result: ActivitiesNormalizationResult
+  result: ActivitiesNormalizationResult,
+  options: { marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin } = {},
 ): GlobalAssetAggregationResult {
-  const aggregation = buildGlobalAssets(result.activities);
+  const aggregation = buildGlobalAssets(result.activities, options);
 
   return {
     ...aggregation,

@@ -87,6 +87,15 @@ describe("global-asset coexistence cache population bridge", () => {
       activityContext: createActivityContextFixture(),
       requestedPortfolioIds: ["portfolio_demo_1"],
       generatedAt: "2026-05-14T09:00:00.000Z",
+      marketPriceOverlaysByIsin: {
+        DEMO00000011: {
+          priceAmount: 120,
+          currency: "EUR",
+          priceDate: "2026-05-13",
+          priceTimestamp: "2026-05-13T17:00:00.000Z",
+          priceSource: "yfinance",
+        },
+      },
     });
 
     expect(productReadModel).not.toBeNull();
@@ -97,6 +106,10 @@ describe("global-asset coexistence cache population bridge", () => {
     expect(productReadModel?.metadata.snapshotId).toBe("activity-snapshot:fixture-fingerprint-001");
     expect(productReadModel?.metadata.providerRequestCount).toBeNull();
     expect(productReadModel?.summary.assetCount).toBe(1);
+    expect(productReadModel?.assets[0]?.valuation.marketPrice.amount).toBe(120);
+    expect(productReadModel?.assets[0]?.valuation.priceSource).toBe("yfinance");
+    expect(productReadModel?.assets[0]?.marketValue.amount).toBe(240);
+    expect(productReadModel?.assets[0]?.unrealizedPnL.amount).toBe(40);
   });
 
   it("marks scope as missing when requested portfolio ids are not covered by the selected context", () => {

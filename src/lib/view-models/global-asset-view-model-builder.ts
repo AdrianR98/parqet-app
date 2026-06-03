@@ -14,8 +14,8 @@ function toPortfolioPosition(
     netShares: quantity,
     remainingCostBasis,
     avgBuyPrice: calculateAvgBuyPrice(quantity, remainingCostBasis),
-    latestTradePrice: null,
-    marketPrice: null,
+    latestTradePrice: entry.valuation.latestTradePrice.amount,
+    marketPrice: entry.valuation.marketPrice.amount,
     positionValue: entry.marketValue.amount,
     unrealizedPnL: entry.unrealizedPnL.amount,
     totalDividendNet: entry.dividendsNet.amount ?? 0,
@@ -51,10 +51,15 @@ export function buildGlobalAssetViewModelsFromProductReadModel(
       totalInvestedGross: remainingCostBasis,
       remainingCostBasis,
       avgBuyPrice: calculateAvgBuyPrice(quantity, remainingCostBasis),
-      latestTradePrice: null,
-      marketPrice: row.marketValue.amount,
-      marketPriceAt: null,
-      marketPriceSource: null,
+      latestTradePrice: row.valuation.latestTradePrice.amount,
+      marketPrice: row.valuation.marketPrice.amount,
+      marketPriceAt: row.valuation.priceTimestamp ?? row.valuation.priceDate,
+      marketPriceSource:
+        row.valuation.sourceKind === "market_data_db"
+          ? row.valuation.priceSource ?? "market_data_db"
+          : row.valuation.sourceKind === "latest_trade_price_fallback"
+            ? "latest_trade_price_fallback"
+            : null,
       positionValue: row.marketValue.amount,
       unrealizedPnL: row.unrealizedPnL.amount,
       totalDividendNet: row.dividendsNet.amount ?? 0,
