@@ -168,8 +168,8 @@ async function loadExistingDiagnostics(queryPostgres, input) {
             m.is_active,
             m.verified_at,
             m.notes
-         from market_symbol_mappings m
-         join market_instruments i on i.id = m.instrument_id
+         from asset_symbol_mappings m
+         join assets i on i.id = m.instrument_id
          where m.instrument_id = $1
            and m.provider = $2
            and m.symbol = $3
@@ -190,8 +190,8 @@ async function loadExistingDiagnostics(queryPostgres, input) {
             m.is_active,
             m.verified_at,
             m.notes
-         from market_symbol_mappings m
-         join market_instruments i on i.id = m.instrument_id
+         from asset_symbol_mappings m
+         join assets i on i.id = m.instrument_id
          where m.provider = $1
            and m.symbol = $2
          order by i.isin asc, m.updated_at desc, m.id asc`,
@@ -211,8 +211,8 @@ async function loadExistingDiagnostics(queryPostgres, input) {
             m.is_active,
             m.verified_at,
             m.notes
-         from market_symbol_mappings m
-         join market_instruments i on i.id = m.instrument_id
+         from asset_symbol_mappings m
+         join assets i on i.id = m.instrument_id
          where i.isin = $1
            and m.provider = $2
          order by m.updated_at desc, m.id asc`,
@@ -276,7 +276,7 @@ async function run() {
     const primaryCheck = await queryPostgres(
         `select exists (
             select 1
-            from market_symbol_mappings
+            from asset_symbol_mappings
             where instrument_id = $1
               and provider = $2
               and is_primary = true
@@ -304,7 +304,7 @@ async function run() {
     const duplicateCheck = await queryPostgres(
         `select exists (
             select 1
-            from market_symbol_mappings
+            from asset_symbol_mappings
             where instrument_id = $1
               and provider = $2
               and symbol = $3

@@ -484,8 +484,8 @@ async function loadOpenInstruments(options) {
                 bool_or(m.provider = 'yfinance' and m.is_active = true and m.is_primary = false and m.verified_at is not null) as has_verified_non_primary,
                 bool_or(m.provider = 'yfinance' and m.notes ilike '%validated:yfinance; status=failed%') as has_failed_validation,
                 string_agg(distinct case when m.provider = 'yfinance' then m.symbol else null end, ', ' order by case when m.provider = 'yfinance' then m.symbol else null end) as candidate_symbols
-            from market_instruments i
-            left join market_symbol_mappings m on m.instrument_id = i.id
+            from assets i
+            left join asset_symbol_mappings m on m.instrument_id = i.id
             group by i.id
         ),
         xetra as (
@@ -494,16 +494,16 @@ async function loadOpenInstruments(options) {
                 bool_or(r.source_key = 'xetra_all_tradable_instruments') as has_xetra_hit,
                 max(case when r.source_key = 'xetra_all_tradable_instruments' then r.mnemonic else null end) as xetra_mnemonic,
                 max(case when r.source_key = 'xetra_all_tradable_instruments' and r.mnemonic is not null and r.mnemonic <> '' then upper(r.mnemonic) || '.DE' else null end) as xetra_candidate_symbol
-            from market_instruments i
-            left join market_reference_instruments r on r.isin = i.isin and r.source_key = 'xetra_all_tradable_instruments'
+            from assets i
+            left join reference_data_asset_candidates r on r.isin = i.isin and r.source_key = 'xetra_all_tradable_instruments'
             group by i.id
         ),
         tu as (
             select
                 i.id as instrument_id,
                 bool_or(r.source_key = 'trading_universe') as has_trading_universe_hit
-            from market_instruments i
-            left join market_reference_instruments r on r.isin = i.isin and r.source_key = 'trading_universe'
+            from assets i
+            left join reference_data_asset_candidates r on r.isin = i.isin and r.source_key = 'trading_universe'
             group by i.id
         )
         select
@@ -524,7 +524,7 @@ async function loadOpenInstruments(options) {
             x.xetra_mnemonic,
             x.xetra_candidate_symbol,
             coalesce(tu.has_trading_universe_hit, false) as has_trading_universe_hit
-        from market_instruments i
+        from assets i
         left join mapping m on m.instrument_id = i.id
         left join xetra x on x.instrument_id = i.id
         left join tu on tu.instrument_id = i.id

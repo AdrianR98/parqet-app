@@ -450,13 +450,13 @@ async function run() {
                 string_agg(distinct case when m.provider = 'yfinance' then m.symbol else null end, ', ' order by case when m.provider = 'yfinance' then m.symbol else null end) as candidate_symbols,
                 max(case when m.provider = 'yfinance' and m.is_primary = true then m.symbol else null end) as primary_symbol,
                 string_agg(distinct coalesce(m.notes, ''), ' | ') filter (where m.provider = 'yfinance' and m.notes is not null) as mapping_notes
-            from market_instruments i
-            left join market_symbol_mappings m on m.instrument_id = i.id
+            from assets i
+            left join asset_symbol_mappings m on m.instrument_id = i.id
             group by i.id
         ),
         price_flags as (
             select i.id as instrument_id, true as has_prices
-            from market_instruments i
+            from assets i
             join assets a
               on a.asset_key_type = 'isin'
              and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
@@ -471,8 +471,8 @@ async function run() {
                 max(case when r.source_key = 'xetra_all_tradable_instruments' then r.instrument_type else null end) as xetra_instrument_type,
                 max(case when r.source_key = 'xetra_all_tradable_instruments' then r.market_segment else null end) as xetra_market_segment,
                 max(case when r.source_key = 'xetra_all_tradable_instruments' and r.mnemonic is not null and r.mnemonic <> '' then upper(r.mnemonic) || '.DE' else null end) as xetra_candidate_symbol
-            from market_instruments i
-            left join market_reference_instruments r
+            from assets i
+            left join reference_data_asset_candidates r
               on r.isin = i.isin
              and r.source_key = 'xetra_all_tradable_instruments'
             group by i.id
@@ -483,8 +483,8 @@ async function run() {
                 bool_or(r.source_key = 'trading_universe') as has_trading_universe_hit,
                 max(case when r.source_key = 'trading_universe' then r.name else null end) as trading_universe_name,
                 string_agg(distinct coalesce(r.name, ''), ' | ') filter (where r.source_key = 'trading_universe' and r.name is not null) as trading_universe_names
-            from market_instruments i
-            left join market_reference_instruments r
+            from assets i
+            left join reference_data_asset_candidates r
               on r.isin = i.isin
              and r.source_key = 'trading_universe'
             group by i.id
@@ -519,7 +519,7 @@ async function run() {
             coalesce(tu.has_trading_universe_hit, false) as has_trading_universe_hit,
             tu.trading_universe_name,
             coalesce(tu.trading_universe_names, '') as trading_universe_names
-        from market_instruments i
+        from assets i
         left join mapping m on m.instrument_id = i.id
         left join price_flags p on p.instrument_id = i.id
         left join xetra x on x.instrument_id = i.id

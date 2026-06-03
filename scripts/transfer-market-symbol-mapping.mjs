@@ -173,8 +173,8 @@ async function loadDiagnostics(queryPostgres, options, fromInstrument) {
             m.is_active,
             m.verified_at,
             m.notes
-         from market_symbol_mappings m
-         join market_instruments i on i.id = m.instrument_id`;
+         from asset_symbol_mappings m
+         join assets i on i.id = m.instrument_id`;
 
     const sameFromInstrument = await queryPostgres(
         `${baseSelect}
@@ -243,7 +243,7 @@ async function run() {
 
     const instrumentsResult = await queryPostgres(
         `select id, isin, name, display_name
-         from market_instruments
+         from assets
          where isin = any($1::text[])
          order by isin asc`,
         [[options.fromIsin, options.toIsin]],
@@ -289,7 +289,7 @@ async function run() {
 
     const targetMappingsResult = await queryPostgres(
         `select id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes
-         from market_symbol_mappings
+         from asset_symbol_mappings
          where instrument_id = $1
            and provider = $2
          order by updated_at desc, symbol asc`,
@@ -344,7 +344,7 @@ async function run() {
         try {
             const lockResult = await client.query(
                 `select id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes
-                 from market_symbol_mappings
+                 from asset_symbol_mappings
                  where id = $1
                  for update`,
                 [sourceMapping.id],
@@ -359,7 +359,7 @@ async function run() {
 
             if (options.makePrimary) {
                 await client.query(
-                    `update market_symbol_mappings
+                    `update asset_symbol_mappings
                      set is_primary = false,
                          updated_at = now()
                      where instrument_id = $1
@@ -378,7 +378,7 @@ async function run() {
             const verifiedAt = options.copyValidation ? locked.verified_at ?? null : null;
 
             await client.query(
-                `update market_symbol_mappings
+                `update asset_symbol_mappings
                  set instrument_id = $1,
                      exchange = $2,
                      currency = $3,
@@ -406,7 +406,7 @@ async function run() {
 
             const afterResult = await client.query(
                 `select id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes
-                 from market_symbol_mappings
+                 from asset_symbol_mappings
                  where id = $1`,
                 [locked.id],
             );

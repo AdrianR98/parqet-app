@@ -46,4 +46,5 @@ export async function runMarketDataMigrations(): Promise<void> {
     await runMarketDataMigrationFile("008_drop_legacy_price_table_and_redundant_indexes.sql");
     await runMarketDataMigrationFile("009_trim_asset_daily_prices_before_2000.sql");
     await runMarketDataMigrationFile("010_enable_rls_asset_reference_tables.sql");
+    await runMarketDataMigrationFile("011_expand_asset_reference_curation_model.sql");
 }
