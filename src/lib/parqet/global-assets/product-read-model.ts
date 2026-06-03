@@ -14,6 +14,22 @@ import {
   logValuationInvariant,
   summarizeDiagnostics,
 } from "../../debug/dev-diagnostics";
+import {
+  buildExtendedKpiMoneyMetric,
+  calculateActivityKpis,
+  calculateDataConfidenceScore,
+  calculateDividendKpis,
+  calculateMarketPriceFreshness,
+  calculateMetadataCompletenessScore,
+  calculatePortfolioDataConfidenceScore,
+  calculatePortfolioStructureKpis,
+  calculatePortfolioWeight,
+  type ExtendedKpiAllocationByAssetTypeMetric,
+  type ExtendedKpiMarketPriceFreshnessMetric,
+  type ExtendedKpiMetricStatus,
+  type ExtendedKpiMoneyMetric,
+  type ExtendedKpiRatioMetric,
+} from "../../calculations/extended-kpi-metrics";
 
 export type ProductReadModelSourceType =
   | "provider"
@@ -705,6 +721,63 @@ export type ProductReadModelAssetValuation = {
   freshnessState: "fresh" | "stale" | "missing" | "unknown";
 };
 
+export type ProductReadModelAssetClassification = {
+  assetType?: string | null;
+  currency?: string | null;
+  symbol?: string | null;
+  primarySymbol?: string | null;
+  wkn?: string | null;
+};
+
+export type ProductReadModelKpiMoneyMetric = ExtendedKpiMoneyMetric;
+export type ProductReadModelKpiRatioMetric = ExtendedKpiRatioMetric;
+export type ProductReadModelKpiMetricStatus = ExtendedKpiMetricStatus;
+export type ProductReadModelMarketPriceFreshnessMetric = ExtendedKpiMarketPriceFreshnessMetric;
+export type ProductReadModelAllocationByAssetTypeMetric = ExtendedKpiAllocationByAssetTypeMetric;
+
+export type ProductReadModelAssetMetrics = {
+  activity?: {
+    grossBuyVolume?: ProductReadModelKpiMoneyMetric;
+    grossSellVolume?: ProductReadModelKpiMoneyMetric;
+    buyCount?: number;
+    sellCount?: number;
+  };
+  income?: {
+    dividendCount?: number;
+    lastDividendDate?: string | null;
+  };
+  structure?: {
+    portfolioWeight?: ProductReadModelKpiRatioMetric;
+  };
+  quality?: {
+    dataConfidenceScore?: number | null;
+    marketPriceFreshness?: ProductReadModelMarketPriceFreshnessMetric;
+    metadataCompletenessScore?: number | null;
+    warningCount?: number;
+  };
+};
+
+export type ProductReadModelSummaryMetrics = {
+  activity?: {
+    grossBuyVolume?: ProductReadModelKpiMoneyMetric;
+    grossSellVolume?: ProductReadModelKpiMoneyMetric;
+    buyCount?: number;
+    sellCount?: number;
+    dividendCount?: number;
+    lastDividendDate?: string | null;
+  };
+  structure?: {
+    top5Concentration?: ProductReadModelKpiRatioMetric;
+    top10Concentration?: ProductReadModelKpiRatioMetric;
+    herfindahlIndex?: ProductReadModelKpiRatioMetric;
+    allocationByAssetType?: ProductReadModelAllocationByAssetTypeMetric;
+  };
+  quality?: {
+    dataConfidenceScore?: number | null;
+    warningCount?: number;
+  };
+};
+
 export type ProductReadModelAssetPortfolioBreakdown = {
   portfolioId: string;
   portfolioName: string | null;
@@ -725,6 +798,7 @@ export type ProductReadModelAssetPortfolioBreakdown = {
 export type ProductReadModelAssetRow = {
   identity: ProductReadModelAssetIdentity;
   display: ProductReadModelAssetDisplayIdentity;
+  classification?: ProductReadModelAssetClassification;
   status: ProductReadModelAssetStatus;
   quantity: number | null;
   quantityValueClassification: ProductReadModelValueClassification;
@@ -745,6 +819,7 @@ export type ProductReadModelAssetRow = {
   scopeState: ProductReadModelScopeState;
   portfolioBreakdown: ProductReadModelAssetPortfolioBreakdown[];
   latestActivityAt: string | null;
+  metrics?: ProductReadModelAssetMetrics;
 };
 
 export type ProductReadModelAssetsSummary = {
@@ -757,6 +832,7 @@ export type ProductReadModelAssetsSummary = {
   blockedMetricAssetCount: number;
   blockedMetricCount: number;
   valueClassificationCounts: Record<ProductReadModelValueClassification, number>;
+  metrics?: ProductReadModelSummaryMetrics;
 };
 
 export type ProductReadModelAssets = {
@@ -894,6 +970,251 @@ function deriveAssetStatus(status: string): ProductReadModelAssetStatus {
   return "unknown";
 }
 
+function buildAssetMetrics(input: {
+  asset: GlobalAsset;
+  row: Pick<
+    ProductReadModelAssetRow,
+    "identity" | "display" | "classification" | "valuation" | "marketValue" | "warnings"
+  >;
+  portfolioValue?: { amount: number | null; currency: string | null } | null;
+}): ProductReadModelAssetMetrics {
+  const activities = input.asset.timeline.map((entry) => ({
+    activityType: entry.activity.activityType,
+    amount: entry.activity.amounts.amount ?? null,
+    amountNet: entry.activity.amounts.amountNet ?? null,
+    date: entry.activity.date,
+    datetime: entry.activity.datetime,
+  }));
+  const activityMetrics = calculateActivityKpis(activities);
+  const dividendMetrics = calculateDividendKpis(activities);
+  const metadataCompletenessScore = calculateMetadataCompletenessScore({
+    displayName: input.row.display.displayName,
+    name: input.row.display.displayName,
+    isin: input.row.identity.compatibilityIsin,
+    wkn: input.row.classification?.wkn ?? input.row.display.wkn,
+    assetType: input.row.classification?.assetType ?? null,
+    currency:
+      input.row.classification?.currency ??
+      input.row.marketValue.currency ??
+      input.row.valuation.marketPrice.currency ??
+      input.row.valuation.latestTradePrice.currency,
+    symbol: input.row.display.symbol,
+    primarySymbol: input.row.classification?.primarySymbol ?? input.row.classification?.symbol ?? null,
+  });
+  const warningCount = input.row.warnings.length;
+
+  return {
+    activity: {
+      grossBuyVolume: activityMetrics.grossBuyVolume,
+      grossSellVolume: activityMetrics.grossSellVolume,
+      buyCount: activityMetrics.buyCount,
+      sellCount: activityMetrics.sellCount,
+    },
+    income: {
+      dividendCount: dividendMetrics.dividendCount,
+      lastDividendDate: dividendMetrics.lastDividendDate,
+    },
+    structure: {
+      portfolioWeight: calculatePortfolioWeight({
+        assetPositionValue: {
+          amount: input.row.marketValue.amount,
+          currency: input.row.marketValue.currency,
+        },
+        portfolioValue: input.portfolioValue ?? null,
+      }),
+    },
+    quality: {
+      dataConfidenceScore: calculateDataConfidenceScore({
+        valuationSourceKind: input.row.valuation.sourceKind,
+        freshnessState: input.row.valuation.freshnessState,
+        metadataCompletenessScore,
+        warningCount,
+      }),
+      marketPriceFreshness: calculateMarketPriceFreshness({
+        priceDate: input.row.valuation.priceDate,
+        priceTimestamp: input.row.valuation.priceTimestamp,
+        sourceKind: input.row.valuation.sourceKind,
+        freshnessState: input.row.valuation.freshnessState,
+      }),
+      metadataCompletenessScore,
+      warningCount,
+    },
+  };
+}
+
+export function enrichGlobalAssetsProductReadModelMetrics(
+  productReadModel: ProductReadModelAssets,
+): ProductReadModelAssets {
+  const portfolioStructure = calculatePortfolioStructureKpis({
+    assets: productReadModel.assets.map((asset) => ({
+      positionValue:
+        asset.marketValue.amount != null
+          ? {
+              amount: asset.marketValue.amount,
+              currency: asset.marketValue.currency,
+            }
+          : null,
+      assetType: asset.classification?.assetType ?? null,
+    })),
+  });
+  const assetRowsWithMetrics = productReadModel.assets.map((asset) => {
+    const metadataCompletenessScore = calculateMetadataCompletenessScore({
+      displayName: asset.display.displayName,
+      name: asset.display.displayName,
+      isin: asset.identity.compatibilityIsin,
+      wkn: asset.classification?.wkn ?? asset.display.wkn,
+      assetType: asset.classification?.assetType ?? null,
+      currency:
+        asset.classification?.currency ??
+        asset.marketValue.currency ??
+        asset.valuation.marketPrice.currency ??
+        asset.valuation.latestTradePrice.currency,
+      symbol: asset.display.symbol,
+      primarySymbol: asset.classification?.primarySymbol ?? asset.classification?.symbol ?? null,
+    });
+    const portfolioValue = {
+      amount: productReadModel.assets.reduce((sum, row) => sum + (row.marketValue.amount ?? 0), 0),
+      currency: portfolioStructure.allocationByAssetType.currency,
+    };
+
+    return {
+      ...asset,
+      metrics: {
+        ...(asset.metrics ?? {}),
+        activity: {
+          ...(asset.metrics?.activity ?? {}),
+        },
+        income: {
+          ...(asset.metrics?.income ?? {}),
+        },
+        structure: {
+          ...(asset.metrics?.structure ?? {}),
+          portfolioWeight: calculatePortfolioWeight({
+            assetPositionValue: {
+              amount: asset.marketValue.amount,
+              currency: asset.marketValue.currency,
+            },
+            portfolioValue,
+          }),
+        },
+        quality: {
+          ...(asset.metrics?.quality ?? {}),
+          dataConfidenceScore: calculateDataConfidenceScore({
+            valuationSourceKind: asset.valuation.sourceKind,
+            freshnessState: asset.valuation.freshnessState,
+            metadataCompletenessScore,
+            warningCount: asset.warnings.length,
+          }),
+          marketPriceFreshness: calculateMarketPriceFreshness({
+            priceDate: asset.valuation.priceDate,
+            priceTimestamp: asset.valuation.priceTimestamp,
+            sourceKind: asset.valuation.sourceKind,
+            freshnessState: asset.valuation.freshnessState,
+          }),
+          metadataCompletenessScore,
+          warningCount: asset.warnings.length,
+        },
+      },
+    };
+  });
+  const averageMetadataCompletenessScore =
+    assetRowsWithMetrics.length > 0
+      ? assetRowsWithMetrics.reduce(
+          (sum, asset) => sum + (asset.metrics?.quality?.metadataCompletenessScore ?? 0),
+          0,
+        ) / assetRowsWithMetrics.length
+      : 0;
+  const summaryActivityMetrics = {
+    grossBuyVolume: buildExtendedKpiMoneyMetric({
+      values: assetRowsWithMetrics.map((asset) =>
+        asset.metrics?.activity?.grossBuyVolume?.amount != null
+          ? {
+              amount: asset.metrics.activity.grossBuyVolume.amount,
+              currency: asset.metrics.activity.grossBuyVolume.currency,
+            }
+          : null,
+      ),
+      mixedCurrencyNote: "gross_buy_volume_unconverted_mixed_currencies",
+      missingNote: "gross_buy_volume_missing",
+    }),
+    grossSellVolume: buildExtendedKpiMoneyMetric({
+      values: assetRowsWithMetrics.map((asset) =>
+        asset.metrics?.activity?.grossSellVolume?.amount != null
+          ? {
+              amount: asset.metrics.activity.grossSellVolume.amount,
+              currency: asset.metrics.activity.grossSellVolume.currency,
+            }
+          : null,
+      ),
+      mixedCurrencyNote: "gross_sell_volume_unconverted_mixed_currencies",
+      missingNote: "gross_sell_volume_missing",
+    }),
+    buyCount: assetRowsWithMetrics.reduce((sum, asset) => sum + (asset.metrics?.activity?.buyCount ?? 0), 0),
+    sellCount: assetRowsWithMetrics.reduce((sum, asset) => sum + (asset.metrics?.activity?.sellCount ?? 0), 0),
+  };
+  const summaryDividendMetrics = {
+    dividendCount: assetRowsWithMetrics.reduce(
+      (sum, asset) => sum + (asset.metrics?.income?.dividendCount ?? 0),
+      0,
+    ),
+    lastDividendDate:
+      assetRowsWithMetrics
+        .map((asset) => asset.metrics?.income?.lastDividendDate ?? null)
+        .filter((value): value is string => Boolean(value))
+        .sort((left, right) => left.localeCompare(right))
+        .at(-1) ?? null,
+  };
+  const marketDataAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "market_data_db" && asset.valuation.freshnessState === "fresh",
+  ).length;
+  const staleAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "market_data_db" && asset.valuation.freshnessState === "stale",
+  ).length;
+  const fallbackAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "latest_trade_price_fallback",
+  ).length;
+  const missingPriceAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "missing",
+  ).length;
+  const warningCount = productReadModel.metadata.warnings.length;
+
+  return {
+    ...productReadModel,
+    assets: assetRowsWithMetrics,
+    summary: {
+      ...productReadModel.summary,
+      metrics: {
+        activity: {
+          grossBuyVolume: summaryActivityMetrics.grossBuyVolume,
+          grossSellVolume: summaryActivityMetrics.grossSellVolume,
+          buyCount: summaryActivityMetrics.buyCount,
+          sellCount: summaryActivityMetrics.sellCount,
+          dividendCount: summaryDividendMetrics.dividendCount,
+          lastDividendDate: summaryDividendMetrics.lastDividendDate,
+        },
+        structure: {
+          top5Concentration: portfolioStructure.top5Concentration,
+          top10Concentration: portfolioStructure.top10Concentration,
+          herfindahlIndex: portfolioStructure.herfindahlIndex,
+          allocationByAssetType: portfolioStructure.allocationByAssetType,
+        },
+        quality: {
+          dataConfidenceScore: calculatePortfolioDataConfidenceScore({
+            assetCount: assetRowsWithMetrics.length,
+            marketDataAssetCount,
+            staleAssetCount,
+            fallbackAssetCount,
+            missingPriceAssetCount,
+            averageMetadataCompletenessScore,
+            warningCount,
+          }),
+          warningCount,
+        },
+      },
+    },
+  };
+}
+
 function buildAssetRowFromGlobalAsset(input: {
   asset: GlobalAsset;
   sourceType: ProductReadModelSourceType;
@@ -932,8 +1253,7 @@ function buildAssetRowFromGlobalAsset(input: {
     costBasis: blockedMetrics.filter((metric) => metric === "cost_basis"),
     unrealizedPnL: blockedMetrics.filter((metric) => metric === "unrealized_pnl"),
   };
-
-  return {
+  const row: ProductReadModelAssetRow = {
     identity: {
       assetKey: input.asset.assetKey,
       stableKey: toStableAssetKey(input.asset.assetKey),
@@ -943,6 +1263,17 @@ function buildAssetRowFromGlobalAsset(input: {
       displayName: input.asset.display.name ?? input.asset.assetKey?.value ?? "Unknown asset",
       subtitle: input.asset.display.subtitle ?? null,
       symbol: input.asset.display.symbol ?? null,
+      wkn: input.asset.assetKey?.type === "wkn" ? input.asset.assetKey.value : null,
+    },
+    classification: {
+      assetType: null,
+      currency:
+        input.asset.totals.marketValue?.currency ??
+        input.asset.valuation?.marketPrice?.currency ??
+        input.asset.valuation?.latestTradePrice?.currency ??
+        null,
+      symbol: input.asset.display.symbol ?? null,
+      primarySymbol: null,
       wkn: input.asset.assetKey?.type === "wkn" ? input.asset.assetKey.value : null,
     },
     status: deriveAssetStatus(input.asset.status),
@@ -1037,6 +1368,14 @@ function buildAssetRowFromGlobalAsset(input: {
     }),
     latestActivityAt: findLatestActivityAt(input.asset),
   };
+
+  row.metrics = buildAssetMetrics({
+    asset: input.asset,
+    row,
+    portfolioValue: null,
+  });
+
+  return row;
 }
 
 export function projectGlobalAssetsProductReadModel(
@@ -1054,7 +1393,7 @@ export function projectGlobalAssetsProductReadModel(
   const sourceScope = input.sourceScope ?? "selected_portfolios";
   const freshnessState = input.freshnessState ?? "unknown";
   const scopeState = input.scopeState ?? "scope_unknown";
-  const assets = input.aggregation.assets
+  const projectedAssets = input.aggregation.assets
     .map((asset) =>
       buildAssetRowFromGlobalAsset({
         asset,
@@ -1073,6 +1412,49 @@ export function projectGlobalAssetsProductReadModel(
 
       return left.display.displayName.localeCompare(right.display.displayName, "de-DE");
     });
+  const baseModel: ProductReadModelAssets = {
+    metadata: {
+      readModelId: input.readModelId ?? `product-read-model:global-assets:${generatedAt}`,
+      snapshotId: input.snapshotId ?? null,
+      generatedAt,
+      sourceType,
+      sourceScope,
+      freshnessAt: input.freshnessAt ?? null,
+      freshnessState,
+      scopeState,
+      selectedPortfolioIds: normalizePortfolioIds(input.selectedPortfolioIds),
+      confidence: readModelConfidence,
+      warnings: readModelWarnings,
+      blockedMetrics: [],
+      valueClassification: "none",
+      providerRequestCount: input.providerRequestCount ?? null,
+    },
+    assets: projectedAssets,
+    summary: {
+      assetCount: projectedAssets.length,
+      activeAssetCount: projectedAssets.filter((asset) => asset.status === "active").length,
+      closedAssetCount: projectedAssets.filter((asset) => asset.status === "closed").length,
+      unknownAssetCount: projectedAssets.filter((asset) => asset.status === "unknown").length,
+      warningAssetCount: projectedAssets.filter((asset) => asset.warnings.length > 0).length,
+      blockerWarningCount: projectedAssets.reduce(
+        (count, asset) =>
+          count + asset.warnings.filter((warning) => warning.severity === "Blocker").length,
+        0,
+      ),
+      blockedMetricAssetCount: projectedAssets.filter((asset) => asset.blockedMetrics.length > 0).length,
+      blockedMetricCount: projectedAssets.reduce((count, asset) => count + asset.blockedMetrics.length, 0),
+      valueClassificationCounts: {
+        provider_reference: 0,
+        app_calculated: 0,
+        estimated: 0,
+        preliminary: 0,
+        blocked: 0,
+        none: 0,
+      },
+    },
+  };
+  const enrichedModel = enrichGlobalAssetsProductReadModelMetrics(baseModel);
+  const assets = enrichedModel.assets;
   let valuationAnomalies = 0;
 
   for (const asset of assets) {
@@ -1153,36 +1535,14 @@ export function projectGlobalAssetsProductReadModel(
   }, "valuation");
 
   return {
+    ...enrichedModel,
     metadata: {
-      readModelId: input.readModelId ?? `product-read-model:global-assets:${generatedAt}`,
-      snapshotId: input.snapshotId ?? null,
-      generatedAt,
-      sourceType,
-      sourceScope,
-      freshnessAt: input.freshnessAt ?? null,
-      freshnessState,
-      scopeState,
-      selectedPortfolioIds: normalizePortfolioIds(input.selectedPortfolioIds),
-      confidence: readModelConfidence,
-      warnings: readModelWarnings,
+      ...enrichedModel.metadata,
       blockedMetrics: effectiveReadModelBlockedMetrics,
       valueClassification: effectiveReadModelValueClassification,
-      providerRequestCount: input.providerRequestCount ?? null,
     },
-    assets,
     summary: {
-      assetCount: assets.length,
-      activeAssetCount: assets.filter((asset) => asset.status === "active").length,
-      closedAssetCount: assets.filter((asset) => asset.status === "closed").length,
-      unknownAssetCount: assets.filter((asset) => asset.status === "unknown").length,
-      warningAssetCount: assets.filter((asset) => asset.warnings.length > 0).length,
-      blockerWarningCount: assets.reduce(
-        (count, asset) =>
-          count + asset.warnings.filter((warning) => warning.severity === "Blocker").length,
-        0,
-      ),
-      blockedMetricAssetCount: assets.filter((asset) => asset.blockedMetrics.length > 0).length,
-      blockedMetricCount: assets.reduce((count, asset) => count + asset.blockedMetrics.length, 0),
+      ...enrichedModel.summary,
       valueClassificationCounts,
     },
   };

@@ -79,6 +79,12 @@ Linked issues: Refs #402, Refs #395, Refs #398, Refs #397, Refs #396, Refs #405
 Status: the same branch, `feat/prm-core-kpi-convergence`, continues KPI work beyond the first 20 Core KPIs.
 Important: Currency/FX remains deferred to [#397](https://github.com/AdrianR98/parqet-app/issues/397); settings remain deferred to [#405](https://github.com/AdrianR98/parqet-app/issues/405).
 
+Technical foundation status:
+
+- PRM/API-ready metric objects now exist for the ready-now extended KPI slice without changing Dashboard or Asset Detail UI.
+- `gross_buy_volume`, `gross_sell_volume`, `portfolio_weight`, `top_5_concentration`, `top_10_concentration`, `herfindahl_index` and `allocation_by_asset_type` should still be treated as `partial` whenever mixed-currency scope prevents an unconverted final value.
+- `dividend_count`, `last_dividend_date`, `data_confidence_score`, `market_price_freshness`, `metadata_completeness_score` and `warning_count` now have technical PRM foundations and remain UI-unexposed until a later surface pass.
+
 ### Next ready implementation tranche
 
 These candidates are documented as `ready_now` in `docs/KPI_CATALOG.md` and can be implemented without new provider calls, DB schema changes or FX conversion:

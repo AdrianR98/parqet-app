@@ -41,6 +41,10 @@ import {
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 import { buildGlobalAssetProductReadModelFromActivityContext } from "../../../../lib/parqet/global-assets/coexistence";
+import {
+  enrichGlobalAssetsProductReadModelMetrics,
+  type ProductReadModelAssets,
+} from "../../../../lib/parqet/global-assets/product-read-model";
 import { getLatestMarketPricesByIsins } from "../../../../lib/market-data/service";
 import {
   chooseCuratedDisplayName,
@@ -464,28 +468,23 @@ function resolveInstrumentMetadataForIsin(input: {
 }
 
 function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
-  globalAssetProductReadModel: unknown;
+  globalAssetProductReadModel: ProductReadModelAssets | null;
   marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>;
   primaryMappingsByIsin: Record<string, DbMarketSymbolMapping>;
   marketMetadataDbAvailable: boolean;
-}): unknown {
+}): ProductReadModelAssets | null {
   const model = input.globalAssetProductReadModel;
   if (!model || typeof model !== "object") {
     return model;
   }
 
-  const assets = (model as { assets?: unknown[] }).assets;
+  const assets = model.assets;
   if (!Array.isArray(assets)) {
     return model;
   }
 
   const nextAssets = assets.map((asset) => {
-    if (!asset || typeof asset !== "object") {
-      return asset;
-    }
-
-    const identity = (asset as { identity?: { compatibilityIsin?: string | null } }).identity;
-    const compatibilityIsin = normalizeLookupIsin(identity?.compatibilityIsin ?? "");
+    const compatibilityIsin = normalizeLookupIsin(asset.identity?.compatibilityIsin ?? "");
     if (!compatibilityIsin) {
       return asset;
     }
@@ -504,11 +503,26 @@ function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
     return {
       ...asset,
       instrument,
+      classification: {
+        ...(asset.classification ?? {}),
+        assetType: resolution.assetType ?? asset.classification?.assetType ?? null,
+        currency: resolution.currency ?? asset.classification?.currency ?? null,
+        symbol:
+          instrument.primaryMapping?.symbol ??
+          asset.classification?.symbol ??
+          asset.display.symbol ??
+          null,
+        primarySymbol:
+          instrument.primaryMapping?.symbol ??
+          asset.classification?.primarySymbol ??
+          null,
+        wkn: resolution.wkn ?? asset.classification?.wkn ?? asset.display.wkn ?? null,
+      },
       display: {
-        ...((asset as { display?: Record<string, unknown> }).display ?? {}),
+        ...asset.display,
         displayName:
           resolution.status === "ok"
-            ? resolution.instrumentDisplayName
+            ? (resolution.instrumentDisplayName ?? asset.display.displayName)
             : INSTRUMENT_METADATA_MISSING_TITLE,
         wkn: resolution.wkn ?? null,
         subtitle: buildInstrumentSubtitle({
@@ -521,7 +535,7 @@ function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
   });
 
   return {
-    ...(model as Record<string, unknown>),
+    ...model,
     assets: nextAssets,
   };
 }
@@ -940,6 +954,9 @@ export async function GET(req: Request) {
           primaryMappingsByIsin,
           marketMetadataDbAvailable,
         });
+      const enrichedGlobalAssetProductReadModel = globalAssetProductReadModel
+        ? enrichGlobalAssetsProductReadModelMetrics(globalAssetProductReadModel)
+        : null;
 
       return {
         rawActivityCount: activityContext.rawActivityCount,
@@ -955,7 +972,7 @@ export async function GET(req: Request) {
         generatedAt,
         freshness: activityContext.freshness,
         activityItems: buildActivityItems(activityContext, marketMetadataByIsin, marketMetadataDbAvailable),
-        globalAssetProductReadModel,
+        globalAssetProductReadModel: enrichedGlobalAssetProductReadModel,
         apiBudget: ASSETS_API_BUDGET,
       };
     }
