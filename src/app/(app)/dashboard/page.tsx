@@ -124,8 +124,14 @@ export default function DashboardPage() {
             totalPositionValue: totals.totalPositionValue,
             totalUnrealizedPnL: totals.totalUnrealizedPnL,
             totalDividendNet: totals.totalDividendNet,
+            // Current default invested-capital variant:
+            // open_position_capital_base ~= remaining_cost_basis for active scoped positions.
+            totalInvestedCapital: activeAssets.reduce(
+                (sum, asset) => sum + asset.remainingCostBasis,
+                0,
+            ),
         };
-    }, [scopedAssets]);
+    }, [activeAssets, scopedAssets]);
 
     const filteredActiveSecurities = useMemo(() => activeSecurities.filter((asset) => matchesSearch(asset, searchQuery)), [activeSecurities, searchQuery]);
     const filteredActiveCrypto = useMemo(() => activeCrypto.filter((asset) => matchesSearch(asset, searchQuery)), [activeCrypto, searchQuery]);
@@ -141,6 +147,7 @@ export default function DashboardPage() {
                         onSearchQueryChange={setSearchQuery}
                         totalPositionValue={scopedTotals.totalPositionValue}
                         totalUnrealizedPnL={scopedTotals.totalUnrealizedPnL}
+                        totalInvestedCapital={scopedTotals.totalInvestedCapital}
                         totalDividendNet={scopedTotals.totalDividendNet}
                         allocationSegments={allocationSegments}
                     />

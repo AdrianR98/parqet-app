@@ -10,7 +10,11 @@ import type {
 } from "./product-read-model";
 import type { BlockedMetric } from "./types";
 
-export type CanonicalSafeFieldSurfaceId = "dashboard" | "asset_table" | "reports";
+export type CanonicalSafeFieldSurfaceId =
+  | "dashboard"
+  | "asset_table"
+  | "asset_detail"
+  | "reports";
 
 export type CanonicalSafeFieldProductSource =
   | "global_asset_product"

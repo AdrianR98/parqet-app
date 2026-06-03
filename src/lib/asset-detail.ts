@@ -7,6 +7,10 @@ import type {
 import { getAssetDisplayName as resolveAssetDisplayName } from "./asset-display";
 import { scopeAssetAggregationToPortfolioSelection } from "./calculations/view-model-aggregates";
 import {
+    resolveGlobalAssetProductGuardEnabled,
+    selectCanonicalAssetDetailSafeFieldSource,
+} from "./dashboard-helpers";
+import {
     loadKnownPortfolios,
     loadPortfolioScope,
     resolvePortfolioScope,
@@ -35,6 +39,13 @@ export type ScopedAssetMetrics = {
 export type SelectedAssetScope = {
     mode: "all" | "manual";
     selectedAssetPortfolioIds: string[];
+};
+
+export type CanonicalAssetDetailSelection = {
+    asset: GlobalAssetViewModel | null;
+    assetSource: "global_asset_product" | "runtime_assets_fallback" | "missing";
+    selectedAssets: GlobalAssetViewModel[];
+    selection: ReturnType<typeof selectCanonicalAssetDetailSafeFieldSource>["selection"];
 };
 
 function normalizeAssetKey(value: string | null | undefined): string {
@@ -135,6 +146,44 @@ export function findAssetByKey(assets: GlobalAssetViewModel[], key: string): Glo
     }
 
     return assets.find((asset) => normalizeAssetKey(asset.isin) === normalizedKey) ?? null;
+}
+
+export function selectCanonicalAssetDetailAsset(input: {
+    assetKey: string;
+    runtimeFallbackAssets: GlobalAssetViewModel[];
+    productReadModel?: unknown;
+    guardEnabled?: boolean;
+}): CanonicalAssetDetailSelection {
+    const guardEnabled = resolveGlobalAssetProductGuardEnabled(
+        input.guardEnabled == null ? undefined : String(input.guardEnabled),
+    );
+    const selected = selectCanonicalAssetDetailSafeFieldSource({
+        runtimeFallbackAssets: input.runtimeFallbackAssets,
+        productReadModel: input.productReadModel,
+        guardEnabled,
+    });
+    const selectedAsset = findAssetByKey(selected.assets, input.assetKey);
+
+    if (selectedAsset) {
+        return {
+            asset: selectedAsset,
+            assetSource: selected.selection.selectedSource,
+            selectedAssets: selected.assets,
+            selection: selected.selection,
+        };
+    }
+
+    const runtimeFallbackAsset = findAssetByKey(
+        input.runtimeFallbackAssets,
+        input.assetKey,
+    );
+
+    return {
+        asset: runtimeFallbackAsset,
+        assetSource: runtimeFallbackAsset ? "runtime_assets_fallback" : "missing",
+        selectedAssets: runtimeFallbackAsset ? input.runtimeFallbackAssets : selected.assets,
+        selection: selected.selection,
+    };
 }
 
 export function scopeAssetMetrics(

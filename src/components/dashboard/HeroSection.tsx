@@ -13,6 +13,7 @@ type HeroSectionProps = {
     onSearchQueryChange: (value: string) => void;
     totalPositionValue?: number;
     totalUnrealizedPnL?: number;
+    totalInvestedCapital?: number;
     totalDividendNet?: number;
     allocationSegments: AllocationSegment[];
 };
@@ -55,11 +56,11 @@ export default function HeroSection({
     onSearchQueryChange,
     totalPositionValue,
     totalUnrealizedPnL,
+    totalInvestedCapital,
     totalDividendNet,
     allocationSegments,
 }: HeroSectionProps) {
     const [hoveredSegmentIndex, setHoveredSegmentIndex] = useState<number | null>(null);
-    const invested = (totalPositionValue ?? 0) - (totalUnrealizedPnL ?? 0);
     const donutSegments = useMemo(
         () => buildDonutSegments(allocationSegments),
         [allocationSegments],
@@ -135,7 +136,7 @@ export default function HeroSection({
                 <div className={styles.kpiGrid}>
                     <div className={styles.kpiCard}><span>Portfoliowert</span><strong>{formatCurrency(totalPositionValue ?? 0)}</strong></div>
                     <div className={styles.kpiCard}><span>Gewinn / Verlust</span><strong className={(totalUnrealizedPnL ?? 0) >= 0 ? styles.positive : styles.negative}>{formatCurrency(totalUnrealizedPnL ?? 0)}</strong></div>
-                    <div className={styles.kpiCard}><span>Investiert</span><strong>{formatCurrency(invested)}</strong></div>
+                    <div className={styles.kpiCard}><span>Investiert</span><strong>{formatCurrency(totalInvestedCapital ?? 0)}</strong></div>
                     <div className={styles.kpiCard}><span>Dividenden</span><strong>{formatCurrency(totalDividendNet ?? 0)}</strong></div>
                 </div>
             </div>
