@@ -468,6 +468,229 @@ create index if not exists idx_reference_data_asset_candidates_asset_id
 create index if not exists idx_reference_data_asset_candidates_source_key
     on public.reference_data_asset_candidates (source_key);
 
+-- Reproducible metadata hydration/backfill from imported reference candidates.
+-- This restores missing asset metadata after baseline/cutover without resetting
+-- assets, mappings or existing meaningful values.
+with trading_reference as (
+    select distinct on (candidate.isin)
+        candidate.isin,
+        nullif(nullif(btrim(coalesce(candidate.display_name, candidate.name)), ''), '0') as preferred_name,
+        nullif(nullif(btrim(candidate.name), ''), '0') as trading_name,
+        nullif(nullif(btrim(candidate.display_name), ''), '0') as trading_display_name
+    from public.reference_data_asset_candidates candidate
+    where candidate.source_key = 'trading_universe'
+      and nullif(nullif(btrim(candidate.isin), ''), '0') is not null
+    order by candidate.isin, candidate.imported_at desc, candidate.updated_at desc, candidate.created_at desc, candidate.id desc
+),
+xetra_reference as (
+    select distinct on (candidate.isin)
+        candidate.isin,
+        nullif(nullif(btrim(candidate.name), ''), '0') as xetra_name,
+        nullif(nullif(btrim(candidate.display_name), ''), '0') as xetra_display_name,
+        nullif(nullif(upper(btrim(candidate.wkn)), ''), '0') as xetra_wkn,
+        nullif(nullif(upper(btrim(candidate.currency)), ''), '0') as xetra_currency,
+        nullif(nullif(btrim(candidate.exchange), ''), '0') as xetra_exchange,
+        nullif(
+            nullif(
+                btrim(
+                    coalesce(candidate.asset_type, candidate.instrument_type, candidate.product_category)
+                ),
+                ''
+            ),
+            '0'
+        ) as xetra_asset_type
+    from public.reference_data_asset_candidates candidate
+    where candidate.source_key = 'xetra_all_tradable_instruments'
+      and nullif(nullif(btrim(candidate.isin), ''), '0') is not null
+    order by candidate.isin, candidate.imported_at desc, candidate.updated_at desc, candidate.created_at desc, candidate.id desc
+),
+merged_reference as (
+    select
+        coalesce(trading_reference.isin, xetra_reference.isin) as isin,
+        coalesce(
+            trading_reference.trading_name,
+            trading_reference.preferred_name,
+            xetra_reference.xetra_display_name,
+            xetra_reference.xetra_name
+        ) as preferred_name,
+        coalesce(
+            trading_reference.trading_display_name,
+            trading_reference.preferred_name,
+            trading_reference.trading_name,
+            xetra_reference.xetra_display_name,
+            xetra_reference.xetra_name
+        ) as preferred_display_name,
+        xetra_reference.xetra_wkn as preferred_wkn,
+        xetra_reference.xetra_asset_type as preferred_asset_type,
+        xetra_reference.xetra_currency as preferred_currency,
+        xetra_reference.xetra_exchange as preferred_exchange,
+        case
+            when coalesce(
+                trading_reference.trading_name,
+                trading_reference.preferred_name
+            ) is not null then 'trading_universe'
+            when coalesce(
+                xetra_reference.xetra_display_name,
+                xetra_reference.xetra_name
+            ) is not null then 'xetra_all_tradable_instruments'
+            else null
+        end as preferred_name_source,
+        case
+            when coalesce(
+                trading_reference.trading_display_name,
+                trading_reference.preferred_name,
+                trading_reference.trading_name
+            ) is not null then 'trading_universe'
+            when coalesce(xetra_reference.xetra_display_name, xetra_reference.xetra_name) is not null then 'xetra_all_tradable_instruments'
+            else null
+        end as preferred_display_name_source,
+        case
+            when xetra_reference.xetra_wkn is not null
+              or xetra_reference.xetra_asset_type is not null
+              or xetra_reference.xetra_currency is not null
+              or xetra_reference.xetra_exchange is not null
+            then 'xetra_all_tradable_instruments'
+            when coalesce(
+                trading_reference.trading_name,
+                trading_reference.trading_display_name,
+                trading_reference.preferred_name
+            ) is not null
+            then 'trading_universe'
+            else null
+        end as preferred_metadata_source
+    from trading_reference
+    full outer join xetra_reference
+        on xetra_reference.isin = trading_reference.isin
+),
+backfill_candidates as (
+    select
+        asset.id,
+        merged_reference.preferred_name,
+        merged_reference.preferred_display_name,
+        merged_reference.preferred_wkn,
+        merged_reference.preferred_asset_type,
+        merged_reference.preferred_currency,
+        merged_reference.preferred_exchange,
+        merged_reference.preferred_name_source,
+        merged_reference.preferred_display_name_source,
+        merged_reference.preferred_metadata_source,
+        nullif(nullif(btrim(asset.name), ''), '0') as current_name,
+        nullif(nullif(btrim(asset.display_name), ''), '0') as current_display_name,
+        nullif(nullif(upper(btrim(asset.wkn)), ''), '0') as current_wkn,
+        nullif(nullif(btrim(asset.asset_type), ''), '0') as current_asset_type,
+        nullif(nullif(upper(btrim(asset.currency)), ''), '0') as current_currency,
+        nullif(nullif(btrim(asset.exchange), ''), '0') as current_exchange,
+        nullif(nullif(btrim(asset.name_source), ''), '0') as current_name_source,
+        nullif(nullif(btrim(asset.display_name_source), ''), '0') as current_display_name_source,
+        nullif(nullif(btrim(asset.metadata_source), ''), '0') as current_metadata_source,
+        asset.metadata_updated_at,
+        asset.display_metadata_updated_at
+    from public.assets asset
+    join merged_reference
+        on merged_reference.isin = asset.isin
+)
+update public.assets asset
+set
+    name = case
+        when backfill.current_name is null and backfill.preferred_name is not null
+            then backfill.preferred_name
+        else asset.name
+    end,
+    display_name = case
+        when backfill.current_display_name is null and backfill.preferred_display_name is not null
+            then backfill.preferred_display_name
+        else asset.display_name
+    end,
+    wkn = case
+        when backfill.current_wkn is null and backfill.preferred_wkn is not null
+            then backfill.preferred_wkn
+        else asset.wkn
+    end,
+    asset_type = case
+        when backfill.current_asset_type is null and backfill.preferred_asset_type is not null
+            then backfill.preferred_asset_type
+        else asset.asset_type
+    end,
+    currency = case
+        when backfill.current_currency is null and backfill.preferred_currency is not null
+            then backfill.preferred_currency
+        else asset.currency
+    end,
+    exchange = case
+        when backfill.current_exchange is null and backfill.preferred_exchange is not null
+            then backfill.preferred_exchange
+        else asset.exchange
+    end,
+    name_source = case
+        when backfill.current_name_source is null
+             and backfill.current_name is null
+             and backfill.preferred_name is not null
+             and backfill.preferred_name_source is not null
+            then backfill.preferred_name_source
+        else asset.name_source
+    end,
+    display_name_source = case
+        when backfill.current_display_name_source is null
+             and backfill.current_display_name is null
+             and backfill.preferred_display_name is not null
+             and backfill.preferred_display_name_source is not null
+            then backfill.preferred_display_name_source
+        else asset.display_name_source
+    end,
+    metadata_source = case
+        when backfill.current_metadata_source is null
+             and (
+                (backfill.current_wkn is null and backfill.preferred_wkn is not null)
+                or (backfill.current_asset_type is null and backfill.preferred_asset_type is not null)
+                or (backfill.current_currency is null and backfill.preferred_currency is not null)
+                or (backfill.current_exchange is null and backfill.preferred_exchange is not null)
+                or (backfill.current_name is null and backfill.preferred_name is not null)
+             )
+             and backfill.preferred_metadata_source is not null
+            then backfill.preferred_metadata_source
+        else asset.metadata_source
+    end,
+    metadata_updated_at = case
+        when asset.metadata_updated_at is null
+             and (
+                (backfill.current_wkn is null and backfill.preferred_wkn is not null)
+                or (backfill.current_asset_type is null and backfill.preferred_asset_type is not null)
+                or (backfill.current_currency is null and backfill.preferred_currency is not null)
+                or (backfill.current_exchange is null and backfill.preferred_exchange is not null)
+                or (backfill.current_name is null and backfill.preferred_name is not null)
+             )
+            then now()
+        else asset.metadata_updated_at
+    end,
+    display_metadata_updated_at = case
+        when asset.display_metadata_updated_at is null
+             and backfill.current_display_name is null
+             and backfill.preferred_display_name is not null
+            then now()
+        else asset.display_metadata_updated_at
+    end,
+    updated_at = case
+        when
+            (backfill.current_name is null and backfill.preferred_name is not null)
+            or (backfill.current_display_name is null and backfill.preferred_display_name is not null)
+            or (backfill.current_wkn is null and backfill.preferred_wkn is not null)
+            or (backfill.current_asset_type is null and backfill.preferred_asset_type is not null)
+            or (backfill.current_currency is null and backfill.preferred_currency is not null)
+            or (backfill.current_exchange is null and backfill.preferred_exchange is not null)
+        then now()
+        else asset.updated_at
+    end
+from backfill_candidates backfill
+where asset.id = backfill.id
+  and (
+      (backfill.current_name is null and backfill.preferred_name is not null)
+      or (backfill.current_display_name is null and backfill.preferred_display_name is not null)
+      or (backfill.current_wkn is null and backfill.preferred_wkn is not null)
+      or (backfill.current_asset_type is null and backfill.preferred_asset_type is not null)
+      or (backfill.current_currency is null and backfill.preferred_currency is not null)
+      or (backfill.current_exchange is null and backfill.preferred_exchange is not null)
+  );
+
 alter table public.assets enable row level security;
 alter table public.asset_symbol_mappings enable row level security;
 alter table public.asset_daily_prices enable row level security;
