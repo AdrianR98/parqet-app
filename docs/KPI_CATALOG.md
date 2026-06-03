@@ -223,8 +223,7 @@ It is a target contract, not a claim that every KPI is already correct in the ap
 - SecurityLineage behavior: `supported`
 - currency/FX assumptions: Same mixed-currency rule as net dividends.
 - confidence/freshness/blocker rules: Block or downgrade when only net values exist and gross cannot be reconstructed safely.
-- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`, `Settings-configurable`
-- UI relevance note: The current Hero `Investiert` card is a valid target, but the Hero must expose or explain which invested-capital variant is selected because this KPI is configurable by nature.
+- UI relevance: `Asset Detail`, `Reports`, `Settings-configurable`
 - implementation target layer: `aggregation`
 - known current gaps: Gross dividend totals are not exposed as a first-class PRM metric today.
 
@@ -246,7 +245,8 @@ It is a target contract, not a claim that every KPI is already correct in the ap
 - SecurityLineage behavior: `supported`
 - currency/FX assumptions: Block mixed-currency totals unless converted explicitly.
 - confidence/freshness/blocker rules: Missing fee currency or ambiguous activity mapping downgrades confidence.
-- UI relevance: `Asset Detail`, `Reports`, `Settings-configurable`
+- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`, `Settings-configurable`
+- UI relevance note: The current Hero `Investiert` card is a valid target for this KPI, but the Hero must expose or explain which invested-capital variant is selected because this KPI is configurable by nature.
 - implementation target layer: `aggregation`
 - known current gaps: Current asset and breakdown PRM fields exist but are usually `null`; fee totals are not yet complete in the shared KPI surface.
 
