@@ -328,6 +328,7 @@ async function main() {
     let client = null;
     let runId = null;
     let instrumentId = null;
+    let assetId = null;
     let failedPhase = null;
     let failedBatch = null;
 
@@ -360,6 +361,23 @@ async function main() {
         );
         instrumentId = instrumentResult.rows[0]?.id ?? null;
 
+        console.log("Upserting asset...");
+        failedPhase = "asset_upsert";
+        const assetResult = await client.query(
+            `insert into assets (asset_key_type, asset_key_value, isin, display_name, asset_type, currency)
+             values ('isin', $1, $1, $2, $3, $4)
+             on conflict (asset_key_type, asset_key_value)
+             do update set
+                isin = excluded.isin,
+                display_name = coalesce(excluded.display_name, assets.display_name),
+                asset_type = coalesce(excluded.asset_type, assets.asset_type),
+                currency = coalesce(excluded.currency, assets.currency),
+                updated_at = now()
+             returning id`,
+            [isin, instrument?.name ?? null, instrument?.assetType ?? null, instrument?.currency ?? null],
+        );
+        assetId = assetResult.rows[0]?.id ?? null;
+
         console.log("Upserting mapping...");
         failedPhase = "mapping_upsert";
         await client.query(
@@ -388,6 +406,33 @@ async function main() {
             ],
         );
 
+        await client.query(
+            `update asset_symbol_mappings
+             set asset_id = $1,
+                 exchange = $4,
+                 currency = $5,
+                 is_primary = true,
+                 is_active = true,
+                 updated_at = now()
+             where provider = $2
+               and provider_symbol = $3
+               and coalesce(exchange, '') = coalesce($4::text, '')`,
+            [assetId, provider, symbol, mapping?.exchange ?? null, mapping?.currency ?? null],
+        );
+        await client.query(
+            `insert into asset_symbol_mappings
+                (asset_id, provider, provider_symbol, exchange, currency, is_primary, is_active)
+             select $1, $2, $3, $4, $5, true, true
+             where not exists (
+                select 1
+                from asset_symbol_mappings
+                where provider = $2
+                  and provider_symbol = $3
+                  and coalesce(exchange, '') = coalesce($4::text, '')
+             )`,
+            [assetId, provider, symbol, mapping?.exchange ?? null, mapping?.currency ?? null],
+        );
+
         const priceBatches = chunkArray(prices, batchSize);
         console.log(`Importing prices: ${prices.length} rows in ${priceBatches.length} batches of size ${batchSize}...`);
         for (let index = 0; index < priceBatches.length; index += 1) {
@@ -395,7 +440,7 @@ async function main() {
             const batchStartedAt = Date.now();
             failedPhase = "prices_upsert";
             failedBatch = {
-                table: "market_prices_daily",
+                table: "asset_daily_prices",
                 index: index + 1,
                 total: priceBatches.length,
                 rowCount: batch.length,
@@ -405,9 +450,8 @@ async function main() {
             const params = [];
             for (const point of batch) {
                 params.push(
-                    instrumentId,
+                    assetId,
                     provider,
-                    symbol,
                     point.date,
                     point.open,
                     point.high,
@@ -416,37 +460,32 @@ async function main() {
                     point.adjClose,
                     point.volume,
                     point.currency,
-                    payload.source ?? "yfinance",
                 );
             }
 
-            const valuesSql = buildValuesPlaceholders(batch.length, 12);
+            const valuesSql = buildValuesPlaceholders(batch.length, 10);
             await client.query(
-                `insert into market_prices_daily
-                    (instrument_id, provider, symbol, date, open, high, low, close, adj_close, volume, currency, source)
+                `insert into asset_daily_prices
+                    (asset_id, provider, price_date, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency)
                  values ${valuesSql}
-                 on conflict (instrument_id, provider, date)
+                 on conflict (asset_id, provider, price_date)
                  do update set
-                    symbol = excluded.symbol,
-                    open = excluded.open,
-                    high = excluded.high,
-                    low = excluded.low,
-                    close = excluded.close,
-                    adj_close = excluded.adj_close,
+                    open_price = excluded.open_price,
+                    high_price = excluded.high_price,
+                    low_price = excluded.low_price,
+                    close_price = excluded.close_price,
+                    adjusted_close_price = excluded.adjusted_close_price,
                     volume = excluded.volume,
                     currency = excluded.currency,
-                    source = excluded.source,
-                    imported_at = now()
+                    updated_at = now()
                  where
-                    market_prices_daily.symbol is distinct from excluded.symbol
-                    or market_prices_daily.open is distinct from excluded.open
-                    or market_prices_daily.high is distinct from excluded.high
-                    or market_prices_daily.low is distinct from excluded.low
-                    or market_prices_daily.close is distinct from excluded.close
-                    or market_prices_daily.adj_close is distinct from excluded.adj_close
-                    or market_prices_daily.volume is distinct from excluded.volume
-                    or market_prices_daily.currency is distinct from excluded.currency
-                    or market_prices_daily.source is distinct from excluded.source`,
+                    asset_daily_prices.open_price is distinct from excluded.open_price
+                    or asset_daily_prices.high_price is distinct from excluded.high_price
+                    or asset_daily_prices.low_price is distinct from excluded.low_price
+                    or asset_daily_prices.close_price is distinct from excluded.close_price
+                    or asset_daily_prices.adjusted_close_price is distinct from excluded.adjusted_close_price
+                    or asset_daily_prices.volume is distinct from excluded.volume
+                    or asset_daily_prices.currency is distinct from excluded.currency`,
                 params,
             );
             console.log(`Prices batch ${index + 1}/${priceBatches.length}: ${batch.length} rows, ${formatDateRange(batch)}... done in ${Date.now() - batchStartedAt}ms`);

@@ -455,9 +455,13 @@ async function run() {
             group by i.id
         ),
         price_flags as (
-            select p.instrument_id, true as has_prices
-            from market_prices_daily p
-            group by p.instrument_id
+            select i.id as instrument_id, true as has_prices
+            from market_instruments i
+            join assets a
+              on a.asset_key_type = 'isin'
+             and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+            join asset_daily_prices p on p.asset_id = a.id
+            group by i.id
         ),
         xetra as (
             select

@@ -74,11 +74,21 @@ async function run() {
     await withPostgresClient(async (client) => {
         await client.query("begin");
         try {
+            const legacyPriceTableResult = await client.query(
+                `select to_regclass('public.market_prices_daily') is not null as exists`,
+            );
+            const hasLegacyPriceTable = Boolean(legacyPriceTableResult.rows[0]?.exists);
+            if (!hasLegacyPriceTable) {
+                summary.warnings.push(
+                    "Legacy table public.market_prices_daily is missing; skipped historical price backfill stage.",
+                );
+            }
+
             const sourceCountsResult = await client.query(
                 `select
                     (select count(*) from market_instruments) as market_instruments,
                     (select count(*) from market_symbol_mappings) as market_symbol_mappings,
-                    (select count(*) from market_prices_daily) as market_prices_daily,
+                    ${hasLegacyPriceTable ? "(select count(*) from market_prices_daily)" : "0"} as market_prices_daily,
                     (select count(*) from market_actions) as market_actions,
                     (select count(*) from market_data_runs) as market_data_runs,
                     (select count(*) from market_data_run_items) as market_data_run_items,
@@ -264,61 +274,63 @@ async function run() {
             summary.targets.assetSymbolMappings.inserted = symbolMappingsInsert.rowCount ?? 0;
             summary.targets.assetSymbolMappings.updated = symbolMappingsUpdate.rowCount ?? 0;
 
-            const unresolvedPricesResult = await client.query(
-                `select count(*) as count
-                 from market_prices_daily p
-                 join market_instruments i on i.id = p.instrument_id
-                 left join assets a
-                   on a.asset_key_type = 'isin'
-                  and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
-                 where a.id is null`,
-            );
-            summary.skipped.unresolvedPrices = toInt(unresolvedPricesResult.rows[0]?.count);
+            if (hasLegacyPriceTable) {
+                const unresolvedPricesResult = await client.query(
+                    `select count(*) as count
+                     from market_prices_daily p
+                     join market_instruments i on i.id = p.instrument_id
+                     left join assets a
+                       on a.asset_key_type = 'isin'
+                      and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                     where a.id is null`,
+                );
+                summary.skipped.unresolvedPrices = toInt(unresolvedPricesResult.rows[0]?.count);
 
-            const pricesBackfill = await client.query(
-                `with up as (
-                    insert into asset_daily_prices
-                        (asset_id, provider, price_date, price_timestamp, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency, source_run_id, created_at, updated_at)
+                const pricesBackfill = await client.query(
+                    `with up as (
+                        insert into asset_daily_prices
+                            (asset_id, provider, price_date, price_timestamp, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency, source_run_id, created_at, updated_at)
+                        select
+                            a.id as asset_id,
+                            lower(p.provider) as provider,
+                            p.date as price_date,
+                            null::timestamptz as price_timestamp,
+                            p.open as open_price,
+                            p.high as high_price,
+                            p.low as low_price,
+                            p.close as close_price,
+                            p.adj_close as adjusted_close_price,
+                            p.volume,
+                            p.currency,
+                            null::uuid as source_run_id,
+                            coalesce(p.imported_at, now()) as created_at,
+                            now() as updated_at
+                        from market_prices_daily p
+                        join market_instruments i on i.id = p.instrument_id
+                        join assets a
+                          on a.asset_key_type = 'isin'
+                         and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                        on conflict (asset_id, provider, price_date)
+                        do update set
+                            price_timestamp = excluded.price_timestamp,
+                            open_price = excluded.open_price,
+                            high_price = excluded.high_price,
+                            low_price = excluded.low_price,
+                            close_price = excluded.close_price,
+                            adjusted_close_price = excluded.adjusted_close_price,
+                            volume = excluded.volume,
+                            currency = excluded.currency,
+                            updated_at = now()
+                        returning (xmax = 0) as inserted
+                    )
                     select
-                        a.id as asset_id,
-                        lower(p.provider) as provider,
-                        p.date as price_date,
-                        null::timestamptz as price_timestamp,
-                        p.open as open_price,
-                        p.high as high_price,
-                        p.low as low_price,
-                        p.close as close_price,
-                        p.adj_close as adjusted_close_price,
-                        p.volume,
-                        p.currency,
-                        null::uuid as source_run_id,
-                        coalesce(p.imported_at, now()) as created_at,
-                        now() as updated_at
-                    from market_prices_daily p
-                    join market_instruments i on i.id = p.instrument_id
-                    join assets a
-                      on a.asset_key_type = 'isin'
-                     and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
-                    on conflict (asset_id, provider, price_date)
-                    do update set
-                        price_timestamp = excluded.price_timestamp,
-                        open_price = excluded.open_price,
-                        high_price = excluded.high_price,
-                        low_price = excluded.low_price,
-                        close_price = excluded.close_price,
-                        adjusted_close_price = excluded.adjusted_close_price,
-                        volume = excluded.volume,
-                        currency = excluded.currency,
-                        updated_at = now()
-                    returning (xmax = 0) as inserted
-                )
-                select
-                    count(*) filter (where inserted) as inserted,
-                    count(*) filter (where not inserted) as updated
-                from up`,
-            );
-            summary.targets.assetDailyPrices.inserted = toInt(pricesBackfill.rows[0]?.inserted);
-            summary.targets.assetDailyPrices.updated = toInt(pricesBackfill.rows[0]?.updated);
+                        count(*) filter (where inserted) as inserted,
+                        count(*) filter (where not inserted) as updated
+                    from up`,
+                );
+                summary.targets.assetDailyPrices.inserted = toInt(pricesBackfill.rows[0]?.inserted);
+                summary.targets.assetDailyPrices.updated = toInt(pricesBackfill.rows[0]?.updated);
+            }
 
             const runsBackfill = await client.query(
                 `with up as (

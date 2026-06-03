@@ -255,12 +255,12 @@ function mapPriceRow(row: Record<string, unknown>): DbMarketPricePoint {
     return {
         provider: String(row.provider),
         symbol: String(row.symbol),
-        date: normalizeDbDateValue(row.date),
-        open: toNullableNumber(row.open),
-        high: toNullableNumber(row.high),
-        low: toNullableNumber(row.low),
-        close: Number(row.close),
-        adjClose: toNullableNumber(row.adj_close),
+        date: normalizeDbDateValue(row.price_date),
+        open: toNullableNumber(row.open_price),
+        high: toNullableNumber(row.high_price),
+        low: toNullableNumber(row.low_price),
+        close: Number(row.close_price),
+        adjClose: toNullableNumber(row.adjusted_close_price),
         volume: toNullableNumber(row.volume),
         currency: row.currency === null ? null : String(row.currency),
         source: row.source === null ? null : String(row.source),
@@ -1532,7 +1532,12 @@ export async function getMarketDataStatusSummary(): Promise<MarketDataStatusSumm
                     )
                 ),
                 instruments_with_daily_prices as (
-                    select count(distinct instrument_id)::int as value from market_prices_daily
+                    select count(distinct i.id)::int as value
+                    from market_instruments i
+                    join assets a
+                      on a.asset_key_type = 'isin'
+                     and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                    join asset_daily_prices p on p.asset_id = a.id
                 ),
                 instruments_with_actions as (
                     select count(distinct instrument_id)::int as value from market_actions
@@ -1547,8 +1552,10 @@ export async function getMarketDataStatusSummary(): Promise<MarketDataStatusSumm
                     )
                       and not exists (
                         select 1
-                        from market_prices_daily p
-                        where p.instrument_id = i.id
+                        from assets a
+                        join asset_daily_prices p on p.asset_id = a.id
+                        where a.asset_key_type = 'isin'
+                          and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
                     )
                 ),
                 failed_validation_candidates as (
@@ -1888,8 +1895,15 @@ export async function listAdminOpenUnmappedMarketDataRows(): Promise<AdminOpenUn
             ),
             price_flags as (
                 select instrument_id, true as has_prices
-                from market_prices_daily
-                group by instrument_id
+                from (
+                    select i.id as instrument_id
+                    from market_instruments i
+                    join assets a
+                      on a.asset_key_type = 'isin'
+                     and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                    join asset_daily_prices p on p.asset_id = a.id
+                    group by i.id
+                ) rows
             ),
             action_flags as (
                 select instrument_id, true as has_actions
@@ -1970,19 +1984,27 @@ export async function listAdminMarketInstrumentOverviewRows(): Promise<AdminMark
             ),
             prices as (
                 select
-                    p.instrument_id,
+                    i.id as instrument_id,
                     true as has_prices,
-                    min(p.date)::date as first_price_date,
-                    max(p.date)::date as last_price_date
-                from market_prices_daily p
-                group by p.instrument_id
+                    min(p.price_date)::date as first_price_date,
+                    max(p.price_date)::date as last_price_date
+                from market_instruments i
+                join assets a
+                  on a.asset_key_type = 'isin'
+                 and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                join asset_daily_prices p on p.asset_id = a.id
+                group by i.id
             ),
             latest_prices as (
-                select distinct on (p.instrument_id)
-                    p.instrument_id,
-                    p.close as latest_close
-                from market_prices_daily p
-                order by p.instrument_id, p.date desc
+                select distinct on (i.id)
+                    i.id as instrument_id,
+                    p.close_price as latest_close
+                from market_instruments i
+                join assets a
+                  on a.asset_key_type = 'isin'
+                 and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                join asset_daily_prices p on p.asset_id = a.id
+                order by i.id, p.price_date desc, p.updated_at desc
             ),
             actions as (
                 select a.instrument_id, true as has_actions
@@ -2049,14 +2071,21 @@ export async function listAdminMarketSymbolMappingsOverviewRows(): Promise<Admin
     try {
         const result = await queryPostgres<Record<string, unknown>>(
             `with latest_price as (
-                select distinct on (p.instrument_id, p.provider, p.symbol)
-                    p.instrument_id,
-                    p.provider,
-                    p.symbol,
-                    p.date as latest_price_date,
-                    p.close as latest_close
-                from market_prices_daily p
-                order by p.instrument_id, p.provider, p.symbol, p.date desc
+                select distinct on (m.instrument_id, m.provider, m.symbol)
+                    m.instrument_id,
+                    m.provider,
+                    m.symbol,
+                    p.price_date as latest_price_date,
+                    p.close_price as latest_close
+                from market_symbol_mappings m
+                join market_instruments i on i.id = m.instrument_id
+                join assets a
+                  on a.asset_key_type = 'isin'
+                 and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                join asset_daily_prices p
+                  on p.asset_id = a.id
+                 and p.provider = m.provider
+                order by m.instrument_id, m.provider, m.symbol, p.price_date desc, p.updated_at desc
             )
             select
                 m.id,
@@ -2270,8 +2299,11 @@ export async function listPrimaryMappingsForBackfill(provider = "yfinance", isin
                 m.exchange,
                 m.currency,
                 exists (
-                    select 1 from market_prices_daily p
-                    where p.instrument_id = i.id
+                    select 1
+                    from assets a
+                    join asset_daily_prices p on p.asset_id = a.id
+                    where a.asset_key_type = 'isin'
+                      and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
                 ) as has_prices,
                 exists (
                     select 1 from market_actions a
@@ -2377,14 +2409,36 @@ export async function getDailyPricesByIsin(input: GetDailyPricesInput): Promise<
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `select p.provider, p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume, p.currency, p.source, p.imported_at
-             from market_prices_daily p
-             join market_instruments i on i.id = p.instrument_id
-             where i.isin = $1
+            `select
+                p.provider,
+                coalesce(m.provider_symbol, '') as symbol,
+                p.price_date,
+                p.open_price,
+                p.high_price,
+                p.low_price,
+                p.close_price,
+                p.adjusted_close_price,
+                p.volume,
+                p.currency,
+                p.provider as source,
+                p.updated_at as imported_at
+             from assets a
+             join asset_daily_prices p on p.asset_id = a.id
+             left join lateral (
+                select provider_symbol
+                from asset_symbol_mappings m
+                where m.asset_id = a.id
+                  and m.provider = p.provider
+                  and m.is_active = true
+                order by m.is_primary desc, m.verified_at desc nulls last, m.updated_at desc
+                limit 1
+             ) m on true
+             where a.asset_key_type = 'isin'
+               and a.asset_key_value = $1
                and ($2::text is null or p.provider = $2)
-               and ($3::date is null or p.date >= $3::date)
-               and ($4::date is null or p.date <= $4::date)
-             order by p.date asc`,
+               and ($3::date is null or p.price_date >= $3::date)
+               and ($4::date is null or p.price_date <= $4::date)
+             order by p.price_date asc`,
             [normalizedIsin, input.provider ?? null, input.from ?? null, input.to ?? null],
         );
         return result.rows.map((row) => mapPriceRow(row));
@@ -2400,10 +2454,11 @@ export async function getLatestDailyPriceDateByIsin(input: {
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `select max(p.date) as latest_date
-             from market_prices_daily p
-             join market_instruments i on i.id = p.instrument_id
-             where i.isin = $1
+            `select max(p.price_date) as latest_date
+             from assets a
+             join asset_daily_prices p on p.asset_id = a.id
+             where a.asset_key_type = 'isin'
+               and a.asset_key_value = $1
                and ($2::text is null or p.provider = $2)`,
             [normalizedIsin, input.provider ?? null],
         );
@@ -2420,8 +2475,9 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
             return { upserted: 0 };
         }
 
-        const instrument = await upsertInstrument({ isin: input.isin, currency: input.currency ?? null });
-        const provider = input.provider.trim();
+        await upsertInstrument({ isin: input.isin, currency: input.currency ?? null });
+        const normalizedIsin = assertIsin(input.isin);
+        const provider = input.provider.trim().toLowerCase();
         const symbol = input.symbol.trim().toUpperCase();
         if (!provider || !symbol) {
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
@@ -2430,32 +2486,70 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
         await withPostgresClient(async (client) => {
             await client.query("begin");
             try {
+                const assetResult = await client.query<Record<string, unknown>>(
+                    `insert into assets
+                        (asset_key_type, asset_key_value, isin, currency)
+                     values
+                        ('isin', $1, $1, $2)
+                     on conflict (asset_key_type, asset_key_value)
+                     do update set
+                        isin = excluded.isin,
+                        currency = coalesce(excluded.currency, assets.currency),
+                        updated_at = now()
+                     returning id`,
+                    [normalizedIsin, input.currency ?? null],
+                );
+                const assetId = String(assetResult.rows[0]?.id);
+
+                await client.query(
+                    `update asset_symbol_mappings
+                     set asset_id = $1,
+                         currency = $4,
+                         is_primary = true,
+                         is_active = true,
+                         updated_at = now()
+                     where provider = $2
+                       and provider_symbol = $3
+                       and coalesce(exchange, '') = ''`,
+                    [assetId, provider, symbol, input.currency ?? null],
+                );
+                await client.query(
+                    `insert into asset_symbol_mappings
+                        (asset_id, provider, provider_symbol, currency, is_primary, is_active)
+                     select $1, $2, $3, $4, true, true
+                     where not exists (
+                        select 1
+                        from asset_symbol_mappings
+                        where provider = $2
+                          and provider_symbol = $3
+                          and coalesce(exchange, '') = ''
+                     )`,
+                    [assetId, provider, symbol, input.currency ?? null],
+                );
+
                 for (const point of input.points) {
                     const close = Number(point.close);
                     if (!Number.isFinite(close)) {
                         continue;
                     }
                     await client.query(
-                        `insert into market_prices_daily
-                            (instrument_id, provider, symbol, date, open, high, low, close, adj_close, volume, currency, source)
+                        `insert into asset_daily_prices
+                            (asset_id, provider, price_date, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency)
                          values
-                            ($1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11, $12)
-                         on conflict (instrument_id, provider, date)
+                            ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10)
+                         on conflict (asset_id, provider, price_date)
                          do update set
-                            symbol = excluded.symbol,
-                            open = excluded.open,
-                            high = excluded.high,
-                            low = excluded.low,
-                            close = excluded.close,
-                            adj_close = excluded.adj_close,
+                            open_price = excluded.open_price,
+                            high_price = excluded.high_price,
+                            low_price = excluded.low_price,
+                            close_price = excluded.close_price,
+                            adjusted_close_price = excluded.adjusted_close_price,
                             volume = excluded.volume,
                             currency = excluded.currency,
-                            source = excluded.source,
-                            imported_at = now()`,
+                            updated_at = now()`,
                         [
-                            instrument.id,
+                            assetId,
                             provider,
-                            symbol,
                             toDateString(point.date),
                             toNullableNumber(point.open),
                             toNullableNumber(point.high),
@@ -2464,7 +2558,6 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
                             toNullableNumber(point.adjClose),
                             toNullableNumber(point.volume),
                             point.currency ?? input.currency ?? null,
-                            input.source ?? null,
                         ],
                     );
                 }

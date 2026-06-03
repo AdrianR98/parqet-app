@@ -706,3 +706,41 @@ Transition note:
 
 - Backfill exists to populate new tables for staged cutover/parity checks.
 - Legacy `market_*` tables remain in place until repository/admin/runtime parity is verified.
+
+## 23) Runtime price-read cutover after dropping `market_prices_daily`
+
+Status: first runtime cutover step implemented on PR #399.
+
+Context:
+
+- `public.market_prices_daily` was intentionally dropped after local parity/backfill validation and Supabase cleanup.
+- `public.asset_daily_prices` is the active persisted public/reference daily-price table.
+- Legacy admin surfaces may still present `market_instruments` rows during transition, but price availability/history is resolved through normalized ISIN -> `assets` -> `asset_daily_prices`.
+
+Implemented cutover:
+
+- Repository/admin price reads that previously queried `market_prices_daily` now read `asset_daily_prices`.
+- Historical price reads by ISIN preserve the existing app-facing price-point shape while selecting:
+  - `price_date`
+  - `open_price`
+  - `high_price`
+  - `low_price`
+  - `close_price`
+  - `adjusted_close_price`
+  - `volume`
+  - `currency`
+  - `updated_at` as the legacy-shaped import timestamp
+- Active daily-price writes now upsert `assets`, `asset_symbol_mappings`, and `asset_daily_prices`.
+- `latestMarketPrice` remains derived from `asset_daily_prices`; no `asset_latest_prices` table was introduced.
+
+Historical/backfill note:
+
+- `scripts/backfill-asset-reference-data.mjs` remains a historical one-shot transition script.
+- It now tolerates a missing `public.market_prices_daily` table and skips the historical price-copy stage when that table has already been dropped.
+
+Non-goals preserved:
+
+- No PRM valuation overlay implementation.
+- No provider calls.
+- No additional legacy table drops.
+- No persistence of private Parqet user activity or `latestTradePrice` in reference-data tables.
