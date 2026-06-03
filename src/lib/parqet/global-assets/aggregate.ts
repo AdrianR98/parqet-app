@@ -314,6 +314,56 @@ function getEffectiveValuationCurrency(input: {
   return input.valuation.marketPrice?.currency ?? input.valuation.latestTradePrice?.currency ?? input.fallbackCurrency;
 }
 
+function buildValuationDrivenMoneyMetrics(input: {
+  quantity: number;
+  remainingCostBasis: number;
+  valuation: GlobalAssetValuationSnapshot;
+  currency: string | null;
+}): {
+  marketValue: MoneyValue | null;
+  costBasis: MoneyValue | null;
+  unrealizedPnL: MoneyValue | null;
+} {
+  const currency = input.currency;
+  const marketPriceAmount = input.valuation.marketPrice?.amount ?? null;
+  const latestTradeFallbackAmount =
+    input.valuation.sourceKind === "latest_trade_price_fallback"
+      ? input.valuation.latestTradePrice?.amount ?? null
+      : null;
+  const effectivePrice =
+    marketPriceAmount ?? latestTradeFallbackAmount;
+
+  const costBasis =
+    currency != null
+      ? {
+          amount: input.remainingCostBasis,
+          currency,
+        }
+      : null;
+
+  if (effectivePrice == null || currency == null) {
+    return {
+      marketValue: null,
+      costBasis,
+      unrealizedPnL: null,
+    };
+  }
+
+  const marketValueAmount = input.quantity * effectivePrice;
+
+  return {
+    marketValue: {
+      amount: marketValueAmount,
+      currency,
+    },
+    costBasis,
+    unrealizedPnL: {
+      amount: marketValueAmount - input.remainingCostBasis,
+      currency,
+    },
+  };
+}
+
 function sumMoneyValues(
   values: Array<MoneyValue | null | undefined>,
   context: { assetKey: GlobalAssetKey; metric: BlockedMetric; label: string },
@@ -589,6 +639,12 @@ function buildPortfolioBreakdowns(input: {
           : null,
       marketPrice: valuation.marketPrice?.amount ?? null,
     });
+    const valuationDrivenMetrics = buildValuationDrivenMoneyMetrics({
+      quantity,
+      remainingCostBasis: rounded.remainingCostBasis,
+      valuation,
+      currency: valuationCurrency,
+    });
     const dividendsCurrencies = collectCurrencies(
       portfolioActivities
         .filter((activity) => activity.activityType === "dividend")
@@ -601,17 +657,9 @@ function buildPortfolioBreakdowns(input: {
       portfolioId,
       portfolioName: portfolioActivities[0]?.portfolioContext.portfolioName ?? null,
       quantity,
-      marketValue:
-        metrics.positionValue != null && valuationCurrency
-          ? { amount: metrics.positionValue, currency: valuationCurrency }
-          : null,
-      costBasis: valuationCurrency
-        ? { amount: rounded.remainingCostBasis, currency: valuationCurrency }
-        : null,
-      pnl:
-        metrics.unrealizedPnL != null && valuationCurrency
-          ? { amount: metrics.unrealizedPnL, currency: valuationCurrency }
-          : null,
+      marketValue: valuationDrivenMetrics.marketValue,
+      costBasis: valuationDrivenMetrics.costBasis,
+      pnl: valuationDrivenMetrics.unrealizedPnL,
       dividendsNet: dividendsCurrency
         ? { amount: totalDividendNet, currency: dividendsCurrency }
         : null,
@@ -837,6 +885,16 @@ function buildAsset(
   const totalUnrealizedPnL = sumMoneyValuesWithoutWarning(
     portfolioBreakdowns.map((breakdown) => breakdown.pnl),
   );
+  const valuationCurrency = getEffectiveValuationCurrency({
+    valuation,
+    fallbackCurrency: currencies.length === 1 ? currencies[0] : null,
+  });
+  const valuationDrivenTotals = buildValuationDrivenMoneyMetrics({
+    quantity: totalQuantity,
+    remainingCostBasis: totalCostBasis?.amount ?? 0,
+    valuation,
+    currency: totalCostBasis?.currency ?? valuationCurrency,
+  });
   const totalDividendsNet =
     sumMoneyValuesWithoutWarning(
       portfolioBreakdowns.map((breakdown) => breakdown.dividendsNet),
@@ -868,9 +926,15 @@ function buildAsset(
     status,
     totals: {
       quantity: totalQuantity,
-      marketValue: totalMarketValue,
-      costBasis: totalCostBasis,
-      unrealizedPnL: totalUnrealizedPnL,
+      marketValue:
+        valuation.sourceKind === "market_data_db" && valuation.marketPrice?.amount != null
+          ? valuationDrivenTotals.marketValue
+          : totalMarketValue,
+      costBasis: totalCostBasis ?? valuationDrivenTotals.costBasis,
+      unrealizedPnL:
+        valuation.sourceKind === "market_data_db" && valuation.marketPrice?.amount != null
+          ? valuationDrivenTotals.unrealizedPnL
+          : totalUnrealizedPnL,
       dividendsNet: totalDividendsNet,
       fees,
       taxes,

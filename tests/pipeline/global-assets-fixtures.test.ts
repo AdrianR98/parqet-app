@@ -129,6 +129,42 @@ describe("global asset synthetic fixtures", () => {
     expect(aggregation.assets[0]?.warnings.some((warning) => warning.code === "MARKET_PRICE_FALLBACK_USED")).toBe(false);
   });
 
+  it("market_price_overlay_vanguard_regression: derives market value and unrealized pnl from current market price", () => {
+    const normalization = normalizeActivities([
+      createSyntheticActivity({
+        activityId: "activity_vanguard_1",
+        type: "buy",
+        datetime: "2025-04-01T10:00:00.000Z",
+        isin: "IE00B8GKDB10",
+        shares: 33.142924,
+        currency: "EUR",
+        price: 69.83,
+        amount: 2314.42,
+        amountNet: 2314.42,
+      }),
+    ]);
+
+    const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
+      marketPriceOverlaysByIsin: {
+        IE00B8GKDB10: {
+          priceAmount: 77.95,
+          currency: "EUR",
+          priceDate: "2025-04-03",
+          priceTimestamp: "2025-04-03T17:00:00.000Z",
+          priceSource: "market_data_db",
+        },
+      },
+    });
+
+    expect(aggregation.assets[0]?.valuation?.sourceKind).toBe("market_data_db");
+    expect(aggregation.assets[0]?.totals.quantity).toBe(33.142924);
+    expect(aggregation.assets[0]?.totals.costBasis?.amount).toBe(2314.42);
+    expect(aggregation.assets[0]?.totals.marketValue?.amount).toBeCloseTo(2583.49, 2);
+    expect(aggregation.assets[0]?.totals.unrealizedPnL?.amount).toBeCloseTo(269.07, 2);
+    expect(aggregation.assets[0]?.portfolioBreakdowns[0]?.marketValue?.amount).toBeCloseTo(2583.49, 2);
+    expect(aggregation.assets[0]?.portfolioBreakdowns[0]?.pnl?.amount).toBeCloseTo(269.07, 2);
+  });
+
   it("market_price_fallback: keeps latest trade price as explicit degraded fallback", () => {
     const normalization = normalizeActivities([
       createSyntheticActivity({

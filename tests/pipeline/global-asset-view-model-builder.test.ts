@@ -163,4 +163,20 @@ describe("global asset PRM view-model builder", () => {
     expect(viewModels[0]?.positionValue).toBe(250);
     expect(viewModels[0]?.unrealizedPnL).toBe(50);
   });
+
+  it("keeps market-data-backed valuation rows internally consistent", () => {
+    const viewModels = buildGlobalAssetViewModelsFromProductReadModel(
+      createProductReadModelFixture(),
+    );
+    const row = viewModels[0];
+
+    expect(row).toBeDefined();
+    expect(row?.marketPrice).toBe(125);
+    expect(row?.netShares).toBe(2);
+    expect(row?.positionValue).toBeCloseTo((row?.netShares ?? 0) * (row?.marketPrice ?? 0), 6);
+    expect(row?.unrealizedPnL).toBeCloseTo(
+      (row?.positionValue ?? 0) - (row?.remainingCostBasis ?? 0),
+      6,
+    );
+  });
 });
