@@ -705,6 +705,31 @@ Transition note:
 - Backfill has already populated the new tables for staged cutover/parity checks.
 - Legacy `market_*` tables remain in place until repository/admin/runtime parity is verified.
 
+## 24) Final legacy-table cleanup migration
+
+Status:
+
+- Migration `012_drop_legacy_market_tables.sql` has been added as the final cleanup step after the Asset/reference cutover and migration 011 validation.
+- Active `src/**` and `scripts/**` no longer depend on the legacy tables targeted by this cleanup migration.
+- Historical migrations remain intact; this migration is the first place where legacy table removal is intentionally encoded.
+
+Drop order:
+
+1. `market_symbol_mappings`
+2. `market_actions`
+3. `market_data_run_items`
+4. `market_data_runs`
+5. `market_reference_instruments`
+6. `market_reference_sources`
+7. `market_data_requests`
+8. `market_instruments`
+
+Scope notes:
+
+- `market_prices_daily` is intentionally excluded because it was already dropped in migration 008.
+- No `cascade` is used; if a dependency appears in a future validation run, it must be fixed explicitly before this migration is applied.
+- This cleanup is safe only after migration 011 and the active runtime/admin/script cutover have been validated locally.
+
 ## 23) Runtime price-read cutover after dropping `market_prices_daily`
 
 Status: first runtime cutover step implemented on PR #399.

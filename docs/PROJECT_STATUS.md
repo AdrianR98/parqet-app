@@ -49,6 +49,7 @@ Last reviewed: 2026-05-27
 - Local write backfill completed successfully via `npm run db:market:backfill:asset-reference`: 90 assets, 171 asset symbol mappings, 590,186 daily prices, 6,599 dividend events and 191 corporate-action events were inserted into the new Asset/reference-data schema with zero skipped/unresolved rows. Detailed validation is recorded in `docs/PHASE4_BACKFILL_VALIDATION.md`.
 - Migration `007_asset_daily_prices_latest_provider_index.sql` records the manually tested latest-market-price index for `asset_daily_prices`: `(provider, asset_id, price_date desc) include (close_price, currency, price_timestamp)`. This supports #395 without introducing `asset_latest_prices`.
 - First runtime price-read cutover after dropping `public.market_prices_daily` is now implemented on PR #399: repository/admin/history price reads and active daily-price writes use `asset_daily_prices`, while legacy `market_instruments` joins are retained only as transitional admin identity mapping.
+- Final cleanup migration `012_drop_legacy_market_tables.sql` is now staged on the same branch/PR thread to remove the obsolete legacy `market_*` tables after the active code cutover has been validated locally.
 
 ## Current Baseline
 
