@@ -73,3 +73,117 @@ Linked issues: Refs #402, Refs #395, Refs #398, Refs #397, Refs #396, Refs #405
 - Dashboard must not be reverted to the old runtime/cache path as the long-term fix.
 - Runtime/cache calculations may remain fallback, comparison or validation inputs, but not a permanent competing KPI truth path.
 - PRM remains the forward shared KPI source, and view-model/UI layers should only select, shape and explain KPIs rather than owning financial formulas.
+
+## Extended KPI implementation phases
+
+Status: the same branch, `feat/prm-core-kpi-convergence`, continues KPI work beyond the first 20 Core KPIs.
+Important: Currency/FX remains deferred to [#397](https://github.com/AdrianR98/parqet-app/issues/397); settings remain deferred to [#405](https://github.com/AdrianR98/parqet-app/issues/405).
+
+### Next ready implementation tranche
+
+These candidates are documented as `ready_now` in `docs/KPI_CATALOG.md` and can be implemented without new provider calls, DB schema changes or FX conversion:
+
+- `dividend_count`
+- `last_dividend_date`
+- `gross_buy_volume`
+- `gross_sell_volume`
+- `buy_count`
+- `sell_count`
+- `portfolio_weight`
+- `allocation_by_asset_type`
+- `top_5_concentration`
+- `top_10_concentration`
+- `herfindahl_index`
+- `data_confidence_score`
+- `market_price_freshness`
+- `metadata_completeness_score`
+- `warning_count`
+
+### History-price tranche
+
+These candidates should wait for an explicit history-price implementation pass and stable return-series semantics:
+
+- `volatility_30d`
+- `volatility_1y`
+- `max_drawdown`
+- `best_day`
+- `worst_day`
+- `sharpe_ratio`
+
+### Dividend-income tranche
+
+These candidates depend primarily on stronger dividend-event modeling, payout-history semantics or annualization policy:
+
+- `dividend_yield_on_cost`
+- `current_dividend_yield`
+- `annualized_dividend_income`
+- `dividend_growth_1y`
+- `dividend_growth_3y`
+- `payout_frequency`
+
+### FX-gated tranche
+
+These candidates are materially sensitive to mixed-currency scopes or reporting-currency policy and should remain deferred until [#397](https://github.com/AdrianR98/parqet-app/issues/397):
+
+- `dividend_yield_on_cost`
+- `current_dividend_yield`
+- `annualized_dividend_income`
+- `dividend_growth_1y`
+- `dividend_growth_3y`
+- `fees_ratio`
+- `tax_ratio`
+- `net_cashflow_invested`
+- `gross_buy_volume`
+- `gross_sell_volume`
+- `average_order_size`
+- `portfolio_weight`
+- `allocation_by_asset_type`
+- `allocation_by_country`
+- `allocation_by_sector`
+- `top_5_concentration`
+- `top_10_concentration`
+- `herfindahl_index`
+- `volatility_30d`
+- `volatility_1y`
+- `max_drawdown`
+- `best_day`
+- `worst_day`
+- `sharpe_ratio`
+
+### SecurityLineage-gated tranche
+
+These candidates should not claim fully durable cross-security continuity until later SecurityLineage work exists:
+
+- `dividend_yield_on_cost`
+- `current_dividend_yield`
+- `annualized_dividend_income`
+- `dividend_growth_1y`
+- `dividend_growth_3y`
+- `portfolio_weight`
+- `top_5_concentration`
+- `top_10_concentration`
+- `herfindahl_index`
+- `volatility_30d`
+- `volatility_1y`
+- `max_drawdown`
+- `best_day`
+- `worst_day`
+- `sharpe_ratio`
+
+### Later / nice-to-have tranche
+
+These candidates are worth documenting now but should stay behind more foundational slices:
+
+- `fees_ratio`
+- `tax_ratio`
+- `average_order_size`
+- `allocation_by_country`
+- `allocation_by_sector`
+- `payout_frequency`
+
+## Extended KPI tranche notes
+
+- The branch continues one-branch KPI convergence work; no new branch/PR split is intended for the catalog itself.
+- `ready_now` here means source data and current architecture look sufficient for a future implementation slice, not that UI/settings behavior is already available.
+- `blocked_until_fx` means the KPI may be meaningful conceptually, but should not be presented as financially final until the FX boundary and blocked/preliminary policy from [#397](https://github.com/AdrianR98/parqet-app/issues/397) are implemented.
+- `configurable_later` means the KPI or its variants should be catalog-backed first and surfaced in the future settings model from [#405](https://github.com/AdrianR98/parqet-app/issues/405), not hard-coded ad hoc in UI components.

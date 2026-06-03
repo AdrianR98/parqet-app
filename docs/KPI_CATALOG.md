@@ -469,3 +469,590 @@ It is a target contract, not a claim that every KPI is already correct in the ap
 - UI relevance: `Dashboard Hero`, `Reports`, `Settings-configurable`
 - implementation target layer: `PRM`
 - known current gaps: PRM summary already counts assets, but the target status variants and SecurityLineage-aware counting rules are not yet documented in code.
+
+---
+
+## Extended KPI Catalog
+
+Status: extended KPI specification slice for continuing work on `feat/prm-core-kpi-convergence`
+Linked issues: Refs #402, Refs #405, Refs #397
+
+This section extends the catalog beyond the first 20 Core KPIs.
+It is intentionally conservative:
+
+- Currency/FX-sensitive KPIs stay explicitly deferred until [#397](https://github.com/AdrianR98/parqet-app/issues/397) is implemented.
+- KPI settings/UI remain future configuration work under [#405](https://github.com/AdrianR98/parqet-app/issues/405).
+- No new KPI implementation is implied by this documentation slice.
+
+### Performance KPIs
+
+## 21. Dividend Yield on Cost
+
+- stable key: `dividend_yield_on_cost`
+- German label: `Dividendenrendite auf Einstand`
+- English label: `Dividend Yield on Cost`
+- target meaning: Annualized dividend income relative to remaining cost basis or invested-capital denominator.
+- formula target: `annualized_dividend_income / remaining_cost_basis`
+- default variant: `net_annualized_on_remaining_cost_basis`
+- supported variants: `net_annualized_on_remaining_cost_basis`, `gross_annualized_on_remaining_cost_basis`
+- source categories: `derived`, `configurable`
+- UI relevance: `Asset Detail`, `Reports`, `Settings-configurable`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `needs_dividend_events`
+
+## 22. Current Dividend Yield
+
+- stable key: `current_dividend_yield`
+- German label: `Aktuelle Dividendenrendite`
+- English label: `Current Dividend Yield`
+- target meaning: Annualized dividend income relative to current market value or current market price.
+- formula target: `annualized_dividend_income / position_value`
+- default variant: `net_annualized_on_current_value`
+- supported variants: `net_annualized_on_current_value`, `gross_annualized_on_current_value`
+- source categories: `derived`, `configurable`
+- UI relevance: `Asset Detail`, `Reports`, `Settings-configurable`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `needs_dividend_events`
+
+## 23. Annualized Dividend Income
+
+- stable key: `annualized_dividend_income`
+- German label: `Hochgerechnetes Jahreseinkommen`
+- English label: `Annualized Dividend Income`
+- target meaning: Expected annual dividend cashflow extrapolated from recent dividend history or payout schedule.
+- formula target: `sum(last_known_dividend_per_share * expected_payout_count * net_shares)` by selected policy.
+- default variant: `last_known_payout_annualized_net`
+- supported variants: `last_known_payout_annualized_net`, `trailing_12m_run_rate_net`, `gross_run_rate`
+- source categories: `derived`, `configurable`
+- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `needs_dividend_events`
+
+## 24. Dividend Count
+
+- stable key: `dividend_count`
+- German label: `Anzahl Dividenden`
+- English label: `Dividend Count`
+- target meaning: Count of dividend events in the selected scope and period.
+- formula target: Count normalized dividend activities or canonical dividend events matching the selected period/scope.
+- default variant: `period_dividend_events`
+- supported variants: `period_dividend_events`, `lifetime_dividend_events`
+- source categories: `app_calculated`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `aggregation`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
+
+## 25. Last Dividend Date
+
+- stable key: `last_dividend_date`
+- German label: `Letztes Dividenden-Datum`
+- English label: `Last Dividend Date`
+- target meaning: Most recent dividend event date observed for the asset or selected scope.
+- formula target: `max(dividend_event_date)`
+- default variant: `latest_paid_or_ex_date`
+- supported variants: `latest_paid_or_ex_date`, `latest_ex_date_only`
+- source categories: `derived`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `aggregation`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
+
+## 26. Dividend Growth 1Y
+
+- stable key: `dividend_growth_1y`
+- German label: `Dividendenwachstum 1J`
+- English label: `Dividend Growth 1Y`
+- target meaning: One-year growth rate of trailing dividend income for a stable comparison window.
+- formula target: `(trailing_dividend_income_1y / prior_trailing_dividend_income_1y) - 1`
+- default variant: `trailing_12m_net_growth`
+- supported variants: `trailing_12m_net_growth`, `trailing_12m_gross_growth`
+- source categories: `derived`, `configurable`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `needs_dividend_events`
+
+## 27. Dividend Growth 3Y
+
+- stable key: `dividend_growth_3y`
+- German label: `Dividendenwachstum 3J`
+- English label: `Dividend Growth 3Y`
+- target meaning: Three-year compound growth rate of dividend income.
+- formula target: `cagr(dividend_income_t0, dividend_income_t_minus_3y)`
+- default variant: `net_dividend_cagr_3y`
+- supported variants: `net_dividend_cagr_3y`, `gross_dividend_cagr_3y`
+- source categories: `derived`, `configurable`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `needs_dividend_events`
+
+## 28. Payout Frequency
+
+- stable key: `payout_frequency`
+- German label: `Ausschüttungsfrequenz`
+- English label: `Payout Frequency`
+- target meaning: Estimated recurring payout cadence such as monthly, quarterly or annually.
+- formula target: Infer from dividend-event spacing or trusted provider metadata.
+- default variant: `observed_schedule`
+- supported variants: `observed_schedule`, `provider_reference_if_available`
+- source categories: `derived`, `provider_reference`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `none`
+- implementation readiness: `needs_dividend_events`
+
+### Dividend / Income KPIs
+
+## 29. Fees Ratio
+
+- stable key: `fees_ratio`
+- German label: `Gebührenquote`
+- English label: `Fees Ratio`
+- target meaning: Fees expressed relative to invested capital, gross buy volume or total return denominator depending on policy.
+- formula target: `total_fees / selected_denominator`
+- default variant: `fees_over_gross_buy_volume`
+- supported variants: `fees_over_gross_buy_volume`, `fees_over_invested_capital`
+- source categories: `derived`, `configurable`
+- UI relevance: `Reports`, `Settings-configurable`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `later`
+
+## 30. Tax Ratio
+
+- stable key: `tax_ratio`
+- German label: `Steuerquote`
+- English label: `Tax Ratio`
+- target meaning: Taxes expressed relative to dividend income, realized gains or another documented denominator.
+- formula target: `total_taxes / selected_denominator`
+- default variant: `taxes_over_dividend_gross`
+- supported variants: `taxes_over_dividend_gross`, `taxes_over_total_pnl`
+- source categories: `derived`, `configurable`
+- UI relevance: `Reports`, `Settings-configurable`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `later`
+
+### Activity / Cashflow KPIs
+
+## 31. Net Cashflow Invested
+
+- stable key: `net_cashflow_invested`
+- German label: `Netto investierter Cashflow`
+- English label: `Net Cashflow Invested`
+- target meaning: Net external investor cash committed to the selected scope.
+- formula target: `gross_buy_volume + deposits - gross_sell_volume - withdrawals - dividends_if_variant_requires_cash_offset`
+- default variant: `external_capital_committed`
+- supported variants: `external_capital_committed`, `net_cash_after_distributions`
+- source categories: `configurable`, `app_calculated`
+- UI relevance: `Reports`, `Settings-configurable`
+- implementation target layer: `aggregation`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `later`
+
+## 32. Gross Buy Volume
+
+- stable key: `gross_buy_volume`
+- German label: `Brutto-Kaufvolumen`
+- English label: `Gross Buy Volume`
+- target meaning: Sum of gross cash spent on buy-like activities.
+- formula target: `sum(buy_and_deposit_amounts_gross)`
+- default variant: `lifetime_gross_buy_volume`
+- supported variants: `lifetime_gross_buy_volume`, `period_gross_buy_volume`
+- source categories: `app_calculated`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `aggregation`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `ready_now`
+
+## 33. Gross Sell Volume
+
+- stable key: `gross_sell_volume`
+- German label: `Brutto-Verkaufsvolumen`
+- English label: `Gross Sell Volume`
+- target meaning: Sum of gross proceeds from sell-like activities.
+- formula target: `sum(sell_and_withdrawal_proceeds_gross)`
+- default variant: `lifetime_gross_sell_volume`
+- supported variants: `lifetime_gross_sell_volume`, `period_gross_sell_volume`
+- source categories: `app_calculated`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `aggregation`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `ready_now`
+
+## 34. Buy Count
+
+- stable key: `buy_count`
+- German label: `Anzahl Käufe`
+- English label: `Buy Count`
+- target meaning: Count of buy-like activities in the selected scope.
+- formula target: Count normalized `buy` activities; optional inclusion of deposits by variant.
+- default variant: `trade_buys_only`
+- supported variants: `trade_buys_only`, `buy_like_including_deposits`
+- source categories: `app_calculated`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `aggregation`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
+
+## 35. Sell Count
+
+- stable key: `sell_count`
+- German label: `Anzahl Verkäufe`
+- English label: `Sell Count`
+- target meaning: Count of sell-like activities in the selected scope.
+- formula target: Count normalized `sell` activities; optional inclusion of withdrawals by variant.
+- default variant: `trade_sells_only`
+- supported variants: `trade_sells_only`, `sell_like_including_withdrawals`
+- source categories: `app_calculated`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `aggregation`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
+
+## 36. Average Order Size
+
+- stable key: `average_order_size`
+- German label: `Durchschnittliche Ordergröße`
+- English label: `Average Order Size`
+- target meaning: Mean gross value per trade activity.
+- formula target: `(gross_buy_volume + gross_sell_volume) / (buy_count + sell_count)` or trade-side-specific variant.
+- default variant: `all_trade_orders_gross`
+- supported variants: `all_trade_orders_gross`, `buy_orders_only`, `sell_orders_only`
+- source categories: `derived`, `configurable`
+- UI relevance: `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `later`
+
+### Portfolio Structure / Allocation KPIs
+
+## 37. Portfolio Weight
+
+- stable key: `portfolio_weight`
+- German label: `Portfolioanteil`
+- English label: `Portfolio Weight`
+- target meaning: Share of one asset's value relative to the scoped portfolio value.
+- formula target: `position_value / portfolio_value`
+- default variant: `current_market_value_weight`
+- supported variants: `current_market_value_weight`, `cost_basis_weight`
+- source categories: `derived`, `configurable`
+- UI relevance: `Dashboard Hero`, `Asset Table`, `Asset Detail`, `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `ready_now`
+
+## 38. Allocation by Asset Type
+
+- stable key: `allocation_by_asset_type`
+- German label: `Allokation nach Asset-Typ`
+- English label: `Allocation by Asset Type`
+- target meaning: Portfolio value grouped by canonical asset type such as ETF, stock or crypto.
+- formula target: Group `position_value` by normalized asset type and divide by `portfolio_value` for percent view.
+- default variant: `current_market_value_share`
+- supported variants: `current_market_value_share`, `cost_basis_share`
+- source categories: `derived`
+- UI relevance: `Dashboard Hero`, `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `ready_now`
+
+## 39. Allocation by Country
+
+- stable key: `allocation_by_country`
+- German label: `Allokation nach Land`
+- English label: `Allocation by Country`
+- target meaning: Portfolio value grouped by asset or issuer country classification.
+- formula target: Group `position_value` by normalized country attribution.
+- default variant: `issuer_country_market_value_share`
+- supported variants: `issuer_country_market_value_share`, `listing_country_market_value_share`
+- source categories: `derived`, `configurable`
+- UI relevance: `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `later`
+
+## 40. Allocation by Sector
+
+- stable key: `allocation_by_sector`
+- German label: `Allokation nach Sektor`
+- English label: `Allocation by Sector`
+- target meaning: Portfolio value grouped by sector classification.
+- formula target: Group `position_value` by normalized sector attribution.
+- default variant: `issuer_sector_market_value_share`
+- supported variants: `issuer_sector_market_value_share`, `fund_lookthrough_sector_share`
+- source categories: `derived`, `configurable`
+- UI relevance: `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `later`
+
+## 41. Top 5 Concentration
+
+- stable key: `top_5_concentration`
+- German label: `Top-5-Konzentration`
+- English label: `Top 5 Concentration`
+- target meaning: Share of scoped portfolio value represented by the five largest positions.
+- formula target: `sum(largest_5_position_values) / portfolio_value`
+- default variant: `market_value_weight_top_5`
+- supported variants: `market_value_weight_top_5`, `cost_basis_weight_top_5`
+- source categories: `derived`
+- UI relevance: `Dashboard Hero`, `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `ready_now`
+
+## 42. Top 10 Concentration
+
+- stable key: `top_10_concentration`
+- German label: `Top-10-Konzentration`
+- English label: `Top 10 Concentration`
+- target meaning: Share of scoped portfolio value represented by the ten largest positions.
+- formula target: `sum(largest_10_position_values) / portfolio_value`
+- default variant: `market_value_weight_top_10`
+- supported variants: `market_value_weight_top_10`, `cost_basis_weight_top_10`
+- source categories: `derived`
+- UI relevance: `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `ready_now`
+
+## 43. Herfindahl Index
+
+- stable key: `herfindahl_index`
+- German label: `Herfindahl-Index`
+- English label: `Herfindahl Index`
+- target meaning: Concentration metric based on squared portfolio weights.
+- formula target: `sum(weight_i^2)` over scoped active positions.
+- default variant: `market_value_hhi`
+- supported variants: `market_value_hhi`, `cost_basis_hhi`
+- source categories: `derived`
+- UI relevance: `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `ready_now`
+
+### Risk / Volatility KPIs
+
+## 44. Volatility 30D
+
+- stable key: `volatility_30d`
+- German label: `Volatilität 30T`
+- English label: `Volatility 30D`
+- target meaning: Realized price volatility over a rolling 30-day window.
+- formula target: Standard deviation of daily returns over the last 30 trading days, optionally annualized.
+- default variant: `annualized_close_to_close_30d`
+- supported variants: `annualized_close_to_close_30d`, `native_period_stddev_30d`
+- source categories: `derived`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `prefer_eur_listing`
+- implementation readiness: `needs_history_prices`
+
+## 45. Volatility 1Y
+
+- stable key: `volatility_1y`
+- German label: `Volatilität 1J`
+- English label: `Volatility 1Y`
+- target meaning: Realized price volatility over a one-year history window.
+- formula target: Standard deviation of daily returns over the last 252 trading days, optionally annualized.
+- default variant: `annualized_close_to_close_1y`
+- supported variants: `annualized_close_to_close_1y`, `native_period_stddev_1y`
+- source categories: `derived`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `prefer_eur_listing`
+- implementation readiness: `needs_history_prices`
+
+## 46. Max Drawdown
+
+- stable key: `max_drawdown`
+- German label: `Maximaler Drawdown`
+- English label: `Max Drawdown`
+- target meaning: Largest peak-to-trough decline over the selected history window.
+- formula target: `min((value_t / prior_peak) - 1)` across the history window.
+- default variant: `close_series_drawdown_1y`
+- supported variants: `close_series_drawdown_1y`, `max_available_history_drawdown`
+- source categories: `derived`
+- UI relevance: `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `prefer_eur_listing`
+- implementation readiness: `needs_history_prices`
+
+## 47. Best Day
+
+- stable key: `best_day`
+- German label: `Bester Tag`
+- English label: `Best Day`
+- target meaning: Highest single-day return in the selected history window.
+- formula target: `max(daily_return_t)`
+- default variant: `best_close_to_close_day_1y`
+- supported variants: `best_close_to_close_day_1y`, `best_day_max_history`
+- source categories: `derived`
+- UI relevance: `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `prefer_eur_listing`
+- implementation readiness: `needs_history_prices`
+
+## 48. Worst Day
+
+- stable key: `worst_day`
+- German label: `Schlechtester Tag`
+- English label: `Worst Day`
+- target meaning: Lowest single-day return in the selected history window.
+- formula target: `min(daily_return_t)`
+- default variant: `worst_close_to_close_day_1y`
+- supported variants: `worst_close_to_close_day_1y`, `worst_day_max_history`
+- source categories: `derived`
+- UI relevance: `Reports`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `prefer_eur_listing`
+- implementation readiness: `needs_history_prices`
+
+## 49. Sharpe Ratio
+
+- stable key: `sharpe_ratio`
+- German label: `Sharpe Ratio`
+- English label: `Sharpe Ratio`
+- target meaning: Risk-adjusted return relative to realized volatility and a defined risk-free-rate policy.
+- formula target: `(annualized_return - risk_free_rate) / annualized_volatility`
+- default variant: `zero_risk_free_placeholder`
+- supported variants: `zero_risk_free_placeholder`, `eur_risk_free_rate_when_supported`
+- source categories: `configurable`, `derived`
+- UI relevance: `Reports`, `Settings-configurable`
+- implementation target layer: `calculations`
+- SecurityLineage behavior: `gated`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `blocked_until_fx`
+- implementation readiness: `needs_history_prices`
+
+### Data Quality / Confidence KPIs
+
+## 50. Data Confidence Score
+
+- stable key: `data_confidence_score`
+- German label: `Datenvertrauens-Score`
+- English label: `Data Confidence Score`
+- target meaning: Numeric or ordinal confidence summary for a KPI surface based on warnings, blockers, freshness and fallback usage.
+- formula target: Derived score from PRM confidence, blocked metrics, warning count and freshness state under a documented scoring policy.
+- default variant: `prm_surface_confidence_score`
+- supported variants: `prm_surface_confidence_score`, `ordinal_confidence_bucket`
+- source categories: `derived`
+- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
+
+## 51. Market Price Freshness
+
+- stable key: `market_price_freshness`
+- German label: `Kursdaten-Aktualität`
+- English label: `Market Price Freshness`
+- target meaning: Freshness state or age of the market price used for valuation.
+- formula target: Derived from valuation `priceDate`, `priceTimestamp` and freshness policy.
+- default variant: `freshness_state_enum`
+- supported variants: `freshness_state_enum`, `price_age_days`
+- source categories: `derived`
+- UI relevance: `Asset Detail`, `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
+
+## 52. Metadata Completeness Score
+
+- stable key: `metadata_completeness_score`
+- German label: `Stammdaten-Vollständigkeit`
+- English label: `Metadata Completeness Score`
+- target meaning: Coverage score for key descriptive fields such as display name, symbol, WKN, asset type and currency.
+- formula target: Weighted ratio of populated metadata fields relative to the required field set for the selected surface.
+- default variant: `core_identity_fields_score`
+- supported variants: `core_identity_fields_score`, `reporting_fields_score`
+- source categories: `derived`
+- UI relevance: `Dashboard Hero`, `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `fixed`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
+
+## 53. Warning Count
+
+- stable key: `warning_count`
+- German label: `Warnungsanzahl`
+- English label: `Warning Count`
+- target meaning: Count of warnings affecting the selected KPI surface or asset scope.
+- formula target: Count PRM warnings and/or blocked metrics according to the selected scope.
+- default variant: `surface_warning_count`
+- supported variants: `surface_warning_count`, `asset_warning_count`, `blocker_count_only`
+- source categories: `derived`
+- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`
+- implementation target layer: `PRM`
+- SecurityLineage behavior: `supported`
+- KPI settings readiness: `configurable_later`
+- Currency/FX dependency: `none`
+- implementation readiness: `ready_now`
