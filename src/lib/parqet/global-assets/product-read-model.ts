@@ -10,6 +10,10 @@ import type {
   ReconciliationWarningSeverity,
   TimelineDisplayType,
 } from "./types";
+import {
+  logValuationInvariant,
+  summarizeDiagnostics,
+} from "../../debug/dev-diagnostics";
 
 export type ProductReadModelSourceType =
   | "provider"
@@ -1069,6 +1073,47 @@ export function projectGlobalAssetsProductReadModel(
 
       return left.display.displayName.localeCompare(right.display.displayName, "de-DE");
     });
+  let valuationAnomalies = 0;
+
+  for (const asset of assets) {
+    const assetInvariant = logValuationInvariant("product_read_model:asset", {
+      isin: asset.identity.compatibilityIsin ?? asset.identity.stableKey,
+      assetLabel: asset.display.displayName,
+      quantity: asset.quantity,
+      marketPrice: asset.valuation.marketPrice.amount,
+      marketValue: asset.marketValue.amount,
+      remainingCostBasis: asset.costBasis.amount,
+      unrealizedPnL: asset.unrealizedPnL.amount,
+      valuationSourceKind: asset.valuation.sourceKind,
+      priceDate: asset.valuation.priceDate,
+      priceSource: asset.valuation.priceSource,
+    });
+
+    if (assetInvariant.checked && !assetInvariant.isConsistent) {
+      valuationAnomalies += 1;
+    }
+
+    for (const breakdown of asset.portfolioBreakdown) {
+      const breakdownInvariant = logValuationInvariant("product_read_model:portfolio_breakdown", {
+        isin: asset.identity.compatibilityIsin ?? asset.identity.stableKey,
+        assetLabel: asset.display.displayName,
+        portfolioId: breakdown.portfolioId,
+        portfolioName: breakdown.portfolioName,
+        quantity: breakdown.quantity,
+        marketPrice: breakdown.valuation.marketPrice.amount,
+        marketValue: breakdown.marketValue.amount,
+        remainingCostBasis: breakdown.costBasis.amount,
+        unrealizedPnL: breakdown.unrealizedPnL.amount,
+        valuationSourceKind: breakdown.valuation.sourceKind,
+        priceDate: breakdown.valuation.priceDate,
+        priceSource: breakdown.valuation.priceSource,
+      });
+
+      if (breakdownInvariant.checked && !breakdownInvariant.isConsistent) {
+        valuationAnomalies += 1;
+      }
+    }
+  }
   const blockedMetricsFromAssets = Array.from(
     new Set(assets.flatMap((asset) => asset.blockedMetrics)),
   );
@@ -1094,6 +1139,18 @@ export function projectGlobalAssetsProductReadModel(
       none: 0,
     },
   );
+
+  summarizeDiagnostics("product_read_model", {
+    assetCount: assets.length,
+    valuationAnomalies,
+    warningAssetCount: assets.filter((asset) => asset.warnings.length > 0).length,
+    fallbackPriceUsedCount: assets.filter(
+      (asset) => asset.valuation.sourceKind === "latest_trade_price_fallback",
+    ).length,
+    missingMarketPriceCount: assets.filter(
+      (asset) => asset.valuation.sourceKind === "missing",
+    ).length,
+  }, "valuation");
 
   return {
     metadata: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CollapsibleAssetTableSection from "../../../components/dashboard/CollapsibleAssetTableSection";
 import DataWarningsPanel from "../../../components/dashboard/DataWarningsPanel";
 import HeroSection, { type AllocationSegment } from "../../../components/dashboard/HeroSection";
@@ -13,6 +13,10 @@ import {
     scopeAssetToPortfolioSelection,
     splitAssetsByPosition,
 } from "../../../lib/calculations/view-model-aggregates";
+import {
+    logValuationInvariant,
+    summarizeDiagnostics,
+} from "../../../lib/debug/dev-diagnostics";
 const DASHBOARD_ALLOCATION_PALETTE = [
     "var(--chart-series-1)",
     "var(--chart-series-2)",
@@ -137,6 +141,37 @@ export default function DashboardPage() {
     const filteredActiveCrypto = useMemo(() => activeCrypto.filter((asset) => matchesSearch(asset, searchQuery)), [activeCrypto, searchQuery]);
     const filteredSoldSecurities = useMemo(() => soldSecurities.filter((asset) => matchesSearch(asset, searchQuery)), [soldSecurities, searchQuery]);
     const filteredSoldCrypto = useMemo(() => soldCrypto.filter((asset) => matchesSearch(asset, searchQuery)), [soldCrypto, searchQuery]);
+
+    useEffect(() => {
+        let valuationAnomalies = 0;
+
+        for (const asset of scopedAssets) {
+            const invariant = logValuationInvariant("dashboard:scoped_asset", {
+                isin: asset.isin,
+                assetLabel: getAssetDisplayName(asset),
+                quantity: asset.netShares,
+                marketPrice: asset.marketPrice,
+                marketValue: asset.positionValue,
+                remainingCostBasis: asset.remainingCostBasis,
+                unrealizedPnL: asset.unrealizedPnL,
+                valuationSourceKind: asset.marketPriceSource,
+                priceDate: asset.marketPriceAt,
+                priceSource: asset.marketPriceSource,
+            });
+
+            if (invariant.checked && !invariant.isConsistent) {
+                valuationAnomalies += 1;
+            }
+        }
+
+        summarizeDiagnostics("dashboard_scope", {
+            selectedPortfolioIdsCount: selectedPortfolioIds.length,
+            scopedAssetCount: scopedAssets.length,
+            scopedActiveAssetCount: activeAssets.length,
+            scopedPortfolioValue: scopedTotals.totalPositionValue,
+            valuationAnomalies,
+        }, "scope");
+    }, [activeAssets.length, scopedAssets, scopedTotals.totalPositionValue, selectedPortfolioIds.length]);
 
     return (
         <>

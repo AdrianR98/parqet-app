@@ -55,6 +55,10 @@ import type {
   DbMarketInstrumentMetadata,
   DbMarketSymbolMapping,
 } from "../../../../lib/market-data/db/types-core";
+import {
+  logDevDiagnostic,
+  summarizeDiagnostics,
+} from "../../../../lib/debug/dev-diagnostics";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
 const INSTRUMENT_METADATA_MISSING_TITLE = "Stammdaten fehlen";
@@ -239,6 +243,20 @@ function mapMarketPriceSnapshotsByIsin(
       },
     ]),
   );
+}
+
+function isStaleMarketPriceSnapshot(snapshot: AssetLatestMarketPriceSnapshot): boolean {
+  if (!snapshot.priceDate) {
+    return false;
+  }
+
+  const date = new Date(`${snapshot.priceDate}T00:00:00Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  return Date.now() - date.getTime() > 7 * 24 * 60 * 60 * 1000;
 }
 
 function getMarketMetadataForIsin(
@@ -757,6 +775,35 @@ export async function GET(req: Request) {
         } else {
           console.warn("[parqet-assets] market price overlay failed");
         }
+      }
+      const activeAssetsWithPositiveShares = correctedAssets.filter(
+        (asset: GlobalAssetViewModel) => asset.netShares > CLOSED_POSITION_EPSILON,
+      );
+      const normalizedOverlayKeys = new Set(
+        Object.keys(marketPriceSnapshotsByIsin).map((isin) => normalizeLookupIsin(isin)),
+      );
+      const missingOverlayAssets = activeAssetsWithPositiveShares.filter(
+        (asset: GlobalAssetViewModel) => !normalizedOverlayKeys.has(normalizeLookupIsin(asset.isin)),
+      );
+      const staleOverlayCount = Object.values(marketPriceSnapshotsByIsin).filter(
+        (snapshot) => isStaleMarketPriceSnapshot(snapshot),
+      ).length;
+
+      summarizeDiagnostics("route_market_price_overlays", {
+        requestedIsinCount: correctedAssets.length,
+        activeAssetCount: activeAssetsWithPositiveShares.length,
+        overlayCount: Object.keys(marketPriceSnapshotsByIsin).length,
+        missingOverlayCount: missingOverlayAssets.length,
+        staleOverlayCount,
+      }, "valuation");
+
+      for (const asset of missingOverlayAssets.slice(0, 10)) {
+        logDevDiagnostic("valuation", "missing_overlay_for_active_asset", {
+          isin: normalizeLookupIsin(asset.isin),
+          assetLabel: asset.name ?? asset.isin,
+          quantity: asset.netShares,
+          remainingCostBasis: asset.remainingCostBasis,
+        }, "warn");
       }
 
       // ====================================================

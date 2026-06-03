@@ -33,6 +33,10 @@ import {
   UnresolvedDecisionCandidate,
   WarningMetadata,
 } from "./types";
+import {
+  logValuationInvariant,
+  summarizeDiagnostics,
+} from "../../debug/dev-diagnostics";
 
 export type GlobalAssetMarketPriceOverlay = {
   priceAmount: number;
@@ -235,6 +239,14 @@ function getAssetIsin(assetKey: GlobalAssetKey, activities: NormalizedActivity[]
   const candidate = activities.find((activity) => activity.assetIdentity.isin)?.assetIdentity.isin;
   const normalized = normalizeLookupIsin(candidate);
   return normalized.length > 0 ? normalized : null;
+}
+
+function getReadableAssetLabel(assetKey: GlobalAssetKey | null | undefined): string {
+  if (!assetKey) {
+    return "unknown_asset";
+  }
+
+  return assetKey.value ?? `${assetKey.type}:unknown`;
 }
 
 function deriveValuationFreshnessState(priceDate: string | null): GlobalAssetValuationFreshnessState {
@@ -985,9 +997,79 @@ export function buildGlobalAssets(
       options.marketPriceOverlaysByIsin,
     ),
   );
+
+  let valuationAnomalies = 0;
+  let fallbackPriceUsedCount = 0;
+  let missingMarketPriceCount = 0;
+
+  for (const asset of assets) {
+    const isin = asset.assetKey?.type === "isin" ? asset.assetKey.value : null;
+    const assetLabel = getReadableAssetLabel(asset.assetKey);
+    const valuation = asset.valuation ?? {
+      marketPrice: null,
+      latestTradePrice: null,
+      priceDate: null,
+      priceTimestamp: null,
+      priceSource: null,
+      sourceKind: "missing" as const,
+      freshnessState: "missing" as const,
+    };
+
+    if (valuation.sourceKind === "latest_trade_price_fallback") {
+      fallbackPriceUsedCount += 1;
+    } else if (valuation.sourceKind === "missing") {
+      missingMarketPriceCount += 1;
+    }
+
+    const assetInvariant = logValuationInvariant("aggregate:asset", {
+      isin,
+      assetLabel,
+      quantity: asset.totals.quantity,
+      marketPrice: valuation.marketPrice?.amount ?? null,
+      marketValue: asset.totals.marketValue?.amount ?? null,
+      remainingCostBasis: asset.totals.costBasis?.amount ?? null,
+      unrealizedPnL: asset.totals.unrealizedPnL?.amount ?? null,
+      valuationSourceKind: valuation.sourceKind,
+      priceDate: valuation.priceDate,
+      priceSource: valuation.priceSource,
+    });
+
+    if (assetInvariant.checked && !assetInvariant.isConsistent) {
+      valuationAnomalies += 1;
+    }
+
+    for (const breakdown of asset.portfolioBreakdowns) {
+      const breakdownInvariant = logValuationInvariant("aggregate:portfolio_breakdown", {
+        isin,
+        assetLabel,
+        portfolioId: breakdown.portfolioId,
+        portfolioName: breakdown.portfolioName,
+        quantity: breakdown.quantity,
+        marketPrice: breakdown.valuation?.marketPrice?.amount ?? valuation.marketPrice?.amount ?? null,
+        marketValue: breakdown.marketValue?.amount ?? null,
+        remainingCostBasis: breakdown.costBasis?.amount ?? null,
+        unrealizedPnL: breakdown.pnl?.amount ?? null,
+        valuationSourceKind: breakdown.valuation?.sourceKind ?? valuation.sourceKind,
+        priceDate: breakdown.valuation?.priceDate ?? valuation.priceDate,
+        priceSource: breakdown.valuation?.priceSource ?? valuation.priceSource,
+      });
+
+      if (breakdownInvariant.checked && !breakdownInvariant.isConsistent) {
+        valuationAnomalies += 1;
+      }
+    }
+  }
+
   const assetWarnings = assets.flatMap((asset) => asset.warnings);
   const assetDecisionCandidates = assets.flatMap((asset) => asset.unresolvedDecisionCandidates ?? []);
   const allWarnings = [...warnings, ...assetWarnings];
+
+  summarizeDiagnostics("aggregate", {
+    totalAssetsChecked: assets.length,
+    valuationAnomalies,
+    fallbackPriceUsedCount,
+    missingMarketPriceCount,
+  }, "valuation");
 
   return {
     assets,
