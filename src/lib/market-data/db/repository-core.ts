@@ -2,7 +2,9 @@
 import { PostgresConfigError, queryPostgres, withPostgresClient } from "../../db/postgres-core";
 import type {
     AddMarketDataRunItemInput,
+    AssetLatestMarketPriceSnapshot,
     CreateMarketDataRunInput,
+    DbAsset,
     DbMarketAction,
     DbMarketInstrument,
     DbMarketInstrumentMetadata,
@@ -26,6 +28,9 @@ import type {
     EnrichMarketInstrumentsFromReferencesResult,
     EnrichMarketInstrumentsFromTradingUniverseInput,
     EnrichMarketInstrumentsFromTradingUniverseResult,
+    FindAssetInput,
+    FindLatestMarketPriceByAssetKeyInput,
+    FindLatestMarketPricesByAssetKeysInput,
     DbMarketReferenceInstrument,
     DbMarketReferenceSource,
     DbXetraReferenceCandidate,
@@ -65,6 +70,22 @@ export class MarketDataRepositoryError extends Error {
 
 function normalizeIsin(isin: string): string {
     return isin.replace(/\s+/g, "").toUpperCase();
+}
+
+function normalizeAssetKeyType(value: string): string {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+        throw new MarketDataRepositoryError("invalid_input", "asset_key_type fehlt.");
+    }
+    return normalized;
+}
+
+function normalizeAssetKeyValue(value: string): string {
+    const normalized = value.trim();
+    if (!normalized) {
+        throw new MarketDataRepositoryError("invalid_input", "asset_key_value fehlt.");
+    }
+    return normalized;
 }
 
 function assertIsin(isin: string): string {
@@ -234,12 +255,12 @@ function mapPriceRow(row: Record<string, unknown>): DbMarketPricePoint {
     return {
         provider: String(row.provider),
         symbol: String(row.symbol),
-        date: normalizeDbDateValue(row.date),
-        open: toNullableNumber(row.open),
-        high: toNullableNumber(row.high),
-        low: toNullableNumber(row.low),
-        close: Number(row.close),
-        adjClose: toNullableNumber(row.adj_close),
+        date: normalizeDbDateValue(row.price_date),
+        open: toNullableNumber(row.open_price),
+        high: toNullableNumber(row.high_price),
+        low: toNullableNumber(row.low_price),
+        close: Number(row.close_price),
+        adjClose: toNullableNumber(row.adjusted_close_price),
         volume: toNullableNumber(row.volume),
         currency: row.currency === null ? null : String(row.currency),
         source: row.source === null ? null : String(row.source),
@@ -281,6 +302,37 @@ function normalizeInstrumentStatus(status: string): MarketDataInstrumentStatus {
         throw new MarketDataRepositoryError("invalid_input", "Ungültiger market_data_status.");
     }
     return normalized as MarketDataInstrumentStatus;
+}
+
+function mapAssetRow(row: Record<string, unknown>): DbAsset {
+    return {
+        id: String(row.id),
+        assetKeyType: String(row.asset_key_type),
+        assetKeyValue: String(row.asset_key_value),
+        isin: row.isin === null ? null : String(row.isin),
+        wkn: row.wkn === null ? null : String(row.wkn),
+        displayName: row.display_name === null ? null : String(row.display_name),
+        assetType: row.asset_type === null ? null : String(row.asset_type),
+        currency: row.currency === null ? null : String(row.currency),
+        exchange: row.exchange === null ? null : String(row.exchange),
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
+    };
+}
+
+function mapLatestMarketPriceSnapshotRow(row: Record<string, unknown>): AssetLatestMarketPriceSnapshot {
+    return {
+        assetId: String(row.asset_id),
+        assetKeyType: String(row.asset_key_type),
+        assetKeyValue: String(row.asset_key_value),
+        isin: row.isin === null ? null : String(row.isin),
+        provider: String(row.provider),
+        priceAmount: Number(row.close_price),
+        currency: row.currency === null ? null : String(row.currency),
+        priceDate: normalizeDbDateValue(row.price_date),
+        priceTimestamp: row.price_timestamp === null ? null : String(row.price_timestamp),
+        updatedAt: String(row.updated_at),
+    };
 }
 
 const MARKET_DATA_REQUEST_STATUSES = new Set<MarketDataRequestStatus>([
@@ -327,6 +379,149 @@ function mapMarketDataRequestRow(row: Record<string, unknown>): DbMarketDataRequ
     };
 }
 
+export async function findAsset(input: FindAssetInput): Promise<DbAsset | null> {
+    try {
+        if ("isin" in input) {
+            const normalizedIsin = assertIsin(input.isin);
+            const result = await queryPostgres<Record<string, unknown>>(
+                `select id, asset_key_type, asset_key_value, isin, wkn, display_name, asset_type, currency, exchange, created_at, updated_at
+                 from assets
+                 where isin = $1
+                 limit 1`,
+                [normalizedIsin],
+            );
+            const row = result.rows[0];
+            return row ? mapAssetRow(row) : null;
+        }
+
+        const assetKeyType = normalizeAssetKeyType(input.assetKeyType);
+        const assetKeyValue = normalizeAssetKeyValue(input.assetKeyValue);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select id, asset_key_type, asset_key_value, isin, wkn, display_name, asset_type, currency, exchange, created_at, updated_at
+             from assets
+             where asset_key_type = $1
+               and asset_key_value = $2
+             limit 1`,
+            [assetKeyType, assetKeyValue],
+        );
+        const row = result.rows[0];
+        return row ? mapAssetRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function findLatestMarketPriceByAssetKey(
+    input: FindLatestMarketPriceByAssetKeyInput,
+): Promise<AssetLatestMarketPriceSnapshot | null> {
+    try {
+        const assetKeyType = normalizeAssetKeyType(input.assetKeyType);
+        const assetKeyValue = normalizeAssetKeyValue(input.assetKeyValue);
+        const provider = input.provider?.trim().toLowerCase() || null;
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select
+                p.asset_id,
+                a.asset_key_type,
+                a.asset_key_value,
+                a.isin,
+                p.provider,
+                p.close_price,
+                p.currency,
+                p.price_date,
+                p.price_timestamp,
+                p.updated_at
+             from assets a
+             join lateral (
+                select p.asset_id, p.provider, p.close_price, p.currency, p.price_date, p.price_timestamp, p.updated_at
+                from asset_daily_prices p
+                where p.asset_id = a.id
+                  and ($3::text is null or p.provider = $3)
+                order by p.price_date desc, p.updated_at desc
+                limit 1
+             ) p on true
+             where a.asset_key_type = $1
+               and a.asset_key_value = $2
+             limit 1`,
+            [assetKeyType, assetKeyValue, provider],
+        );
+        const row = result.rows[0];
+        return row ? mapLatestMarketPriceSnapshotRow(row) : null;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function findLatestMarketPricesByAssetKeys(
+    input: FindLatestMarketPricesByAssetKeysInput,
+): Promise<Record<string, AssetLatestMarketPriceSnapshot>> {
+    try {
+        const provider = input.provider?.trim().toLowerCase() || null;
+        const keys = input.keys
+            .map((key) => ({
+                assetKeyType: normalizeAssetKeyType(key.assetKeyType),
+                assetKeyValue: normalizeAssetKeyValue(key.assetKeyValue),
+            }))
+            .filter((key, index, array) => array.findIndex((item) => item.assetKeyType === key.assetKeyType && item.assetKeyValue === key.assetKeyValue) === index);
+
+        if (keys.length === 0) {
+            return {};
+        }
+
+        const assetKeyTypes = keys.map((key) => key.assetKeyType);
+        const assetKeyValues = keys.map((key) => key.assetKeyValue);
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with input_keys as (
+                select *
+                from unnest($1::text[], $2::text[]) as t(asset_key_type, asset_key_value)
+             ),
+             target_assets as (
+                select a.id, a.asset_key_type, a.asset_key_value, a.isin
+                from assets a
+                join input_keys k
+                  on k.asset_key_type = a.asset_key_type
+                 and k.asset_key_value = a.asset_key_value
+             ),
+             latest_prices as (
+                select distinct on (p.asset_id)
+                    p.asset_id,
+                    p.provider,
+                    p.close_price,
+                    p.currency,
+                    p.price_date,
+                    p.price_timestamp,
+                    p.updated_at
+                from asset_daily_prices p
+                join target_assets a on a.id = p.asset_id
+                where ($3::text is null or p.provider = $3)
+                order by p.asset_id, p.price_date desc, p.updated_at desc
+             )
+             select
+                a.id as asset_id,
+                a.asset_key_type,
+                a.asset_key_value,
+                a.isin,
+                p.provider,
+                p.close_price,
+                p.currency,
+                p.price_date,
+                p.price_timestamp,
+                p.updated_at
+             from target_assets a
+             join latest_prices p on p.asset_id = a.id`,
+            [assetKeyTypes, assetKeyValues, provider],
+        );
+
+        const mapped: Record<string, AssetLatestMarketPriceSnapshot> = {};
+        for (const row of result.rows) {
+            const item = mapLatestMarketPriceSnapshotRow(row);
+            mapped[`${item.assetKeyType}:${item.assetKeyValue}`] = item;
+        }
+        return mapped;
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
 export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrument | null> {
     try {
         const normalizedIsin = assertIsin(isin);
@@ -334,7 +529,7 @@ export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrum
             `select id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
                     name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
                     market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at
-             from market_instruments
+             from assets
              where isin = $1
              limit 1`,
             [normalizedIsin],
@@ -350,7 +545,7 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into market_instruments
+            `insert into assets
                 (isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at, name_source, display_name_source, display_metadata_updated_at)
              values
                 ($1, $2, $3, $4, $5, $6, $7, case when $7::text is null then null else now() end, $8, $9, case when $9::text is null then null else now() end)
@@ -362,10 +557,10 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
                currency = excluded.currency,
                wkn = excluded.wkn,
                metadata_source = excluded.metadata_source,
-               metadata_updated_at = case when excluded.metadata_source is null then market_instruments.metadata_updated_at else now() end,
+               metadata_updated_at = case when excluded.metadata_source is null then assets.metadata_updated_at else now() end,
                name_source = excluded.name_source,
                display_name_source = excluded.display_name_source,
-               display_metadata_updated_at = case when excluded.display_name_source is null then market_instruments.display_metadata_updated_at else now() end,
+               display_metadata_updated_at = case when excluded.display_name_source is null then assets.display_metadata_updated_at else now() end,
                updated_at = now()
              returning id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
                        name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
@@ -395,7 +590,7 @@ export async function listMarketInstruments(input: ListMarketInstrumentsInput = 
             `select id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
                     name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
                     market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at
-             from market_instruments
+             from assets
              order by isin asc
              limit $1`,
             [limit],
@@ -463,7 +658,7 @@ export async function getMarketInstrumentMetadataByIsins(isins: string[]): Promi
             `select i.isin, i.name, i.display_name, i.wkn, i.asset_type, i.currency, i.metadata_source, i.metadata_updated_at,
                     i.name_source, i.display_name_source, i.display_metadata_updated_at, i.market_data_status, i.market_data_status_reason,
                     i.market_data_successor_isin, i.market_data_successor_symbol, i.market_data_status_updated_at
-             from market_instruments i
+             from assets i
              where i.isin = any($1::text[])`,
             [normalizedIsins],
         );
@@ -570,7 +765,7 @@ export async function upsertReferenceSource(input: UpsertReferenceSourceInput): 
     try {
         const sourceKey = normalizeSourceKey(input.sourceKey);
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into market_reference_sources (source_key, display_name, source_type, file_name, row_count, imported_at, notes)
+            `insert into reference_data_sources (source_key, display_name, source_type, file_name, row_count, imported_at, notes)
              values ($1, $2, $3, $4, $5, now(), $6)
              on conflict (source_key)
              do update set
@@ -593,7 +788,7 @@ export async function listReferenceSourceCounts(): Promise<ReferenceSourceCount[
     try {
         const result = await queryPostgres<Record<string, unknown>>(
             `select source_key, count(*)::int as row_count
-             from market_reference_instruments
+             from reference_data_asset_candidates
              group by source_key
              order by source_key asc`,
         );
@@ -612,36 +807,55 @@ export async function upsertReferenceInstrument(input: UpsertReferenceInstrument
         const isin = input.isin ? assertIsin(input.isin) : null;
         const symbol = normalizeOptionalUpper(input.symbol);
         const mnemonic = normalizeOptionalUpper(input.mnemonic);
+        const sourceResult = await queryPostgres<{ id: string }>(
+            `select id
+             from reference_data_sources
+             where provider = 'legacy_market_data'
+               and source_key = $1
+             limit 1`,
+            [sourceKey],
+        );
+        const sourceId = sourceResult.rows[0]?.id;
+        if (!sourceId) {
+            throw new MarketDataRepositoryError("db_error", `reference_data_sources source missing for ${sourceKey}.`);
+        }
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into market_reference_instruments
-                (source_key, isin, wkn, name, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, instrument_type, product_category, market_segment, raw_payload, imported_at)
+            `insert into reference_data_asset_candidates
+                (source_id, source_key, asset_id, isin, wkn, name, display_name, provider_symbol, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, asset_type, instrument_type, product_category, market_segment, raw_payload, imported_at)
              values
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, now())
+                ($1, $2, null, $3, $4, $5, $5, $6, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, now())
              on conflict (source_key, isin, coalesce(symbol, ''), coalesce(mnemonic, ''))
              do update set
                 wkn = excluded.wkn,
                 name = excluded.name,
+                display_name = excluded.display_name,
+                provider_symbol = excluded.provider_symbol,
+                symbol = excluded.symbol,
                 exchange = excluded.exchange,
                 mic_code = excluded.mic_code,
                 primary_market_mic_code = excluded.primary_market_mic_code,
                 currency = excluded.currency,
+                asset_type = excluded.asset_type,
                 instrument_type = excluded.instrument_type,
                 product_category = excluded.product_category,
                 market_segment = excluded.market_segment,
                 raw_payload = excluded.raw_payload,
                 imported_at = now()
-             returning id, source_key, isin, wkn, name, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, instrument_type, product_category, market_segment, raw_payload, imported_at`,
+             returning id, source_key, isin, wkn, name, display_name, provider_symbol, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, asset_type, instrument_type, product_category, market_segment, raw_payload, imported_at`,
             [
+                sourceId,
                 sourceKey,
                 isin,
                 normalizeOptionalUpper(input.wkn),
                 input.name?.trim() || null,
+                symbol,
                 symbol,
                 mnemonic,
                 input.exchange?.trim() || null,
                 input.micCode?.trim() || null,
                 input.primaryMarketMicCode?.trim() || null,
                 normalizeOptionalUpper(input.currency),
+                input.instrumentType?.trim() || null,
                 input.instrumentType?.trim() || null,
                 input.productCategory?.trim() || null,
                 input.marketSegment?.trim() || null,
@@ -660,7 +874,7 @@ export async function listReferenceInstrumentsByIsin(isin: string, sourceKey?: s
         const normalizedIsin = assertIsin(isin);
         const result = await queryPostgres<Record<string, unknown>>(
             `select id, source_key, isin, wkn, name, symbol, mnemonic, exchange, mic_code, primary_market_mic_code, currency, instrument_type, product_category, market_segment, raw_payload, imported_at
-             from market_reference_instruments
+             from reference_data_asset_candidates
              where isin = $1
                and ($2::text is null or source_key = $2)
              order by imported_at desc, id asc`,
@@ -697,33 +911,33 @@ export async function listXetraReferenceCandidates(
                 r.primary_market_mic_code,
                 exists (
                     select 1
-                    from market_symbol_mappings mvp
+                    from asset_symbol_mappings mvp
                     where mvp.instrument_id = i.id
                       and mvp.is_primary = true
                       and mvp.verified_at is not null
                 ) as has_verified_primary,
                 exists (
                     select 1
-                    from market_symbol_mappings mvy
+                    from asset_symbol_mappings mvy
                     where mvy.instrument_id = i.id
                       and mvy.provider = 'yfinance'
                       and mvy.verified_at is not null
                 ) as has_verified_yfinance,
                 exists (
                     select 1
-                    from market_symbol_mappings map
+                    from asset_symbol_mappings map
                     where map.instrument_id = i.id
                       and map.is_primary = true
                 ) as has_any_primary,
                 exists (
                     select 1
-                    from market_symbol_mappings mc
+                    from asset_symbol_mappings mc
                     where mc.instrument_id = i.id
                       and mc.provider = 'yfinance'
                       and mc.symbol = (r.mnemonic || '.DE')
                 ) as has_existing_candidate
-             from market_reference_instruments r
-             join market_instruments i on i.isin = r.isin
+             from reference_data_asset_candidates r
+             join assets i on i.isin = r.isin
              where r.source_key = $1
                and r.isin is not null
                and r.mnemonic is not null
@@ -757,7 +971,7 @@ export async function insertSymbolMappingCandidate(input: InsertSymbolMappingCan
         }
 
         const result = await queryPostgres<{ id: string }>(
-            `insert into market_symbol_mappings
+            `insert into asset_symbol_mappings
                 (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
              values
                 ($1, $2, $3, $4, $5, false, true, null, $6)
@@ -780,7 +994,7 @@ export async function insertManualSymbolMapping(input: InsertManualSymbolMapping
         }
 
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into market_symbol_mappings
+            `insert into asset_symbol_mappings
                 (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
              values
                 ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -819,7 +1033,7 @@ export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInpu
         }
 
         const result = await queryPostgres<Record<string, unknown>>(
-            `update market_symbol_mappings
+            `update asset_symbol_mappings
              set symbol = coalesce($2, symbol),
                  exchange = coalesce($3::text, exchange),
                  currency = coalesce($4::text, currency),
@@ -875,8 +1089,8 @@ export async function enrichMarketInstrumentsFromReferences(
                 r.instrument_type as reference_type,
                 r.currency as reference_currency,
                 r.wkn as reference_wkn
-             from market_instruments i
-             join market_reference_instruments r on r.isin = i.isin
+             from assets i
+             join reference_data_asset_candidates r on r.isin = i.isin
              where r.source_key = $1
                and ($2::text is null or i.isin = $2)
              order by i.id, r.imported_at desc
@@ -938,7 +1152,7 @@ export async function enrichMarketInstrumentsFromReferences(
                     params.push(sourceKey);
                     params.push(String(row.instrument_id));
                     await client.query(
-                        `update market_instruments
+                        `update assets
                          set ${updates.join(", ")},
                              metadata_source = $${params.length - 1},
                              metadata_updated_at = now(),
@@ -999,10 +1213,10 @@ export async function listTradingUniverseReferenceMatches(input: {
                     i.name as current_name,
                     i.display_name as current_display_name,
                     r.name as reference_name
-             from market_instruments i
+             from assets i
              join lateral (
                 select rr.name
-                from market_reference_instruments rr
+                from reference_data_asset_candidates rr
                 where rr.source_key = $1
                   and rr.isin = i.isin
                 order by rr.imported_at desc, rr.id desc
@@ -1102,7 +1316,7 @@ export async function enrichMarketInstrumentsFromTradingUniverse(
 
                     params.push(match.isin);
                     await client.query(
-                        `update market_instruments
+                        `update assets
                          set ${updates.join(", ")},
                              updated_at = now()
                          where isin = $${params.length}`,
@@ -1137,8 +1351,8 @@ export async function getPrimarySymbolMappingByIsin(isin: string, provider?: str
         const result = await queryPostgres<Record<string, unknown>>(
             `select m.id, m.instrument_id, m.provider, m.symbol, m.exchange, m.currency, m.is_primary, m.is_active,
                     m.verified_at, m.notes, m.created_at, m.updated_at
-             from market_symbol_mappings m
-             join market_instruments i on i.id = m.instrument_id
+             from asset_symbol_mappings m
+             join assets i on i.id = m.instrument_id
              where i.isin = $1
                and ($2::text is null or m.provider = $2)
                and m.is_active = true
@@ -1182,8 +1396,8 @@ export async function getPrimarySymbolMappingsByIsins(
                 i.isin,
                 m.id, m.instrument_id, m.provider, m.symbol, m.exchange, m.currency, m.is_primary, m.is_active,
                 m.verified_at, m.notes, m.created_at, m.updated_at
-             from market_symbol_mappings m
-             join market_instruments i on i.id = m.instrument_id
+             from asset_symbol_mappings m
+             join assets i on i.id = m.instrument_id
              where i.isin = any($1::text[])
                and ($2::text is null or m.provider = $2)
                and m.is_active = true
@@ -1210,8 +1424,8 @@ export async function getSymbolMappingsByIsin(isin: string, provider?: string): 
         const result = await queryPostgres<Record<string, unknown>>(
             `select m.id, m.instrument_id, m.provider, m.symbol, m.exchange, m.currency, m.is_primary, m.is_active,
                     m.verified_at, m.notes, m.created_at, m.updated_at
-             from market_symbol_mappings m
-             join market_instruments i on i.id = m.instrument_id
+             from asset_symbol_mappings m
+             join assets i on i.id = m.instrument_id
              where i.isin = $1
                and ($2::text is null or m.provider = $2)
              order by m.is_primary desc, m.updated_at desc, m.symbol asc`,
@@ -1234,7 +1448,7 @@ export async function getSymbolMappingByProviderSymbol(provider: string, symbol:
         const result = await queryPostgres<Record<string, unknown>>(
             `select id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active,
                     verified_at, notes, created_at, updated_at
-             from market_symbol_mappings
+             from asset_symbol_mappings
              where provider = $1
                and symbol = $2
              limit 1`,
@@ -1257,8 +1471,8 @@ export async function listUnverifiedSymbolMappings(
 
         const result = await queryPostgres<Record<string, unknown>>(
             `select i.isin, i.name, m.provider, m.symbol, m.exchange, m.currency, m.is_primary, m.is_active, m.verified_at, m.notes
-             from market_symbol_mappings m
-             join market_instruments i on i.id = m.instrument_id
+             from asset_symbol_mappings m
+             join assets i on i.id = m.instrument_id
              where m.verified_at is null
                and ($1::text is null or m.provider = $1)
                and ($2::text is null or i.isin = $2)
@@ -1277,8 +1491,8 @@ export async function listIsinsWithVerifiedMappings(input: ListIsinsWithVerified
         const normalizedProvider = input.provider?.trim() ? input.provider.trim().toLowerCase() : null;
         const result = await queryPostgres<{ isin: string }>(
             `select distinct i.isin
-             from market_symbol_mappings m
-             join market_instruments i on i.id = m.instrument_id
+             from asset_symbol_mappings m
+             join assets i on i.id = m.instrument_id
              where m.verified_at is not null
                and ($1::text is null or m.provider = $1)
              order by i.isin asc`,
@@ -1294,87 +1508,99 @@ export async function getMarketDataStatusSummary(): Promise<MarketDataStatusSumm
     try {
         const result = await queryPostgres<Record<string, unknown>>(
             `with
-                instruments_total as (select count(*)::int as value from market_instruments),
-                mappings_total as (select count(*)::int as value from market_symbol_mappings),
-                yfinance_mappings_total as (select count(*)::int as value from market_symbol_mappings where provider = 'yfinance'),
-                verified_yfinance_mappings as (select count(*)::int as value from market_symbol_mappings where provider = 'yfinance' and verified_at is not null),
-                primary_yfinance_mappings as (select count(*)::int as value from market_symbol_mappings where provider = 'yfinance' and is_primary = true),
+                instruments_total as (select count(*)::int as value from assets),
+                mappings_total as (select count(*)::int as value from asset_symbol_mappings),
+                yfinance_mappings_total as (select count(*)::int as value from asset_symbol_mappings where provider = 'yfinance'),
+                verified_yfinance_mappings as (select count(*)::int as value from asset_symbol_mappings where provider = 'yfinance' and verified_at is not null),
+                primary_yfinance_mappings as (select count(*)::int as value from asset_symbol_mappings where provider = 'yfinance' and is_primary = true),
                 instruments_with_verified_yfinance as (
                     select count(distinct i.id)::int as value
-                    from market_instruments i
-                    join market_symbol_mappings m on m.instrument_id = i.id
+                    from assets i
+                    join asset_symbol_mappings m on m.instrument_id = i.id
                     where m.provider = 'yfinance' and m.verified_at is not null
                 ),
                 instruments_without_any_mapping as (
                     select count(*)::int as value
-                    from market_instruments i
-                    left join market_symbol_mappings m on m.instrument_id = i.id
+                    from assets i
+                    left join asset_symbol_mappings m on m.instrument_id = i.id
                     where m.instrument_id is null
                 ),
                 instruments_with_mapping_but_no_verified_yfinance as (
                     select count(*)::int as value
-                    from market_instruments i
-                    where exists (select 1 from market_symbol_mappings m where m.instrument_id = i.id)
+                    from assets i
+                    where exists (select 1 from asset_symbol_mappings m where m.instrument_id = i.id)
                       and not exists (
                           select 1
-                          from market_symbol_mappings y
+                          from asset_symbol_mappings y
                           where y.instrument_id = i.id and y.provider = 'yfinance' and y.verified_at is not null
                       )
                 ),
                 instruments_with_primary_yfinance as (
                     select count(distinct i.id)::int as value
-                    from market_instruments i
-                    join market_symbol_mappings m on m.instrument_id = i.id
+                    from assets i
+                    join asset_symbol_mappings m on m.instrument_id = i.id
                     where m.provider = 'yfinance' and m.is_primary = true
                 ),
                 instruments_without_primary_yfinance as (
                     select count(*)::int as value
-                    from market_instruments i
+                    from assets i
                     where not exists (
                         select 1
-                        from market_symbol_mappings m
+                        from asset_symbol_mappings m
                         where m.instrument_id = i.id and m.provider = 'yfinance' and m.is_primary = true
                     )
                 ),
                 instruments_with_daily_prices as (
-                    select count(distinct instrument_id)::int as value from market_prices_daily
+                    select count(distinct i.id)::int as value
+                    from assets i
+                    join assets a
+                      on a.asset_key_type = 'isin'
+                     and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                    join asset_daily_prices p on p.asset_id = a.id
                 ),
                 instruments_with_actions as (
-                    select count(distinct instrument_id)::int as value from market_actions
+                    select count(distinct asset_id)::int as value
+                    from (
+                        select asset_id from dividend_events
+                        union
+                        select asset_id from corporate_action_events
+                    ) action_assets
                 ),
                 instruments_with_primary_but_no_prices as (
                     select count(*)::int as value
-                    from market_instruments i
+                    from assets i
                     where exists (
                         select 1
-                        from market_symbol_mappings m
+                        from asset_symbol_mappings m
                         where m.instrument_id = i.id and m.provider = 'yfinance' and m.is_primary = true
                     )
                       and not exists (
                         select 1
-                        from market_prices_daily p
-                        where p.instrument_id = i.id
+                        from assets a
+                        join asset_daily_prices p on p.asset_id = a.id
+                        where a.asset_key_type = 'isin'
+                          and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
                     )
                 ),
                 failed_validation_candidates as (
                     select count(*)::int as value
-                    from market_symbol_mappings
+                    from asset_symbol_mappings
                     where provider = 'yfinance'
                       and notes ilike '%validated:yfinance; status=failed%'
                 ),
                 instruments_status_excluded as (
-                    select count(*)::int as value from market_instruments where market_data_status = 'excluded'
+                    select count(*)::int as value from assets where market_data_status = 'excluded'
                 ),
                 instruments_status_legacy as (
-                    select count(*)::int as value from market_instruments where market_data_status = 'legacy'
+                    select count(*)::int as value from assets where market_data_status = 'legacy'
                 ),
                 instruments_status_derivative as (
-                    select count(*)::int as value from market_instruments where market_data_status = 'derivative'
+                    select count(*)::int as value from assets where market_data_status = 'derivative'
                 ),
                 instruments_status_unknown as (
-                    select count(*)::int as value from market_instruments where market_data_status = 'unknown'
+                    select count(*)::int as value from assets where market_data_status = 'unknown'
                 )
-             select
+            select
                 (select value from instruments_total) as instruments_total,
                 (select value from mappings_total) as mappings_total,
                 (select value from yfinance_mappings_total) as yfinance_mappings_total,
@@ -1483,7 +1709,7 @@ export async function updateMarketInstrumentMetadata(input: UpdateMarketInstrume
         }
 
         const result = await queryPostgres<Record<string, unknown>>(
-            `update market_instruments
+            `update assets
              set ${updates.join(", ")},
                  updated_at = now()
              where isin = $1
@@ -1509,7 +1735,7 @@ export async function updateMarketInstrumentStatus(input: UpdateMarketInstrument
         const reason = typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : null;
 
         const result = await queryPostgres<Record<string, unknown>>(
-            `update market_instruments
+            `update assets
              set market_data_status = $2,
                  market_data_status_reason = $3,
                  market_data_successor_isin = $4,
@@ -1534,7 +1760,7 @@ export async function listMarketInstrumentStatusSummary(): Promise<MarketInstrum
     try {
         const result = await queryPostgres<Record<string, unknown>>(
             `select market_data_status as status, count(*)::int as count
-             from market_instruments
+             from assets
              group by market_data_status
              order by market_data_status nulls first`,
         );
@@ -1576,40 +1802,40 @@ export async function recordMarketDataRequest(input: RecordMarketDataRequestInpu
             await client.query("begin");
             try {
                 await client.query(
-                    `insert into market_instruments
+                    `insert into assets
                         (isin, name, display_name, asset_type, currency, wkn, market_data_status)
                      values
                         ($1, $2, $3, $4, $5, $6, 'unknown')
                      on conflict (isin)
                      do update set
-                        name = coalesce(market_instruments.name, excluded.name),
-                        display_name = coalesce(market_instruments.display_name, excluded.display_name),
-                        asset_type = coalesce(market_instruments.asset_type, excluded.asset_type),
-                        currency = coalesce(market_instruments.currency, excluded.currency),
-                        wkn = coalesce(market_instruments.wkn, excluded.wkn),
-                        market_data_status = coalesce(market_instruments.market_data_status, 'unknown'),
+                        name = coalesce(assets.name, excluded.name),
+                        display_name = coalesce(assets.display_name, excluded.display_name),
+                        asset_type = coalesce(assets.asset_type, excluded.asset_type),
+                        currency = coalesce(assets.currency, excluded.currency),
+                        wkn = coalesce(assets.wkn, excluded.wkn),
+                        market_data_status = coalesce(assets.market_data_status, 'unknown'),
                         updated_at = now()`,
                     [normalizedIsin, metadata.name, metadata.displayName, metadata.assetType, metadata.currency, metadata.wkn],
                 );
 
                 const result = await client.query<Record<string, unknown>>(
-                    `insert into market_data_requests
+                    `insert into reference_data_request_logs
                         (isin, name, display_name, asset_type, currency, wkn, source)
                      values
                         ($1, $2, $3, $4, $5, $6, $7)
                      on conflict (isin)
                      do update set
-                        seen_count = market_data_requests.seen_count + 1,
+                        seen_count = reference_data_request_logs.seen_count + 1,
                         last_seen_at = now(),
-                        name = coalesce(market_data_requests.name, excluded.name),
-                        display_name = coalesce(market_data_requests.display_name, excluded.display_name),
-                        asset_type = coalesce(market_data_requests.asset_type, excluded.asset_type),
-                        currency = coalesce(market_data_requests.currency, excluded.currency),
-                        wkn = coalesce(market_data_requests.wkn, excluded.wkn),
-                        source = coalesce(market_data_requests.source, excluded.source),
+                        name = coalesce(reference_data_request_logs.name, excluded.name),
+                        display_name = coalesce(reference_data_request_logs.display_name, excluded.display_name),
+                        asset_type = coalesce(reference_data_request_logs.asset_type, excluded.asset_type),
+                        currency = coalesce(reference_data_request_logs.currency, excluded.currency),
+                        wkn = coalesce(reference_data_request_logs.wkn, excluded.wkn),
+                        source = coalesce(reference_data_request_logs.source, excluded.source),
                         status = case
-                            when market_data_requests.status in ('imported', 'ignored') then market_data_requests.status
-                            else market_data_requests.status
+                            when reference_data_request_logs.status in ('imported', 'ignored') then reference_data_request_logs.status
+                            else reference_data_request_logs.status
                         end,
                         updated_at = now()
                      returning id, isin, name, display_name, asset_type, currency, wkn,
@@ -1645,7 +1871,7 @@ export async function listMarketDataRequests(input: ListMarketDataRequestsInput 
             `with filtered as (
                 select id, isin, name, display_name, asset_type, currency, wkn,
                        first_seen_at, last_seen_at, seen_count, status, source, notes, created_at, updated_at
-                from market_data_requests
+                from reference_data_request_logs
                 where ($1::text is null or status = $1)
                   and ($2::text is null or source = $2)
                   and (
@@ -1687,19 +1913,30 @@ export async function listAdminOpenUnmappedMarketDataRows(): Promise<AdminOpenUn
                     bool_or(m.provider = 'yfinance' and m.notes ilike '%validated:yfinance; status=failed%') as has_failed_validation,
                     array_remove(array_agg(distinct case when m.provider = 'yfinance' then m.symbol end), null) as candidate_symbols,
                     max(case when m.provider = 'yfinance' and m.is_primary = true then m.symbol end) as primary_symbol
-                from market_instruments i
-                left join market_symbol_mappings m on m.instrument_id = i.id
+                from assets i
+                left join asset_symbol_mappings m on m.instrument_id = i.id
                 group by i.id
             ),
             price_flags as (
                 select instrument_id, true as has_prices
-                from market_prices_daily
-                group by instrument_id
+                from (
+                    select i.id as instrument_id
+                    from assets i
+                    join assets a
+                      on a.asset_key_type = 'isin'
+                     and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                    join asset_daily_prices p on p.asset_id = a.id
+                    group by i.id
+                ) rows
             ),
             action_flags as (
-                select instrument_id, true as has_actions
-                from market_actions
-                group by instrument_id
+                select asset_id as instrument_id, true as has_actions
+                from (
+                    select asset_id from dividend_events
+                    union
+                    select asset_id from corporate_action_events
+                ) actions
+                group by asset_id
             )
             select
                 i.isin,
@@ -1718,7 +1955,7 @@ export async function listAdminOpenUnmappedMarketDataRows(): Promise<AdminOpenUn
                 coalesce(a.has_actions, false) as has_market_actions,
                 m.primary_symbol,
                 coalesce(m.candidate_symbols, '{}'::text[]) as candidate_symbols
-            from market_instruments i
+            from assets i
             left join mapping m on m.instrument_id = i.id
             left join price_flags p on p.instrument_id = i.id
             left join action_flags a on a.instrument_id = i.id
@@ -1769,30 +2006,42 @@ export async function listAdminMarketInstrumentOverviewRows(): Promise<AdminMark
                     max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.symbol end) as primary_symbol,
                     max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.exchange end) as primary_exchange,
                     max(case when m.provider = 'yfinance' and m.is_active = true and m.is_primary = true then m.currency end) as primary_currency
-                from market_instruments i
-                left join market_symbol_mappings m on m.instrument_id = i.id
+                from assets i
+                left join asset_symbol_mappings m on m.instrument_id = i.id
                 group by i.id
             ),
             prices as (
                 select
-                    p.instrument_id,
+                    i.id as instrument_id,
                     true as has_prices,
-                    min(p.date)::date as first_price_date,
-                    max(p.date)::date as last_price_date
-                from market_prices_daily p
-                group by p.instrument_id
+                    min(p.price_date)::date as first_price_date,
+                    max(p.price_date)::date as last_price_date
+                from assets i
+                join assets a
+                  on a.asset_key_type = 'isin'
+                 and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                join asset_daily_prices p on p.asset_id = a.id
+                group by i.id
             ),
             latest_prices as (
-                select distinct on (p.instrument_id)
-                    p.instrument_id,
-                    p.close as latest_close
-                from market_prices_daily p
-                order by p.instrument_id, p.date desc
+                select distinct on (i.id)
+                    i.id as instrument_id,
+                    p.close_price as latest_close
+                from assets i
+                join assets a
+                  on a.asset_key_type = 'isin'
+                 and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                join asset_daily_prices p on p.asset_id = a.id
+                order by i.id, p.price_date desc, p.updated_at desc
             ),
             actions as (
-                select a.instrument_id, true as has_actions
-                from market_actions a
-                group by a.instrument_id
+                select asset_id as instrument_id, true as has_actions
+                from (
+                    select asset_id from dividend_events
+                    union
+                    select asset_id from corporate_action_events
+                ) actions
+                group by asset_id
             )
             select
                 i.isin,
@@ -1815,7 +2064,7 @@ export async function listAdminMarketInstrumentOverviewRows(): Promise<AdminMark
                 p.first_price_date,
                 p.last_price_date,
                 lp.latest_close
-            from market_instruments i
+            from assets i
             left join mapping m on m.instrument_id = i.id
             left join prices p on p.instrument_id = i.id
             left join latest_prices lp on lp.instrument_id = i.id
@@ -1854,14 +2103,21 @@ export async function listAdminMarketSymbolMappingsOverviewRows(): Promise<Admin
     try {
         const result = await queryPostgres<Record<string, unknown>>(
             `with latest_price as (
-                select distinct on (p.instrument_id, p.provider, p.symbol)
-                    p.instrument_id,
-                    p.provider,
-                    p.symbol,
-                    p.date as latest_price_date,
-                    p.close as latest_close
-                from market_prices_daily p
-                order by p.instrument_id, p.provider, p.symbol, p.date desc
+                select distinct on (m.instrument_id, m.provider, m.symbol)
+                    m.instrument_id,
+                    m.provider,
+                    m.symbol,
+                    p.price_date as latest_price_date,
+                    p.close_price as latest_close
+                from asset_symbol_mappings m
+                join assets i on i.id = m.instrument_id
+                join assets a
+                  on a.asset_key_type = 'isin'
+                 and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
+                join asset_daily_prices p
+                  on p.asset_id = a.id
+                 and p.provider = m.provider
+                order by m.instrument_id, m.provider, m.symbol, p.price_date desc, p.updated_at desc
             )
             select
                 m.id,
@@ -1878,8 +2134,8 @@ export async function listAdminMarketSymbolMappingsOverviewRows(): Promise<Admin
                 (lp.latest_price_date is not null) as has_price_data,
                 lp.latest_price_date,
                 lp.latest_close
-            from market_symbol_mappings m
-            join market_instruments i on i.id = m.instrument_id
+            from asset_symbol_mappings m
+            join assets i on i.id = m.instrument_id
             left join latest_price lp
               on lp.instrument_id = m.instrument_id
              and lp.provider = m.provider
@@ -1919,14 +2175,14 @@ export async function listAdminMarketDataRunOverviewRows(): Promise<AdminMarketD
                     count(*) filter (where lower(ri.status) in ('failed', 'error'))::int as failed_items,
                     count(*) filter (where lower(ri.status) = 'skipped')::int as skipped_items,
                     count(*) filter (where ri.error_message is not null and btrim(ri.error_message) <> '')::int as error_count
-                from market_data_run_items ri
+                from reference_data_import_run_items ri
                 group by ri.run_id
             ),
             latest_item_error as (
                 select distinct on (ri.run_id)
                     ri.run_id,
                     ri.error_message
-                from market_data_run_items ri
+                from reference_data_import_run_items ri
                 where ri.error_message is not null and btrim(ri.error_message) <> ''
                 order by ri.run_id, ri.id desc
             )
@@ -1947,7 +2203,7 @@ export async function listAdminMarketDataRunOverviewRows(): Promise<AdminMarketD
                 coalesce(c.skipped_items, 0) as skipped_items,
                 coalesce(c.error_count, 0) as error_count,
                 coalesce(e.error_message, r.error_message) as latest_error_message
-            from market_data_runs r
+            from reference_data_import_runs r
             left join run_item_counts c on c.run_id = r.id
             left join latest_item_error e on e.run_id = r.id
             order by r.started_at desc nulls last, r.id desc`,
@@ -1979,8 +2235,8 @@ export async function listVerifiedMappingsForPromotion(provider = "yfinance", is
         const normalizedIsin = isin ? assertIsin(isin) : null;
         const result = await queryPostgres<Record<string, unknown>>(
             `select i.isin, i.name, m.provider, m.symbol, m.exchange, m.currency, m.is_primary, m.is_active, m.verified_at, m.notes
-             from market_symbol_mappings m
-             join market_instruments i on i.id = m.instrument_id
+             from asset_symbol_mappings m
+             join assets i on i.id = m.instrument_id
              where m.provider = $1
                and m.verified_at is not null
                and m.is_active = true
@@ -2024,10 +2280,10 @@ export async function setPrimarySymbolMappingByIsin(
             await client.query("begin");
             try {
                 await client.query(
-                    `update market_symbol_mappings m
+                    `update asset_symbol_mappings m
                      set is_primary = false,
                          updated_at = now()
-                     from market_instruments i
+                     from assets i
                      where m.instrument_id = i.id
                        and i.isin = $1
                        and m.provider = $2`,
@@ -2035,7 +2291,7 @@ export async function setPrimarySymbolMappingByIsin(
                 );
 
                 await client.query(
-                    `update market_symbol_mappings m
+                    `update asset_symbol_mappings m
                      set is_primary = true,
                          notes = case
                              when $4::text is null then m.notes
@@ -2043,7 +2299,7 @@ export async function setPrimarySymbolMappingByIsin(
                              else left(m.notes || ' | ' || $4::text, 2000)
                          end,
                          updated_at = now()
-                     from market_instruments i
+                     from assets i
                      where m.instrument_id = i.id
                        and i.isin = $1
                        and m.provider = $2
@@ -2075,16 +2331,24 @@ export async function listPrimaryMappingsForBackfill(provider = "yfinance", isin
                 m.exchange,
                 m.currency,
                 exists (
-                    select 1 from market_prices_daily p
-                    where p.instrument_id = i.id
+                    select 1
+                    from assets a
+                    join asset_daily_prices p on p.asset_id = a.id
+                    where a.asset_key_type = 'isin'
+                      and a.asset_key_value = upper(regexp_replace(i.isin, '\\s+', '', 'g'))
                 ) as has_prices,
                 exists (
-                    select 1 from market_actions a
-                    where a.instrument_id = i.id
+                    select 1
+                    from (
+                        select asset_id from dividend_events
+                        union
+                        select asset_id from corporate_action_events
+                    ) a
+                    where a.asset_id = i.id
                 ) as has_actions,
                 m.verified_at
-             from market_symbol_mappings m
-             join market_instruments i on i.id = m.instrument_id
+             from asset_symbol_mappings m
+             join assets i on i.id = m.instrument_id
              where m.provider = $1
                and m.is_primary = true
                and m.is_active = true
@@ -2120,7 +2384,7 @@ export async function upsertSymbolMapping(input: UpsertSymbolMappingInput): Prom
         }
 
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into market_symbol_mappings
+            `insert into asset_symbol_mappings
                 (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
              values
                 ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -2164,7 +2428,7 @@ export async function updateSymbolMappingValidation(input: UpdateSymbolMappingVa
         }
 
         await queryPostgres(
-            `update market_symbol_mappings
+            `update asset_symbol_mappings
              set verified_at = $3,
                  notes = $4,
                  is_active = coalesce($5, is_active),
@@ -2182,14 +2446,36 @@ export async function getDailyPricesByIsin(input: GetDailyPricesInput): Promise<
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `select p.provider, p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume, p.currency, p.source, p.imported_at
-             from market_prices_daily p
-             join market_instruments i on i.id = p.instrument_id
-             where i.isin = $1
+            `select
+                p.provider,
+                coalesce(m.provider_symbol, '') as symbol,
+                p.price_date,
+                p.open_price,
+                p.high_price,
+                p.low_price,
+                p.close_price,
+                p.adjusted_close_price,
+                p.volume,
+                p.currency,
+                p.provider as source,
+                p.updated_at as imported_at
+             from assets a
+             join asset_daily_prices p on p.asset_id = a.id
+             left join lateral (
+                select provider_symbol
+                from asset_symbol_mappings m
+                where m.asset_id = a.id
+                  and m.provider = p.provider
+                  and m.is_active = true
+                order by m.is_primary desc, m.verified_at desc nulls last, m.updated_at desc
+                limit 1
+             ) m on true
+             where a.asset_key_type = 'isin'
+               and a.asset_key_value = $1
                and ($2::text is null or p.provider = $2)
-               and ($3::date is null or p.date >= $3::date)
-               and ($4::date is null or p.date <= $4::date)
-             order by p.date asc`,
+               and ($3::date is null or p.price_date >= $3::date)
+               and ($4::date is null or p.price_date <= $4::date)
+             order by p.price_date asc`,
             [normalizedIsin, input.provider ?? null, input.from ?? null, input.to ?? null],
         );
         return result.rows.map((row) => mapPriceRow(row));
@@ -2205,10 +2491,11 @@ export async function getLatestDailyPriceDateByIsin(input: {
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `select max(p.date) as latest_date
-             from market_prices_daily p
-             join market_instruments i on i.id = p.instrument_id
-             where i.isin = $1
+            `select max(p.price_date) as latest_date
+             from assets a
+             join asset_daily_prices p on p.asset_id = a.id
+             where a.asset_key_type = 'isin'
+               and a.asset_key_value = $1
                and ($2::text is null or p.provider = $2)`,
             [normalizedIsin, input.provider ?? null],
         );
@@ -2225,8 +2512,9 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
             return { upserted: 0 };
         }
 
-        const instrument = await upsertInstrument({ isin: input.isin, currency: input.currency ?? null });
-        const provider = input.provider.trim();
+        await upsertInstrument({ isin: input.isin, currency: input.currency ?? null });
+        const normalizedIsin = assertIsin(input.isin);
+        const provider = input.provider.trim().toLowerCase();
         const symbol = input.symbol.trim().toUpperCase();
         if (!provider || !symbol) {
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
@@ -2235,32 +2523,70 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
         await withPostgresClient(async (client) => {
             await client.query("begin");
             try {
+                const assetResult = await client.query<Record<string, unknown>>(
+                    `insert into assets
+                        (asset_key_type, asset_key_value, isin, currency)
+                     values
+                        ('isin', $1, $1, $2)
+                     on conflict (asset_key_type, asset_key_value)
+                     do update set
+                        isin = excluded.isin,
+                        currency = coalesce(excluded.currency, assets.currency),
+                        updated_at = now()
+                     returning id`,
+                    [normalizedIsin, input.currency ?? null],
+                );
+                const assetId = String(assetResult.rows[0]?.id);
+
+                await client.query(
+                    `update asset_symbol_mappings
+                     set asset_id = $1,
+                         currency = $4,
+                         is_primary = true,
+                         is_active = true,
+                         updated_at = now()
+                     where provider = $2
+                       and provider_symbol = $3
+                       and coalesce(exchange, '') = ''`,
+                    [assetId, provider, symbol, input.currency ?? null],
+                );
+                await client.query(
+                    `insert into asset_symbol_mappings
+                        (asset_id, provider, provider_symbol, currency, is_primary, is_active)
+                     select $1, $2, $3, $4, true, true
+                     where not exists (
+                        select 1
+                        from asset_symbol_mappings
+                        where provider = $2
+                          and provider_symbol = $3
+                          and coalesce(exchange, '') = ''
+                     )`,
+                    [assetId, provider, symbol, input.currency ?? null],
+                );
+
                 for (const point of input.points) {
                     const close = Number(point.close);
                     if (!Number.isFinite(close)) {
                         continue;
                     }
                     await client.query(
-                        `insert into market_prices_daily
-                            (instrument_id, provider, symbol, date, open, high, low, close, adj_close, volume, currency, source)
+                        `insert into asset_daily_prices
+                            (asset_id, provider, price_date, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency)
                          values
-                            ($1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11, $12)
-                         on conflict (instrument_id, provider, date)
+                            ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10)
+                         on conflict (asset_id, provider, price_date)
                          do update set
-                            symbol = excluded.symbol,
-                            open = excluded.open,
-                            high = excluded.high,
-                            low = excluded.low,
-                            close = excluded.close,
-                            adj_close = excluded.adj_close,
+                            open_price = excluded.open_price,
+                            high_price = excluded.high_price,
+                            low_price = excluded.low_price,
+                            close_price = excluded.close_price,
+                            adjusted_close_price = excluded.adjusted_close_price,
                             volume = excluded.volume,
                             currency = excluded.currency,
-                            source = excluded.source,
-                            imported_at = now()`,
+                            updated_at = now()`,
                         [
-                            instrument.id,
+                            assetId,
                             provider,
-                            symbol,
                             toDateString(point.date),
                             toNullableNumber(point.open),
                             toNullableNumber(point.high),
@@ -2269,7 +2595,6 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
                             toNullableNumber(point.adjClose),
                             toNullableNumber(point.volume),
                             point.currency ?? input.currency ?? null,
-                            input.source ?? null,
                         ],
                     );
                 }
@@ -2290,14 +2615,42 @@ export async function getMarketActionsByIsin(input: GetMarketActionsInput): Prom
     try {
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
-            `select a.action_type, a.date, a.amount, a.ratio, a.currency, a.source, a.imported_at
-             from market_actions a
-             join market_instruments i on i.id = a.instrument_id
-             where i.isin = $1
-               and ($2::text is null or a.provider = $2)
-               and ($3::date is null or a.date >= $3::date)
-               and ($4::date is null or a.date <= $4::date)
-             order by a.date asc`,
+            `select action_type, date, amount, ratio, currency, source, imported_at
+             from (
+                select
+                    'dividend'::text as action_type,
+                    coalesce(d.ex_date, d.pay_date, d.record_date, d.declaration_date) as date,
+                    d.amount,
+                    null::text as ratio,
+                    d.currency,
+                    d.provider as source,
+                    d.created_at as imported_at
+                from dividend_events d
+                join assets i on i.id = d.asset_id
+                where i.isin = $1
+                  and ($2::text is null or d.provider = $2)
+                  and ($3::date is null or coalesce(d.ex_date, d.pay_date, d.record_date, d.declaration_date) >= $3::date)
+                  and ($4::date is null or coalesce(d.ex_date, d.pay_date, d.record_date, d.declaration_date) <= $4::date)
+                union all
+                select
+                    c.action_type,
+                    coalesce(c.effective_date, c.announced_date) as date,
+                    c.cash_component as amount,
+                    case
+                        when c.ratio_from is not null and c.ratio_to is not null then c.ratio_from::text || ':' || c.ratio_to::text
+                        else null
+                    end as ratio,
+                    c.currency,
+                    c.provider as source,
+                    c.created_at as imported_at
+                from corporate_action_events c
+                join assets i on i.id = c.asset_id
+                where i.isin = $1
+                  and ($2::text is null or c.provider = $2)
+                  and ($3::date is null or coalesce(c.effective_date, c.announced_date) >= $3::date)
+                  and ($4::date is null or coalesce(c.effective_date, c.announced_date) <= $4::date)
+             ) actions
+             order by date asc`,
             [normalizedIsin, input.provider ?? null, input.from ?? null, input.to ?? null],
         );
         return result.rows.map((row) => mapActionRow(row));
@@ -2327,29 +2680,53 @@ export async function upsertMarketActions(input: UpsertMarketActionsInput): Prom
                     if (!actionType) {
                         continue;
                     }
+                    const normalizedDate = toDateString(action.date);
+                    const normalizedAmount = toNullableNumber(action.amount);
+                    const normalizedCurrency = action.currency ?? null;
+                    const source = input.source ?? null;
+
+                    if (actionType === "dividend" || actionType === "capital_gain") {
+                        await client.query(
+                            `insert into dividend_events
+                                (asset_id, provider, ex_date, pay_date, record_date, declaration_date, amount, currency, source_run_id, confidence)
+                             values
+                                ($1, $2, $3::date, null, null, null, $4, $5, null, null)
+                             on conflict do nothing`,
+                            [instrument.id, provider, normalizedDate, normalizedAmount, normalizedCurrency],
+                        );
+                        continue;
+                    }
+
+                    let ratioFrom: number | null = null;
+                    let ratioTo: number | null = null;
+                    if (typeof action.ratio === "string") {
+                        const ratioParts = action.ratio
+                            .split(/[:/]/)
+                            .map((part) => part.trim())
+                            .filter(Boolean)
+                            .map((part) => Number(part));
+                        if (ratioParts.length === 2 && ratioParts.every((part) => Number.isFinite(part))) {
+                            ratioFrom = ratioParts[0];
+                            ratioTo = ratioParts[1];
+                        }
+                    }
+
                     await client.query(
-                        `insert into market_actions
-                            (instrument_id, provider, symbol, action_type, date, amount, ratio, currency, source)
+                        `insert into corporate_action_events
+                            (asset_id, provider, action_type, effective_date, announced_date, ratio_from, ratio_to, cash_component, currency, source_run_id, confidence)
                          values
-                            ($1, $2, $3, $4, $5::date, $6, $7, $8, $9)
-                         on conflict (instrument_id, provider, action_type, date)
-                         do update set
-                            symbol = excluded.symbol,
-                            amount = excluded.amount,
-                            ratio = excluded.ratio,
-                            currency = excluded.currency,
-                            source = excluded.source,
-                            imported_at = now()`,
+                            ($1, $2, $3, $4::date, null, $5, $6, $7, $8, null, null)
+                         on conflict do nothing`,
                         [
                             instrument.id,
                             provider,
-                            symbol,
                             actionType,
-                            toDateString(action.date),
-                            toNullableNumber(action.amount),
-                            action.ratio ?? null,
-                            action.currency ?? null,
-                            input.source ?? null,
+                            normalizedDate,
+                            ratioFrom,
+                            ratioTo,
+                            normalizedAmount,
+                            normalizedCurrency,
+                            source,
                         ],
                     );
                 }
@@ -2369,7 +2746,7 @@ export async function upsertMarketActions(input: UpsertMarketActionsInput): Prom
 export async function createMarketDataRun(input: CreateMarketDataRunInput): Promise<{ runId: string }> {
     try {
         const result = await queryPostgres<{ id: string }>(
-            `insert into market_data_runs (provider, run_type, status, requested_symbols)
+            `insert into reference_data_import_runs (provider, run_type, status, requested_symbols)
              values ($1, $2, 'running', $3)
              returning id`,
             [input.provider.trim(), input.runType.trim(), input.requestedSymbols],
@@ -2383,7 +2760,7 @@ export async function createMarketDataRun(input: CreateMarketDataRunInput): Prom
 export async function finishMarketDataRun(input: FinishMarketDataRunInput): Promise<void> {
     try {
         await queryPostgres(
-            `update market_data_runs
+            `update reference_data_import_runs
              set status = $2,
                  finished_at = now(),
                  successful_symbols = $3,
@@ -2406,7 +2783,7 @@ export async function finishMarketDataRun(input: FinishMarketDataRunInput): Prom
 export async function addMarketDataRunItem(input: AddMarketDataRunItemInput): Promise<{ itemId: string }> {
     try {
         const result = await queryPostgres<{ id: string }>(
-            `insert into market_data_run_items
+            `insert into reference_data_import_run_items
                 (run_id, instrument_id, provider, symbol, status, points_imported, actions_imported, first_date, last_date, error_message)
              values
                 ($1, $2, $3, $4, $5, $6, $7, $8::date, $9::date, $10)

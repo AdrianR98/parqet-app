@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import nextEnv from "@next/env";
@@ -143,7 +143,11 @@ async function closeDbPool() {
 async function run() {
     const options = parseArgs(process.argv.slice(2));
 
-    const { listPrimaryMappingsForBackfill } = await import("../src/lib/market-data/db/repository-core.ts");
+    const {
+        listPrimaryMappingsForBackfill,
+        upsertDailyPrices,
+        upsertMarketActions,
+    } = await import("../src/lib/market-data/db/repository-core.ts");
 
     const rows = await listPrimaryMappingsForBackfill(options.provider, options.isin ?? undefined);
 
@@ -206,19 +210,52 @@ async function run() {
                     `yfinance export ${row.isin}/${row.symbol}`,
                 );
 
-                await runCommand(
-                    "node",
-                    [
-                        "scripts/import-market-data-json.mjs",
-                        outPath,
-                        "--batch-size",
-                        String(options.batchSize),
-                    ],
-                    `JSON import ${row.isin}/${row.symbol}`,
-                );
+                const payload = JSON.parse(await readFile(outPath, "utf8"));
+                const prices = Array.isArray(payload?.prices) ? payload.prices : [];
+                const actions = Array.isArray(payload?.actions) ? payload.actions : [];
+
+                const pricesResult = await upsertDailyPrices({
+                    isin: row.isin,
+                    provider: options.provider,
+                    symbol: row.symbol,
+                    currency: row.currency ?? null,
+                    source: options.provider,
+                    points: prices
+                        .filter((point) => point && Number.isFinite(Number(point.close)))
+                        .map((point) => ({
+                            date: String(point.date),
+                            open: point.open ?? null,
+                            high: point.high ?? null,
+                            low: point.low ?? null,
+                            close: Number(point.close),
+                            adjClose: point.adjClose ?? null,
+                            volume: point.volume ?? null,
+                            currency: point.currency ?? row.currency ?? null,
+                        })),
+                });
+
+                const actionsResult = await upsertMarketActions({
+                    isin: row.isin,
+                    provider: options.provider,
+                    symbol: row.symbol,
+                    source: options.provider,
+                    actions: actions
+                        .filter((action) => action && String(action.actionType ?? "").trim() && String(action.date ?? "").trim())
+                        .map((action) => ({
+                            actionType: String(action.actionType ?? "").toLowerCase(),
+                            date: String(action.date),
+                            amount: action.amount ?? null,
+                            ratioFrom: action.ratioFrom ?? null,
+                            ratioTo: action.ratioTo ?? null,
+                            currency: action.currency ?? row.currency ?? null,
+                            notes: action.notes ?? null,
+                        })),
+                });
 
                 successCount += 1;
-                console.log(`Backfill erfolgreich: ${row.isin} / ${row.symbol}`);
+                console.log(
+                    `Backfill erfolgreich: ${row.isin} / ${row.symbol} (prices=${pricesResult.upserted}, actions=${actionsResult.upserted})`,
+                );
             } catch (error) {
                 failedCount += 1;
                 console.log(`Backfill fehlgeschlagen: ${row.isin} / ${row.symbol} (${safeMessage(error)})`);

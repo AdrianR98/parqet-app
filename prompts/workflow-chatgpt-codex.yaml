@@ -47,7 +47,7 @@ agent_maturity_levels:
 
 agent_global_rules:
   - No agent receives unrestricted authority.
-  - No agent may write directly to main in Phase 0.1.
+  - No agent may write directly to main
   - Future main-write exceptions require a separate issue and likely ADR.
   - Every agent must stop on privacy or secret suspicion.
   - No agent may enrich, copy, commit or expose private data.
@@ -72,7 +72,7 @@ agents:
       - exceed scope without permission
   Issue-Agent:
     type: Automation-Agent
-    current_level: limited automated metadata in Phase 0.1 after implementation
+    current_level: limited automated metadata
     automatic_triggers:
       - issues.opened
       - issues.edited
@@ -102,7 +102,7 @@ agents:
       - modify repository files
   Translation-Agent:
     type: Automation-Agent
-    current_level: own PR after P0.1-6 implementation
+    current_level: own PR after separate activation
     trigger_v1: workflow_dispatch only
     allowed_outputs:
       - branch
@@ -197,7 +197,7 @@ github:
     - Update PR body after review fixes when scope, files, verification, risks or known gaps changed.
   reviews:
     levels:
-      Mini: small docs/prompt/text/template changes without app code
+      Mini: small docs/prompt/text fixes without app code
       Normal: standard code, medium docs/governance, scripts, package.json, UI
       Full: Auth/OAuth, tokens, Parqet API, data pipeline, persistence, caching, security, Branch Protection, large refactors
     categories:
@@ -222,8 +222,6 @@ documentation:
     - README.md
     - CHANGELOG.md
     - docs/PROJECT_STATUS.md
-    - docs/PHASE_PLAN.md
-    - docs/ROADMAP.md
     - docs/PROJECT_PRODUCT_BRIEF.md
     - docs/ARCHITECTURE.md
     - docs/adr/**
@@ -235,11 +233,3 @@ documentation:
     - Docs
     - Governance
     - Security
-
-phase_1_gate:
-  - Phase-1 specification may be prepared during P0.1.
-  - Phase-1 implementation starts only after P0.1 is merged.
-  - Phase 1 starts with product goal, then audits current app against that goal.
-  - Existing app remains stable baseline during Phase 1.
-  - No second activity/asset pipeline before Phase 1 decision or ADR.
-  - First product implementation starts only after an Implementation Entry Checklist.

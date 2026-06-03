@@ -98,7 +98,7 @@ async function main() {
         try {
             await client.query("begin");
             const instrument = await client.query(
-                `insert into market_instruments (isin, name, asset_type, currency)
+                `insert into assets (isin, name, asset_type, currency)
                  values ($1, $2, $3, $4)
                  on conflict (isin)
                  do update set
@@ -116,7 +116,7 @@ async function main() {
             }
 
             await client.query(
-                `insert into market_symbol_mappings
+                `insert into asset_symbol_mappings
                     (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, notes)
                  values
                     ($1, $2, $3, $4, $5, $6, $7, $8)

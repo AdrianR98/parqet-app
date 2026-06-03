@@ -1,6 +1,6 @@
 # Development Workflow
 
-Status: active after Phase 0
+Status: active
 
 ## Operating Model
 
@@ -13,8 +13,6 @@ The repository uses a controlled collaboration model:
 
 English is the source-of-truth language. German translation files are maintained through the Translation-Agent process after activation.
 
-Phase 0.1 hardens the workflow rules before Phase 1 product and architecture work begins.
-
 ## Source Of Truth
 
 Operational rules live in `prompts/*.yaml`.
@@ -26,8 +24,6 @@ Human-readable workflow rules live in this document.
 Issues contain work-specific details. Chat conversations are used for specification and review, but merged repository files become the durable source of truth.
 
 If YAML and this document conflict for Codex or agent behavior, the YAML rule governs operationally and the conflict must be fixed.
-
-The GitHub Project Board is a working view, not the source of truth. Board setup and label guidance live in `docs/GITHUB_PROJECT_BOARD.md`.
 
 ## API Budget Principle
 
@@ -83,7 +79,6 @@ Before GitHub actions such as issue updates, PR creation, review comments, branc
 - `.github/ISSUE_TEMPLATE/*`
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - `docs/DEVELOPMENT_WORKFLOW.md`
-- `docs/PHASE_PLAN.md`
 - `docs/V1_GUARDRAILS.md`
 
 Every non-trivial Codex task must include:
@@ -140,15 +135,13 @@ existing PR branch
 main write
 ```
 
-No agent receives unrestricted authority. No agent may write directly to `main` in Phase 0.1. Future `main write` exceptions require a separate issue and likely ADR.
-
 All agents stop on privacy or secret suspicion. No agent may enrich, copy, commit or expose private data.
 
 ### Current Agents
 
 - Codex: bounded implementation agent; never creates PRs and never merges.
-- Issue-Agent: limited metadata Automation-Agent after implementation; see P0.1 rules before use.
-- Translation-Agent: manually started workflow after P0.1-6; may create Draft translation PRs.
+- Issue-Agent: limited metadata Automation-Agent after separate activation.
+- Translation-Agent: manually started workflow after separate activation; may create Draft translation PRs.
 - Docs-Agent: ChatGPT role for documentation impact checks; no app code.
 - Review-Agent: ChatGPT role for PR reviews; may comment or merge only when explicitly instructed.
 - CI-Agent: documented/manual role; may later summarize CI failures; no automatic fixes.
@@ -205,7 +198,6 @@ Complex Sub-Issues should be specified in ChatGPT question/answer format before 
 Issue categories include:
 
 ```text
-phase
 feature
 bug
 tech-debt
@@ -236,22 +228,6 @@ Use `Fixes #...` only when the PR fully closes the issue. Use `Refs #...` for pa
 ChatGPT creates Codex prompts separately from issues. Codex prompts are not stored as issue comments.
 
 Do not close issues without verifying implementation against acceptance criteria. Closed issues may be corrected during cleanup when title, body or status no longer matches the actual project state.
-
-## GitHub Project Board
-
-The GitHub Project Board is the working view for active Parqet App work. It does not replace issue bodies, Parent/Sub-Issue checklists or PR review history.
-
-Detailed Project Board setup, allowed fields, label allowlist, automations and manual fallback are documented in `docs/GITHUB_PROJECT_BOARD.md`.
-
-Project Board v1 rules:
-
-- Add open issues, including Parent-Issues and Sub-Issues.
-- Do not add PRs to the Project in v1.
-- Use Status, Phase and Priority fields.
-- Use labels and issue content for category/type.
-- Use `blocked` label or issue text instead of a separate Blocked status.
-- Use GitHub-native automation only for low-risk board bookkeeping.
-- Custom Issue-Agent automation must follow the agent permission rules.
 
 ## Pull Requests
 
@@ -291,7 +267,7 @@ For API/data-facing changes, reviewers must look for hidden provider calls, broa
 
 Before v1 release-readiness decisions, reviewers should use `docs/V1_API_BUDGET_QA_CHECKLIST.md` to manually verify provider-call-safe local UI flows without requiring real provider calls.
 
-After larger PRs, check whether roadmap, phase plan, docs, issues and changelog need updates.
+After larger PRs, check whether durable docs, issues and changelog need updates.
 
 ## Review Levels
 
@@ -337,12 +313,10 @@ Mini docs/text fixes normally do not need changelog.
 Check documentation as relevant:
 
 - `README.md` for setup, usage, entrypoint or central links.
-- `docs/PROJECT_STATUS.md` for phase changes, status, next steps or risks.
-- `docs/PHASE_PLAN.md` for Parent-Issues and phase/sub-issue planning.
+- `docs/PROJECT_STATUS.md` for status, next steps or risks.
 - `docs/V1_GUARDRAILS.md` for v1 data, API-budget, privacy, diagnostics and export rules.
 - `docs/V1_API_BUDGET_QA_CHECKLIST.md` for manual provider-call-safe UI flow verification before v1 release readiness.
 - `docs/LOCAL_QUICKSTART.md` for local usage and explicit refresh guidance.
-- `docs/ROADMAP.md` for larger direction or priority changes.
 - `docs/PROJECT_PRODUCT_BRIEF.md` for product goal/scope changes.
 - `docs/ARCHITECTURE.md` for current architecture/target-state changes.
 - ADRs for durable architecture, workflow or data decisions, including `docs/adr/0005-v1-snapshot-cache.md` for the v1 snapshot cache and production storage boundary.
@@ -438,14 +412,6 @@ The Vercel ignored-build script may be expanded later with review and reasoning.
 - If private data appears in a diff, the PR is blocked.
 - Auth/API/token changes require Full Review.
 
-## Architecture And Phase 1
+## Architecture
 
 Use ADRs for major architecture, workflow and data decisions. ADRs are English only and live in `docs/adr/`.
-
-The existing Parqet pipeline remains a guardrail: do not create a second activity or asset pipeline before Phase 1 decides otherwise or an ADR allows it.
-
-Phase-1 specification may be prepared during P0.1. Phase-1 implementation starts only after P0.1 is merged.
-
-Phase 1 starts with product goal and then audits the current app against that goal. First product implementation starts only after an Implementation Entry Checklist.
-
-API budget minimization is part of the architecture gate for Phase 1 and later phases. New data flows must avoid unnecessary provider calls and document cache, refresh and retry behavior.

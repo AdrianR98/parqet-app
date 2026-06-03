@@ -317,8 +317,8 @@ async function run() {
     console.log(`rows parsed: ${summary.rowsParsed}`);
     console.log(`valid ISIN rows: ${summary.validIsinRows}`);
     console.log(`active rows included: ${summary.activeRowsIncluded}`);
-    console.log(`matched existing market_instruments count: ${summary.matchedExistingMarketInstruments}`);
-    console.log(`rows that could enrich market_instruments:`);
+    console.log(`matched existing assets count: ${summary.matchedExistingMarketInstruments}`);
+    console.log(`rows that could enrich assets:`);
     console.log(`  name updates: ${summary.possibleEnrichments.nameUpdates}`);
     console.log(`  wkn updates: ${summary.possibleEnrichments.wknUpdates}`);
     console.log(`  currency updates: ${summary.possibleEnrichments.currencyUpdates}`);

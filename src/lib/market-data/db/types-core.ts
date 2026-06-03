@@ -1,6 +1,50 @@
 
 export type DbMarketDataProvider = string;
 
+export type AssetKeyType = "isin" | "wkn" | "provider_symbol" | "custom";
+
+export type DbAsset = {
+    id: string;
+    assetKeyType: string;
+    assetKeyValue: string;
+    isin: string | null;
+    wkn: string | null;
+    displayName: string | null;
+    assetType: string | null;
+    currency: string | null;
+    exchange: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type FindAssetInput =
+    | { isin: string }
+    | { assetKeyType: string; assetKeyValue: string };
+
+export type AssetLatestMarketPriceSnapshot = {
+    assetId: string;
+    assetKeyType: string;
+    assetKeyValue: string;
+    isin: string | null;
+    provider: string;
+    priceAmount: number;
+    currency: string | null;
+    priceDate: string;
+    priceTimestamp: string | null;
+    updatedAt: string;
+};
+
+export type FindLatestMarketPriceByAssetKeyInput = {
+    assetKeyType: string;
+    assetKeyValue: string;
+    provider?: string;
+};
+
+export type FindLatestMarketPricesByAssetKeysInput = {
+    keys: Array<{ assetKeyType: string; assetKeyValue: string }>;
+    provider?: string;
+};
+
 export type DbMarketInstrument = {
     id: string;
     isin: string;

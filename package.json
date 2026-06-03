@@ -15,7 +15,6 @@
     "vercel:ignore-build": "node scripts/vercel-ignore-build.mjs",
     "db:market:migrate": "tsx scripts/run-market-data-migrations.mjs",
     "db:market:seed:realty-income": "tsx scripts/seed-realty-income-market-data-mapping.mjs",
-    "db:market:import:json": "tsx scripts/import-market-data-json.mjs",
     "db:market:match:symbols": "tsx scripts/match-stock-symbol-candidates.mjs",
     "db:market:create:xetra-candidates": "tsx scripts/create-xetra-symbol-candidates.mjs",
     "db:market:sync:instruments": "tsx scripts/sync-market-instruments-from-local-assets.mjs",

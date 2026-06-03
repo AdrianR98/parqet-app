@@ -23,12 +23,12 @@ Current operator workflow details are documented in [docs/MARKET_DATA_PIPELINE.m
 - [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/MARKET_DATA_PIPELINE.md](docs/MARKET_DATA_PIPELINE.md)
-- [docs/ROADMAP.md](docs/ROADMAP.md)
 - [docs/PIPELINE_INVENTORY.md](docs/PIPELINE_INVENTORY.md)
 - [docs/V1_GUARDRAILS.md](docs/V1_GUARDRAILS.md)
 - [docs/AI_WORKFLOW_ADOPTION.md](docs/AI_WORKFLOW_ADOPTION.md)
 - [docs/DOMAIN_LANGUAGE.md](docs/DOMAIN_LANGUAGE.md)
 - [docs/DOMAIN_MODEL_BOUNDARIES.md](docs/DOMAIN_MODEL_BOUNDARIES.md)
+- [docs/DATABASE_ASSET_MODEL_PLAN.md](docs/DATABASE_ASSET_MODEL_PLAN.md)
 
 ## Local Development
 

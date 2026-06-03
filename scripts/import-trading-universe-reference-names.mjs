@@ -393,7 +393,7 @@ async function run() {
     console.log(`rows parsed: ${rowsParsed}`);
     console.log(`valid ISIN/name rows: ${validRows}`);
     console.log(`duplicate ISINs collapsed: ${duplicateCollapsed}`);
-    console.log(`matched existing market_instruments: ${matchedExisting}`);
+    console.log(`matched existing assets: ${matchedExisting}`);
     console.log(`reference rows planned/upserted: ${normalizedRows.length}`);
     console.log("enrichment opportunities:");
     console.log(`  name updates: ${opportunities.nameUpdates}`);
