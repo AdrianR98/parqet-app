@@ -348,7 +348,7 @@ function resolveInstrumentMetadataForIsin(input: {
   if (!marketMetadata) {
     return {
       status: "missing",
-      error: `Keine Stammdaten in market_instruments für ISIN ${normalizedIsin}`,
+      error: `Keine Asset-Stammdaten für ISIN ${normalizedIsin}`,
       instrumentDisplayName: null,
       instrumentName: null,
       wkn: null,
@@ -381,7 +381,7 @@ function resolveInstrumentMetadataForIsin(input: {
     error:
       status === "ok"
         ? null
-        : `Instrumentenname fehlt in market_instruments für ISIN ${normalizedIsin}`,
+        : `Instrumentenname fehlt in Asset-Stammdaten für ISIN ${normalizedIsin}`,
     instrumentDisplayName: finalDisplayName,
     instrumentName: finalName,
     wkn: normalizeWeakText(marketMetadata.wkn),
@@ -741,12 +741,12 @@ export async function GET(req: Request) {
         marketMetadataDbAvailable = false;
         if (error instanceof MarketDataRepositoryError) {
           console.warn(
-            "[parqet-assets] market_instruments metadata overlay unavailable:",
+            "[parqet-assets] asset metadata overlay unavailable:",
             error.code,
           );
         } else {
           console.warn(
-            "[parqet-assets] market_instruments metadata overlay failed",
+            "[parqet-assets] asset metadata overlay failed",
           );
         }
       }

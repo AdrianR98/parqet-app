@@ -71,7 +71,7 @@ export function buildGlobalAssetViewModelsFromProductReadModel(
       instrumentMetadataError:
         instrumentMetadataStatus === "ok"
           ? null
-          : `Instrumentenname fehlt in market_instruments für ISIN ${isin}`,
+          : `Asset-Stammdaten fehlen für ISIN ${isin}`,
       instrument: (row as { instrument?: GlobalAssetViewModel["instrument"] }).instrument ?? null,
       metadata: null,
       externalMetadata: null,
@@ -79,4 +79,3 @@ export function buildGlobalAssetViewModelsFromProductReadModel(
     };
   });
 }
-

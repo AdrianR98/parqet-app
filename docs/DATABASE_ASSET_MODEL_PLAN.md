@@ -666,23 +666,21 @@ Release recommendation status:
 - Local/test validation is successful.
 - Production migration rollout is still not recommended until repository/service cutover and transition checks are stable.
 
-## 22) Legacy-to-target backfill script (Phase 4)
+## 22) Legacy-to-target backfill script (retired)
 
-Script:
+Historical note:
 
-- `npm run db:market:backfill:asset-reference`
-- dry-run: `npm run db:market:backfill:asset-reference -- --dry-run`
+- The one-shot backfill helper used for local validation existed as `scripts/backfill-asset-reference-data.mjs`.
+- It has now been deleted after successful backfill validation.
+- The legacy JSON import helper `scripts/import-market-data-json.mjs` was also deleted as part of the final legacy-script cleanup.
+- The validated results are retained in `docs/PHASE4_BACKFILL_VALIDATION.md`.
 
-File:
-
-- `scripts/backfill-asset-reference-data.mjs`
-
-Behavior:
+Behavior that was validated before deletion:
 
 - Idempotent legacy-to-target upsert/copy flow from `market_*` to new Asset/reference-data tables.
-- Default mode writes and commits.
-- `--dry-run` executes the same mapping/upsert logic inside one DB transaction and rolls it back.
-- Legacy tables are never dropped, truncated, or mutated.
+- Default mode wrote and committed.
+- `--dry-run` executed the same mapping/upsert logic inside one DB transaction and rolled it back.
+- Legacy tables were never dropped, truncated, or mutated.
 
 Implemented source -> target mapping:
 
@@ -704,7 +702,7 @@ Conservative unresolved/skip rules:
 
 Transition note:
 
-- Backfill exists to populate new tables for staged cutover/parity checks.
+- Backfill has already populated the new tables for staged cutover/parity checks.
 - Legacy `market_*` tables remain in place until repository/admin/runtime parity is verified.
 
 ## 23) Runtime price-read cutover after dropping `market_prices_daily`
