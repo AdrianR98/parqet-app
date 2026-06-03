@@ -16,12 +16,16 @@ In plain language: PRM is the version of the data that the UI should read, inste
 ```mermaid
 flowchart LR
     A["Provider / Parqet data"] --> B["Normalization\ncanonical activities, amounts, identifiers"]
-    B --> C["Aggregation\nasset grouping, scoped totals, warnings"]
-    C --> D["Calculations\ndomain KPI formulas and variants"]
-    D --> E["Product Read Model\nready metrics + source/freshness/confidence metadata"]
+    B --> C["Aggregation and scope building\nasset and portfolio grouping"]
+    D["Calculation modules\ndomain KPI formulas and variants"] --> C
+    C --> E["Product Read Model\nready metrics + source/freshness/confidence metadata"]
     E --> F["View Models\nscreen shaping, formatting inputs, selection"]
     F --> G["UI\nDashboard, Asset Table, Asset Detail, Reports"]
 ```
+
+Normalization creates the canonical activity records first.
+Aggregation then groups those activities into asset- and portfolio-level scopes, while using shared calculation/domain formulas from calculation modules where KPI math is required.
+PRM is the output contract of that work: it should expose ready metrics plus the metadata needed to explain them.
 
 ## Boundary rules
 
@@ -126,6 +130,8 @@ Examples:
 ### 3. Aggregation
 
 Aggregation should group normalized activities into asset-level and scoped portfolio structures.
+It is not a separate business-truth layer that replaces calculation modules.
+Instead, aggregation should call shared calculation/domain formulas when KPI math is required, then assemble the scoped result and related warnings.
 It may also produce safe totals when the calculation is a simple scoped sum and no extra business policy is needed.
 
 Typical aggregation outputs:
@@ -148,7 +154,7 @@ This includes:
 - denominator policies
 - variant selection rules
 
-This is the layer that turns grouped inputs into canonical KPI outputs.
+This is the layer that owns the canonical formulas that aggregation and PRM-backed projections should reuse.
 
 ### 5. Product Read Model
 

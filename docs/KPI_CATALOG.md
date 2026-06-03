@@ -46,7 +46,8 @@ It is a target contract, not a claim that every KPI is already correct in the ap
 - SecurityLineage behavior: `gated`
 - currency/FX assumptions: Report in one display currency; block or explicitly convert mixed currencies.
 - confidence/freshness/blocker rules: Fresh market price required for `high`; stale price downgrades confidence; missing price blocks the asset unless an explicit fallback variant is chosen.
-- UI relevance: `Dashboard Hero`, `Asset Table`, `Asset Detail`, `Reports`
+- UI relevance: `Dashboard Hero`, `Reports`
+- UI relevance note: If a future table total is shown, it should be an `Asset Table aggregate/footer` use, not an asset-row or asset-detail KPI.
 - implementation target layer: `calculations`
 - known current gaps: Current aggregation path uses `marketPrice: null` and may effectively fall back to `latestTradePrice` semantics instead of a required market-price input.
 
@@ -222,7 +223,8 @@ It is a target contract, not a claim that every KPI is already correct in the ap
 - SecurityLineage behavior: `supported`
 - currency/FX assumptions: Same mixed-currency rule as net dividends.
 - confidence/freshness/blocker rules: Block or downgrade when only net values exist and gross cannot be reconstructed safely.
-- UI relevance: `Asset Detail`, `Reports`, `Settings-configurable`
+- UI relevance: `Dashboard Hero`, `Asset Detail`, `Reports`, `Settings-configurable`
+- UI relevance note: The current Hero `Investiert` card is a valid target, but the Hero must expose or explain which invested-capital variant is selected because this KPI is configurable by nature.
 - implementation target layer: `aggregation`
 - known current gaps: Gross dividend totals are not exposed as a first-class PRM metric today.
 
