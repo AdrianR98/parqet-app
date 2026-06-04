@@ -658,3 +658,18 @@ export type ReplacePrimaryMappingPriceHistoryInput = {
         currency?: string | null;
     }>;
 };
+
+export type StoreVerifiedSymbolMappingCandidateInput = {
+    instrumentId: string;
+    provider: string;
+    symbol: string;
+    exchange?: string | null;
+    currency?: string | null;
+    notes?: string | null;
+};
+
+export type StoreVerifiedSymbolMappingCandidateResult = {
+    status: "inserted" | "updated";
+    mappingId: string;
+    verifiedAt: string;
+};

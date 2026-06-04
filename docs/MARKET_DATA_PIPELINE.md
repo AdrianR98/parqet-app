@@ -56,6 +56,25 @@ Corporate-action/lineage expansion is future work.
 
 ## `.DE` Primary Preference Workflow
 
+- Stage 1: discover / validate / store `.DE` yfinance candidates.
+- Stage 2: prefer verified `.DE` candidates as primary mappings, with explicit full-history replacement when the primary ticker changes.
+
+### Stage 1: Discover / Validate / Store `.DE` Candidates
+
+- Command: `npm run db:market:discover-de-candidates`
+- Default mode is dry-run only.
+- Dry-run is DB-only analysis:
+  - no DB mutation
+  - no provider calls
+  - reports assets that still have no verified `.DE` yfinance mapping
+  - shows existing yfinance mappings, Xetra/trading-universe/reference rows, and derived unverified `.DE` proposals
+- `--validate` enables explicit yfinance validation for derived proposals.
+- `--write` without `--validate` may store only unverified candidate proposals.
+- `--write --validate` may store verified `.DE` candidates, but does not switch them primary.
+- Candidate discovery must not invent verified `.DE` mappings from guesses. Validation stays explicit and primary switching stays separate.
+
+### Stage 2: Prefer Verified `.DE` Primaries
+
 - Command: `npm run db:market:prefer-de-primary`
 - Default mode is dry-run only.
 - Dry-run is DB-only analysis:
@@ -81,6 +100,10 @@ Corporate-action/lineage expansion is future work.
 
 ### Usage
 
+- Discover missing `.DE` candidates without provider calls: `npm run db:market:discover-de-candidates`
+- Validate derived `.DE` candidates explicitly against yfinance: `npm run db:market:discover-de-candidates -- --validate`
+- Store unverified `.DE` proposals only: `npm run db:market:discover-de-candidates -- --write`
+- Store verified `.DE` candidates after validation: `npm run db:market:discover-de-candidates -- --validate --write`
 - Dry-run: `npm run db:market:prefer-de-primary`
 - Write non-destructive primary changes only: `npm run db:market:prefer-de-primary -- --write`
 - Write with destructive full-history replacement when ticker changes: `npm run db:market:prefer-de-primary -- --write --replace-history`

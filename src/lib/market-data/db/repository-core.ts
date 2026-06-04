@@ -58,6 +58,8 @@ import type {
     ListMarketDataRequestsResult,
     MarketDataRequestStatus,
     RecordMarketDataRequestInput,
+    StoreVerifiedSymbolMappingCandidateInput,
+    StoreVerifiedSymbolMappingCandidateResult,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -2315,6 +2317,83 @@ export async function listVerifiedMappingsForPromotion(provider = "yfinance", is
             verifiedAt: String(row.verified_at),
             notes: row.notes === null ? null : String(row.notes),
         }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function storeVerifiedSymbolMappingCandidate(
+    input: StoreVerifiedSymbolMappingCandidateInput,
+): Promise<StoreVerifiedSymbolMappingCandidateResult> {
+    try {
+        const instrumentId = String(input.instrumentId ?? "").trim();
+        const provider = input.provider.trim().toLowerCase();
+        const symbol = input.symbol.trim().toUpperCase();
+        const noteSuffix = normalizeNonEmptyText(input.notes);
+
+        if (!instrumentId || !provider || !symbol) {
+            throw new MarketDataRepositoryError("invalid_input", "Instrument-ID, Provider oder Symbol fehlt.");
+        }
+
+        const existing = await queryPostgres<Record<string, unknown>>(
+            `select id, notes
+             from asset_symbol_mappings
+             where instrument_id = $1
+               and provider = $2
+               and symbol = $3
+             limit 1`,
+            [instrumentId, provider, symbol],
+        );
+
+        if (existing.rows.length > 0) {
+            const current = existing.rows[0];
+            const mergedNotes =
+                noteSuffix == null
+                    ? null
+                    : current.notes == null
+                        ? noteSuffix
+                        : `${String(current.notes)} | ${noteSuffix}`.slice(0, 2000);
+            const updated = await updateSymbolMappingById({
+                id: String(current.id),
+                exchange: input.exchange ?? null,
+                currency: input.currency ?? null,
+                isActive: true,
+                verifiedAt: new Date().toISOString(),
+                notes: mergedNotes,
+            });
+
+            if (!updated?.verifiedAt) {
+                throw new MarketDataRepositoryError("db_error", "Verifiziertes Mapping konnte nicht aktualisiert werden.");
+            }
+
+            return {
+                status: "updated",
+                mappingId: updated.id,
+                verifiedAt: updated.verifiedAt,
+            };
+        }
+
+        const inserted = await insertManualSymbolMapping({
+            instrumentId,
+            provider,
+            symbol,
+            exchange: input.exchange ?? null,
+            currency: input.currency ?? null,
+            isPrimary: false,
+            isActive: true,
+            verifiedAt: new Date().toISOString(),
+            notes: noteSuffix,
+        });
+
+        if (!inserted?.verifiedAt) {
+            throw new MarketDataRepositoryError("db_error", "Verifiziertes Mapping konnte nicht erstellt werden.");
+        }
+
+        return {
+            status: "inserted",
+            mappingId: inserted.id,
+            verifiedAt: inserted.verifiedAt,
+        };
     } catch (error) {
         handleRepositoryError(error);
     }

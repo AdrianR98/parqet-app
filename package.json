@@ -28,6 +28,7 @@
     "db:market:set:instrument-status": "tsx scripts/set-market-instrument-status.mjs",
     "db:market:set:instrument-metadata": "tsx scripts/set-market-instrument-metadata.mjs",
     "db:market:promote:verified": "tsx scripts/promote-verified-market-symbols.mjs",
+    "db:market:discover-de-candidates": "tsx scripts/discover-de-yfinance-candidates.mjs",
     "db:market:prefer-de-primary": "tsx scripts/prefer-de-yfinance-primary-mappings.mjs",
     "db:market:backfill:primary": "tsx scripts/backfill-primary-market-data.mjs",
     "db:market:update:primary": "tsx scripts/update-primary-market-data-incremental.mjs",
