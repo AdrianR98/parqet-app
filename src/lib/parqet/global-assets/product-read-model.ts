@@ -16,18 +16,26 @@ import {
 } from "../../debug/dev-diagnostics";
 import {
   buildExtendedKpiMoneyMetric,
+  calculateAnnualizedDividendIncome,
   calculateActivityKpis,
   calculateDataConfidenceScore,
+  calculateCurrentDividendYield,
+  calculateDividendYieldOnCost,
   calculateDividendKpis,
+  calculateIncomeReturn,
   calculateMarketPriceFreshness,
   calculateMetadataCompletenessScore,
+  calculatePayoutFrequency,
   calculatePortfolioDataConfidenceScore,
   calculatePortfolioStructureKpis,
   calculatePortfolioWeight,
+  calculatePriceReturnExcludingDividends,
+  calculateTotalReturnIncludingDividends,
   type ExtendedKpiAllocationByAssetTypeMetric,
   type ExtendedKpiMarketPriceFreshnessMetric,
   type ExtendedKpiMetricStatus,
   type ExtendedKpiMoneyMetric,
+  type ExtendedKpiPayoutFrequencyMetric,
   type ExtendedKpiRatioMetric,
 } from "../../calculations/extended-kpi-metrics";
 
@@ -734,6 +742,7 @@ export type ProductReadModelKpiRatioMetric = ExtendedKpiRatioMetric;
 export type ProductReadModelKpiMetricStatus = ExtendedKpiMetricStatus;
 export type ProductReadModelMarketPriceFreshnessMetric = ExtendedKpiMarketPriceFreshnessMetric;
 export type ProductReadModelAllocationByAssetTypeMetric = ExtendedKpiAllocationByAssetTypeMetric;
+export type ProductReadModelPayoutFrequencyMetric = ExtendedKpiPayoutFrequencyMetric;
 
 export type ProductReadModelAssetMetrics = {
   activity?: {
@@ -745,6 +754,15 @@ export type ProductReadModelAssetMetrics = {
   income?: {
     dividendCount?: number;
     lastDividendDate?: string | null;
+    annualizedDividendIncome?: ProductReadModelKpiMoneyMetric;
+    payoutFrequency?: ProductReadModelPayoutFrequencyMetric;
+    dividendYieldOnCost?: ProductReadModelKpiRatioMetric;
+    currentDividendYield?: ProductReadModelKpiRatioMetric;
+  };
+  returns?: {
+    incomeReturn?: ProductReadModelKpiRatioMetric;
+    priceReturnExcludingDividends?: ProductReadModelKpiRatioMetric;
+    totalReturnIncludingDividends?: ProductReadModelKpiRatioMetric;
   };
   structure?: {
     portfolioWeight?: ProductReadModelKpiRatioMetric;
@@ -765,6 +783,16 @@ export type ProductReadModelSummaryMetrics = {
     sellCount?: number;
     dividendCount?: number;
     lastDividendDate?: string | null;
+  };
+  income?: {
+    annualizedDividendIncome?: ProductReadModelKpiMoneyMetric;
+    dividendYieldOnCost?: ProductReadModelKpiRatioMetric;
+    currentDividendYield?: ProductReadModelKpiRatioMetric;
+  };
+  returns?: {
+    incomeReturn?: ProductReadModelKpiRatioMetric;
+    priceReturnExcludingDividends?: ProductReadModelKpiRatioMetric;
+    totalReturnIncludingDividends?: ProductReadModelKpiRatioMetric;
   };
   structure?: {
     top5Concentration?: ProductReadModelKpiRatioMetric;
@@ -1000,7 +1028,7 @@ function buildAssetMetrics(input: {
   asset: GlobalAsset;
   row: Pick<
     ProductReadModelAssetRow,
-    "identity" | "display" | "classification" | "valuation" | "marketValue" | "warnings"
+    "identity" | "display" | "classification" | "valuation" | "marketValue" | "costBasis" | "unrealizedPnL" | "dividendsNet" | "warnings"
   >;
   portfolioValue?: { amount: number | null; currency: string | null } | null;
 }): ProductReadModelAssetMetrics {
@@ -1013,6 +1041,16 @@ function buildAssetMetrics(input: {
   }));
   const activityMetrics = calculateActivityKpis(activities);
   const dividendMetrics = calculateDividendKpis(activities);
+  const annualizedDividendIncome = calculateAnnualizedDividendIncome({
+    activities,
+    fallbackCurrency:
+      input.row.dividendsNet.currency ??
+      input.row.costBasis.currency ??
+      input.row.marketValue.currency ??
+      input.row.classification?.currency ??
+      null,
+  });
+  const payoutFrequency = calculatePayoutFrequency(activities);
   const metadataCompletenessScore = calculateMetadataCompletenessScore({
     displayName: input.row.display.displayName,
     name: input.row.display.displayName,
@@ -1028,6 +1066,36 @@ function buildAssetMetrics(input: {
     primarySymbol: input.row.classification?.primarySymbol ?? input.row.classification?.symbol ?? null,
   });
   const warningCount = input.row.warnings.length;
+  const dividendYieldOnCost = calculateDividendYieldOnCost({
+    annualizedDividendIncome,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
+  const currentDividendYield = calculateCurrentDividendYield({
+    annualizedDividendIncome,
+    positionValueAmount: input.row.marketValue.amount,
+    positionValueCurrency: input.row.marketValue.currency,
+  });
+  const incomeReturn = calculateIncomeReturn({
+    totalDividendNetAmount: input.row.dividendsNet.amount,
+    totalDividendNetCurrency: input.row.dividendsNet.currency,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
+  const priceReturnExcludingDividends = calculatePriceReturnExcludingDividends({
+    unrealizedPnLAmount: input.row.unrealizedPnL.amount,
+    unrealizedPnLCurrency: input.row.unrealizedPnL.currency,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
+  const totalReturnIncludingDividends = calculateTotalReturnIncludingDividends({
+    unrealizedPnLAmount: input.row.unrealizedPnL.amount,
+    unrealizedPnLCurrency: input.row.unrealizedPnL.currency,
+    totalDividendNetAmount: input.row.dividendsNet.amount,
+    totalDividendNetCurrency: input.row.dividendsNet.currency,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
 
   return {
     activity: {
@@ -1039,6 +1107,15 @@ function buildAssetMetrics(input: {
     income: {
       dividendCount: dividendMetrics.dividendCount,
       lastDividendDate: dividendMetrics.lastDividendDate,
+      annualizedDividendIncome,
+      payoutFrequency,
+      dividendYieldOnCost,
+      currentDividendYield,
+    },
+    returns: {
+      incomeReturn,
+      priceReturnExcludingDividends,
+      totalReturnIncludingDividends,
     },
     structure: {
       portfolioWeight: calculatePortfolioWeight({
@@ -1115,6 +1192,81 @@ export function enrichGlobalAssetsProductReadModelMetrics(
         },
         income: {
           ...(asset.metrics?.income ?? {}),
+          annualizedDividendIncome:
+            asset.metrics?.income?.annualizedDividendIncome ??
+            calculateAnnualizedDividendIncome({
+              activities: [],
+              fallbackCurrency:
+                asset.dividendsNet.currency ??
+                asset.costBasis.currency ??
+                asset.marketValue.currency ??
+                asset.classification?.currency ??
+                null,
+            }),
+          payoutFrequency: asset.metrics?.income?.payoutFrequency,
+          dividendYieldOnCost:
+            asset.metrics?.income?.dividendYieldOnCost ??
+            calculateDividendYieldOnCost({
+              annualizedDividendIncome:
+                asset.metrics?.income?.annualizedDividendIncome ??
+                calculateAnnualizedDividendIncome({
+                  activities: [],
+                  fallbackCurrency:
+                    asset.dividendsNet.currency ??
+                    asset.costBasis.currency ??
+                    asset.marketValue.currency ??
+                    asset.classification?.currency ??
+                    null,
+                }),
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
+          currentDividendYield:
+            asset.metrics?.income?.currentDividendYield ??
+            calculateCurrentDividendYield({
+              annualizedDividendIncome:
+                asset.metrics?.income?.annualizedDividendIncome ??
+                calculateAnnualizedDividendIncome({
+                  activities: [],
+                  fallbackCurrency:
+                    asset.dividendsNet.currency ??
+                    asset.costBasis.currency ??
+                    asset.marketValue.currency ??
+                    asset.classification?.currency ??
+                    null,
+                }),
+              positionValueAmount: asset.marketValue.amount,
+              positionValueCurrency: asset.marketValue.currency,
+            }),
+        },
+        returns: {
+          ...(asset.metrics?.returns ?? {}),
+          incomeReturn:
+            asset.metrics?.returns?.incomeReturn ??
+            calculateIncomeReturn({
+              totalDividendNetAmount: asset.dividendsNet.amount,
+              totalDividendNetCurrency: asset.dividendsNet.currency,
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
+          priceReturnExcludingDividends:
+            asset.metrics?.returns?.priceReturnExcludingDividends ??
+            calculatePriceReturnExcludingDividends({
+              unrealizedPnLAmount: asset.unrealizedPnL.amount,
+              unrealizedPnLCurrency: asset.unrealizedPnL.currency,
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
+          totalReturnIncludingDividends:
+            asset.metrics?.returns?.totalReturnIncludingDividends ??
+            calculateTotalReturnIncludingDividends({
+              unrealizedPnLAmount: asset.unrealizedPnL.amount,
+              unrealizedPnLCurrency: asset.unrealizedPnL.currency,
+              totalDividendNetAmount: asset.dividendsNet.amount,
+              totalDividendNetCurrency: asset.dividendsNet.currency,
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
         },
         structure: {
           ...(asset.metrics?.structure ?? {}),
@@ -1193,6 +1345,96 @@ export function enrichGlobalAssetsProductReadModelMetrics(
         .sort((left, right) => left.localeCompare(right))
         .at(-1) ?? null,
   };
+  const summaryAnnualizedDividendIncome = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.metrics?.income?.annualizedDividendIncome?.amount != null
+        ? {
+            amount: asset.metrics.income.annualizedDividendIncome.amount,
+            currency: asset.metrics.income.annualizedDividendIncome.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "annualized_dividend_income_unconverted_mixed_currencies",
+    missingNote: "annualized_dividend_income_missing",
+  });
+  const totalCostBasisMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.costBasis.amount != null
+        ? {
+            amount: asset.costBasis.amount,
+            currency: asset.costBasis.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "remaining_cost_basis_unconverted_mixed_currencies",
+    missingNote: "remaining_cost_basis_missing",
+  });
+  const totalMarketValueMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.marketValue.amount != null
+        ? {
+            amount: asset.marketValue.amount,
+            currency: asset.marketValue.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "position_value_unconverted_mixed_currencies",
+    missingNote: "position_value_missing",
+  });
+  const totalUnrealizedPnLMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.unrealizedPnL.amount != null
+        ? {
+            amount: asset.unrealizedPnL.amount,
+            currency: asset.unrealizedPnL.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "unrealized_pnl_unconverted_mixed_currencies",
+    missingNote: "unrealized_pnl_missing",
+  });
+  const totalDividendNetMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.dividendsNet.amount != null
+        ? {
+            amount: asset.dividendsNet.amount,
+            currency: asset.dividendsNet.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "dividend_income_unconverted_mixed_currencies",
+    missingNote: "dividend_income_missing",
+  });
+  const summaryDividendYieldOnCost = calculateDividendYieldOnCost({
+    annualizedDividendIncome: summaryAnnualizedDividendIncome,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
+  const summaryCurrentDividendYield = calculateCurrentDividendYield({
+    annualizedDividendIncome: summaryAnnualizedDividendIncome,
+    positionValueAmount: totalMarketValueMetric.amount,
+    positionValueCurrency: totalMarketValueMetric.currency,
+  });
+  const summaryIncomeReturn = calculateIncomeReturn({
+    totalDividendNetAmount: totalDividendNetMetric.amount,
+    totalDividendNetCurrency: totalDividendNetMetric.currency,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
+  const summaryPriceReturnExcludingDividends = calculatePriceReturnExcludingDividends({
+    unrealizedPnLAmount: totalUnrealizedPnLMetric.amount,
+    unrealizedPnLCurrency: totalUnrealizedPnLMetric.currency,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
+  const summaryTotalReturnIncludingDividends = calculateTotalReturnIncludingDividends({
+    unrealizedPnLAmount: totalUnrealizedPnLMetric.amount,
+    unrealizedPnLCurrency: totalUnrealizedPnLMetric.currency,
+    totalDividendNetAmount: totalDividendNetMetric.amount,
+    totalDividendNetCurrency: totalDividendNetMetric.currency,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
   const marketDataAssetCount = assetRowsWithMetrics.filter(
     (asset) => asset.valuation.sourceKind === "market_data_db" && asset.valuation.freshnessState === "fresh",
   ).length;
@@ -1223,6 +1465,16 @@ export function enrichGlobalAssetsProductReadModelMetrics(
           sellCount: summaryActivityMetrics.sellCount,
           dividendCount: summaryDividendMetrics.dividendCount,
           lastDividendDate: summaryDividendMetrics.lastDividendDate,
+        },
+        income: {
+          annualizedDividendIncome: summaryAnnualizedDividendIncome,
+          dividendYieldOnCost: summaryDividendYieldOnCost,
+          currentDividendYield: summaryCurrentDividendYield,
+        },
+        returns: {
+          incomeReturn: summaryIncomeReturn,
+          priceReturnExcludingDividends: summaryPriceReturnExcludingDividends,
+          totalReturnIncludingDividends: summaryTotalReturnIncludingDividends,
         },
         structure: {
           top5Concentration: portfolioStructure.top5Concentration,

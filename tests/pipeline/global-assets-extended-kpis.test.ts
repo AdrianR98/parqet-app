@@ -128,6 +128,92 @@ describe("global asset extended KPI metrics", () => {
     expect(asset?.marketValue.amount).toBe(120);
   });
 
+  it("annualizes quarterly-like dividend history and derives dividend yield and return decomposition", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_income_1",
+        type: "buy",
+        datetime: "2025-01-01T10:00:00.000Z",
+        isin: "DE000EXT0501",
+        shares: 10,
+        currency: "EUR",
+        price: 10,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_income_2",
+        type: "dividend",
+        datetime: "2025-01-15T10:00:00.000Z",
+        isin: "DE000EXT0501",
+        currency: "EUR",
+        amount: 5,
+        amountNet: 5,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_income_3",
+        type: "dividend",
+        datetime: "2025-04-15T10:00:00.000Z",
+        isin: "DE000EXT0501",
+        currency: "EUR",
+        amount: 5,
+        amountNet: 5,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_income_4",
+        type: "dividend",
+        datetime: "2025-07-15T10:00:00.000Z",
+        isin: "DE000EXT0501",
+        currency: "EUR",
+        amount: 5,
+        amountNet: 5,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_income_5",
+        type: "dividend",
+        datetime: "2025-10-15T10:00:00.000Z",
+        isin: "DE000EXT0501",
+        currency: "EUR",
+        amount: 5,
+        amountNet: 5,
+      }),
+    ], {
+      marketPriceOverlaysByIsin: {
+        DE000EXT0501: {
+          priceAmount: 12,
+          currency: "EUR",
+          priceDate: "2026-06-03",
+          priceTimestamp: "2026-06-03T17:00:00.000Z",
+          priceSource: "market_data_db",
+        },
+      },
+    });
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const enriched = withClassification(projected, {
+      DE000EXT0501: {
+        displayName: "Income Demo",
+        assetType: "ETF",
+        currency: "EUR",
+      },
+    });
+    const asset = enriched.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0501");
+
+    expect(asset?.metrics?.income?.annualizedDividendIncome?.amount).toBe(20);
+    expect(asset?.metrics?.income?.annualizedDividendIncome?.status).toBe("ready");
+    expect(asset?.metrics?.income?.payoutFrequency?.value).toBe("quarterly");
+    expect(asset?.metrics?.income?.dividendYieldOnCost?.value).toBeCloseTo(0.2, 8);
+    expect(asset?.metrics?.income?.currentDividendYield?.value).toBeCloseTo(20 / 120, 8);
+    expect(asset?.metrics?.returns?.incomeReturn?.value).toBeCloseTo(20 / 100, 8);
+    expect(asset?.metrics?.returns?.incomeReturn?.status).toBe("partial");
+    expect(asset?.metrics?.returns?.priceReturnExcludingDividends?.value).toBeCloseTo(20 / 100, 8);
+    expect(asset?.metrics?.returns?.totalReturnIncludingDividends?.value).toBeCloseTo(40 / 100, 8);
+  });
+
   it("counts undated dividends but keeps last dividend date based on dated events only", () => {
     const { aggregation } = runGlobalAssetPipeline([
       createSyntheticActivity({
@@ -298,6 +384,163 @@ describe("global asset extended KPI metrics", () => {
     expect(enriched.summary.metrics?.structure?.top5Concentration?.status).toBe("partial");
     expect(enriched.summary.metrics?.structure?.allocationByAssetType?.status).toBe("partial");
     expect(enriched.summary.metrics?.quality?.warningCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("derives payout frequency basics for monthly, irregular and none cases", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_m1",
+        type: "buy",
+        datetime: "2025-01-01T10:00:00.000Z",
+        isin: "DE000EXT0601",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_m2",
+        type: "dividend",
+        datetime: "2025-01-05T10:00:00.000Z",
+        isin: "DE000EXT0601",
+        currency: "EUR",
+        amount: 2,
+        amountNet: 2,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_m3",
+        type: "dividend",
+        datetime: "2025-02-05T10:00:00.000Z",
+        isin: "DE000EXT0601",
+        currency: "EUR",
+        amount: 2,
+        amountNet: 2,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_m4",
+        type: "dividend",
+        datetime: "2025-03-05T10:00:00.000Z",
+        isin: "DE000EXT0601",
+        currency: "EUR",
+        amount: 2,
+        amountNet: 2,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_i1",
+        type: "buy",
+        datetime: "2025-01-01T10:00:00.000Z",
+        isin: "DE000EXT0602",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_i2",
+        type: "dividend",
+        datetime: "2025-01-15T10:00:00.000Z",
+        isin: "DE000EXT0602",
+        currency: "EUR",
+        amount: 3,
+        amountNet: 3,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_i3",
+        type: "dividend",
+        datetime: "2025-05-20T10:00:00.000Z",
+        isin: "DE000EXT0602",
+        currency: "EUR",
+        amount: 3,
+        amountNet: 3,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_i4",
+        type: "dividend",
+        datetime: "2025-06-01T10:00:00.000Z",
+        isin: "DE000EXT0602",
+        currency: "EUR",
+        amount: 3,
+        amountNet: 3,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_freq_n1",
+        type: "buy",
+        datetime: "2025-01-01T10:00:00.000Z",
+        isin: "DE000EXT0603",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+    ]);
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+
+    expect(projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0601")?.metrics?.income?.payoutFrequency?.value).toBe("monthly");
+    expect(projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0602")?.metrics?.income?.payoutFrequency?.value).toBe("irregular");
+    expect(projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0603")?.metrics?.income?.payoutFrequency?.value).toBe("none");
+  });
+
+  it("marks dividend income metrics partial for mixed-currency dividend history", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_mix_1",
+        type: "buy",
+        datetime: "2025-01-01T10:00:00.000Z",
+        isin: "DE000EXT0701",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_mix_2",
+        type: "dividend",
+        datetime: "2025-01-15T10:00:00.000Z",
+        isin: "DE000EXT0701",
+        currency: "EUR",
+        amount: 4,
+        amountNet: 4,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_mix_3",
+        type: "dividend",
+        datetime: "2025-04-15T10:00:00.000Z",
+        isin: "DE000EXT0701",
+        currency: "USD",
+        amount: 4,
+        amountNet: 4,
+      }),
+    ], {
+      marketPriceOverlaysByIsin: {
+        DE000EXT0701: {
+          priceAmount: 120,
+          currency: "EUR",
+          priceDate: "2026-06-03",
+          priceTimestamp: "2026-06-03T17:00:00.000Z",
+          priceSource: "market_data_db",
+        },
+      },
+    });
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const asset = projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0701");
+
+    expect(asset?.metrics?.income?.annualizedDividendIncome?.status).toBe("partial");
+    expect(asset?.metrics?.income?.dividendYieldOnCost?.status).toBe("partial");
+    expect(asset?.metrics?.income?.currentDividendYield?.status).toBe("partial");
   });
 
   it("preserves meaningful PRM display fallback when metadata status is not ok", () => {

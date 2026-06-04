@@ -84,6 +84,8 @@ Technical foundation status:
 - PRM/API-ready metric objects now exist for the ready-now extended KPI slice without changing Dashboard or Asset Detail UI.
 - `gross_buy_volume`, `gross_sell_volume`, `portfolio_weight`, `top_5_concentration`, `top_10_concentration`, `herfindahl_index` and `allocation_by_asset_type` should still be treated as `partial` whenever mixed-currency scope prevents an unconverted final value.
 - `dividend_count`, `last_dividend_date`, `data_confidence_score`, `market_price_freshness`, `metadata_completeness_score` and `warning_count` now have technical PRM foundations and remain UI-unexposed until a later surface pass.
+- `annualized_dividend_income`, `dividend_yield_on_cost`, `current_dividend_yield`, `income_return`, `price_return_excluding_dividends` and `total_return_including_dividends` now have PRM/API technical foundations, but should still be treated as `partial` when cadence history, denominator policy or cross-currency constraints remain unresolved.
+- `payout_frequency` now has an observed-cadence technical foundation in PRM/API and remains UI-unexposed until a later surface pass.
 - Current PRM summary metrics are snapshot-scope metrics; later UI local rescoping must recompute/rescope them instead of reusing snapshot-wide summary values after a local portfolio-selection change.
 
 ### Next ready implementation tranche
@@ -127,6 +129,21 @@ These candidates depend primarily on stronger dividend-event modeling, payout-hi
 - `dividend_growth_1y`
 - `dividend_growth_3y`
 - `payout_frequency`
+
+Current technical state in this branch:
+
+- `annualized_dividend_income`: `partial` PRM/API foundation implemented from observed in-scope dividend history only; cadence or mixed-currency limitations remain explicit.
+- `dividend_yield_on_cost`: `partial` PRM/API foundation implemented; stays partial when annualized income is partial or currencies/denominators are not safely aligned.
+- `current_dividend_yield`: `partial` PRM/API foundation implemented; stays partial under the same annualization/currency limitations.
+- `payout_frequency`: `implemented` as a deterministic observed-cadence classification (`monthly`, `quarterly`, `semiannual`, `annual`, `irregular`, `none`, `unknown`) without external history.
+
+### Return decomposition tranche
+
+These candidates now have technical PRM/API foundations, but denominator policy and mixed-currency limits still require conservative downstream treatment:
+
+- `income_return`: `partial`
+- `price_return_excluding_dividends`: `partial`
+- `total_return_including_dividends`: `partial`
 
 ### FX-gated tranche
 

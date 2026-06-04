@@ -14,6 +14,21 @@ export type ExtendedKpiRatioMetric = {
   note: string | null;
 };
 
+export type ExtendedKpiPayoutFrequency =
+  | "monthly"
+  | "quarterly"
+  | "semiannual"
+  | "annual"
+  | "irregular"
+  | "none"
+  | "unknown";
+
+export type ExtendedKpiPayoutFrequencyMetric = {
+  value: ExtendedKpiPayoutFrequency;
+  status: ExtendedKpiMetricStatus;
+  note: string | null;
+};
+
 export type ExtendedKpiMarketPriceFreshnessState =
   | "fresh"
   | "stale"
@@ -91,6 +106,11 @@ export type ExtendedKpiPortfolioConfidenceInput = {
   missingPriceAssetCount: number;
   averageMetadataCompletenessScore: number;
   warningCount: number;
+};
+
+export type ExtendedKpiAnnualizedDividendIncomeInput = {
+  activities: ExtendedKpiActivityInput[];
+  fallbackCurrency?: string | null;
 };
 
 function normalizeText(value: string | null | undefined): string | null {
@@ -177,6 +197,89 @@ function toDateCandidate(activity: ExtendedKpiActivityInput): string | null {
   return normalizeText(activity.datetime) ?? normalizeText(activity.date);
 }
 
+function toTimestampCandidate(activity: ExtendedKpiActivityInput): number | null {
+  const candidate = toDateCandidate(activity);
+  if (!candidate) {
+    return null;
+  }
+
+  const timestamp = new Date(candidate).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function resolveDividendAmount(activity: ExtendedKpiActivityInput): {
+  amount: number | null;
+  currency: string | null;
+} | null {
+  const amount = activity.amountNet?.amount ?? activity.amount?.amount ?? null;
+  const currency = normalizeCurrency(activity.amountNet?.currency ?? activity.amount?.currency ?? null);
+
+  if (amount == null) {
+    return null;
+  }
+
+  return {
+    amount,
+    currency,
+  };
+}
+
+function getObservedIntervalsDays(timestamps: number[]): number[] {
+  const sorted = [...timestamps].sort((left, right) => left - right);
+  const intervals: number[] = [];
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const intervalDays = Math.round((sorted[index] - sorted[index - 1]) / (24 * 60 * 60 * 1000));
+    if (intervalDays > 0) {
+      intervals.push(intervalDays);
+    }
+  }
+
+  return intervals;
+}
+
+function inferPayoutFrequencyFromIntervals(intervalsDays: number[]): ExtendedKpiPayoutFrequency {
+  if (intervalsDays.length === 0) {
+    return "unknown";
+  }
+
+  const every = (minDays: number, maxDays: number): boolean =>
+    intervalsDays.every((interval) => interval >= minDays && interval <= maxDays);
+
+  if (every(20, 40)) {
+    return "monthly";
+  }
+
+  if (every(70, 110)) {
+    return "quarterly";
+  }
+
+  if (every(150, 220)) {
+    return "semiannual";
+  }
+
+  if (every(300, 430)) {
+    return "annual";
+  }
+
+  return "irregular";
+}
+
+function payoutsPerYear(frequency: ExtendedKpiPayoutFrequency): number | null {
+  switch (frequency) {
+    case "monthly":
+      return 12;
+    case "quarterly":
+      return 4;
+    case "semiannual":
+      return 2;
+    case "annual":
+      return 1;
+    default:
+      return null;
+  }
+}
+
 export function buildExtendedKpiMoneyMetric(input: {
   values: Array<{ amount: number | null; currency: string | null } | null | undefined>;
   mixedCurrencyNote?: string;
@@ -256,6 +359,193 @@ export function calculateDividendKpis(activities: ExtendedKpiActivityInput[]): {
   return {
     dividendCount: dividendActivities.length,
     lastDividendDate: dividendDates.at(-1) ?? null,
+  };
+}
+
+export function calculatePayoutFrequency(
+  activities: ExtendedKpiActivityInput[],
+): ExtendedKpiPayoutFrequencyMetric {
+  const dividendActivities = activities.filter((activity) => activity.activityType === "dividend");
+
+  if (dividendActivities.length === 0) {
+    return {
+      value: "none",
+      status: "ready",
+      note: "no_dividend_history_observed",
+    };
+  }
+
+  const timestamps = dividendActivities
+    .map(toTimestampCandidate)
+    .filter((value): value is number => value != null);
+
+  if (timestamps.length === 0) {
+    return {
+      value: "unknown",
+      status: "partial",
+      note: "dividend_dates_missing",
+    };
+  }
+
+  if (timestamps.length === 1) {
+    return {
+      value: "unknown",
+      status: "partial",
+      note: "insufficient_dividend_cadence_history",
+    };
+  }
+
+  const intervalsDays = getObservedIntervalsDays(timestamps);
+  const frequency = inferPayoutFrequencyFromIntervals(intervalsDays);
+
+  return {
+    value: frequency,
+    status: "ready",
+    note: frequency === "irregular" ? "observed_irregular_dividend_cadence" : null,
+  };
+}
+
+export function calculateAnnualizedDividendIncome(
+  input: ExtendedKpiAnnualizedDividendIncomeInput,
+): ExtendedKpiMoneyMetric {
+  const dividendActivities = input.activities.filter((activity) => activity.activityType === "dividend");
+  const fallbackCurrency = normalizeCurrency(input.fallbackCurrency ?? null);
+
+  if (dividendActivities.length === 0) {
+    return {
+      amount: 0,
+      currency: fallbackCurrency,
+      status: "ready",
+      note: "no_dividend_history_observed",
+      unconvertedCurrencies: null,
+    };
+  }
+
+  const dividendAmounts = dividendActivities
+    .map(resolveDividendAmount)
+    .filter((value): value is { amount: number; currency: string | null } => value?.amount != null);
+  const amountCurrencies = toUniqueCurrencies(dividendAmounts.map((value) => value.currency));
+
+  if (amountCurrencies.length > 1) {
+    return {
+      amount: null,
+      currency: null,
+      status: "partial",
+      note: "annualized_dividend_income_unconverted_mixed_currencies",
+      unconvertedCurrencies: amountCurrencies,
+    };
+  }
+
+  const payoutFrequency = calculatePayoutFrequency(dividendActivities);
+  const resolvedCurrency = amountCurrencies[0] ?? fallbackCurrency ?? null;
+
+  if (dividendAmounts.length === 0) {
+    return {
+      amount: null,
+      currency: resolvedCurrency,
+      status: "partial",
+      note: "dividend_amounts_missing",
+      unconvertedCurrencies: null,
+    };
+  }
+
+  if (payoutFrequency.value === "none") {
+    return {
+      amount: 0,
+      currency: resolvedCurrency,
+      status: "ready",
+      note: "no_dividend_history_observed",
+      unconvertedCurrencies: null,
+    };
+  }
+
+  const cadencePayoutsPerYear = payoutsPerYear(payoutFrequency.value);
+  if (cadencePayoutsPerYear != null) {
+    const averageDividendAmount =
+      dividendAmounts.reduce((sum, value) => sum + value.amount, 0) / dividendAmounts.length;
+
+    return {
+      amount: averageDividendAmount * cadencePayoutsPerYear,
+      currency: resolvedCurrency,
+      status: payoutFrequency.status === "ready" ? "ready" : "partial",
+      note: payoutFrequency.note,
+      unconvertedCurrencies: null,
+    };
+  }
+
+  if (payoutFrequency.value === "unknown") {
+    const latestDividendAmount = dividendAmounts.at(-1)?.amount ?? 0;
+
+    return {
+      amount: latestDividendAmount,
+      currency: resolvedCurrency,
+      status: "partial",
+      note: "insufficient_dividend_cadence_history",
+      unconvertedCurrencies: null,
+    };
+  }
+
+  return {
+    amount: dividendAmounts.reduce((sum, value) => sum + value.amount, 0),
+    currency: resolvedCurrency,
+    status: "partial",
+    note: "observed_irregular_dividend_cadence",
+    unconvertedCurrencies: null,
+  };
+}
+
+export function calculateRatioFromMoney(input: {
+  numeratorAmount: number | null;
+  numeratorCurrency: string | null;
+  numeratorStatus?: ExtendedKpiMetricStatus;
+  denominatorAmount: number | null;
+  denominatorCurrency: string | null;
+  missingDenominatorNote: string;
+  missingNumeratorNote: string;
+  unknownCurrencyNote: string;
+  mismatchedCurrencyNote: string;
+  partialNote?: string | null;
+}): ExtendedKpiRatioMetric {
+  const numeratorStatus = input.numeratorStatus ?? "ready";
+  const numeratorCurrency = normalizeCurrency(input.numeratorCurrency);
+  const denominatorCurrency = normalizeCurrency(input.denominatorCurrency);
+
+  if (input.denominatorAmount == null || input.denominatorAmount <= 0) {
+    return {
+      value: null,
+      status: "missing",
+      note: input.missingDenominatorNote,
+    };
+  }
+
+  if (input.numeratorAmount == null) {
+    return {
+      value: null,
+      status: numeratorStatus === "partial" ? "partial" : "missing",
+      note: numeratorStatus === "partial" ? (input.partialNote ?? input.missingNumeratorNote) : input.missingNumeratorNote,
+    };
+  }
+
+  if (!numeratorCurrency || !denominatorCurrency) {
+    return {
+      value: null,
+      status: "partial",
+      note: input.unknownCurrencyNote,
+    };
+  }
+
+  if (numeratorCurrency !== denominatorCurrency) {
+    return {
+      value: null,
+      status: "partial",
+      note: input.mismatchedCurrencyNote,
+    };
+  }
+
+  return {
+    value: input.numeratorAmount / input.denominatorAmount,
+    status: numeratorStatus === "ready" ? "ready" : "partial",
+    note: numeratorStatus === "ready" ? null : input.partialNote ?? null,
   };
 }
 
@@ -433,6 +723,151 @@ export function calculatePortfolioStructureKpis(input: {
           weight: portfolioValue > 0 ? bucket.amount / portfolioValue : null,
         })),
     },
+  };
+}
+
+export function calculateDividendYieldOnCost(input: {
+  annualizedDividendIncome: ExtendedKpiMoneyMetric;
+  remainingCostBasisAmount: number | null;
+  remainingCostBasisCurrency: string | null;
+}): ExtendedKpiRatioMetric {
+  return calculateRatioFromMoney({
+    numeratorAmount: input.annualizedDividendIncome.amount,
+    numeratorCurrency: input.annualizedDividendIncome.currency,
+    numeratorStatus: input.annualizedDividendIncome.status,
+    denominatorAmount: input.remainingCostBasisAmount,
+    denominatorCurrency: input.remainingCostBasisCurrency,
+    missingDenominatorNote: "remaining_cost_basis_missing_or_non_positive",
+    missingNumeratorNote: "annualized_dividend_income_missing",
+    unknownCurrencyNote: "dividend_yield_on_cost_unknown_currency",
+    mismatchedCurrencyNote: "dividend_yield_on_cost_currency_mismatch",
+    partialNote:
+      input.annualizedDividendIncome.status === "partial"
+        ? input.annualizedDividendIncome.note ?? "annualized_dividend_income_partial"
+        : null,
+  });
+}
+
+export function calculateCurrentDividendYield(input: {
+  annualizedDividendIncome: ExtendedKpiMoneyMetric;
+  positionValueAmount: number | null;
+  positionValueCurrency: string | null;
+}): ExtendedKpiRatioMetric {
+  return calculateRatioFromMoney({
+    numeratorAmount: input.annualizedDividendIncome.amount,
+    numeratorCurrency: input.annualizedDividendIncome.currency,
+    numeratorStatus: input.annualizedDividendIncome.status,
+    denominatorAmount: input.positionValueAmount,
+    denominatorCurrency: input.positionValueCurrency,
+    missingDenominatorNote: "position_value_missing_or_non_positive",
+    missingNumeratorNote: "annualized_dividend_income_missing",
+    unknownCurrencyNote: "current_dividend_yield_unknown_currency",
+    mismatchedCurrencyNote: "current_dividend_yield_currency_mismatch",
+    partialNote:
+      input.annualizedDividendIncome.status === "partial"
+        ? input.annualizedDividendIncome.note ?? "annualized_dividend_income_partial"
+        : null,
+  });
+}
+
+export function calculateIncomeReturn(input: {
+  totalDividendNetAmount: number | null;
+  totalDividendNetCurrency: string | null;
+  remainingCostBasisAmount: number | null;
+  remainingCostBasisCurrency: string | null;
+}): ExtendedKpiRatioMetric {
+  return calculateRatioFromMoney({
+    numeratorAmount: input.totalDividendNetAmount,
+    numeratorCurrency: input.totalDividendNetCurrency,
+    numeratorStatus: "partial",
+    denominatorAmount: input.remainingCostBasisAmount,
+    denominatorCurrency: input.remainingCostBasisCurrency,
+    missingDenominatorNote: "remaining_cost_basis_missing_or_non_positive",
+    missingNumeratorNote: "dividend_income_missing",
+    unknownCurrencyNote: "income_return_unknown_currency",
+    mismatchedCurrencyNote: "income_return_currency_mismatch",
+    partialNote: "income_return_denominator_semantics_not_final",
+  });
+}
+
+export function calculatePriceReturnExcludingDividends(input: {
+  unrealizedPnLAmount: number | null;
+  unrealizedPnLCurrency: string | null;
+  remainingCostBasisAmount: number | null;
+  remainingCostBasisCurrency: string | null;
+}): ExtendedKpiRatioMetric {
+  return calculateRatioFromMoney({
+    numeratorAmount: input.unrealizedPnLAmount,
+    numeratorCurrency: input.unrealizedPnLCurrency,
+    numeratorStatus: "ready",
+    denominatorAmount: input.remainingCostBasisAmount,
+    denominatorCurrency: input.remainingCostBasisCurrency,
+    missingDenominatorNote: "remaining_cost_basis_missing_or_non_positive",
+    missingNumeratorNote: "unrealized_pnl_missing",
+    unknownCurrencyNote: "price_return_excluding_dividends_unknown_currency",
+    mismatchedCurrencyNote: "price_return_excluding_dividends_currency_mismatch",
+  });
+}
+
+export function calculateTotalReturnIncludingDividends(input: {
+  unrealizedPnLAmount: number | null;
+  unrealizedPnLCurrency: string | null;
+  totalDividendNetAmount: number | null;
+  totalDividendNetCurrency: string | null;
+  remainingCostBasisAmount: number | null;
+  remainingCostBasisCurrency: string | null;
+}): ExtendedKpiRatioMetric {
+  const unrealizedPnLCurrency = normalizeCurrency(input.unrealizedPnLCurrency);
+  const dividendCurrency = normalizeCurrency(input.totalDividendNetCurrency);
+  const denominatorCurrency = normalizeCurrency(input.remainingCostBasisCurrency);
+
+  if (input.remainingCostBasisAmount == null || input.remainingCostBasisAmount <= 0) {
+    return {
+      value: null,
+      status: "missing",
+      note: "remaining_cost_basis_missing_or_non_positive",
+    };
+  }
+
+  if (input.unrealizedPnLAmount == null) {
+    return {
+      value: null,
+      status: "missing",
+      note: "unrealized_pnl_missing",
+    };
+  }
+
+  if (input.totalDividendNetAmount == null) {
+    return {
+      value: null,
+      status: "missing",
+      note: "dividend_income_missing",
+    };
+  }
+
+  if (!unrealizedPnLCurrency || !dividendCurrency || !denominatorCurrency) {
+    return {
+      value: null,
+      status: "partial",
+      note: "total_return_including_dividends_unknown_currency",
+    };
+  }
+
+  if (
+    unrealizedPnLCurrency !== dividendCurrency ||
+    unrealizedPnLCurrency !== denominatorCurrency
+  ) {
+    return {
+      value: null,
+      status: "partial",
+      note: "total_return_including_dividends_currency_mismatch",
+    };
+  }
+
+  return {
+    value: (input.unrealizedPnLAmount + input.totalDividendNetAmount) / input.remainingCostBasisAmount,
+    status: "ready",
+    note: null,
   };
 }
 
