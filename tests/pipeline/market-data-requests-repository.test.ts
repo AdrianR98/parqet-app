@@ -66,8 +66,8 @@ describe("market data request repository", () => {
         expect(row?.isin).toBe("US0000000001");
         expect(row?.seenCount).toBe(2);
         const sql = clientQuery.mock.calls[2]?.[0] as string;
-        expect(sql).toContain("seen_count = market_data_requests.seen_count + 1");
-        expect(sql).toContain("coalesce(market_data_requests.name, excluded.name)");
+        expect(sql).toContain("seen_count = reference_data_request_logs.seen_count + 1");
+        expect(sql).toContain("coalesce(reference_data_request_logs.name, excluded.name)");
         expect(sql).toContain("status in ('imported', 'ignored')");
     });
 

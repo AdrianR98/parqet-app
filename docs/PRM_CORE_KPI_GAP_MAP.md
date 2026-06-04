@@ -76,8 +76,8 @@ Linked issues: Refs #402, Refs #395, Refs #398, Refs #397, Refs #396, Refs #405
 
 ## Extended KPI implementation phases
 
-Status: the same branch, `feat/prm-core-kpi-convergence`, continues KPI work beyond the first 20 Core KPIs.
-Important: Currency/FX remains deferred to [#397](https://github.com/AdrianR98/parqet-app/issues/397); settings remain deferred to [#405](https://github.com/AdrianR98/parqet-app/issues/405).
+Status: the same branch, `feat/prm-core-kpi-convergence`, stops active KPI implementation here and is ready for PR review.
+Important: Extended KPIs in this branch are PRM/API technical foundations only. UI integration remains deferred. Currency/FX remains deferred to [#397](https://github.com/AdrianR98/parqet-app/issues/397); settings and KPI variants/UI remain deferred to [#405](https://github.com/AdrianR98/parqet-app/issues/405); SecurityLineage remains deferred; history-price KPIs remain deferred.
 
 Technical foundation status:
 
@@ -210,7 +210,9 @@ These candidates are worth documenting now but should stay behind more foundatio
 
 ## Extended KPI tranche notes
 
-- The branch continues one-branch KPI convergence work; no new branch/PR split is intended for the catalog itself.
+- KPI implementation stops here for this branch; later KPI families and UI integration should continue in follow-up work rather than extending this PR indefinitely.
+- Extended KPIs in this branch are PRM/API-only technical foundations. No new Dashboard, Asset Detail or other visual KPI surfaces were added for them here.
 - `ready_now` here means source data and current architecture look sufficient for a future implementation slice, not that UI/settings behavior is already available.
 - `blocked_until_fx` means the KPI may be meaningful conceptually, but should not be presented as financially final until the FX boundary and blocked/preliminary policy from [#397](https://github.com/AdrianR98/parqet-app/issues/397) are implemented.
 - `configurable_later` means the KPI or its variants should be catalog-backed first and surfaced in the future settings model from [#405](https://github.com/AdrianR98/parqet-app/issues/405), not hard-coded ad hoc in UI components.
+- Snapshot-scope PRM summary metrics must be recomputed or rescoped before any future UI usage under a locally changed portfolio selection.

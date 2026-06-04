@@ -223,8 +223,12 @@ function getActivityCurrency(activity: NormalizedActivity): string | null {
   );
 }
 
-function getCostBasisAmountForBuy(activity: NormalizedActivity): number {
-  return activity.amounts.amountNet?.amount ?? activity.amounts.amount?.amount ?? 0;
+function getCostBasisAmountForBuy(activity: NormalizedActivity): number | null {
+  return activity.amounts.amountNet?.amount ?? activity.amounts.amount?.amount ?? null;
+}
+
+function getDividendNetAmount(activity: NormalizedActivity): number | null {
+  return activity.amounts.amountNet?.amount ?? null;
 }
 
 function normalizeLookupIsin(value: string | null | undefined): string {
@@ -535,17 +539,20 @@ function buildPortfolioBreakdowns(input: {
     let netShares = 0;
     let remainingCostBasis = 0;
     let totalDividendNet = 0;
+    let hasExplicitCostBasis = false;
 
     for (const activity of portfolioActivities) {
       const quantity = activity.quantity ?? 0;
 
       if (activity.activityType === "buy" || activity.activityType === "deposit") {
+        const costBasisAmount = getCostBasisAmountForBuy(activity);
         const next = applyBuyPositionDelta(
           { netShares, remainingCostBasis },
-          { shares: quantity, amount: getCostBasisAmountForBuy(activity) },
+          { shares: quantity, amount: costBasisAmount ?? 0 },
         );
         netShares = next.netShares;
         remainingCostBasis = next.remainingCostBasis;
+        hasExplicitCostBasis = hasExplicitCostBasis || costBasisAmount != null;
       } else if (activity.activityType === "transfer_in") {
         const next = applyTransferInPositionDelta(
           { netShares, remainingCostBasis },
@@ -565,11 +572,10 @@ function buildPortfolioBreakdowns(input: {
         netShares = next.netShares;
         remainingCostBasis = next.remainingCostBasis;
       } else if (activity.activityType === "dividend") {
-        totalDividendNet = sumDividendNet({
-          currentTotalDividendNet: totalDividendNet,
-          amount: activity.amounts.amount?.amount ?? 0,
-          amountNet: activity.amounts.amountNet?.amount ?? 0,
-        });
+        const dividendNetAmount = getDividendNetAmount(activity);
+        if (dividendNetAmount != null) {
+          totalDividendNet += dividendNetAmount;
+        }
       }
 
     }
@@ -657,10 +663,12 @@ function buildPortfolioBreakdowns(input: {
       valuation,
       currency: valuationCurrency,
     });
+    const costBasis = hasExplicitCostBasis ? valuationDrivenMetrics.costBasis : null;
+    const pnl = hasExplicitCostBasis ? valuationDrivenMetrics.unrealizedPnL : null;
     const dividendsCurrencies = collectCurrencies(
       portfolioActivities
         .filter((activity) => activity.activityType === "dividend")
-        .map((activity) => activity.amounts.amountNet ?? activity.amounts.amount),
+        .map((activity) => activity.amounts.amountNet),
     );
     const dividendsCurrency =
       dividendsCurrencies.length === 1 ? dividendsCurrencies[0] : null;
@@ -670,15 +678,15 @@ function buildPortfolioBreakdowns(input: {
       portfolioName: portfolioActivities[0]?.portfolioContext.portfolioName ?? null,
       quantity,
       marketValue: valuationDrivenMetrics.marketValue,
-      costBasis: valuationDrivenMetrics.costBasis,
-      pnl: valuationDrivenMetrics.unrealizedPnL,
+      costBasis,
+      pnl,
       dividendsNet: dividendsCurrency
         ? { amount: totalDividendNet, currency: dividendsCurrency }
         : null,
       fees: null,
       taxes: null,
       avgBuyPrice:
-        valuationCurrency && metrics.avgBuyPrice != null
+        hasExplicitCostBasis && valuationCurrency && metrics.avgBuyPrice != null
           ? { amount: metrics.avgBuyPrice, currency: valuationCurrency }
           : null,
       valuation,
@@ -938,15 +946,9 @@ function buildAsset(
     status,
     totals: {
       quantity: totalQuantity,
-      marketValue:
-        valuation.sourceKind === "market_data_db" && valuation.marketPrice?.amount != null
-          ? valuationDrivenTotals.marketValue
-          : totalMarketValue,
-      costBasis: totalCostBasis ?? valuationDrivenTotals.costBasis,
-      unrealizedPnL:
-        valuation.sourceKind === "market_data_db" && valuation.marketPrice?.amount != null
-          ? valuationDrivenTotals.unrealizedPnL
-          : totalUnrealizedPnL,
+      marketValue: valuationDrivenTotals.marketValue ?? totalMarketValue,
+      costBasis: totalCostBasis,
+      unrealizedPnL: valuationDrivenTotals.unrealizedPnL ?? totalUnrealizedPnL,
       dividendsNet: totalDividendsNet,
       fees,
       taxes,
