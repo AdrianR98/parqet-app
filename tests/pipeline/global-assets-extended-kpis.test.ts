@@ -214,6 +214,273 @@ describe("global asset extended KPI metrics", () => {
     expect(asset?.metrics?.returns?.totalReturnIncludingDividends?.value).toBeCloseTo(40 / 100, 8);
   });
 
+  it("computes ready 1Y dividend growth from comparable trailing periods", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth1y_buy",
+        type: "buy",
+        datetime: "2023-01-01T10:00:00.000Z",
+        isin: "DE000EXT0801",
+        shares: 10,
+        currency: "EUR",
+        price: 10,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth1y_seed",
+        type: "dividend",
+        datetime: "2023-10-15T10:00:00.000Z",
+        isin: "DE000EXT0801",
+        currency: "EUR",
+        amount: 1,
+        amountNet: 1,
+      }),
+      ...[
+        ["2024-01-15T10:00:00.000Z", 2],
+        ["2024-04-15T10:00:00.000Z", 2],
+        ["2024-07-15T10:00:00.000Z", 2],
+        ["2024-10-15T10:00:00.000Z", 2],
+        ["2025-01-15T10:00:00.000Z", 3],
+        ["2025-04-15T10:00:00.000Z", 3],
+        ["2025-07-15T10:00:00.000Z", 3],
+        ["2025-10-15T10:00:00.000Z", 3],
+      ].map(([datetime, amount], index) =>
+        createSyntheticActivity({
+          activityId: `ext_kpi_growth1y_${index}`,
+          type: "dividend",
+          datetime,
+          isin: "DE000EXT0801",
+          currency: "EUR",
+          amount,
+          amountNet: amount,
+        }),
+      ),
+    ]);
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const asset = projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0801");
+
+    expect(asset?.metrics?.income?.dividendGrowth1y?.status).toBe("ready");
+    expect(asset?.metrics?.income?.dividendGrowth1y?.value).toBeCloseTo(0.5, 8);
+    expect(projected.summary.metrics?.income?.dividendGrowth1y?.status).toBe("ready");
+    expect(projected.summary.metrics?.income?.dividendGrowth1y?.value).toBeCloseTo(0.5, 8);
+  });
+
+  it("marks dividend growth partial or missing when comparable history is insufficient", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_missing_buy",
+        type: "buy",
+        datetime: "2025-01-01T10:00:00.000Z",
+        isin: "DE000EXT0802",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_missing_div_1",
+        type: "dividend",
+        datetime: "2025-01-15T10:00:00.000Z",
+        isin: "DE000EXT0802",
+        currency: "EUR",
+        amount: 5,
+        amountNet: 5,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_missing_div_2",
+        type: "dividend",
+        datetime: "2025-04-15T10:00:00.000Z",
+        isin: "DE000EXT0802",
+        currency: "EUR",
+        amount: 5,
+        amountNet: 5,
+      }),
+    ]);
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const asset = projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0802");
+
+    expect(asset?.metrics?.income?.dividendGrowth1y?.status).toBe("partial");
+    expect(asset?.metrics?.income?.dividendGrowth1y?.note).toBe(
+      "dividend_growth_1y_insufficient_comparable_history",
+    );
+    expect(asset?.metrics?.income?.dividendGrowth3y?.status).toBe("partial");
+  });
+
+  it("marks dividend growth partial when the baseline period is zero and the current period is positive", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_zero_buy",
+        type: "buy",
+        datetime: "2023-01-01T10:00:00.000Z",
+        isin: "DE000EXT0803",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_zero_seed",
+        type: "dividend",
+        datetime: "2023-04-15T10:00:00.000Z",
+        isin: "DE000EXT0803",
+        currency: "EUR",
+        amount: 0,
+        amountNet: 0,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_zero_baseline",
+        type: "dividend",
+        datetime: "2024-04-15T10:00:00.000Z",
+        isin: "DE000EXT0803",
+        currency: "EUR",
+        amount: 0,
+        amountNet: 0,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_zero_current",
+        type: "dividend",
+        datetime: "2025-04-15T10:00:00.000Z",
+        isin: "DE000EXT0803",
+        currency: "EUR",
+        amount: 6,
+        amountNet: 6,
+      }),
+    ]);
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const asset = projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0803");
+
+    expect(asset?.metrics?.income?.dividendGrowth1y?.status).toBe("partial");
+    expect(asset?.metrics?.income?.dividendGrowth1y?.note).toBe(
+      "dividend_growth_1y_baseline_zero_current_positive",
+    );
+  });
+
+  it("marks dividend growth partial for mixed-currency dividend history", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_mix_buy",
+        type: "buy",
+        datetime: "2023-01-01T10:00:00.000Z",
+        isin: "DE000EXT0804",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_mix_seed",
+        type: "dividend",
+        datetime: "2023-04-15T10:00:00.000Z",
+        isin: "DE000EXT0804",
+        currency: "EUR",
+        amount: 1,
+        amountNet: 1,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_mix_base",
+        type: "dividend",
+        datetime: "2024-04-15T10:00:00.000Z",
+        isin: "DE000EXT0804",
+        currency: "EUR",
+        amount: 2,
+        amountNet: 2,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth_mix_current",
+        type: "dividend",
+        datetime: "2025-04-15T10:00:00.000Z",
+        isin: "DE000EXT0804",
+        currency: "USD",
+        amount: 3,
+        amountNet: 3,
+      }),
+    ]);
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const asset = projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0804");
+
+    expect(asset?.metrics?.income?.dividendGrowth1y?.status).toBe("partial");
+    expect(asset?.metrics?.income?.dividendGrowth1y?.note).toBe(
+      "dividend_growth_1y_unconverted_mixed_currencies",
+    );
+  });
+
+  it("computes conservative 3Y dividend growth from comparable trailing periods", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth3y_buy",
+        type: "buy",
+        datetime: "2019-01-01T10:00:00.000Z",
+        isin: "DE000EXT0805",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_growth3y_seed",
+        type: "dividend",
+        datetime: "2019-06-15T10:00:00.000Z",
+        isin: "DE000EXT0805",
+        currency: "EUR",
+        amount: 1,
+        amountNet: 1,
+      }),
+      ...[
+        ["2020-06-15T10:00:00.000Z", 5],
+        ["2021-06-15T10:00:00.000Z", 5],
+        ["2022-06-15T10:00:00.000Z", 5],
+        ["2023-06-15T10:00:00.000Z", 10],
+        ["2024-06-15T10:00:00.000Z", 10],
+        ["2025-06-15T10:00:00.000Z", 10],
+      ].map(([datetime, amount], index) =>
+        createSyntheticActivity({
+          activityId: `ext_kpi_growth3y_${index}`,
+          type: "dividend",
+          datetime,
+          isin: "DE000EXT0805",
+          currency: "EUR",
+          amount,
+          amountNet: amount,
+        }),
+      ),
+    ]);
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const asset = projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0805");
+
+    expect(asset?.metrics?.income?.dividendGrowth3y?.status).toBe("ready");
+    expect(asset?.metrics?.income?.dividendGrowth3y?.value).toBeCloseTo(1, 8);
+  });
+
   it("counts undated dividends but keeps last dividend date based on dated events only", () => {
     const { aggregation } = runGlobalAssetPipeline([
       createSyntheticActivity({

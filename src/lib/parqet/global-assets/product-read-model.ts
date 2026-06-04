@@ -20,6 +20,8 @@ import {
   calculateActivityKpis,
   calculateDataConfidenceScore,
   calculateCurrentDividendYield,
+  calculateDividendGrowth1y,
+  calculateDividendGrowth3y,
   calculateDividendYieldOnCost,
   calculateDividendKpis,
   calculateIncomeReturn,
@@ -755,6 +757,8 @@ export type ProductReadModelAssetMetrics = {
     dividendCount?: number;
     lastDividendDate?: string | null;
     annualizedDividendIncome?: ProductReadModelKpiMoneyMetric;
+    dividendGrowth1y?: ProductReadModelKpiRatioMetric;
+    dividendGrowth3y?: ProductReadModelKpiRatioMetric;
     payoutFrequency?: ProductReadModelPayoutFrequencyMetric;
     dividendYieldOnCost?: ProductReadModelKpiRatioMetric;
     currentDividendYield?: ProductReadModelKpiRatioMetric;
@@ -786,6 +790,8 @@ export type ProductReadModelSummaryMetrics = {
   };
   income?: {
     annualizedDividendIncome?: ProductReadModelKpiMoneyMetric;
+    dividendGrowth1y?: ProductReadModelKpiRatioMetric;
+    dividendGrowth3y?: ProductReadModelKpiRatioMetric;
     dividendYieldOnCost?: ProductReadModelKpiRatioMetric;
     currentDividendYield?: ProductReadModelKpiRatioMetric;
   };
@@ -1051,6 +1057,12 @@ function buildAssetMetrics(input: {
       null,
   });
   const payoutFrequency = calculatePayoutFrequency(activities);
+  const dividendGrowth1y = calculateDividendGrowth1y({
+    activities,
+  });
+  const dividendGrowth3y = calculateDividendGrowth3y({
+    activities,
+  });
   const metadataCompletenessScore = calculateMetadataCompletenessScore({
     displayName: input.row.display.displayName,
     name: input.row.display.displayName,
@@ -1108,6 +1120,8 @@ function buildAssetMetrics(input: {
       dividendCount: dividendMetrics.dividendCount,
       lastDividendDate: dividendMetrics.lastDividendDate,
       annualizedDividendIncome,
+      dividendGrowth1y,
+      dividendGrowth3y,
       payoutFrequency,
       dividendYieldOnCost,
       currentDividendYield,
@@ -1202,6 +1216,16 @@ export function enrichGlobalAssetsProductReadModelMetrics(
                 asset.marketValue.currency ??
                 asset.classification?.currency ??
                 null,
+            }),
+          dividendGrowth1y:
+            asset.metrics?.income?.dividendGrowth1y ??
+            calculateDividendGrowth1y({
+              activities: [],
+            }),
+          dividendGrowth3y:
+            asset.metrics?.income?.dividendGrowth3y ??
+            calculateDividendGrowth3y({
+              activities: [],
             }),
           payoutFrequency: asset.metrics?.income?.payoutFrequency,
           dividendYieldOnCost:
@@ -1738,6 +1762,29 @@ export function projectGlobalAssetsProductReadModel(
     },
   };
   const enrichedModel = enrichGlobalAssetsProductReadModelMetrics(baseModel);
+  const snapshotDividendActivities = input.aggregation.assets.flatMap((asset) =>
+    asset.timeline.map((entry) => ({
+      activityType: entry.activity.activityType,
+      amount: entry.activity.amounts.amount ?? null,
+      amountNet: entry.activity.amounts.amountNet ?? null,
+      date: entry.activity.date,
+      datetime: entry.activity.datetime,
+    })),
+  );
+  const summaryDividendGrowth1y = calculateDividendGrowth1y({
+    activities: snapshotDividendActivities,
+  });
+  const summaryDividendGrowth3y = calculateDividendGrowth3y({
+    activities: snapshotDividendActivities,
+  });
+  enrichedModel.summary.metrics = {
+    ...(enrichedModel.summary.metrics ?? {}),
+    income: {
+      ...(enrichedModel.summary.metrics?.income ?? {}),
+      dividendGrowth1y: summaryDividendGrowth1y,
+      dividendGrowth3y: summaryDividendGrowth3y,
+    },
+  };
   const assets = enrichedModel.assets;
   let valuationAnomalies = 0;
 

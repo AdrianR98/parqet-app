@@ -113,6 +113,10 @@ export type ExtendedKpiAnnualizedDividendIncomeInput = {
   fallbackCurrency?: string | null;
 };
 
+export type ExtendedKpiDividendGrowthInput = {
+  activities: ExtendedKpiActivityInput[];
+};
+
 function normalizeText(value: string | null | undefined): string | null {
   if (typeof value !== "string") {
     return null;
@@ -278,6 +282,150 @@ function payoutsPerYear(frequency: ExtendedKpiPayoutFrequency): number | null {
     default:
       return null;
   }
+}
+
+function addUtcMonths(input: Date, monthDelta: number): Date {
+  const next = new Date(input.getTime());
+  next.setUTCMonth(next.getUTCMonth() + monthDelta);
+  return next;
+}
+
+function collectDividendPeriodAmounts(input: {
+  activities: ExtendedKpiActivityInput[];
+  startExclusive: Date;
+  endInclusive: Date;
+}): {
+  amounts: number[];
+  currencies: string[];
+  datedActivityCount: number;
+} {
+  const datedDividends = input.activities.filter((activity) => {
+    if (activity.activityType !== "dividend") {
+      return false;
+    }
+
+    const timestamp = toTimestampCandidate(activity);
+    if (timestamp == null) {
+      return false;
+    }
+
+    const date = new Date(timestamp);
+    return date > input.startExclusive && date <= input.endInclusive;
+  });
+
+  const resolvedAmounts = datedDividends
+    .map(resolveDividendAmount)
+    .filter((value): value is { amount: number; currency: string | null } => value?.amount != null);
+
+  return {
+    amounts: resolvedAmounts.map((value) => value.amount),
+    currencies: toUniqueCurrencies(resolvedAmounts.map((value) => value.currency)),
+    datedActivityCount: datedDividends.length,
+  };
+}
+
+function calculateDividendGrowthForTrailingMonths(
+  input: ExtendedKpiDividendGrowthInput & {
+    trailingMonths: number;
+    mixedCurrencyNote: string;
+    insufficientHistoryNote: string;
+    baselineZeroNote: string;
+    noComparableHistoryNote: string;
+    missingDatesNote: string;
+  },
+): ExtendedKpiRatioMetric {
+  const dividendActivities = input.activities.filter((activity) => activity.activityType === "dividend");
+
+  if (dividendActivities.length === 0) {
+    return {
+      value: null,
+      status: "missing",
+      note: "no_dividend_history_observed",
+    };
+  }
+
+  const datedTimestamps = dividendActivities
+    .map(toTimestampCandidate)
+    .filter((value): value is number => value != null)
+    .sort((left, right) => left - right);
+
+  if (datedTimestamps.length === 0) {
+    return {
+      value: null,
+      status: "partial",
+      note: input.missingDatesNote,
+    };
+  }
+
+  const latestObservedAt = new Date(datedTimestamps[datedTimestamps.length - 1]);
+  const currentPeriodStart = addUtcMonths(latestObservedAt, -input.trailingMonths);
+  const baselinePeriodStart = addUtcMonths(currentPeriodStart, -input.trailingMonths);
+  const earliestObservedAt = new Date(datedTimestamps[0]);
+
+  if (earliestObservedAt > baselinePeriodStart) {
+    return {
+      value: null,
+      status: "partial",
+      note: input.insufficientHistoryNote,
+    };
+  }
+
+  const currentPeriod = collectDividendPeriodAmounts({
+    activities: dividendActivities,
+    startExclusive: currentPeriodStart,
+    endInclusive: latestObservedAt,
+  });
+  const baselinePeriod = collectDividendPeriodAmounts({
+    activities: dividendActivities,
+    startExclusive: baselinePeriodStart,
+    endInclusive: currentPeriodStart,
+  });
+
+  const periodCurrencies = toUniqueCurrencies([
+    ...currentPeriod.currencies,
+    ...baselinePeriod.currencies,
+  ]);
+
+  if (periodCurrencies.length > 1) {
+    return {
+      value: null,
+      status: "partial",
+      note: input.mixedCurrencyNote,
+    };
+  }
+
+  if (currentPeriod.datedActivityCount === 0 || baselinePeriod.datedActivityCount === 0) {
+    return {
+      value: null,
+      status: "partial",
+      note: input.insufficientHistoryNote,
+    };
+  }
+
+  const currentPeriodTotal = currentPeriod.amounts.reduce((sum, amount) => sum + amount, 0);
+  const baselinePeriodTotal = baselinePeriod.amounts.reduce((sum, amount) => sum + amount, 0);
+
+  if (baselinePeriodTotal === 0 && currentPeriodTotal > 0) {
+    return {
+      value: null,
+      status: "partial",
+      note: input.baselineZeroNote,
+    };
+  }
+
+  if (baselinePeriodTotal === 0 && currentPeriodTotal === 0) {
+    return {
+      value: null,
+      status: "missing",
+      note: input.noComparableHistoryNote,
+    };
+  }
+
+  return {
+    value: currentPeriodTotal / baselinePeriodTotal - 1,
+    status: "ready",
+    note: null,
+  };
 }
 
 export function buildExtendedKpiMoneyMetric(input: {
@@ -767,6 +915,34 @@ export function calculateCurrentDividendYield(input: {
       input.annualizedDividendIncome.status === "partial"
         ? input.annualizedDividendIncome.note ?? "annualized_dividend_income_partial"
         : null,
+  });
+}
+
+export function calculateDividendGrowth1y(
+  input: ExtendedKpiDividendGrowthInput,
+): ExtendedKpiRatioMetric {
+  return calculateDividendGrowthForTrailingMonths({
+    ...input,
+    trailingMonths: 12,
+    mixedCurrencyNote: "dividend_growth_1y_unconverted_mixed_currencies",
+    insufficientHistoryNote: "dividend_growth_1y_insufficient_comparable_history",
+    baselineZeroNote: "dividend_growth_1y_baseline_zero_current_positive",
+    noComparableHistoryNote: "dividend_growth_1y_no_dividend_income_in_comparable_periods",
+    missingDatesNote: "dividend_growth_1y_dividend_dates_missing",
+  });
+}
+
+export function calculateDividendGrowth3y(
+  input: ExtendedKpiDividendGrowthInput,
+): ExtendedKpiRatioMetric {
+  return calculateDividendGrowthForTrailingMonths({
+    ...input,
+    trailingMonths: 36,
+    mixedCurrencyNote: "dividend_growth_3y_unconverted_mixed_currencies",
+    insufficientHistoryNote: "dividend_growth_3y_insufficient_comparable_history",
+    baselineZeroNote: "dividend_growth_3y_baseline_zero_current_positive",
+    noComparableHistoryNote: "dividend_growth_3y_no_dividend_income_in_comparable_periods",
+    missingDatesNote: "dividend_growth_3y_dividend_dates_missing",
   });
 }
 
