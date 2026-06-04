@@ -27,6 +27,7 @@ export type DePrimaryPreferencePlan = {
     switchCandidates: DePrimarySwitchCandidate[];
     noDeCandidate: number;
     skippedNonActionable: number;
+    actionableUnknownInspected: number;
     assetsRequiringFullHistoryReplacement: number;
 };
 
@@ -35,7 +36,7 @@ export function isGermanYfinanceSymbol(symbol: string): boolean {
 }
 
 function isNonActionableStatus(status: DbMarketInstrument["marketDataStatus"]): boolean {
-    return status === "excluded" || status === "legacy" || status === "derivative" || status === "unknown";
+    return status === "excluded" || status === "legacy" || status === "derivative";
 }
 
 function compareDeCandidates(
@@ -78,6 +79,7 @@ export function buildDePrimaryPreferencePlan(input: {
     let alreadyPrimaryDe = 0;
     let noDeCandidate = 0;
     let skippedNonActionable = 0;
+    let actionableUnknownInspected = 0;
     let assetsRequiringFullHistoryReplacement = 0;
 
     for (const instrument of input.instruments) {
@@ -87,6 +89,10 @@ export function buildDePrimaryPreferencePlan(input: {
         if (isNonActionableStatus(instrument.marketDataStatus)) {
             skippedNonActionable += 1;
             continue;
+        }
+
+        if (instrument.marketDataStatus === "unknown") {
+            actionableUnknownInspected += 1;
         }
 
         const verifiedDeCandidates = mappings
@@ -141,6 +147,7 @@ export function buildDePrimaryPreferencePlan(input: {
         switchCandidates,
         noDeCandidate,
         skippedNonActionable,
+        actionableUnknownInspected,
         assetsRequiringFullHistoryReplacement,
     };
 }

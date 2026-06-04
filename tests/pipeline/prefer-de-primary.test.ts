@@ -108,23 +108,83 @@ describe("prefer .DE primary plan", () => {
         expect(plan.noDeCandidate).toBe(1);
     });
 
-    it("skips terminal statuses", () => {
+    it("inspects unknown-status assets instead of skipping them", () => {
         const plan = buildDePrimaryPreferencePlan({
-            instruments: [instrument({ isin: "US0000000003", id: "asset-3", marketDataStatus: "legacy" })],
+            instruments: [instrument({ isin: "US0000000009", id: "asset-9", marketDataStatus: "unknown" })],
             mappings: [
                 mapping({
-                    assetId: "asset-3",
-                    isin: "US0000000003",
-                    mappingId: "legacy-de",
-                    symbol: "LEGACY.DE",
-                    exchange: "XETRA",
-                    currency: "EUR",
+                    assetId: "asset-9",
+                    isin: "US0000000009",
+                    mappingId: "unknown-primary",
+                    symbol: "RYDAF",
+                    exchange: "PNK",
+                    currency: "USD",
                     isPrimary: true,
                 }),
             ],
         });
 
-        expect(plan.switchCandidates).toHaveLength(0);
-        expect(plan.skippedNonActionable).toBe(1);
+        expect(plan.skippedNonActionable).toBe(0);
+        expect(plan.actionableUnknownInspected).toBe(1);
+        expect(plan.noDeCandidate).toBe(1);
+    });
+
+    it("treats unknown-status assets with verified .DE candidates as switch candidates", () => {
+        const plan = buildDePrimaryPreferencePlan({
+            instruments: [instrument({ isin: "US0000000010", id: "asset-10", marketDataStatus: "unknown" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-10",
+                    isin: "US0000000010",
+                    mappingId: "unknown-old-primary",
+                    symbol: "IMBBF",
+                    exchange: "PNK",
+                    currency: "USD",
+                    isPrimary: true,
+                    providerPriceRowCount: 12,
+                }),
+                mapping({
+                    assetId: "asset-10",
+                    isin: "US0000000010",
+                    mappingId: "unknown-new-de",
+                    symbol: "BMW.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                }),
+            ],
+        });
+
+        expect(plan.actionableUnknownInspected).toBe(1);
+        expect(plan.switchCandidates).toHaveLength(1);
+        expect(plan.switchCandidates[0]).toMatchObject({
+            marketDataStatus: "unknown",
+            oldPrimarySymbol: "IMBBF",
+            newPrimarySymbol: "BMW.DE",
+        });
+    });
+
+    it("skips terminal statuses", () => {
+        const terminalStatuses = ["excluded", "legacy", "derivative"] as const;
+
+        for (const status of terminalStatuses) {
+            const plan = buildDePrimaryPreferencePlan({
+                instruments: [instrument({ isin: `US000000000${terminalStatuses.indexOf(status) + 3}`, id: `asset-${status}`, marketDataStatus: status })],
+                mappings: [
+                    mapping({
+                        assetId: `asset-${status}`,
+                        isin: `US000000000${terminalStatuses.indexOf(status) + 3}`,
+                        mappingId: `${status}-de`,
+                        symbol: "TERMINAL.DE",
+                        exchange: "XETRA",
+                        currency: "EUR",
+                        isPrimary: true,
+                    }),
+                ],
+            });
+
+            expect(plan.switchCandidates).toHaveLength(0);
+            expect(plan.skippedNonActionable).toBe(1);
+            expect(plan.actionableUnknownInspected).toBe(0);
+        }
     });
 });

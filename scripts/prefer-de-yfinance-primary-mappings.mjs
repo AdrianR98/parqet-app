@@ -173,6 +173,7 @@ function printPlanSummary({ plan, limitedCandidates, mode }) {
     console.log(`- total assets inspected: ${plan.totalAssetsInspected}`);
     console.log(`- already primary .DE: ${plan.alreadyPrimaryDe}`);
     console.log(`- switch candidates non-DE -> .DE: ${limitedCandidates.length}`);
+    console.log(`- actionable unknown inspected: ${plan.actionableUnknownInspected}`);
     console.log(`- no .DE candidate: ${plan.noDeCandidate}`);
     console.log(`- skipped terminal/excluded/legacy/derivative assets: ${plan.skippedNonActionable}`);
     console.log(`- assets requiring full history replacement: ${limitedCandidates.filter((item) => item.requiresFullHistoryReplacement).length}`);
