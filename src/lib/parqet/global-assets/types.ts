@@ -66,7 +66,10 @@ export type ReconciliationWarningCode =
   | "UNASSIGNED_ACTIVITY"
   | "EMPTY_ASSET_GROUP"
   | "MISSING_PORTFOLIO_BREAKDOWN"
-  | "TOTALS_BLOCKED_BY_MIXED_CURRENCIES";
+  | "TOTALS_BLOCKED_BY_MIXED_CURRENCIES"
+  | "MARKET_PRICE_FALLBACK_USED"
+  | "MISSING_MARKET_PRICE"
+  | "STALE_MARKET_PRICE";
 
 export type BlockedMetric =
   | "portfolio_breakdown"
@@ -260,6 +263,27 @@ export type AssetDisplayMetadata = {
   metadataSource?: string | null;
 };
 
+export type GlobalAssetValuationSourceKind =
+  | "market_data_db"
+  | "latest_trade_price_fallback"
+  | "missing";
+
+export type GlobalAssetValuationFreshnessState =
+  | "fresh"
+  | "stale"
+  | "missing"
+  | "unknown";
+
+export type GlobalAssetValuationSnapshot = {
+  marketPrice?: MoneyValue | null;
+  latestTradePrice?: MoneyValue | null;
+  priceDate?: string | null;
+  priceTimestamp?: string | null;
+  priceSource?: string | null;
+  sourceKind: GlobalAssetValuationSourceKind;
+  freshnessState: GlobalAssetValuationFreshnessState;
+};
+
 /** Calculated snapshot fields. Builders decide how and when these values are populated. */
 export type GlobalAssetTotals = {
   quantity?: number | null;
@@ -282,6 +306,7 @@ export type PortfolioBreakdown = {
   fees?: MoneyValue | null;
   taxes?: MoneyValue | null;
   avgBuyPrice?: MoneyValue | null;
+  valuation?: GlobalAssetValuationSnapshot | null;
   shareOfGlobalPosition?: number | null;
   status: PortfolioBreakdownStatus;
   warnings: ReconciliationWarning[];
@@ -292,6 +317,7 @@ export type GlobalAsset = {
   display: AssetDisplayMetadata;
   timeline: GlobalAssetTimelineEntry[];
   portfolioBreakdowns: PortfolioBreakdown[];
+  valuation?: GlobalAssetValuationSnapshot | null;
   warnings: ReconciliationWarning[];
   unresolvedDecisionCandidates?: UnresolvedDecisionCandidate[];
   confidence: AssetConfidence;

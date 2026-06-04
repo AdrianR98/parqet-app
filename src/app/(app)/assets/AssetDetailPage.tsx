@@ -11,12 +11,12 @@ import {
 } from "../../../lib/app-settings";
 import { loadDashboardCache } from "../../../lib/dashboard-cache";
 import {
-    findAssetByKey,
     getAssetDetailKey,
     getAssetDisplayName,
     getAssetStatusLabel,
     getAssetWarnings,
     resolveSelectedAssetScope,
+    selectCanonicalAssetDetailAsset,
     scopeAssetMetrics,
 } from "../../../lib/asset-detail";
 import { enrichAssetsWithMetadata } from "../../../lib/asset-metadata";
@@ -28,6 +28,7 @@ import type { ActivitiesAuditItem, GlobalAssetViewModel, PortfolioPosition } fro
 import { DASHBOARD_CACHE_CHANGED_EVENT } from "../../../lib/dashboard-cache";
 import { ensureParqetLocalBootstrap } from "../../../lib/parqet-local-bootstrap";
 import { buildPortfolioBreakdownDisplayEntries } from "../../../lib/calculations/view-model-aggregates";
+import { resolveGlobalAssetProductGuardEnabled } from "../../../lib/dashboard-helpers";
 import AssetLogo from "../../../components/common/AssetLogo";
 import styles from "./AssetDetailPage.module.css";
 
@@ -1048,6 +1049,7 @@ export default function AssetDetailPage() {
     const [activeCagrMenu, setActiveCagrMenu] = useState<"primary" | "secondary" | null>(null);
     const [dividendKpiSettingsReady, setDividendKpiSettingsReady] = useState(false);
     const marketRequestSequence = useRef(0);
+    const guardedGlobalAssetProductEnabled = resolveGlobalAssetProductGuardEnabled();
 
     const viewModel = useMemo(() => {
         void localStateSnapshot;
@@ -1055,8 +1057,17 @@ export default function AssetDetailPage() {
         const cache = loadDashboardCache();
         if (!cache) return null;
 
-        const assets = enrichAssetsWithMetadata([...(cache.activeAssets ?? []), ...(cache.closedAssets ?? [])]);
-        const asset = findAssetByKey(assets, assetKey);
+        const runtimeFallbackAssets = enrichAssetsWithMetadata([
+            ...(cache.activeAssets ?? []),
+            ...(cache.closedAssets ?? []),
+        ]);
+        const canonicalAssetSelection = selectCanonicalAssetDetailAsset({
+            assetKey,
+            runtimeFallbackAssets,
+            productReadModel: cache.globalAssetProductReadModel ?? null,
+            guardEnabled: guardedGlobalAssetProductEnabled,
+        });
+        const asset = canonicalAssetSelection.asset;
         if (!asset) return null;
 
         const selectedAssetScope = resolveSelectedAssetScope(asset);
@@ -1088,8 +1099,10 @@ export default function AssetDetailPage() {
             selectedScopeMode: selectedAssetScope.mode,
             isManualEmptyScope,
             activityItems: cache.activityItems ?? [],
+            assetSource: canonicalAssetSelection.assetSource,
+            guardedSelection: canonicalAssetSelection.selection,
         };
-    }, [assetKey, clientReady, localStateSnapshot]);
+    }, [assetKey, clientReady, guardedGlobalAssetProductEnabled, localStateSnapshot]);
 
     const currentIsin = viewModel?.asset?.isin?.trim() ?? "";
 

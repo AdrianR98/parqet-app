@@ -39,6 +39,7 @@ export type PortfolioBreakdownAggregate = {
 };
 
 export type AllocationSegment = {
+  key: string;
   label: string;
   value: number;
   color: string;
@@ -129,6 +130,7 @@ export function buildAllocationSegmentsFromAssets(
 ): AllocationSegment[] {
   const validAssets = assets
     .map((asset) => ({
+      key: asset.isin?.trim() || getLabelFallbackKey(asset),
       label: options.getLabel(asset),
       value: asset.positionValue ?? 0,
     }))
@@ -144,6 +146,7 @@ export function buildAllocationSegmentsFromAssets(
     .slice(options.maxIndividualSegments)
     .reduce((sum, asset) => sum + asset.value, 0);
   const segments: AllocationSegment[] = topAssets.map((asset, index) => ({
+    key: asset.key || `${asset.label}:${index}`,
     label: asset.label,
     value: asset.value,
     color:
@@ -154,6 +157,7 @@ export function buildAllocationSegmentsFromAssets(
 
   if (remainder > 0) {
     segments.push({
+      key: "allocation:other",
       label: "Weitere",
       value: remainder,
       color: options.otherColor,
@@ -161,6 +165,25 @@ export function buildAllocationSegmentsFromAssets(
   }
 
   return segments;
+}
+
+function getLabelFallbackKey(asset: GlobalAssetViewModel): string {
+  const symbol = asset.symbol?.trim();
+  if (symbol) {
+    return `symbol:${symbol.toUpperCase()}`;
+  }
+
+  const wkn = asset.wkn?.trim();
+  if (wkn) {
+    return `wkn:${wkn.toUpperCase()}`;
+  }
+
+  const name = asset.name?.trim();
+  if (name) {
+    return `label:${name}`;
+  }
+
+  return "asset:unknown";
 }
 
 export function splitAssetsByPosition(

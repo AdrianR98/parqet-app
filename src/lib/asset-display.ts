@@ -139,11 +139,23 @@ export function getAssetWkn(asset: GlobalAssetViewModel): string | null {
 }
 
 export function getAssetDisplayName(asset: GlobalAssetViewModel): string {
-  if (isIsinLike(asset.isin) && asset.instrumentMetadataStatus !== "ok") {
-    return "Stammdaten fehlen";
-  }
-
-  const name = pickFirstDisplayString(asset.instrument?.displayName, asset.instrument?.name, asset.name);
+  const name = pickFirstDisplayString(
+    asset.instrument?.displayName,
+    asset.instrument?.name,
+    asset.name,
+    asset.displayName,
+    asset.assetName,
+    asset.title,
+    ...getMetadataCandidates(asset).flatMap((metadata) => [
+      metadata.displayName,
+      metadata.instrumentDisplayName,
+      metadata.instrumentName,
+      metadata.name,
+      metadata.assetName,
+      metadata.title,
+      metadata.curatedName,
+    ]),
+  );
   if (name) {
     return name;
   }
@@ -158,6 +170,10 @@ export function getAssetDisplayName(asset: GlobalAssetViewModel): string {
 
   if (wkn) {
     return wkn;
+  }
+
+  if (isIsinLike(asset.isin)) {
+    return asset.isin.trim().toUpperCase();
   }
 
   return "Stammdaten fehlen";

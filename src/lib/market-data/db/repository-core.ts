@@ -280,14 +280,29 @@ function mapActionRow(row: Record<string, unknown>): DbMarketAction {
     };
 }
 
-function handleRepositoryError(error: unknown): never {
+function describeRepositoryError(error: unknown): string | null {
+    if (error instanceof Error) {
+        const message = error.message.replace(/\s+/g, " ").trim();
+        return message ? message.slice(0, 300) : null;
+    }
+    return null;
+}
+
+function handleRepositoryError(error: unknown, context?: string): never {
     if (error instanceof MarketDataRepositoryError) {
         throw error;
     }
     if (error instanceof PostgresConfigError) {
         throw new MarketDataRepositoryError("missing_db_config", error.message);
     }
-    throw new MarketDataRepositoryError("db_error", "Marktdaten-DB ist derzeit nicht verfügbar.");
+    const detail = describeRepositoryError(error);
+    const prefix = context
+        ? `Marktdaten-DB Fehler in ${context}.`
+        : "Marktdaten-DB ist derzeit nicht verfügbar.";
+    throw new MarketDataRepositoryError(
+        "db_error",
+        detail ? `${prefix} ${detail}` : prefix,
+    );
 }
 
 function normalizeInstrumentStatus(status: string): MarketDataInstrumentStatus {
@@ -546,11 +561,12 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
         const normalizedIsin = assertIsin(input.isin);
         const result = await queryPostgres<Record<string, unknown>>(
             `insert into assets
-                (isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at, name_source, display_name_source, display_metadata_updated_at)
+                (asset_key_type, asset_key_value, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at, name_source, display_name_source, display_metadata_updated_at)
              values
-                ($1, $2, $3, $4, $5, $6, $7, case when $7::text is null then null else now() end, $8, $9, case when $9::text is null then null else now() end)
-             on conflict (isin)
+                ('isin', $1, $1, $2, $3, $4, $5, $6, $7, case when $7::text is null then null else now() end, $8, $9, case when $9::text is null then null else now() end)
+             on conflict (asset_key_type, asset_key_value)
              do update set
+               isin = excluded.isin,
                name = excluded.name,
                display_name = excluded.display_name,
                asset_type = excluded.asset_type,
@@ -579,7 +595,7 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
         );
         return mapInstrumentRow(result.rows[0]);
     } catch (error) {
-        handleRepositoryError(error);
+        handleRepositoryError(error, "upsertInstrument(assets)");
     }
 }
 
@@ -765,10 +781,14 @@ export async function upsertReferenceSource(input: UpsertReferenceSourceInput): 
     try {
         const sourceKey = normalizeSourceKey(input.sourceKey);
         const result = await queryPostgres<Record<string, unknown>>(
-            `insert into reference_data_sources (source_key, display_name, source_type, file_name, row_count, imported_at, notes)
-             values ($1, $2, $3, $4, $5, now(), $6)
+            `insert into reference_data_sources
+                (provider, source_name, source_type, source_key, display_name, file_name, row_count, imported_at, notes)
+             values
+                ('legacy_market_data', $1, $3, $1, $2, $4, $5, now(), $6)
              on conflict (source_key)
              do update set
+               provider = excluded.provider,
+               source_name = excluded.source_name,
                display_name = excluded.display_name,
                source_type = excluded.source_type,
                file_name = excluded.file_name,
@@ -780,8 +800,43 @@ export async function upsertReferenceSource(input: UpsertReferenceSourceInput): 
         );
         return mapReferenceSourceRow(result.rows[0]);
     } catch (error) {
-        handleRepositoryError(error);
+        handleRepositoryError(error, "upsertReferenceSource(reference_data_sources)");
     }
+}
+
+async function ensureMarketDataRunSource(input: {
+    provider: string;
+    runType: string;
+}): Promise<{ sourceId: string }> {
+    const provider = input.provider.trim().toLowerCase();
+    const runType = input.runType.trim();
+    const sourceKey = `market_data_run:${provider}:${runType}`;
+    const sourceName = `${provider}:${runType}`;
+
+    const result = await queryPostgres<{ id: string }>(
+        `insert into reference_data_sources
+            (provider, source_name, source_type, source_key, display_name, imported_at, notes)
+         values
+            ($1, $2, 'market_data_run', $3, $4, now(), $5)
+         on conflict (source_key)
+         do update set
+            provider = excluded.provider,
+            source_name = excluded.source_name,
+            source_type = excluded.source_type,
+            display_name = excluded.display_name,
+            imported_at = now(),
+            notes = excluded.notes
+         returning id`,
+        [
+            provider,
+            sourceName,
+            sourceKey,
+            `Market data run ${provider}/${runType}`,
+            "Auto-created source row for incremental market-data run logging.",
+        ],
+    );
+
+    return { sourceId: result.rows[0].id };
 }
 
 export async function listReferenceSourceCounts(): Promise<ReferenceSourceCount[]> {
@@ -1803,11 +1858,12 @@ export async function recordMarketDataRequest(input: RecordMarketDataRequestInpu
             try {
                 await client.query(
                     `insert into assets
-                        (isin, name, display_name, asset_type, currency, wkn, market_data_status)
+                        (asset_key_type, asset_key_value, isin, name, display_name, asset_type, currency, wkn, market_data_status)
                      values
-                        ($1, $2, $3, $4, $5, $6, 'unknown')
-                     on conflict (isin)
+                        ('isin', $1, $1, $2, $3, $4, $5, $6, 'unknown')
+                     on conflict (asset_key_type, asset_key_value)
                      do update set
+                        isin = excluded.isin,
                         name = coalesce(assets.name, excluded.name),
                         display_name = coalesce(assets.display_name, excluded.display_name),
                         asset_type = coalesce(assets.asset_type, excluded.asset_type),
@@ -1820,10 +1876,10 @@ export async function recordMarketDataRequest(input: RecordMarketDataRequestInpu
 
                 const result = await client.query<Record<string, unknown>>(
                     `insert into reference_data_request_logs
-                        (isin, name, display_name, asset_type, currency, wkn, source)
+                        (provider, request_type, request_key, status, isin, name, display_name, asset_type, currency, wkn, source, first_seen_at, last_seen_at)
                      values
-                        ($1, $2, $3, $4, $5, $6, $7)
-                     on conflict (isin)
+                        ('runtime_asset_discovery', 'isin', $1, 'pending', $1, $2, $3, $4, $5, $6, $7, now(), now())
+                     on conflict (provider, request_type, request_key)
                      do update set
                         seen_count = reference_data_request_logs.seen_count + 1,
                         last_seen_at = now(),
@@ -2541,25 +2597,35 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
                 await client.query(
                     `update asset_symbol_mappings
                      set asset_id = $1,
-                         currency = $4,
-                         is_primary = true,
+                         currency = coalesce($4, currency),
                          is_active = true,
                          updated_at = now()
                      where provider = $2
-                       and provider_symbol = $3
-                       and coalesce(exchange, '') = ''`,
+                       and provider_symbol = $3`,
                     [assetId, provider, symbol, input.currency ?? null],
                 );
                 await client.query(
                     `insert into asset_symbol_mappings
                         (asset_id, provider, provider_symbol, currency, is_primary, is_active)
-                     select $1, $2, $3, $4, true, true
+                     select
+                        $1,
+                        $2,
+                        $3,
+                        $4,
+                        not exists (
+                            select 1
+                            from asset_symbol_mappings
+                            where asset_id = $1
+                              and provider = $2
+                              and is_primary = true
+                              and is_active = true
+                        ),
+                        true
                      where not exists (
                         select 1
                         from asset_symbol_mappings
                         where provider = $2
                           and provider_symbol = $3
-                          and coalesce(exchange, '') = ''
                      )`,
                     [assetId, provider, symbol, input.currency ?? null],
                 );
@@ -2607,7 +2673,7 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
 
         return { upserted: input.points.length };
     } catch (error) {
-        handleRepositoryError(error);
+        handleRepositoryError(error, "upsertDailyPrices(asset_daily_prices)");
     }
 }
 
@@ -2745,15 +2811,20 @@ export async function upsertMarketActions(input: UpsertMarketActionsInput): Prom
 
 export async function createMarketDataRun(input: CreateMarketDataRunInput): Promise<{ runId: string }> {
     try {
+        const provider = input.provider.trim().toLowerCase();
+        const runType = input.runType.trim();
+        const source = await ensureMarketDataRunSource({ provider, runType });
         const result = await queryPostgres<{ id: string }>(
-            `insert into reference_data_import_runs (provider, run_type, status, requested_symbols)
-             values ($1, $2, 'running', $3)
+            `insert into reference_data_import_runs
+                (source_id, import_type, status, started_at, run_type, provider, requested_symbols)
+             values
+                ($1, $2, 'running', now(), $2, $3, $4)
              returning id`,
-            [input.provider.trim(), input.runType.trim(), input.requestedSymbols],
+            [source.sourceId, runType, provider, input.requestedSymbols],
         );
         return { runId: result.rows[0].id };
     } catch (error) {
-        handleRepositoryError(error);
+        handleRepositoryError(error, "createMarketDataRun(reference_data_import_runs)");
     }
 }
 
@@ -2776,7 +2847,7 @@ export async function finishMarketDataRun(input: FinishMarketDataRunInput): Prom
             ],
         );
     } catch (error) {
-        handleRepositoryError(error);
+        handleRepositoryError(error, "finishMarketDataRun(reference_data_import_runs)");
     }
 }
 
@@ -2784,16 +2855,17 @@ export async function addMarketDataRunItem(input: AddMarketDataRunItemInput): Pr
     try {
         const result = await queryPostgres<{ id: string }>(
             `insert into reference_data_import_run_items
-                (run_id, instrument_id, provider, symbol, status, points_imported, actions_imported, first_date, last_date, error_message)
+                (run_id, asset_id, provider_symbol, item_type, status, instrument_id, symbol, points_imported, actions_imported, first_date, last_date, error_message)
              values
-                ($1, $2, $3, $4, $5, $6, $7, $8::date, $9::date, $10)
+                ($1, null, $2, $3, $4, $5, $6, $7, $8, $9::date, $10::date, $11)
              returning id`,
             [
                 input.runId,
-                input.instrumentId ?? null,
-                input.provider.trim(),
                 input.symbol.trim().toUpperCase(),
+                `market_data:${input.provider.trim().toLowerCase()}`,
                 input.status.trim(),
+                input.instrumentId ?? null,
+                input.symbol.trim().toUpperCase(),
                 input.pointsImported ?? 0,
                 input.actionsImported ?? 0,
                 input.firstDate ?? null,
@@ -2803,6 +2875,6 @@ export async function addMarketDataRunItem(input: AddMarketDataRunItemInput): Pr
         );
         return { itemId: result.rows[0].id };
     } catch (error) {
-        handleRepositoryError(error);
+        handleRepositoryError(error, "addMarketDataRunItem(reference_data_import_run_items)");
     }
 }

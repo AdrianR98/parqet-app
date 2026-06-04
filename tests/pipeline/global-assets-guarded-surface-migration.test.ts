@@ -261,9 +261,9 @@ describe("canonical global-asset safe-field migration selectors", () => {
     expect(projected.assets[0]?.portfolioBreakdown.length).toBeGreaterThan(1);
     expect(projected.assets[0]?.quantity).toBe(3);
     expect(projected.assets[0]?.marketValue.valueClassification).toBe("app_calculated");
-    expect(projected.assets[0]?.marketValue.amount).toBe(280);
+    expect(projected.assets[0]?.marketValue.amount).toBe(330);
     expect(projected.assets[0]?.costBasis.amount).toBe(500);
-    expect(projected.assets[0]?.unrealizedPnL.amount).toBe(-220);
+    expect(projected.assets[0]?.unrealizedPnL.amount).toBe(-170);
     expect(projected.assets[0]?.dividendsNet.amount).toBe(12);
     expect(projected.assets[0]?.portfolioBreakdown[0]?.marketValue.amount).not.toBeNull();
     expect(projected.assets[0]?.portfolioBreakdown[0]?.costBasis.amount).not.toBeNull();
@@ -560,8 +560,8 @@ describe("reports canonical safe-field source integration", () => {
     expect(report?.guardedSelection.reason).toBe("product_read_model_ready");
     expect(report?.assets[0]?.name).toBe("Guarded Report Asset");
     expect(report?.assets.length).toBe(2);
-    expect(report?.totals.totalPositionValue).toBe(280);
-    expect(report?.totals.totalUnrealizedPnL).toBe(-220);
+    expect(report?.totals.totalPositionValue).toBe(330);
+    expect(report?.totals.totalUnrealizedPnL).toBe(-170);
   });
 
   it("falls back to runtime fallback report source when old cache has no global asset product model", () => {

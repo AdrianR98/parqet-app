@@ -18,6 +18,37 @@ function normalizeLookupIsin(value: string): string {
     return value.replace(/\s+/g, "").toUpperCase();
 }
 
+function resolveSnapshotIsin(snapshot: AssetLatestMarketPriceSnapshot): string | null {
+    const candidate =
+        snapshot.isin ??
+        (snapshot.assetKeyType === "isin" ? snapshot.assetKeyValue : null);
+
+    if (!candidate) {
+        return null;
+    }
+
+    const normalized = normalizeLookupIsin(candidate);
+    return normalized.length > 0 ? normalized : null;
+}
+
+export function normalizeLatestMarketPriceSnapshotsByIsin(
+    snapshotsByAnyKey: Record<string, AssetLatestMarketPriceSnapshot>,
+): Record<string, AssetLatestMarketPriceSnapshot> {
+    const normalized: Record<string, AssetLatestMarketPriceSnapshot> = {};
+
+    for (const snapshot of Object.values(snapshotsByAnyKey)) {
+        const isin = resolveSnapshotIsin(snapshot);
+
+        if (!isin) {
+            continue;
+        }
+
+        normalized[isin] = snapshot;
+    }
+
+    return normalized;
+}
+
 export async function getLatestMarketPriceByIsin(input: {
     isin: string;
     provider?: string;
@@ -38,10 +69,12 @@ export async function getLatestMarketPricesByIsins(input: {
         assetKeyValue: isin,
     }));
 
-    return findLatestMarketPricesByAssetKeys({
+    const snapshotsByAnyKey = await findLatestMarketPricesByAssetKeys({
         keys,
         provider: input.provider,
     });
+
+    return normalizeLatestMarketPriceSnapshotsByIsin(snapshotsByAnyKey);
 }
 
 function isStaleLatestDate(latestPriceDate: string | null): boolean {

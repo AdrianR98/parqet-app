@@ -42,6 +42,12 @@ import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistenc
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 import { buildGlobalAssetProductReadModelFromActivityContext } from "../../../../lib/parqet/global-assets/coexistence";
 import {
+  enrichGlobalAssetsProductReadModelMetrics,
+  type ProductReadModelAssets,
+} from "../../../../lib/parqet/global-assets/product-read-model";
+import { selectPrmDisplayNameForMetadataOverlay } from "../../../../lib/parqet/global-assets/display-fallback";
+import { getLatestMarketPricesByIsins } from "../../../../lib/market-data/service";
+import {
   chooseCuratedDisplayName,
   getMarketInstrumentMetadataByIsins,
   getPrimarySymbolMappingsByIsins,
@@ -50,9 +56,14 @@ import {
 } from "../../../../lib/market-data/db/repository";
 import { recordUnknownMarketDataRequestsFromAssets } from "../../../../lib/market-data/runtime-requests";
 import type {
+  AssetLatestMarketPriceSnapshot,
   DbMarketInstrumentMetadata,
   DbMarketSymbolMapping,
 } from "../../../../lib/market-data/db/types-core";
+import {
+  logDevDiagnostic,
+  summarizeDiagnostics,
+} from "../../../../lib/debug/dev-diagnostics";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
 const INSTRUMENT_METADATA_MISSING_TITLE = "Stammdaten fehlen";
@@ -211,6 +222,65 @@ function normalizeWeakText(value: string | null | undefined): string | null {
 
 function normalizeLookupIsin(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+function mapMarketPriceSnapshotsByIsin(
+  snapshotsByIsin: Record<string, AssetLatestMarketPriceSnapshot>,
+): Record<
+  string,
+  {
+    priceAmount: number;
+    currency: string | null;
+    priceDate: string | null;
+    priceTimestamp: string | null;
+    priceSource: string | null;
+  }
+> {
+  const mapped: Record<
+    string,
+    {
+      priceAmount: number;
+      currency: string | null;
+      priceDate: string | null;
+      priceTimestamp: string | null;
+      priceSource: string | null;
+    }
+  > = {};
+
+  for (const snapshot of Object.values(snapshotsByIsin)) {
+    const rawIsin =
+      snapshot.isin ??
+      (snapshot.assetKeyType === "isin" ? snapshot.assetKeyValue : null);
+    const normalizedIsin = normalizeLookupIsin(rawIsin);
+
+    if (!normalizedIsin) {
+      continue;
+    }
+
+    mapped[normalizedIsin] = {
+      priceAmount: snapshot.priceAmount,
+      currency: snapshot.currency ?? null,
+      priceDate: snapshot.priceDate ?? null,
+      priceTimestamp: snapshot.priceTimestamp ?? null,
+      priceSource: snapshot.provider ?? null,
+    };
+  }
+
+  return mapped;
+}
+
+function isStaleMarketPriceSnapshot(snapshot: AssetLatestMarketPriceSnapshot): boolean {
+  if (!snapshot.priceDate) {
+    return false;
+  }
+
+  const date = new Date(`${snapshot.priceDate}T00:00:00Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  return Date.now() - date.getTime() > 7 * 24 * 60 * 60 * 1000;
 }
 
 function getMarketMetadataForIsin(
@@ -399,28 +469,23 @@ function resolveInstrumentMetadataForIsin(input: {
 }
 
 function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
-  globalAssetProductReadModel: unknown;
+  globalAssetProductReadModel: ProductReadModelAssets | null;
   marketMetadataByIsin: Record<string, DbMarketInstrumentMetadata>;
   primaryMappingsByIsin: Record<string, DbMarketSymbolMapping>;
   marketMetadataDbAvailable: boolean;
-}): unknown {
+}): ProductReadModelAssets | null {
   const model = input.globalAssetProductReadModel;
   if (!model || typeof model !== "object") {
     return model;
   }
 
-  const assets = (model as { assets?: unknown[] }).assets;
+  const assets = model.assets;
   if (!Array.isArray(assets)) {
     return model;
   }
 
   const nextAssets = assets.map((asset) => {
-    if (!asset || typeof asset !== "object") {
-      return asset;
-    }
-
-    const identity = (asset as { identity?: { compatibilityIsin?: string | null } }).identity;
-    const compatibilityIsin = normalizeLookupIsin(identity?.compatibilityIsin ?? "");
+    const compatibilityIsin = normalizeLookupIsin(asset.identity?.compatibilityIsin ?? "");
     if (!compatibilityIsin) {
       return asset;
     }
@@ -439,12 +504,35 @@ function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
     return {
       ...asset,
       instrument,
+      classification: {
+        ...(asset.classification ?? {}),
+        assetType: resolution.assetType ?? asset.classification?.assetType ?? null,
+        currency: resolution.currency ?? asset.classification?.currency ?? null,
+        symbol:
+          instrument.primaryMapping?.symbol ??
+          asset.classification?.symbol ??
+          asset.display.symbol ??
+          null,
+        primarySymbol:
+          instrument.primaryMapping?.symbol ??
+          asset.classification?.primarySymbol ??
+          null,
+        wkn: resolution.wkn ?? asset.classification?.wkn ?? asset.display.wkn ?? null,
+      },
       display: {
-        ...((asset as { display?: Record<string, unknown> }).display ?? {}),
-        displayName:
-          resolution.status === "ok"
-            ? resolution.instrumentDisplayName
-            : INSTRUMENT_METADATA_MISSING_TITLE,
+        ...asset.display,
+        displayName: selectPrmDisplayNameForMetadataOverlay({
+          resolutionStatus: resolution.status,
+          instrumentDisplayName: resolution.instrumentDisplayName,
+          existingDisplayName: asset.display.displayName,
+          symbol:
+            instrument.primaryMapping?.symbol ??
+            asset.classification?.symbol ??
+            asset.display.symbol ??
+            null,
+          wkn: resolution.wkn ?? asset.classification?.wkn ?? asset.display.wkn ?? null,
+          isin: compatibilityIsin,
+        }),
         wkn: resolution.wkn ?? null,
         subtitle: buildInstrumentSubtitle({
           isin: compatibilityIsin,
@@ -456,7 +544,7 @@ function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
   });
 
   return {
-    ...(model as Record<string, unknown>),
+    ...model,
     assets: nextAssets,
   };
 }
@@ -715,6 +803,51 @@ export async function GET(req: Request) {
         activityContext.portfolioNameById,
       );
 
+      let marketPriceSnapshotsByIsin: Record<string, AssetLatestMarketPriceSnapshot> = {};
+      try {
+        marketPriceSnapshotsByIsin = await getLatestMarketPricesByIsins({
+          isins: correctedAssets.map((asset: GlobalAssetViewModel) => asset.isin),
+        });
+      } catch (error) {
+        if (error instanceof MarketDataRepositoryError) {
+          console.warn(
+            "[parqet-assets] market price overlay unavailable:",
+            error.code,
+          );
+        } else {
+          console.warn("[parqet-assets] market price overlay failed");
+        }
+      }
+      const activeAssetsWithPositiveShares = correctedAssets.filter(
+        (asset: GlobalAssetViewModel) => asset.netShares > CLOSED_POSITION_EPSILON,
+      );
+      const normalizedOverlayKeys = new Set(
+        Object.keys(marketPriceSnapshotsByIsin).map((isin) => normalizeLookupIsin(isin)),
+      );
+      const missingOverlayAssets = activeAssetsWithPositiveShares.filter(
+        (asset: GlobalAssetViewModel) => !normalizedOverlayKeys.has(normalizeLookupIsin(asset.isin)),
+      );
+      const staleOverlayCount = Object.values(marketPriceSnapshotsByIsin).filter(
+        (snapshot) => isStaleMarketPriceSnapshot(snapshot),
+      ).length;
+
+      summarizeDiagnostics("route_market_price_overlays", {
+        requestedIsinCount: correctedAssets.length,
+        activeAssetCount: activeAssetsWithPositiveShares.length,
+        overlayCount: Object.keys(marketPriceSnapshotsByIsin).length,
+        missingOverlayCount: missingOverlayAssets.length,
+        staleOverlayCount,
+      }, "valuation");
+
+      for (const asset of missingOverlayAssets.slice(0, 10)) {
+        logDevDiagnostic("valuation", "missing_overlay_for_active_asset", {
+          isin: normalizeLookupIsin(asset.isin),
+          assetLabel: asset.name ?? asset.isin,
+          quantity: asset.netShares,
+          remainingCostBasis: asset.remainingCostBasis,
+        }, "warn");
+      }
+
       // ====================================================
       // Lokale Metadaten laden
       // ----------------------------------------------------
@@ -819,6 +952,9 @@ export async function GET(req: Request) {
           activityContext,
           requestedPortfolioIds: portfolioIds,
           generatedAt,
+          marketPriceOverlaysByIsin: mapMarketPriceSnapshotsByIsin(
+            marketPriceSnapshotsByIsin,
+          ),
         });
       const globalAssetProductReadModel =
         overlayGlobalAssetProductDisplayFromMarketMetadata({
@@ -827,6 +963,9 @@ export async function GET(req: Request) {
           primaryMappingsByIsin,
           marketMetadataDbAvailable,
         });
+      const enrichedGlobalAssetProductReadModel = globalAssetProductReadModel
+        ? enrichGlobalAssetsProductReadModelMetrics(globalAssetProductReadModel)
+        : null;
 
       return {
         rawActivityCount: activityContext.rawActivityCount,
@@ -842,7 +981,7 @@ export async function GET(req: Request) {
         generatedAt,
         freshness: activityContext.freshness,
         activityItems: buildActivityItems(activityContext, marketMetadataByIsin, marketMetadataDbAvailable),
-        globalAssetProductReadModel,
+        globalAssetProductReadModel: enrichedGlobalAssetProductReadModel,
         apiBudget: ASSETS_API_BUDGET,
       };
     }

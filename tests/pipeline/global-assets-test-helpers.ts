@@ -1,4 +1,5 @@
 import { buildGlobalAssetsFromNormalizationResult } from "../../src/lib/parqet/global-assets/aggregate";
+import type { GlobalAssetMarketPriceOverlaysByIsin } from "../../src/lib/parqet/global-assets/aggregate";
 import { normalizeActivities } from "../../src/lib/parqet/global-assets/normalize";
 import type {
   GlobalAssetAggregationResult,
@@ -66,9 +67,16 @@ export function createSyntheticActivity(input: SyntheticActivityInput): ParqetAc
 export function runGlobalAssetPipeline(activities: ParqetActivityWithPortfolioContext[]): {
   normalization: ReturnType<typeof normalizeActivities>;
   aggregation: GlobalAssetAggregationResult;
+};
+export function runGlobalAssetPipeline(
+  activities: ParqetActivityWithPortfolioContext[],
+  options?: { marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin },
+): {
+  normalization: ReturnType<typeof normalizeActivities>;
+  aggregation: GlobalAssetAggregationResult;
 } {
   const normalization = normalizeActivities(activities);
-  const aggregation = buildGlobalAssetsFromNormalizationResult(normalization);
+  const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, options);
 
   return {
     normalization,

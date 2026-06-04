@@ -10,6 +10,36 @@ import type {
   ReconciliationWarningSeverity,
   TimelineDisplayType,
 } from "./types";
+import {
+  logValuationInvariant,
+  summarizeDiagnostics,
+} from "../../debug/dev-diagnostics";
+import {
+  buildExtendedKpiMoneyMetric,
+  calculateAnnualizedDividendIncome,
+  calculateActivityKpis,
+  calculateDataConfidenceScore,
+  calculateCurrentDividendYield,
+  calculateDividendGrowth1y,
+  calculateDividendGrowth3y,
+  calculateDividendYieldOnCost,
+  calculateDividendKpis,
+  calculateIncomeReturn,
+  calculateMarketPriceFreshness,
+  calculateMetadataCompletenessScore,
+  calculatePayoutFrequency,
+  calculatePortfolioDataConfidenceScore,
+  calculatePortfolioStructureKpis,
+  calculatePortfolioWeight,
+  calculatePriceReturnExcludingDividends,
+  calculateTotalReturnIncludingDividends,
+  type ExtendedKpiAllocationByAssetTypeMetric,
+  type ExtendedKpiMarketPriceFreshnessMetric,
+  type ExtendedKpiMetricStatus,
+  type ExtendedKpiMoneyMetric,
+  type ExtendedKpiPayoutFrequencyMetric,
+  type ExtendedKpiRatioMetric,
+} from "../../calculations/extended-kpi-metrics";
 
 export type ProductReadModelSourceType =
   | "provider"
@@ -691,11 +721,103 @@ export type ProductReadModelAssetMoneyMetric = {
   blockedMetrics: BlockedMetric[];
 };
 
+export type ProductReadModelAssetValuation = {
+  marketPrice: ProductReadModelAssetMoneyMetric;
+  latestTradePrice: ProductReadModelAssetMoneyMetric;
+  priceDate: string | null;
+  priceTimestamp: string | null;
+  priceSource: string | null;
+  sourceKind: "market_data_db" | "latest_trade_price_fallback" | "missing";
+  freshnessState: "fresh" | "stale" | "missing" | "unknown";
+};
+
+export type ProductReadModelAssetClassification = {
+  assetType?: string | null;
+  currency?: string | null;
+  symbol?: string | null;
+  primarySymbol?: string | null;
+  wkn?: string | null;
+};
+
+export type ProductReadModelKpiMoneyMetric = ExtendedKpiMoneyMetric;
+export type ProductReadModelKpiRatioMetric = ExtendedKpiRatioMetric;
+export type ProductReadModelKpiMetricStatus = ExtendedKpiMetricStatus;
+export type ProductReadModelMarketPriceFreshnessMetric = ExtendedKpiMarketPriceFreshnessMetric;
+export type ProductReadModelAllocationByAssetTypeMetric = ExtendedKpiAllocationByAssetTypeMetric;
+export type ProductReadModelPayoutFrequencyMetric = ExtendedKpiPayoutFrequencyMetric;
+
+export type ProductReadModelAssetMetrics = {
+  activity?: {
+    grossBuyVolume?: ProductReadModelKpiMoneyMetric;
+    grossSellVolume?: ProductReadModelKpiMoneyMetric;
+    buyCount?: number;
+    sellCount?: number;
+  };
+  income?: {
+    dividendCount?: number;
+    lastDividendDate?: string | null;
+    annualizedDividendIncome?: ProductReadModelKpiMoneyMetric;
+    dividendGrowth1y?: ProductReadModelKpiRatioMetric;
+    dividendGrowth3y?: ProductReadModelKpiRatioMetric;
+    payoutFrequency?: ProductReadModelPayoutFrequencyMetric;
+    dividendYieldOnCost?: ProductReadModelKpiRatioMetric;
+    currentDividendYield?: ProductReadModelKpiRatioMetric;
+  };
+  returns?: {
+    incomeReturn?: ProductReadModelKpiRatioMetric;
+    priceReturnExcludingDividends?: ProductReadModelKpiRatioMetric;
+    totalReturnIncludingDividends?: ProductReadModelKpiRatioMetric;
+  };
+  structure?: {
+    portfolioWeight?: ProductReadModelKpiRatioMetric;
+  };
+  quality?: {
+    dataConfidenceScore?: number | null;
+    marketPriceFreshness?: ProductReadModelMarketPriceFreshnessMetric;
+    metadataCompletenessScore?: number | null;
+    warningCount?: number;
+  };
+};
+
+export type ProductReadModelSummaryMetrics = {
+  activity?: {
+    grossBuyVolume?: ProductReadModelKpiMoneyMetric;
+    grossSellVolume?: ProductReadModelKpiMoneyMetric;
+    buyCount?: number;
+    sellCount?: number;
+    dividendCount?: number;
+    lastDividendDate?: string | null;
+  };
+  income?: {
+    annualizedDividendIncome?: ProductReadModelKpiMoneyMetric;
+    dividendGrowth1y?: ProductReadModelKpiRatioMetric;
+    dividendGrowth3y?: ProductReadModelKpiRatioMetric;
+    dividendYieldOnCost?: ProductReadModelKpiRatioMetric;
+    currentDividendYield?: ProductReadModelKpiRatioMetric;
+  };
+  returns?: {
+    incomeReturn?: ProductReadModelKpiRatioMetric;
+    priceReturnExcludingDividends?: ProductReadModelKpiRatioMetric;
+    totalReturnIncludingDividends?: ProductReadModelKpiRatioMetric;
+  };
+  structure?: {
+    top5Concentration?: ProductReadModelKpiRatioMetric;
+    top10Concentration?: ProductReadModelKpiRatioMetric;
+    herfindahlIndex?: ProductReadModelKpiRatioMetric;
+    allocationByAssetType?: ProductReadModelAllocationByAssetTypeMetric;
+  };
+  quality?: {
+    dataConfidenceScore?: number | null;
+    warningCount?: number;
+  };
+};
+
 export type ProductReadModelAssetPortfolioBreakdown = {
   portfolioId: string;
   portfolioName: string | null;
   status: string;
   quantity: number | null;
+  valuation: ProductReadModelAssetValuation;
   marketValue: ProductReadModelAssetMoneyMetric;
   costBasis: ProductReadModelAssetMoneyMetric;
   unrealizedPnL: ProductReadModelAssetMoneyMetric;
@@ -710,9 +832,11 @@ export type ProductReadModelAssetPortfolioBreakdown = {
 export type ProductReadModelAssetRow = {
   identity: ProductReadModelAssetIdentity;
   display: ProductReadModelAssetDisplayIdentity;
+  classification?: ProductReadModelAssetClassification;
   status: ProductReadModelAssetStatus;
   quantity: number | null;
   quantityValueClassification: ProductReadModelValueClassification;
+  valuation: ProductReadModelAssetValuation;
   marketValue: ProductReadModelAssetMoneyMetric;
   costBasis: ProductReadModelAssetMoneyMetric;
   unrealizedPnL: ProductReadModelAssetMoneyMetric;
@@ -729,6 +853,7 @@ export type ProductReadModelAssetRow = {
   scopeState: ProductReadModelScopeState;
   portfolioBreakdown: ProductReadModelAssetPortfolioBreakdown[];
   latestActivityAt: string | null;
+  metrics?: ProductReadModelAssetMetrics;
 };
 
 export type ProductReadModelAssetsSummary = {
@@ -741,6 +866,7 @@ export type ProductReadModelAssetsSummary = {
   blockedMetricAssetCount: number;
   blockedMetricCount: number;
   valueClassificationCounts: Record<ProductReadModelValueClassification, number>;
+  metrics?: ProductReadModelSummaryMetrics;
 };
 
 export type ProductReadModelAssets = {
@@ -878,6 +1004,525 @@ function deriveAssetStatus(status: string): ProductReadModelAssetStatus {
   return "unknown";
 }
 
+function toWarningSignature(warning: ProductReadModelWarning): string {
+  return [
+    warning.code,
+    warning.source,
+    warning.severity,
+    [...warning.blockedMetrics].sort().join(","),
+  ].join("|");
+}
+
+function calculateSnapshotScopeWarningCount(input: {
+  modelWarnings: ProductReadModelWarning[];
+  assetWarnings: ProductReadModelWarning[][];
+}): number {
+  const assetWarningSignatures = new Set(
+    input.assetWarnings.flat().map(toWarningSignature),
+  );
+  const nonOverlappingModelWarnings = input.modelWarnings.filter(
+    (warning) => !assetWarningSignatures.has(toWarningSignature(warning)),
+  );
+
+  return (
+    input.assetWarnings.reduce((sum, warnings) => sum + warnings.length, 0) +
+    nonOverlappingModelWarnings.length
+  );
+}
+
+function buildAssetMetrics(input: {
+  asset: GlobalAsset;
+  row: Pick<
+    ProductReadModelAssetRow,
+    "identity" | "display" | "classification" | "valuation" | "marketValue" | "costBasis" | "unrealizedPnL" | "dividendsNet" | "warnings"
+  >;
+  portfolioValue?: { amount: number | null; currency: string | null } | null;
+}): ProductReadModelAssetMetrics {
+  const activities = input.asset.timeline.map((entry) => ({
+    activityType: entry.activity.activityType,
+    amount: entry.activity.amounts.amount ?? null,
+    amountNet: entry.activity.amounts.amountNet ?? null,
+    date: entry.activity.date,
+    datetime: entry.activity.datetime,
+  }));
+  const activityMetrics = calculateActivityKpis(activities);
+  const dividendMetrics = calculateDividendKpis(activities);
+  const annualizedDividendIncome = calculateAnnualizedDividendIncome({
+    activities,
+    fallbackCurrency:
+      input.row.dividendsNet.currency ??
+      input.row.costBasis.currency ??
+      input.row.marketValue.currency ??
+      input.row.classification?.currency ??
+      null,
+  });
+  const payoutFrequency = calculatePayoutFrequency(activities);
+  const dividendGrowth1y = calculateDividendGrowth1y({
+    activities,
+  });
+  const dividendGrowth3y = calculateDividendGrowth3y({
+    activities,
+  });
+  const metadataCompletenessScore = calculateMetadataCompletenessScore({
+    displayName: input.row.display.displayName,
+    name: input.row.display.displayName,
+    isin: input.row.identity.compatibilityIsin,
+    wkn: input.row.classification?.wkn ?? input.row.display.wkn,
+    assetType: input.row.classification?.assetType ?? null,
+    currency:
+      input.row.classification?.currency ??
+      input.row.marketValue.currency ??
+      input.row.valuation.marketPrice.currency ??
+      input.row.valuation.latestTradePrice.currency,
+    symbol: input.row.display.symbol,
+    primarySymbol: input.row.classification?.primarySymbol ?? input.row.classification?.symbol ?? null,
+  });
+  const warningCount = input.row.warnings.length;
+  const dividendYieldOnCost = calculateDividendYieldOnCost({
+    annualizedDividendIncome,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
+  const currentDividendYield = calculateCurrentDividendYield({
+    annualizedDividendIncome,
+    positionValueAmount: input.row.marketValue.amount,
+    positionValueCurrency: input.row.marketValue.currency,
+  });
+  const incomeReturn = calculateIncomeReturn({
+    totalDividendNetAmount: input.row.dividendsNet.amount,
+    totalDividendNetCurrency: input.row.dividendsNet.currency,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
+  const priceReturnExcludingDividends = calculatePriceReturnExcludingDividends({
+    unrealizedPnLAmount: input.row.unrealizedPnL.amount,
+    unrealizedPnLCurrency: input.row.unrealizedPnL.currency,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
+  const totalReturnIncludingDividends = calculateTotalReturnIncludingDividends({
+    unrealizedPnLAmount: input.row.unrealizedPnL.amount,
+    unrealizedPnLCurrency: input.row.unrealizedPnL.currency,
+    totalDividendNetAmount: input.row.dividendsNet.amount,
+    totalDividendNetCurrency: input.row.dividendsNet.currency,
+    remainingCostBasisAmount: input.row.costBasis.amount,
+    remainingCostBasisCurrency: input.row.costBasis.currency,
+  });
+
+  return {
+    activity: {
+      grossBuyVolume: activityMetrics.grossBuyVolume,
+      grossSellVolume: activityMetrics.grossSellVolume,
+      buyCount: activityMetrics.buyCount,
+      sellCount: activityMetrics.sellCount,
+    },
+    income: {
+      dividendCount: dividendMetrics.dividendCount,
+      lastDividendDate: dividendMetrics.lastDividendDate,
+      annualizedDividendIncome,
+      dividendGrowth1y,
+      dividendGrowth3y,
+      payoutFrequency,
+      dividendYieldOnCost,
+      currentDividendYield,
+    },
+    returns: {
+      incomeReturn,
+      priceReturnExcludingDividends,
+      totalReturnIncludingDividends,
+    },
+    structure: {
+      portfolioWeight: calculatePortfolioWeight({
+        assetPositionValue: {
+          amount: input.row.marketValue.amount,
+          currency: input.row.marketValue.currency,
+        },
+        portfolioValue: input.portfolioValue ?? null,
+      }),
+    },
+    quality: {
+      dataConfidenceScore: calculateDataConfidenceScore({
+        valuationSourceKind: input.row.valuation.sourceKind,
+        freshnessState: input.row.valuation.freshnessState,
+        metadataCompletenessScore,
+        warningCount,
+      }),
+      marketPriceFreshness: calculateMarketPriceFreshness({
+        priceDate: input.row.valuation.priceDate,
+        priceTimestamp: input.row.valuation.priceTimestamp,
+        sourceKind: input.row.valuation.sourceKind,
+        freshnessState: input.row.valuation.freshnessState,
+      }),
+      metadataCompletenessScore,
+      warningCount,
+    },
+  };
+}
+
+export function enrichGlobalAssetsProductReadModelMetrics(
+  productReadModel: ProductReadModelAssets,
+): ProductReadModelAssets {
+  // Snapshot-scope summary metrics are valid for the PRM/API snapshot scope only.
+  // Later UI rescoping must recompute or rescope these metrics instead of reusing
+  // snapshot-wide summary values after a local portfolio-selection change.
+  const portfolioStructure = calculatePortfolioStructureKpis({
+    assets: productReadModel.assets.map((asset) => ({
+      positionValue:
+        asset.marketValue.amount != null
+          ? {
+              amount: asset.marketValue.amount,
+              currency: asset.marketValue.currency,
+            }
+          : null,
+      assetType: asset.classification?.assetType ?? null,
+    })),
+  });
+  const assetRowsWithMetrics = productReadModel.assets.map((asset) => {
+    const metadataCompletenessScore = calculateMetadataCompletenessScore({
+      displayName: asset.display.displayName,
+      name: asset.display.displayName,
+      isin: asset.identity.compatibilityIsin,
+      wkn: asset.classification?.wkn ?? asset.display.wkn,
+      assetType: asset.classification?.assetType ?? null,
+      currency:
+        asset.classification?.currency ??
+        asset.marketValue.currency ??
+        asset.valuation.marketPrice.currency ??
+        asset.valuation.latestTradePrice.currency,
+      symbol: asset.display.symbol,
+      primarySymbol: asset.classification?.primarySymbol ?? asset.classification?.symbol ?? null,
+    });
+    const portfolioValue = {
+      amount: productReadModel.assets.reduce((sum, row) => sum + (row.marketValue.amount ?? 0), 0),
+      currency: portfolioStructure.allocationByAssetType.currency,
+    };
+
+    return {
+      ...asset,
+      metrics: {
+        ...(asset.metrics ?? {}),
+        activity: {
+          ...(asset.metrics?.activity ?? {}),
+        },
+        income: {
+          ...(asset.metrics?.income ?? {}),
+          annualizedDividendIncome:
+            asset.metrics?.income?.annualizedDividendIncome ??
+            calculateAnnualizedDividendIncome({
+              activities: [],
+              fallbackCurrency:
+                asset.dividendsNet.currency ??
+                asset.costBasis.currency ??
+                asset.marketValue.currency ??
+                asset.classification?.currency ??
+                null,
+            }),
+          dividendGrowth1y:
+            asset.metrics?.income?.dividendGrowth1y ??
+            calculateDividendGrowth1y({
+              activities: [],
+            }),
+          dividendGrowth3y:
+            asset.metrics?.income?.dividendGrowth3y ??
+            calculateDividendGrowth3y({
+              activities: [],
+            }),
+          payoutFrequency: asset.metrics?.income?.payoutFrequency,
+          dividendYieldOnCost:
+            asset.metrics?.income?.dividendYieldOnCost ??
+            calculateDividendYieldOnCost({
+              annualizedDividendIncome:
+                asset.metrics?.income?.annualizedDividendIncome ??
+                calculateAnnualizedDividendIncome({
+                  activities: [],
+                  fallbackCurrency:
+                    asset.dividendsNet.currency ??
+                    asset.costBasis.currency ??
+                    asset.marketValue.currency ??
+                    asset.classification?.currency ??
+                    null,
+                }),
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
+          currentDividendYield:
+            asset.metrics?.income?.currentDividendYield ??
+            calculateCurrentDividendYield({
+              annualizedDividendIncome:
+                asset.metrics?.income?.annualizedDividendIncome ??
+                calculateAnnualizedDividendIncome({
+                  activities: [],
+                  fallbackCurrency:
+                    asset.dividendsNet.currency ??
+                    asset.costBasis.currency ??
+                    asset.marketValue.currency ??
+                    asset.classification?.currency ??
+                    null,
+                }),
+              positionValueAmount: asset.marketValue.amount,
+              positionValueCurrency: asset.marketValue.currency,
+            }),
+        },
+        returns: {
+          ...(asset.metrics?.returns ?? {}),
+          incomeReturn:
+            asset.metrics?.returns?.incomeReturn ??
+            calculateIncomeReturn({
+              totalDividendNetAmount: asset.dividendsNet.amount,
+              totalDividendNetCurrency: asset.dividendsNet.currency,
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
+          priceReturnExcludingDividends:
+            asset.metrics?.returns?.priceReturnExcludingDividends ??
+            calculatePriceReturnExcludingDividends({
+              unrealizedPnLAmount: asset.unrealizedPnL.amount,
+              unrealizedPnLCurrency: asset.unrealizedPnL.currency,
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
+          totalReturnIncludingDividends:
+            asset.metrics?.returns?.totalReturnIncludingDividends ??
+            calculateTotalReturnIncludingDividends({
+              unrealizedPnLAmount: asset.unrealizedPnL.amount,
+              unrealizedPnLCurrency: asset.unrealizedPnL.currency,
+              totalDividendNetAmount: asset.dividendsNet.amount,
+              totalDividendNetCurrency: asset.dividendsNet.currency,
+              remainingCostBasisAmount: asset.costBasis.amount,
+              remainingCostBasisCurrency: asset.costBasis.currency,
+            }),
+        },
+        structure: {
+          ...(asset.metrics?.structure ?? {}),
+          portfolioWeight: calculatePortfolioWeight({
+            assetPositionValue: {
+              amount: asset.marketValue.amount,
+              currency: asset.marketValue.currency,
+            },
+            portfolioValue,
+          }),
+        },
+        quality: {
+          ...(asset.metrics?.quality ?? {}),
+          dataConfidenceScore: calculateDataConfidenceScore({
+            valuationSourceKind: asset.valuation.sourceKind,
+            freshnessState: asset.valuation.freshnessState,
+            metadataCompletenessScore,
+            warningCount: asset.warnings.length,
+          }),
+          marketPriceFreshness: calculateMarketPriceFreshness({
+            priceDate: asset.valuation.priceDate,
+            priceTimestamp: asset.valuation.priceTimestamp,
+            sourceKind: asset.valuation.sourceKind,
+            freshnessState: asset.valuation.freshnessState,
+          }),
+          metadataCompletenessScore,
+          warningCount: asset.warnings.length,
+        },
+      },
+    };
+  });
+  const averageMetadataCompletenessScore =
+    assetRowsWithMetrics.length > 0
+      ? assetRowsWithMetrics.reduce(
+          (sum, asset) => sum + (asset.metrics?.quality?.metadataCompletenessScore ?? 0),
+          0,
+        ) / assetRowsWithMetrics.length
+      : 0;
+  const summaryActivityMetrics = {
+    grossBuyVolume: buildExtendedKpiMoneyMetric({
+      values: assetRowsWithMetrics.map((asset) =>
+        asset.metrics?.activity?.grossBuyVolume?.amount != null
+          ? {
+              amount: asset.metrics.activity.grossBuyVolume.amount,
+              currency: asset.metrics.activity.grossBuyVolume.currency,
+            }
+          : null,
+      ),
+      mixedCurrencyNote: "gross_buy_volume_unconverted_mixed_currencies",
+      missingNote: "gross_buy_volume_missing",
+    }),
+    grossSellVolume: buildExtendedKpiMoneyMetric({
+      values: assetRowsWithMetrics.map((asset) =>
+        asset.metrics?.activity?.grossSellVolume?.amount != null
+          ? {
+              amount: asset.metrics.activity.grossSellVolume.amount,
+              currency: asset.metrics.activity.grossSellVolume.currency,
+            }
+          : null,
+      ),
+      mixedCurrencyNote: "gross_sell_volume_unconverted_mixed_currencies",
+      missingNote: "gross_sell_volume_missing",
+    }),
+    buyCount: assetRowsWithMetrics.reduce((sum, asset) => sum + (asset.metrics?.activity?.buyCount ?? 0), 0),
+    sellCount: assetRowsWithMetrics.reduce((sum, asset) => sum + (asset.metrics?.activity?.sellCount ?? 0), 0),
+  };
+  const summaryDividendMetrics = {
+    dividendCount: assetRowsWithMetrics.reduce(
+      (sum, asset) => sum + (asset.metrics?.income?.dividendCount ?? 0),
+      0,
+    ),
+    lastDividendDate:
+      assetRowsWithMetrics
+        .map((asset) => asset.metrics?.income?.lastDividendDate ?? null)
+        .filter((value): value is string => Boolean(value))
+        .sort((left, right) => left.localeCompare(right))
+        .at(-1) ?? null,
+  };
+  const summaryAnnualizedDividendIncome = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.metrics?.income?.annualizedDividendIncome?.amount != null
+        ? {
+            amount: asset.metrics.income.annualizedDividendIncome.amount,
+            currency: asset.metrics.income.annualizedDividendIncome.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "annualized_dividend_income_unconverted_mixed_currencies",
+    missingNote: "annualized_dividend_income_missing",
+  });
+  const totalCostBasisMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.costBasis.amount != null
+        ? {
+            amount: asset.costBasis.amount,
+            currency: asset.costBasis.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "remaining_cost_basis_unconverted_mixed_currencies",
+    missingNote: "remaining_cost_basis_missing",
+  });
+  const totalMarketValueMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.marketValue.amount != null
+        ? {
+            amount: asset.marketValue.amount,
+            currency: asset.marketValue.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "position_value_unconverted_mixed_currencies",
+    missingNote: "position_value_missing",
+  });
+  const totalUnrealizedPnLMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.unrealizedPnL.amount != null
+        ? {
+            amount: asset.unrealizedPnL.amount,
+            currency: asset.unrealizedPnL.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "unrealized_pnl_unconverted_mixed_currencies",
+    missingNote: "unrealized_pnl_missing",
+  });
+  const totalDividendNetMetric = buildExtendedKpiMoneyMetric({
+    values: assetRowsWithMetrics.map((asset) =>
+      asset.dividendsNet.amount != null
+        ? {
+            amount: asset.dividendsNet.amount,
+            currency: asset.dividendsNet.currency,
+          }
+        : null,
+    ),
+    mixedCurrencyNote: "dividend_income_unconverted_mixed_currencies",
+    missingNote: "dividend_income_missing",
+  });
+  const summaryDividendYieldOnCost = calculateDividendYieldOnCost({
+    annualizedDividendIncome: summaryAnnualizedDividendIncome,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
+  const summaryCurrentDividendYield = calculateCurrentDividendYield({
+    annualizedDividendIncome: summaryAnnualizedDividendIncome,
+    positionValueAmount: totalMarketValueMetric.amount,
+    positionValueCurrency: totalMarketValueMetric.currency,
+  });
+  const summaryIncomeReturn = calculateIncomeReturn({
+    totalDividendNetAmount: totalDividendNetMetric.amount,
+    totalDividendNetCurrency: totalDividendNetMetric.currency,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
+  const summaryPriceReturnExcludingDividends = calculatePriceReturnExcludingDividends({
+    unrealizedPnLAmount: totalUnrealizedPnLMetric.amount,
+    unrealizedPnLCurrency: totalUnrealizedPnLMetric.currency,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
+  const summaryTotalReturnIncludingDividends = calculateTotalReturnIncludingDividends({
+    unrealizedPnLAmount: totalUnrealizedPnLMetric.amount,
+    unrealizedPnLCurrency: totalUnrealizedPnLMetric.currency,
+    totalDividendNetAmount: totalDividendNetMetric.amount,
+    totalDividendNetCurrency: totalDividendNetMetric.currency,
+    remainingCostBasisAmount: totalCostBasisMetric.amount,
+    remainingCostBasisCurrency: totalCostBasisMetric.currency,
+  });
+  const marketDataAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "market_data_db" && asset.valuation.freshnessState === "fresh",
+  ).length;
+  const staleAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "market_data_db" && asset.valuation.freshnessState === "stale",
+  ).length;
+  const fallbackAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "latest_trade_price_fallback",
+  ).length;
+  const missingPriceAssetCount = assetRowsWithMetrics.filter(
+    (asset) => asset.valuation.sourceKind === "missing",
+  ).length;
+  const warningCount = calculateSnapshotScopeWarningCount({
+    modelWarnings: productReadModel.metadata.warnings,
+    assetWarnings: assetRowsWithMetrics.map((asset) => asset.warnings),
+  });
+
+  return {
+    ...productReadModel,
+    assets: assetRowsWithMetrics,
+    summary: {
+      ...productReadModel.summary,
+      metrics: {
+        activity: {
+          grossBuyVolume: summaryActivityMetrics.grossBuyVolume,
+          grossSellVolume: summaryActivityMetrics.grossSellVolume,
+          buyCount: summaryActivityMetrics.buyCount,
+          sellCount: summaryActivityMetrics.sellCount,
+          dividendCount: summaryDividendMetrics.dividendCount,
+          lastDividendDate: summaryDividendMetrics.lastDividendDate,
+        },
+        income: {
+          annualizedDividendIncome: summaryAnnualizedDividendIncome,
+          dividendYieldOnCost: summaryDividendYieldOnCost,
+          currentDividendYield: summaryCurrentDividendYield,
+        },
+        returns: {
+          incomeReturn: summaryIncomeReturn,
+          priceReturnExcludingDividends: summaryPriceReturnExcludingDividends,
+          totalReturnIncludingDividends: summaryTotalReturnIncludingDividends,
+        },
+        structure: {
+          top5Concentration: portfolioStructure.top5Concentration,
+          top10Concentration: portfolioStructure.top10Concentration,
+          herfindahlIndex: portfolioStructure.herfindahlIndex,
+          allocationByAssetType: portfolioStructure.allocationByAssetType,
+        },
+        quality: {
+          dataConfidenceScore: calculatePortfolioDataConfidenceScore({
+            assetCount: assetRowsWithMetrics.length,
+            marketDataAssetCount,
+            staleAssetCount,
+            fallbackAssetCount,
+            missingPriceAssetCount,
+            averageMetadataCompletenessScore,
+            warningCount,
+          }),
+          warningCount,
+        },
+      },
+    },
+  };
+}
+
 function buildAssetRowFromGlobalAsset(input: {
   asset: GlobalAsset;
   sourceType: ProductReadModelSourceType;
@@ -916,8 +1561,7 @@ function buildAssetRowFromGlobalAsset(input: {
     costBasis: blockedMetrics.filter((metric) => metric === "cost_basis"),
     unrealizedPnL: blockedMetrics.filter((metric) => metric === "unrealized_pnl"),
   };
-
-  return {
+  const row: ProductReadModelAssetRow = {
     identity: {
       assetKey: input.asset.assetKey,
       stableKey: toStableAssetKey(input.asset.assetKey),
@@ -929,10 +1573,22 @@ function buildAssetRowFromGlobalAsset(input: {
       symbol: input.asset.display.symbol ?? null,
       wkn: input.asset.assetKey?.type === "wkn" ? input.asset.assetKey.value : null,
     },
+    classification: {
+      assetType: null,
+      currency:
+        input.asset.totals.marketValue?.currency ??
+        input.asset.valuation?.marketPrice?.currency ??
+        input.asset.valuation?.latestTradePrice?.currency ??
+        null,
+      symbol: input.asset.display.symbol ?? null,
+      primarySymbol: null,
+      wkn: input.asset.assetKey?.type === "wkn" ? input.asset.assetKey.value : null,
+    },
     status: deriveAssetStatus(input.asset.status),
     quantity,
     quantityValueClassification:
       quantity === null ? "preliminary" : blockedMetrics.includes("position") ? "blocked" : "app_calculated",
+    valuation: mapValuationSnapshot(input.asset.valuation),
     marketValue: mapMoneyMetric(input.asset.totals.marketValue, metricBlockedMetrics.marketValue),
     costBasis: mapMoneyMetric(input.asset.totals.costBasis, metricBlockedMetrics.costBasis),
     unrealizedPnL: mapMoneyMetric(
@@ -997,6 +1653,7 @@ function buildAssetRowFromGlobalAsset(input: {
         portfolioName: breakdown.portfolioName ?? null,
         status: breakdown.status,
         quantity: breakdown.quantity ?? null,
+        valuation: mapValuationSnapshot(breakdown.valuation),
         marketValue: breakdownMarketValue,
         costBasis: breakdownCostBasis,
         unrealizedPnL: breakdownUnrealizedPnL,
@@ -1019,6 +1676,14 @@ function buildAssetRowFromGlobalAsset(input: {
     }),
     latestActivityAt: findLatestActivityAt(input.asset),
   };
+
+  row.metrics = buildAssetMetrics({
+    asset: input.asset,
+    row,
+    portfolioValue: null,
+  });
+
+  return row;
 }
 
 export function projectGlobalAssetsProductReadModel(
@@ -1036,7 +1701,7 @@ export function projectGlobalAssetsProductReadModel(
   const sourceScope = input.sourceScope ?? "selected_portfolios";
   const freshnessState = input.freshnessState ?? "unknown";
   const scopeState = input.scopeState ?? "scope_unknown";
-  const assets = input.aggregation.assets
+  const projectedAssets = input.aggregation.assets
     .map((asset) =>
       buildAssetRowFromGlobalAsset({
         asset,
@@ -1055,6 +1720,113 @@ export function projectGlobalAssetsProductReadModel(
 
       return left.display.displayName.localeCompare(right.display.displayName, "de-DE");
     });
+  const baseModel: ProductReadModelAssets = {
+    metadata: {
+      readModelId: input.readModelId ?? `product-read-model:global-assets:${generatedAt}`,
+      snapshotId: input.snapshotId ?? null,
+      generatedAt,
+      sourceType,
+      sourceScope,
+      freshnessAt: input.freshnessAt ?? null,
+      freshnessState,
+      scopeState,
+      selectedPortfolioIds: normalizePortfolioIds(input.selectedPortfolioIds),
+      confidence: readModelConfidence,
+      warnings: readModelWarnings,
+      blockedMetrics: [],
+      valueClassification: "none",
+      providerRequestCount: input.providerRequestCount ?? null,
+    },
+    assets: projectedAssets,
+    summary: {
+      assetCount: projectedAssets.length,
+      activeAssetCount: projectedAssets.filter((asset) => asset.status === "active").length,
+      closedAssetCount: projectedAssets.filter((asset) => asset.status === "closed").length,
+      unknownAssetCount: projectedAssets.filter((asset) => asset.status === "unknown").length,
+      warningAssetCount: projectedAssets.filter((asset) => asset.warnings.length > 0).length,
+      blockerWarningCount: projectedAssets.reduce(
+        (count, asset) =>
+          count + asset.warnings.filter((warning) => warning.severity === "Blocker").length,
+        0,
+      ),
+      blockedMetricAssetCount: projectedAssets.filter((asset) => asset.blockedMetrics.length > 0).length,
+      blockedMetricCount: projectedAssets.reduce((count, asset) => count + asset.blockedMetrics.length, 0),
+      valueClassificationCounts: {
+        provider_reference: 0,
+        app_calculated: 0,
+        estimated: 0,
+        preliminary: 0,
+        blocked: 0,
+        none: 0,
+      },
+    },
+  };
+  const enrichedModel = enrichGlobalAssetsProductReadModelMetrics(baseModel);
+  const snapshotDividendActivities = input.aggregation.assets.flatMap((asset) =>
+    asset.timeline.map((entry) => ({
+      activityType: entry.activity.activityType,
+      amount: entry.activity.amounts.amount ?? null,
+      amountNet: entry.activity.amounts.amountNet ?? null,
+      date: entry.activity.date,
+      datetime: entry.activity.datetime,
+    })),
+  );
+  const summaryDividendGrowth1y = calculateDividendGrowth1y({
+    activities: snapshotDividendActivities,
+  });
+  const summaryDividendGrowth3y = calculateDividendGrowth3y({
+    activities: snapshotDividendActivities,
+  });
+  enrichedModel.summary.metrics = {
+    ...(enrichedModel.summary.metrics ?? {}),
+    income: {
+      ...(enrichedModel.summary.metrics?.income ?? {}),
+      dividendGrowth1y: summaryDividendGrowth1y,
+      dividendGrowth3y: summaryDividendGrowth3y,
+    },
+  };
+  const assets = enrichedModel.assets;
+  let valuationAnomalies = 0;
+
+  for (const asset of assets) {
+    const assetInvariant = logValuationInvariant("product_read_model:asset", {
+      isin: asset.identity.compatibilityIsin ?? asset.identity.stableKey,
+      assetLabel: asset.display.displayName,
+      quantity: asset.quantity,
+      marketPrice: asset.valuation.marketPrice.amount,
+      marketValue: asset.marketValue.amount,
+      remainingCostBasis: asset.costBasis.amount,
+      unrealizedPnL: asset.unrealizedPnL.amount,
+      valuationSourceKind: asset.valuation.sourceKind,
+      priceDate: asset.valuation.priceDate,
+      priceSource: asset.valuation.priceSource,
+    });
+
+    if (assetInvariant.checked && !assetInvariant.isConsistent) {
+      valuationAnomalies += 1;
+    }
+
+    for (const breakdown of asset.portfolioBreakdown) {
+      const breakdownInvariant = logValuationInvariant("product_read_model:portfolio_breakdown", {
+        isin: asset.identity.compatibilityIsin ?? asset.identity.stableKey,
+        assetLabel: asset.display.displayName,
+        portfolioId: breakdown.portfolioId,
+        portfolioName: breakdown.portfolioName,
+        quantity: breakdown.quantity,
+        marketPrice: breakdown.valuation.marketPrice.amount,
+        marketValue: breakdown.marketValue.amount,
+        remainingCostBasis: breakdown.costBasis.amount,
+        unrealizedPnL: breakdown.unrealizedPnL.amount,
+        valuationSourceKind: breakdown.valuation.sourceKind,
+        priceDate: breakdown.valuation.priceDate,
+        priceSource: breakdown.valuation.priceSource,
+      });
+
+      if (breakdownInvariant.checked && !breakdownInvariant.isConsistent) {
+        valuationAnomalies += 1;
+      }
+    }
+  }
   const blockedMetricsFromAssets = Array.from(
     new Set(assets.flatMap((asset) => asset.blockedMetrics)),
   );
@@ -1081,37 +1853,27 @@ export function projectGlobalAssetsProductReadModel(
     },
   );
 
+  summarizeDiagnostics("product_read_model", {
+    assetCount: assets.length,
+    valuationAnomalies,
+    warningAssetCount: assets.filter((asset) => asset.warnings.length > 0).length,
+    fallbackPriceUsedCount: assets.filter(
+      (asset) => asset.valuation.sourceKind === "latest_trade_price_fallback",
+    ).length,
+    missingMarketPriceCount: assets.filter(
+      (asset) => asset.valuation.sourceKind === "missing",
+    ).length,
+  }, "valuation");
+
   return {
+    ...enrichedModel,
     metadata: {
-      readModelId: input.readModelId ?? `product-read-model:global-assets:${generatedAt}`,
-      snapshotId: input.snapshotId ?? null,
-      generatedAt,
-      sourceType,
-      sourceScope,
-      freshnessAt: input.freshnessAt ?? null,
-      freshnessState,
-      scopeState,
-      selectedPortfolioIds: normalizePortfolioIds(input.selectedPortfolioIds),
-      confidence: readModelConfidence,
-      warnings: readModelWarnings,
+      ...enrichedModel.metadata,
       blockedMetrics: effectiveReadModelBlockedMetrics,
       valueClassification: effectiveReadModelValueClassification,
-      providerRequestCount: input.providerRequestCount ?? null,
     },
-    assets,
     summary: {
-      assetCount: assets.length,
-      activeAssetCount: assets.filter((asset) => asset.status === "active").length,
-      closedAssetCount: assets.filter((asset) => asset.status === "closed").length,
-      unknownAssetCount: assets.filter((asset) => asset.status === "unknown").length,
-      warningAssetCount: assets.filter((asset) => asset.warnings.length > 0).length,
-      blockerWarningCount: assets.reduce(
-        (count, asset) =>
-          count + asset.warnings.filter((warning) => warning.severity === "Blocker").length,
-        0,
-      ),
-      blockedMetricAssetCount: assets.filter((asset) => asset.blockedMetrics.length > 0).length,
-      blockedMetricCount: assets.reduce((count, asset) => count + asset.blockedMetrics.length, 0),
+      ...enrichedModel.summary,
       valueClassificationCounts,
     },
   };
@@ -1177,5 +1939,19 @@ export function buildGlobalAssetsProductReadModelComparisonEvidence(input: {
         projected.withUnrealizedPnLCount - currentSurface.assetWithUnrealizedPnLCount,
       dividendsCoverage: projected.withDividendsCount - currentSurface.assetWithDividendCount,
     },
+  };
+}
+
+function mapValuationSnapshot(
+  valuation: GlobalAsset["valuation"] | GlobalAsset["portfolioBreakdowns"][number]["valuation"],
+): ProductReadModelAssetValuation {
+  return {
+    marketPrice: mapMoneyMetric(valuation?.marketPrice, []),
+    latestTradePrice: mapMoneyMetric(valuation?.latestTradePrice, []),
+    priceDate: valuation?.priceDate ?? null,
+    priceTimestamp: valuation?.priceTimestamp ?? null,
+    priceSource: valuation?.priceSource ?? null,
+    sourceKind: valuation?.sourceKind ?? "missing",
+    freshnessState: valuation?.freshnessState ?? "missing",
   };
 }

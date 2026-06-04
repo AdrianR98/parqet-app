@@ -3,6 +3,11 @@
 Status: target lineage documentation for the first 20 Core KPIs  
 Linked issues: Refs #402, Refs #405
 
+Related follow-up:
+
+- `docs/PRM_CORE_KPI_GAP_MAP.md` tracks the current-vs-target implementation gaps and slice order for the one-branch convergence work.
+- `docs/KPI_CATALOG.md` now also includes an extended KPI catalog slice; Currency/FX-sensitive KPI work remains deferred to `#397`.
+
 ## PRM in simple terms
 
 The Product Read Model (PRM) is the app's prepared data layer for product screens.

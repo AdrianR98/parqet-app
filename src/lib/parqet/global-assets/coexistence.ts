@@ -1,5 +1,8 @@
 import type { ActivityContext } from "../../parqet-assets/build-activity-context";
-import { buildGlobalAssetsFromNormalizationResult } from "./aggregate";
+import {
+  buildGlobalAssetsFromNormalizationResult,
+  type GlobalAssetMarketPriceOverlaysByIsin,
+} from "./aggregate";
 import { normalizeActivities } from "./normalize";
 import {
   type ProductReadModelAssets,
@@ -105,6 +108,7 @@ export function buildGlobalAssetProductReadModelFromActivityContext(input: {
   activityContext: ActivityContext;
   requestedPortfolioIds: string[];
   generatedAt?: string;
+  marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin;
 }): ProductReadModelAssets | null {
   const requestedPortfolioIds = normalizePortfolioIds(input.requestedPortfolioIds);
   const availablePortfolioIds = normalizePortfolioIds(
@@ -117,7 +121,9 @@ export function buildGlobalAssetProductReadModelFromActivityContext(input: {
 
   const contextualActivities = toContextualActivities(input.activityContext, availablePortfolioIds);
   const normalization = normalizeActivities(contextualActivities);
-  const aggregation = buildGlobalAssetsFromNormalizationResult(normalization);
+  const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
+    marketPriceOverlaysByIsin: input.marketPriceOverlaysByIsin,
+  });
   const freshnessAt =
     input.activityContext.freshness.updatedAt ?? input.activityContext.freshness.loadedAt ?? null;
   const generatedAt = input.generatedAt ?? new Date().toISOString();

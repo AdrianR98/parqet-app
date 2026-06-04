@@ -7,33 +7,50 @@ import {
   buildActivitiesTimelineShadowComparison,
   buildLegacyActivitiesTimelineComparisonSummary,
   mapActivityItemsToLegacyComparisonInput,
+  projectGlobalAssetsProductReadModel,
   projectActivitiesTimelineProductReadModel,
   selectActivitiesTimelinePrmFeatureFlagSource,
 } from "../../src/lib/parqet/global-assets/product-read-model";
 import { createSyntheticActivity, runGlobalAssetPipeline } from "./global-assets-test-helpers";
 
+const freshOverlayTimestamp = new Date().toISOString();
+const freshOverlayDate = freshOverlayTimestamp.slice(0, 10);
+
 describe("global asset product read-model projection (activities/timeline)", () => {
   it("projects a safe synthetic timeline with source/freshness/scope/confidence metadata", () => {
-    const { aggregation } = runGlobalAssetPipeline([
-      createSyntheticActivity({
-        activityId: "activity_demo_101",
-        type: "buy",
-        datetime: "2025-09-01T10:00:00.000Z",
-        isin: "DEMO00000001",
-        shares: 5,
-        price: 10,
-        currency: "EUR",
-      }),
-      createSyntheticActivity({
-        activityId: "activity_demo_102",
-        type: "sell",
-        datetime: "2025-09-02T10:00:00.000Z",
-        isin: "DEMO00000001",
-        shares: 2,
-        price: 11,
-        currency: "EUR",
-      }),
-    ]);
+    const { aggregation } = runGlobalAssetPipeline(
+      [
+        createSyntheticActivity({
+          activityId: "activity_demo_101",
+          type: "buy",
+          datetime: "2025-09-01T10:00:00.000Z",
+          isin: "DEMO00000001",
+          shares: 5,
+          price: 10,
+          currency: "EUR",
+        }),
+        createSyntheticActivity({
+          activityId: "activity_demo_102",
+          type: "sell",
+          datetime: "2025-09-02T10:00:00.000Z",
+          isin: "DEMO00000001",
+          shares: 2,
+          price: 11,
+          currency: "EUR",
+        }),
+      ],
+      {
+        marketPriceOverlaysByIsin: {
+          DEMO00000001: {
+            priceAmount: 12,
+            currency: "EUR",
+            priceDate: freshOverlayDate,
+            priceTimestamp: freshOverlayTimestamp,
+            priceSource: "market_data_db",
+          },
+        },
+      },
+    );
 
     const projected = projectActivitiesTimelineProductReadModel({
       aggregation,
@@ -196,24 +213,37 @@ describe("global asset product read-model projection (activities/timeline)", () 
   });
 
   it("builds a matching shadow comparison with zero deltas", () => {
-    const { aggregation } = runGlobalAssetPipeline([
-      createSyntheticActivity({
-        activityId: "activity_demo_401",
-        type: "buy",
-        datetime: "2026-01-01T10:00:00.000Z",
-        isin: "DEMO00000004",
-        shares: 2,
-        currency: "EUR",
-      }),
-      createSyntheticActivity({
-        activityId: "activity_demo_402",
-        type: "sell",
-        datetime: "2026-01-02T10:00:00.000Z",
-        isin: "DEMO00000004",
-        shares: 1,
-        currency: "EUR",
-      }),
-    ]);
+    const { aggregation } = runGlobalAssetPipeline(
+      [
+        createSyntheticActivity({
+          activityId: "activity_demo_401",
+          type: "buy",
+          datetime: "2026-01-01T10:00:00.000Z",
+          isin: "DEMO00000004",
+          shares: 2,
+          currency: "EUR",
+        }),
+        createSyntheticActivity({
+          activityId: "activity_demo_402",
+          type: "sell",
+          datetime: "2026-01-02T10:00:00.000Z",
+          isin: "DEMO00000004",
+          shares: 1,
+          currency: "EUR",
+        }),
+      ],
+      {
+        marketPriceOverlaysByIsin: {
+          DEMO00000004: {
+            priceAmount: 15,
+            currency: "EUR",
+            priceDate: freshOverlayDate,
+            priceTimestamp: freshOverlayTimestamp,
+            priceSource: "market_data_db",
+          },
+        },
+      },
+    );
 
     const projected = projectActivitiesTimelineProductReadModel({
       aggregation,
@@ -321,24 +351,37 @@ describe("global asset product read-model projection (activities/timeline)", () 
   });
 
   it("builds diagnostic harness evidence for a matching ready case", () => {
-    const { aggregation } = runGlobalAssetPipeline([
-      createSyntheticActivity({
-        activityId: "activity_demo_701",
-        type: "buy",
-        datetime: "2026-04-01T10:00:00.000Z",
-        isin: "DEMO00000007",
-        shares: 2,
-        currency: "EUR",
-      }),
-      createSyntheticActivity({
-        activityId: "activity_demo_702",
-        type: "sell",
-        datetime: "2026-04-02T10:00:00.000Z",
-        isin: "DEMO00000007",
-        shares: 1,
-        currency: "EUR",
-      }),
-    ]);
+    const { aggregation } = runGlobalAssetPipeline(
+      [
+        createSyntheticActivity({
+          activityId: "activity_demo_701",
+          type: "buy",
+          datetime: "2026-04-01T10:00:00.000Z",
+          isin: "DEMO00000007",
+          shares: 2,
+          currency: "EUR",
+        }),
+        createSyntheticActivity({
+          activityId: "activity_demo_702",
+          type: "sell",
+          datetime: "2026-04-02T10:00:00.000Z",
+          isin: "DEMO00000007",
+          shares: 1,
+          currency: "EUR",
+        }),
+      ],
+      {
+        marketPriceOverlaysByIsin: {
+          DEMO00000007: {
+            priceAmount: 15,
+            currency: "EUR",
+            priceDate: freshOverlayDate,
+            priceTimestamp: freshOverlayTimestamp,
+            priceSource: "market_data_db",
+          },
+        },
+      },
+    );
 
     const projected = projectActivitiesTimelineProductReadModel({
       aggregation,
@@ -605,5 +648,53 @@ describe("global asset product read-model projection (activities/timeline)", () 
       expect(selection?.selectedItemCount).toBe(1);
       expect(selection?.diagnostic.reviewReady).toBe(false);
     }
+  });
+});
+
+describe("global asset product read-model valuation invariants", () => {
+  it("keeps market-data-backed asset rows aligned with quantity * marketPrice", () => {
+    const { aggregation } = runGlobalAssetPipeline(
+      [
+        createSyntheticActivity({
+          activityId: "activity_prm_invariant_1",
+          type: "buy",
+          datetime: "2026-04-10T10:00:00.000Z",
+          isin: "IE00B8GKDB10",
+          shares: 33.142924,
+          price: 69.83,
+          currency: "EUR",
+          amount: 2314.42,
+          amountNet: 2314.42,
+        }),
+      ],
+      {
+        marketPriceOverlaysByIsin: {
+          IE00B8GKDB10: {
+            priceAmount: 77.95,
+            currency: "EUR",
+            priceDate: "2026-04-10",
+            priceTimestamp: "2026-04-10T17:00:00.000Z",
+            priceSource: "market_data_db",
+          },
+        },
+      },
+    );
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const row = projected.assets[0];
+
+    expect(row?.valuation.sourceKind).toBe("market_data_db");
+    expect(row?.valuation.marketPrice.amount).toBe(77.95);
+    expect(row?.quantity).toBe(33.142924);
+    expect(row?.marketValue.amount).toBeCloseTo(2583.49, 2);
+    expect(row?.unrealizedPnL.amount).toBeCloseTo(269.07, 2);
+    expect(row?.marketValue.amount).toBeCloseTo(
+      (row?.quantity ?? 0) * (row?.valuation.marketPrice.amount ?? 0),
+      6,
+    );
   });
 });

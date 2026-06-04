@@ -10,6 +10,7 @@ import {
 } from "./parqet/global-assets/product-surface-selectors";
 import { aggregateAssetValueTotals } from "./calculations/view-model-aggregates";
 import { buildGlobalAssetViewModelsFromProductReadModel } from "./view-models/global-asset-view-model-builder";
+import { summarizeDiagnostics } from "./debug/dev-diagnostics";
 
 export function resolveGlobalAssetProductGuardEnabled(rawValue?: string): boolean {
     const value = rawValue ?? process.env.NEXT_PUBLIC_GLOBAL_ASSET_PRODUCT_GUARD_ENABLED;
@@ -143,6 +144,12 @@ export function selectCanonicalDashboardSafeFieldSource(input: {
         productReadModel: input.productReadModel,
         guardEnabled: input.guardEnabled,
     });
+    summarizeDiagnostics("dashboard_surface_selection", {
+        selectedSource: selection.selectedSource,
+        reason: selection.reason,
+        runtimeFallbackAssetCount: input.runtimeFallbackAssets.length,
+        productAssetCount: productReadModel?.assets.length ?? 0,
+    }, "surface");
 
     if (selection.selectedSource === "global_asset_product" && productReadModel) {
         return {
@@ -169,6 +176,44 @@ export function selectCanonicalAssetTableSafeFieldSource(input: {
         productReadModel: input.productReadModel,
         guardEnabled: input.guardEnabled,
     });
+    summarizeDiagnostics("asset_table_surface_selection", {
+        selectedSource: selection.selectedSource,
+        reason: selection.reason,
+        runtimeFallbackAssetCount: input.runtimeFallbackAssets.length,
+        productAssetCount: productReadModel?.assets.length ?? 0,
+    }, "surface");
+
+    if (selection.selectedSource === "global_asset_product" && productReadModel) {
+        return {
+            selection,
+            assets: buildGlobalAssetViewModelsFromProductReadModel(productReadModel),
+        };
+    }
+
+    return {
+        selection,
+        assets: input.runtimeFallbackAssets,
+    };
+}
+
+export function selectCanonicalAssetDetailSafeFieldSource(input: {
+    runtimeFallbackAssets: GlobalAssetViewModel[];
+    productReadModel?: unknown;
+    guardEnabled: boolean;
+}): CanonicalDashboardSafeFieldSelection {
+    const productReadModel = readGlobalAssetProductReadModel(input.productReadModel);
+    const selection = selectCanonicalSafeFieldProductSurfaceSource({
+        surface: "asset_detail",
+        runtimeFallbackAssets: input.runtimeFallbackAssets,
+        productReadModel: input.productReadModel,
+        guardEnabled: input.guardEnabled,
+    });
+    summarizeDiagnostics("asset_detail_surface_selection", {
+        selectedSource: selection.selectedSource,
+        reason: selection.reason,
+        runtimeFallbackAssetCount: input.runtimeFallbackAssets.length,
+        productAssetCount: productReadModel?.assets.length ?? 0,
+    }, "surface");
 
     if (selection.selectedSource === "global_asset_product" && productReadModel) {
         return {
@@ -199,5 +244,13 @@ export function selectGuardedAssetTableSource(input: {
     guardEnabled: boolean;
 }): GuardedDashboardSourceSelection {
     return selectCanonicalAssetTableSafeFieldSource(input);
+}
+
+export function selectGuardedAssetDetailSource(input: {
+    runtimeFallbackAssets: GlobalAssetViewModel[];
+    productReadModel?: ProductReadModelAssets | null;
+    guardEnabled: boolean;
+}): GuardedDashboardSourceSelection {
+    return selectCanonicalAssetDetailSafeFieldSource(input);
 }
 

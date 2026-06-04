@@ -7,10 +7,19 @@ import type {
 import { getAssetDisplayName as resolveAssetDisplayName } from "./asset-display";
 import { scopeAssetAggregationToPortfolioSelection } from "./calculations/view-model-aggregates";
 import {
+    resolveGlobalAssetProductGuardEnabled,
+    selectCanonicalAssetDetailSafeFieldSource,
+} from "./dashboard-helpers";
+import {
     loadKnownPortfolios,
     loadPortfolioScope,
     resolvePortfolioScope,
 } from "./app-settings";
+import {
+    logDevDiagnostic,
+    logValuationInvariant,
+    summarizeDiagnostics,
+} from "./debug/dev-diagnostics";
 
 export type AssetDetailWarning = {
     label: "Hinweis" | "Prüfen" | "Eingeschränkt";
@@ -35,6 +44,13 @@ export type ScopedAssetMetrics = {
 export type SelectedAssetScope = {
     mode: "all" | "manual";
     selectedAssetPortfolioIds: string[];
+};
+
+export type CanonicalAssetDetailSelection = {
+    asset: GlobalAssetViewModel | null;
+    assetSource: "global_asset_product" | "runtime_assets_fallback" | "missing";
+    selectedAssets: GlobalAssetViewModel[];
+    selection: ReturnType<typeof selectCanonicalAssetDetailSafeFieldSource>["selection"];
 };
 
 function normalizeAssetKey(value: string | null | undefined): string {
@@ -137,6 +153,68 @@ export function findAssetByKey(assets: GlobalAssetViewModel[], key: string): Glo
     return assets.find((asset) => normalizeAssetKey(asset.isin) === normalizedKey) ?? null;
 }
 
+export function selectCanonicalAssetDetailAsset(input: {
+    assetKey: string;
+    runtimeFallbackAssets: GlobalAssetViewModel[];
+    productReadModel?: unknown;
+    guardEnabled?: boolean;
+}): CanonicalAssetDetailSelection {
+    const guardEnabled = resolveGlobalAssetProductGuardEnabled(
+        input.guardEnabled == null ? undefined : String(input.guardEnabled),
+    );
+    const selected = selectCanonicalAssetDetailSafeFieldSource({
+        runtimeFallbackAssets: input.runtimeFallbackAssets,
+        productReadModel: input.productReadModel,
+        guardEnabled,
+    });
+    const selectedAsset = findAssetByKey(selected.assets, input.assetKey);
+
+    if (selectedAsset) {
+        summarizeDiagnostics("asset_detail_selection", {
+            assetKey: input.assetKey,
+            selectedSource: selected.selection.selectedSource,
+            reason: selected.selection.reason,
+            selectedAssetCount: selected.assets.length,
+            runtimeFallbackAssetCount: input.runtimeFallbackAssets.length,
+        }, "surface");
+
+        if (selected.selection.selectedSource === "runtime_assets_fallback") {
+            logDevDiagnostic("surface", "asset_detail_runtime_fallback_selected", {
+                assetKey: input.assetKey,
+                reason: selected.selection.reason,
+                selectedAssetCount: selected.assets.length,
+            }, "warn");
+        }
+
+        return {
+            asset: selectedAsset,
+            assetSource: selected.selection.selectedSource,
+            selectedAssets: selected.assets,
+            selection: selected.selection,
+        };
+    }
+
+    const runtimeFallbackAsset = findAssetByKey(
+        input.runtimeFallbackAssets,
+        input.assetKey,
+    );
+
+    if (selectedAsset == null && runtimeFallbackAsset) {
+        logDevDiagnostic("surface", "asset_detail_prm_missing_runtime_used", {
+            assetKey: input.assetKey,
+            reason: selected.selection.reason,
+            selectedSource: selected.selection.selectedSource,
+        }, "warn");
+    }
+
+    return {
+        asset: runtimeFallbackAsset,
+        assetSource: runtimeFallbackAsset ? "runtime_assets_fallback" : "missing",
+        selectedAssets: runtimeFallbackAsset ? input.runtimeFallbackAssets : selected.assets,
+        selection: selected.selection,
+    };
+}
+
 export function scopeAssetMetrics(
     asset: GlobalAssetViewModel,
     selectedPortfolioIds: string[]
@@ -161,7 +239,7 @@ export function scopeAssetMetrics(
         };
     }
 
-    return {
+    const metrics = {
         portfolioBreakdown: scoped.portfolioBreakdown,
         portfolioCount: scoped.portfolioBreakdown.length,
         netShares: scoped.netShares,
@@ -173,6 +251,30 @@ export function scopeAssetMetrics(
         latestTradePrice: scoped.latestTradePrice,
         marketPrice: scoped.marketPrice,
     };
+
+    const invariant = logValuationInvariant("asset_detail:scoped_metrics", {
+        isin: asset.isin,
+        assetLabel: getAssetDisplayName(asset),
+        quantity: metrics.netShares,
+        marketPrice: metrics.marketPrice,
+        marketValue: metrics.positionValue,
+        remainingCostBasis: metrics.remainingCostBasis,
+        unrealizedPnL: metrics.unrealizedPnL,
+        valuationSourceKind: asset.marketPriceSource,
+        priceDate: asset.marketPriceAt,
+        priceSource: asset.marketPriceSource,
+    });
+
+    summarizeDiagnostics("asset_detail_scope", {
+        isin: asset.isin,
+        selectedPortfolioCount: selectedPortfolioIds.length,
+        scopedPortfolioCount: metrics.portfolioCount,
+        usedRuntimeFallback: asset.marketPriceSource === "runtime_fallback",
+        invariantChecked: invariant.checked,
+        invariantConsistent: invariant.isConsistent,
+    }, "scope");
+
+    return metrics;
 }
 
 export function resolveSelectedAssetScope(asset: GlobalAssetViewModel): SelectedAssetScope {

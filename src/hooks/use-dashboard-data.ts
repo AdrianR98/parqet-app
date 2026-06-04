@@ -500,9 +500,9 @@ export function useDashboardData(): UseDashboardDataResult {
   }, [portfolios, hydratePortfolioSelection]);
 
   useEffect(() => {
-    const hasPendingPortfolioSelection =
+    const hasPortfoliosMissingFromCache =
       hasCachedData &&
-      !haveSamePortfolioSelection(effectiveSelectedPortfolioIds, lastLoadedPortfolioIds);
+      effectiveSelectedPortfolioIds.some((id) => !lastLoadedPortfolioIds.includes(id));
     const decision = shouldAutoRefreshDashboardData({
       loadingPortfolios,
       loadingAssets,
@@ -511,7 +511,7 @@ export function useDashboardData(): UseDashboardDataResult {
       selectedPortfolioIds: effectiveSelectedPortfolioIds,
       hasCachedData,
       isCacheStale: isDashboardDataStale(lastUpdatedAt),
-      hasPendingPortfolioSelection,
+      hasPortfoliosMissingFromCache,
       alreadyExecutedKeys: autoRefreshExecutedKeysRef.current,
     });
 
