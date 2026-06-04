@@ -84,6 +84,7 @@ Technical foundation status:
 - PRM/API-ready metric objects now exist for the ready-now extended KPI slice without changing Dashboard or Asset Detail UI.
 - `gross_buy_volume`, `gross_sell_volume`, `portfolio_weight`, `top_5_concentration`, `top_10_concentration`, `herfindahl_index` and `allocation_by_asset_type` should still be treated as `partial` whenever mixed-currency scope prevents an unconverted final value.
 - `dividend_count`, `last_dividend_date`, `data_confidence_score`, `market_price_freshness`, `metadata_completeness_score` and `warning_count` now have technical PRM foundations and remain UI-unexposed until a later surface pass.
+- Current PRM summary metrics are snapshot-scope metrics; later UI local rescoping must recompute/rescope them instead of reusing snapshot-wide summary values after a local portfolio-selection change.
 
 ### Next ready implementation tranche
 

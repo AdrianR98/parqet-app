@@ -45,6 +45,7 @@ import {
   enrichGlobalAssetsProductReadModelMetrics,
   type ProductReadModelAssets,
 } from "../../../../lib/parqet/global-assets/product-read-model";
+import { selectPrmDisplayNameForMetadataOverlay } from "../../../../lib/parqet/global-assets/display-fallback";
 import { getLatestMarketPricesByIsins } from "../../../../lib/market-data/service";
 import {
   chooseCuratedDisplayName,
@@ -520,10 +521,18 @@ function overlayGlobalAssetProductDisplayFromMarketMetadata(input: {
       },
       display: {
         ...asset.display,
-        displayName:
-          resolution.status === "ok"
-            ? (resolution.instrumentDisplayName ?? asset.display.displayName)
-            : INSTRUMENT_METADATA_MISSING_TITLE,
+        displayName: selectPrmDisplayNameForMetadataOverlay({
+          resolutionStatus: resolution.status,
+          instrumentDisplayName: resolution.instrumentDisplayName,
+          existingDisplayName: asset.display.displayName,
+          symbol:
+            instrument.primaryMapping?.symbol ??
+            asset.classification?.symbol ??
+            asset.display.symbol ??
+            null,
+          wkn: resolution.wkn ?? asset.classification?.wkn ?? asset.display.wkn ?? null,
+          isin: compatibilityIsin,
+        }),
         wkn: resolution.wkn ?? null,
         subtitle: buildInstrumentSubtitle({
           isin: compatibilityIsin,

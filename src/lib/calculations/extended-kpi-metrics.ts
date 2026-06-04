@@ -247,14 +247,14 @@ export function calculateDividendKpis(activities: ExtendedKpiActivityInput[]): {
   dividendCount: number;
   lastDividendDate: string | null;
 } {
-  const dividendDates = activities
-    .filter((activity) => activity.activityType === "dividend")
+  const dividendActivities = activities.filter((activity) => activity.activityType === "dividend");
+  const dividendDates = dividendActivities
     .map(toDateCandidate)
     .filter((value): value is string => Boolean(value))
     .sort((left, right) => left.localeCompare(right));
 
   return {
-    dividendCount: dividendDates.length,
+    dividendCount: dividendActivities.length,
     lastDividendDate: dividendDates.at(-1) ?? null,
   };
 }
@@ -273,6 +273,22 @@ export function calculatePortfolioWeight(input: {
       value: null,
       status: "missing",
       note: "portfolio_value_missing_or_non_positive",
+    };
+  }
+
+  if (!portfolioCurrency) {
+    return {
+      value: null,
+      status: "partial",
+      note: "portfolio_weight_unconverted_mixed_or_unknown_currency",
+    };
+  }
+
+  if (!assetCurrency) {
+    return {
+      value: null,
+      status: "partial",
+      note: "portfolio_weight_unconverted_mixed_or_unknown_currency",
     };
   }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { selectPrmDisplayNameForMetadataOverlay } from "../../src/lib/parqet/global-assets/display-fallback";
 import {
   enrichGlobalAssetsProductReadModelMetrics,
   projectGlobalAssetsProductReadModel,
@@ -127,6 +128,49 @@ describe("global asset extended KPI metrics", () => {
     expect(asset?.marketValue.amount).toBe(120);
   });
 
+  it("counts undated dividends but keeps last dividend date based on dated events only", () => {
+    const { aggregation } = runGlobalAssetPipeline([
+      createSyntheticActivity({
+        activityId: "ext_kpi_div_1",
+        type: "buy",
+        datetime: "2026-05-01T10:00:00.000Z",
+        isin: "DE000EXT0301",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_div_2",
+        type: "dividend",
+        datetime: "2026-05-10T10:00:00.000Z",
+        isin: "DE000EXT0301",
+        currency: "EUR",
+        amount: 5,
+        amountNet: 4,
+      }),
+      createSyntheticActivity({
+        activityId: "ext_kpi_div_3",
+        type: "dividend",
+        isin: "DE000EXT0301",
+        currency: "EUR",
+        amount: 6,
+        amountNet: 5,
+      }),
+    ]);
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const asset = projected.assets.find((entry) => entry.identity.compatibilityIsin === "DE000EXT0301");
+
+    expect(asset?.metrics?.income?.dividendCount).toBe(2);
+    expect(asset?.metrics?.income?.lastDividendDate).toBe("2026-05-10T10:00:00.000Z");
+  });
+
   it("computes concentration metrics and asset-type allocation with unknown bucket", () => {
     const positions = [
       { isin: "DE000EXT0101", shares: 1, price: 10, marketPrice: 50, assetType: "ETF" },
@@ -244,10 +288,93 @@ describe("global asset extended KPI metrics", () => {
 
     expect(eurAsset?.marketValue.amount).not.toBeNull();
     expect(eurAsset?.valuation.sourceKind).toBe("latest_trade_price_fallback");
+    expect(eurAsset?.metrics?.structure?.portfolioWeight?.status).toBe("partial");
+    expect(eurAsset?.metrics?.structure?.portfolioWeight?.value).toBeNull();
+    expect(eurAsset?.metrics?.structure?.portfolioWeight?.note).toBe(
+      "portfolio_weight_unconverted_mixed_or_unknown_currency",
+    );
     expect(eurAsset?.metrics?.quality?.marketPriceFreshness?.state).toBe("fallback");
     expect(eurAsset?.metrics?.quality?.warningCount).toBeGreaterThanOrEqual(1);
     expect(enriched.summary.metrics?.structure?.top5Concentration?.status).toBe("partial");
     expect(enriched.summary.metrics?.structure?.allocationByAssetType?.status).toBe("partial");
     expect(enriched.summary.metrics?.quality?.warningCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("preserves meaningful PRM display fallback when metadata status is not ok", () => {
+    expect(
+      selectPrmDisplayNameForMetadataOverlay({
+        resolutionStatus: "missing",
+        instrumentDisplayName: null,
+        existingDisplayName: "VGWD.DE",
+        symbol: "VGWD.DE",
+        wkn: "A1T8FV",
+        isin: "IE00B8GKDB10",
+      }),
+    ).toBe("VGWD.DE");
+
+    expect(
+      selectPrmDisplayNameForMetadataOverlay({
+        resolutionStatus: "missing_name",
+        instrumentDisplayName: null,
+        existingDisplayName: "Stammdaten fehlen",
+        symbol: "VGWD.DE",
+        wkn: "A1T8FV",
+        isin: "IE00B8GKDB10",
+      }),
+    ).toBe("VGWD.DE");
+  });
+
+  it("counts snapshot-scope warnings from asset rows plus non-overlapping model warnings", () => {
+    const fixture = withClassification(
+      projectGlobalAssetsProductReadModel({
+        aggregation: runGlobalAssetPipeline([
+          createSyntheticActivity({
+            activityId: "ext_kpi_warn_1",
+            type: "buy",
+            datetime: "2026-05-01T10:00:00.000Z",
+            isin: "DE000EXT0401",
+            shares: 1,
+            currency: "EUR",
+            price: 100,
+            amount: 100,
+            amountNet: 100,
+          }),
+        ]).aggregation,
+        freshnessState: "fresh",
+        scopeState: "scope_match",
+      }),
+      {
+        DE000EXT0401: {
+          displayName: "Warning Demo",
+          assetType: "ETF",
+          currency: "EUR",
+        },
+      },
+    );
+
+    const warningFixture: ProductReadModelAssets = {
+      ...fixture,
+      metadata: {
+        ...fixture.metadata,
+        warnings: [
+          { code: "GLOBAL_SCOPE_WARNING", severity: "Warning", source: "aggregation", blockedMetrics: [] },
+          { code: "MARKET_PRICE_FALLBACK_USED", severity: "Warning", source: "aggregation", blockedMetrics: ["confidence"] },
+        ],
+      },
+      assets: fixture.assets.map((asset, index) =>
+        index === 0
+          ? {
+              ...asset,
+              warnings: [
+                ...asset.warnings,
+                { code: "MARKET_PRICE_FALLBACK_USED", severity: "Warning", source: "aggregation", blockedMetrics: ["confidence"] },
+              ],
+            }
+          : asset,
+      ),
+    };
+    const enriched = enrichGlobalAssetsProductReadModelMetrics(warningFixture);
+
+    expect(enriched.summary.metrics?.quality?.warningCount).toBe(3);
   });
 });

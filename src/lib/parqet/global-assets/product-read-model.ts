@@ -970,6 +970,32 @@ function deriveAssetStatus(status: string): ProductReadModelAssetStatus {
   return "unknown";
 }
 
+function toWarningSignature(warning: ProductReadModelWarning): string {
+  return [
+    warning.code,
+    warning.source,
+    warning.severity,
+    [...warning.blockedMetrics].sort().join(","),
+  ].join("|");
+}
+
+function calculateSnapshotScopeWarningCount(input: {
+  modelWarnings: ProductReadModelWarning[];
+  assetWarnings: ProductReadModelWarning[][];
+}): number {
+  const assetWarningSignatures = new Set(
+    input.assetWarnings.flat().map(toWarningSignature),
+  );
+  const nonOverlappingModelWarnings = input.modelWarnings.filter(
+    (warning) => !assetWarningSignatures.has(toWarningSignature(warning)),
+  );
+
+  return (
+    input.assetWarnings.reduce((sum, warnings) => sum + warnings.length, 0) +
+    nonOverlappingModelWarnings.length
+  );
+}
+
 function buildAssetMetrics(input: {
   asset: GlobalAsset;
   row: Pick<
@@ -1045,6 +1071,9 @@ function buildAssetMetrics(input: {
 export function enrichGlobalAssetsProductReadModelMetrics(
   productReadModel: ProductReadModelAssets,
 ): ProductReadModelAssets {
+  // Snapshot-scope summary metrics are valid for the PRM/API snapshot scope only.
+  // Later UI rescoping must recompute or rescope these metrics instead of reusing
+  // snapshot-wide summary values after a local portfolio-selection change.
   const portfolioStructure = calculatePortfolioStructureKpis({
     assets: productReadModel.assets.map((asset) => ({
       positionValue:
@@ -1176,7 +1205,10 @@ export function enrichGlobalAssetsProductReadModelMetrics(
   const missingPriceAssetCount = assetRowsWithMetrics.filter(
     (asset) => asset.valuation.sourceKind === "missing",
   ).length;
-  const warningCount = productReadModel.metadata.warnings.length;
+  const warningCount = calculateSnapshotScopeWarningCount({
+    modelWarnings: productReadModel.metadata.warnings,
+    assetWarnings: assetRowsWithMetrics.map((asset) => asset.warnings),
+  });
 
   return {
     ...productReadModel,
