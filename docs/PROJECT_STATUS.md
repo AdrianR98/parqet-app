@@ -66,6 +66,9 @@ Last reviewed: 2026-05-27
 
 - Current provider workflow for validation/backfill/update is yfinance-based.
 - OpenFIGI may be used as candidate lookup/admin workflow.
+- Verified yfinance `.DE` mappings are now the preferred primary market-data mappings where available.
+- Full FX conversion remains deferred; this slice keeps the app EUR-oriented by preferring verified `.DE` yfinance primaries instead of adding a general FX engine.
+- When a primary ticker changes, old `asset_daily_prices` rows must be physically deleted and replaced with a full fresh history for the new ticker. Mixed old/new histories are not allowed.
 
 ## Follow-Ups
 

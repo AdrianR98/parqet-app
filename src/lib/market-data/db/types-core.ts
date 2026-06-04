@@ -611,6 +611,24 @@ export type VerifiedMappingForPromotion = {
     notes: string | null;
 };
 
+export type SymbolMappingForPrimaryPreference = {
+    assetId: string;
+    isin: string;
+    displayName: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    mappingId: string;
+    provider: string;
+    symbol: string;
+    exchange: string | null;
+    currency: string | null;
+    isPrimary: boolean;
+    isActive: boolean;
+    verifiedAt: string | null;
+    notes: string | null;
+    providerPriceRowCount: number;
+    providerLatestPriceDate: string | null;
+};
+
 export type PrimaryMappingForBackfill = {
     isin: string;
     name: string | null;
@@ -621,4 +639,22 @@ export type PrimaryMappingForBackfill = {
     hasPrices: boolean;
     hasActions: boolean;
     verifiedAt: string;
+};
+
+export type ReplacePrimaryMappingPriceHistoryInput = {
+    isin: string;
+    provider: string;
+    targetMappingId: string;
+    noteSuffix?: string | null;
+    replacementCurrency?: string | null;
+    replacementPoints: Array<{
+        date: string;
+        open?: number | null;
+        high?: number | null;
+        low?: number | null;
+        close: number;
+        adjClose?: number | null;
+        volume?: number | null;
+        currency?: string | null;
+    }>;
 };

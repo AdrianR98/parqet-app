@@ -41,6 +41,8 @@ import type {
     UpsertReferenceSourceInput,
     UpdateSymbolMappingValidationInput,
     UpdateSymbolMappingByIdInput,
+    ReplacePrimaryMappingPriceHistoryInput,
+    SymbolMappingForPrimaryPreference,
     UpsertDailyPricesInput,
     UpsertInstrumentInput,
     UpsertMarketActionsInput,
@@ -2318,6 +2320,80 @@ export async function listVerifiedMappingsForPromotion(provider = "yfinance", is
     }
 }
 
+export async function listSymbolMappingsForPrimaryPreference(
+    provider = "yfinance",
+    isin?: string,
+): Promise<SymbolMappingForPrimaryPreference[]> {
+    try {
+        const normalizedProvider = provider.trim().toLowerCase();
+        const normalizedIsin = isin ? assertIsin(isin) : null;
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with provider_prices as (
+                select
+                    p.asset_id,
+                    p.provider,
+                    count(*)::int as provider_price_row_count,
+                    max(p.price_date) as provider_latest_price_date
+                from asset_daily_prices p
+                where p.provider = $1
+                group by p.asset_id, p.provider
+            )
+            select
+                a.id as asset_id,
+                a.isin,
+                coalesce(a.display_name, a.name) as display_name,
+                a.market_data_status,
+                m.id as mapping_id,
+                m.provider,
+                coalesce(m.symbol, m.provider_symbol) as symbol,
+                m.exchange,
+                m.currency,
+                m.is_primary,
+                m.is_active,
+                m.verified_at,
+                m.notes,
+                coalesce(pp.provider_price_row_count, 0) as provider_price_row_count,
+                pp.provider_latest_price_date
+             from asset_symbol_mappings m
+             join assets a on a.id = m.asset_id
+             left join provider_prices pp
+               on pp.asset_id = m.asset_id
+              and pp.provider = m.provider
+             where m.provider = $1
+               and m.is_active = true
+               and a.asset_key_type = 'isin'
+               and a.isin is not null
+               and ($2::text is null or a.isin = $2)
+             order by a.isin asc, m.is_primary desc, coalesce(m.symbol, m.provider_symbol) asc`,
+            [normalizedProvider, normalizedIsin],
+        );
+
+        return result.rows.map((row) => ({
+            assetId: String(row.asset_id),
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            marketDataStatus:
+                row.market_data_status === null
+                    ? null
+                    : (String(row.market_data_status).toLowerCase() as MarketDataInstrumentStatus),
+            mappingId: String(row.mapping_id),
+            provider: String(row.provider),
+            symbol: String(row.symbol),
+            exchange: row.exchange === null ? null : String(row.exchange),
+            currency: row.currency === null ? null : String(row.currency),
+            isPrimary: Boolean(row.is_primary),
+            isActive: Boolean(row.is_active),
+            verifiedAt: row.verified_at === null ? null : String(row.verified_at),
+            notes: row.notes === null ? null : String(row.notes),
+            providerPriceRowCount: Number(row.provider_price_row_count ?? 0),
+            providerLatestPriceDate:
+                row.provider_latest_price_date === null ? null : normalizeDbDateValue(row.provider_latest_price_date),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
 export async function setPrimarySymbolMappingByIsin(
     isin: string,
     provider: string,
@@ -2371,6 +2447,151 @@ export async function setPrimarySymbolMappingByIsin(
         });
     } catch (error) {
         handleRepositoryError(error);
+    }
+}
+
+export async function replacePrimaryMappingPriceHistory(
+    input: ReplacePrimaryMappingPriceHistoryInput,
+): Promise<{ deletedPriceRows: number; insertedPriceRows: number; latestPriceDate: string | null }> {
+    try {
+        if (input.replacementPoints.length === 0) {
+            throw new MarketDataRepositoryError("invalid_input", "Ersatz-Historie fehlt.");
+        }
+
+        const normalizedIsin = assertIsin(input.isin);
+        const normalizedProvider = input.provider.trim().toLowerCase();
+        const normalizedTargetMappingId = input.targetMappingId.trim();
+
+        if (!normalizedProvider || !normalizedTargetMappingId) {
+            throw new MarketDataRepositoryError("invalid_input", "Provider oder Mapping-ID fehlt.");
+        }
+
+        return await withPostgresClient(async (client) => {
+            await client.query("begin");
+            try {
+                const mappingResult = await client.query<Record<string, unknown>>(
+                    `select
+                        m.id,
+                        m.asset_id,
+                        m.provider,
+                        coalesce(m.symbol, m.provider_symbol) as symbol,
+                        m.currency,
+                        a.isin
+                     from asset_symbol_mappings m
+                     join assets a on a.id = m.asset_id
+                     where m.id = $1
+                       and m.provider = $2
+                       and a.isin = $3
+                     for update`,
+                    [normalizedTargetMappingId, normalizedProvider, normalizedIsin],
+                );
+                const targetMapping = mappingResult.rows[0];
+                if (!targetMapping) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping nicht gefunden.");
+                }
+
+                const assetId = String(targetMapping.asset_id);
+                const latestReplacementDate = input.replacementPoints.reduce<string | null>((latest, point) => {
+                    const normalizedDate = toDateString(point.date);
+                    if (!latest || normalizedDate > latest) {
+                        return normalizedDate;
+                    }
+                    return latest;
+                }, null);
+
+                await client.query(
+                    `update asset_symbol_mappings
+                     set is_primary = false,
+                         updated_at = now()
+                     where asset_id = $1
+                       and provider = $2`,
+                    [assetId, normalizedProvider],
+                );
+
+                await client.query(
+                    `update asset_symbol_mappings
+                     set is_primary = true,
+                         notes = case
+                             when $2::text is null then notes
+                             when notes is null then $2::text
+                             else left(notes || ' | ' || $2::text, 2000)
+                         end,
+                         updated_at = now()
+                     where id = $1`,
+                    [normalizedTargetMappingId, input.noteSuffix ?? null],
+                );
+
+                const deleteResult = await client.query(
+                    `delete from asset_daily_prices
+                     where asset_id = $1
+                       and provider = $2`,
+                    [assetId, normalizedProvider],
+                );
+
+                for (const point of input.replacementPoints) {
+                    const close = Number(point.close);
+                    if (!Number.isFinite(close)) {
+                        throw new MarketDataRepositoryError("invalid_input", "Ersatz-Historie enthält ungültigen Schlusskurs.");
+                    }
+
+                    await client.query(
+                        `insert into asset_daily_prices
+                            (asset_id, provider, price_date, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency)
+                         values
+                            ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10)
+                         on conflict (asset_id, provider, price_date)
+                         do update set
+                            open_price = excluded.open_price,
+                            high_price = excluded.high_price,
+                            low_price = excluded.low_price,
+                            close_price = excluded.close_price,
+                            adjusted_close_price = excluded.adjusted_close_price,
+                            volume = excluded.volume,
+                            currency = excluded.currency,
+                            updated_at = now()`,
+                        [
+                            assetId,
+                            normalizedProvider,
+                            toDateString(point.date),
+                            toNullableNumber(point.open),
+                            toNullableNumber(point.high),
+                            toNullableNumber(point.low),
+                            close,
+                            toNullableNumber(point.adjClose),
+                            toNullableNumber(point.volume),
+                            point.currency ?? input.replacementCurrency ?? targetMapping.currency ?? null,
+                        ],
+                    );
+                }
+
+                const latestResult = await client.query<Record<string, unknown>>(
+                    `select max(price_date) as latest_price_date
+                     from asset_daily_prices
+                     where asset_id = $1
+                       and provider = $2`,
+                    [assetId, normalizedProvider],
+                );
+                const latestPriceDate = latestResult.rows[0]?.latest_price_date;
+                const normalizedLatestPriceDate = latestPriceDate === null ? null : normalizeDbDateValue(latestPriceDate);
+
+                if (!normalizedLatestPriceDate || normalizedLatestPriceDate !== latestReplacementDate) {
+                    throw new MarketDataRepositoryError("db_error", "Ersatz-Historie konnte nicht konsistent verifiziert werden.");
+                }
+
+                await client.query("commit");
+
+                return {
+                    deletedPriceRows: deleteResult.rowCount ?? 0,
+                    insertedPriceRows: input.replacementPoints.length,
+                    latestPriceDate: normalizedLatestPriceDate,
+                };
+            } catch (error) {
+                await client.query("rollback");
+                throw error;
+            }
+        });
+    } catch (error) {
+        handleRepositoryError(error, "replacePrimaryMappingPriceHistory(asset_daily_prices)");
     }
 }
 

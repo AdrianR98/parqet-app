@@ -20,17 +20,48 @@ async function run() {
         getMarketDataStatusSummary,
         listMarketInstruments,
         listReferenceSourceCounts,
+        listSymbolMappingsForPrimaryPreference,
         listVerifiedMappingsForPromotion,
     } = await import("../src/lib/market-data/db/repository-core.ts");
     const { buildStatusReportTriageSummary } = await import("../src/lib/market-data/db/status-report-triage.ts");
+    const { buildDePrimaryPreferencePlan, isGermanYfinanceSymbol } = await import("../src/lib/market-data/prefer-de-primary.ts");
 
     const summary = await getMarketDataStatusSummary();
     const allInstruments = await listMarketInstruments({ limit: 50000 });
     const sourceCounts = await listReferenceSourceCounts();
     const verifiedMappings = await listVerifiedMappingsForPromotion("yfinance");
+    const primaryPreferenceMappings = await listSymbolMappingsForPrimaryPreference("yfinance");
 
     const verifiedIsins = new Set(verifiedMappings.map((item) => item.isin));
     const verifiedNonPrimary = verifiedMappings.filter((item) => !item.isPrimary);
+    const dePlan = buildDePrimaryPreferencePlan({
+        instruments: allInstruments,
+        mappings: primaryPreferenceMappings,
+    });
+    const primaryDeMappings = primaryPreferenceMappings.filter((item) => item.isPrimary && isGermanYfinanceSymbol(item.symbol)).length;
+    const primaryNonDeMappings = primaryPreferenceMappings.filter((item) => item.isPrimary && !isGermanYfinanceSymbol(item.symbol)).length;
+    const mappingsByIsin = new Map();
+    for (const row of primaryPreferenceMappings) {
+        const list = mappingsByIsin.get(row.isin) ?? [];
+        list.push(row);
+        mappingsByIsin.set(row.isin, list);
+    }
+    const assetsWithVerifiedDeCandidateButNonDePrimary = allInstruments.filter((instrument) => {
+        const rows = mappingsByIsin.get(instrument.isin) ?? [];
+        const primary = rows.find((row) => row.isPrimary) ?? null;
+        if (!primary || isGermanYfinanceSymbol(primary.symbol)) {
+            return false;
+        }
+        return rows.some((row) => row.verifiedAt && isGermanYfinanceSymbol(row.symbol));
+    }).length;
+    const remainingNonDePrimaryWithoutDeCandidate = allInstruments.filter((instrument) => {
+        const rows = mappingsByIsin.get(instrument.isin) ?? [];
+        const primary = rows.find((row) => row.isPrimary) ?? null;
+        if (!primary || isGermanYfinanceSymbol(primary.symbol)) {
+            return false;
+        }
+        return !rows.some((row) => row.verifiedAt && isGermanYfinanceSymbol(row.symbol));
+    }).length;
 
     console.log("Market Data Status");
     console.log(`- instruments total: ${summary.instrumentsTotal}`);
@@ -38,6 +69,8 @@ async function run() {
     console.log(`- yfinance mappings total: ${summary.yfinanceMappingsTotal}`);
     console.log(`- verified yfinance mappings: ${summary.verifiedYfinanceMappings}`);
     console.log(`- primary yfinance mappings: ${summary.primaryYfinanceMappings}`);
+    console.log(`- primary .DE mappings: ${primaryDeMappings}`);
+    console.log(`- primary non-DE mappings: ${primaryNonDeMappings}`);
     console.log(`- instruments with at least one verified yfinance mapping: ${summary.instrumentsWithVerifiedYfinance}`);
     console.log(`- instruments without any mapping: ${summary.instrumentsWithoutAnyMapping}`);
     console.log(`- instruments with mapping but no verified mapping: ${summary.instrumentsWithMappingButNoVerifiedYfinance}`);
@@ -46,6 +79,9 @@ async function run() {
     console.log(`- instruments with daily price data: ${summary.instrumentsWithDailyPrices}`);
     console.log(`- instruments with market actions: ${summary.instrumentsWithActions}`);
     console.log(`- instruments with primary mapping but no price data: ${summary.instrumentsWithPrimaryButNoPrices}`);
+    console.log(`- assets with verified .DE candidate but non-DE primary: ${assetsWithVerifiedDeCandidateButNonDePrimary}`);
+    console.log(`- assets with switched mapping requiring history replacement: ${dePlan.switchCandidates.filter((item) => item.requiresFullHistoryReplacement).length}`);
+    console.log(`- remaining non-DE primary assets without .DE candidate: ${remainingNonDePrimaryWithoutDeCandidate}`);
     console.log(`- failed validation candidates: ${summary.failedValidationCandidates}`);
     console.log(`- instruments with market_data_status=excluded: ${summary.instrumentsStatusExcluded}`);
     console.log(`- instruments with market_data_status=legacy: ${summary.instrumentsStatusLegacy}`);

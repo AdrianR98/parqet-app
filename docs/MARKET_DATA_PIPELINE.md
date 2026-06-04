@@ -17,6 +17,7 @@ Provider calls are restricted to explicit Admin/CLI workflows.
 
 - Primary provider workflow: yfinance (validation/backfill/incremental update).
 - OpenFIGI: optional candidate lookup/admin workflow.
+- FX conversion remains deferred. The current market-data policy prefers verified yfinance `.DE` mappings as the primary mapping where available instead of introducing a full FX engine in this slice.
 
 ## Current Market-Data Tables
 
@@ -52,6 +53,37 @@ Corporate-action/lineage expansion is future work.
 7. Backfill prices/actions.
 8. Run incremental primary updates.
 9. Inspect status/unmapped/requests/runs via Admin read-only views or CLI reports.
+
+## `.DE` Primary Preference Workflow
+
+- Command: `npm run db:market:prefer-de-primary`
+- Default mode is dry-run only.
+- Dry-run is DB-only analysis:
+  - no DB mutation
+  - no provider calls
+  - clear switch report including required history replacement
+- `--write` may switch primary mappings only when the change is safe without destructive history replacement.
+- `--write --replace-history` is required when the primary yfinance ticker changes and old price rows already exist.
+
+### Replacement Rule On Primary Ticker Switch
+
+- If the selected primary yfinance ticker changes, old history in `asset_daily_prices` must be physically deleted and replaced with a full fresh history for the new ticker.
+- No soft delete, inactive flag, superseded flag or mixed old/new history is allowed.
+- The current schema does not store the original yfinance symbol on each `asset_daily_prices` row, so destructive replacement is keyed by `asset_id + provider`.
+- Safe write sequence:
+  1. build the switch plan
+  2. fetch full replacement history for the new `.DE` ticker
+  3. abort without mutation if the replacement fetch fails or is empty
+  4. switch the primary mapping
+  5. delete old `asset_daily_prices` rows for the affected asset/provider
+  6. insert the full replacement history
+  7. verify the latest price can be derived from the replacement history
+
+### Usage
+
+- Dry-run: `npm run db:market:prefer-de-primary`
+- Write non-destructive primary changes only: `npm run db:market:prefer-de-primary -- --write`
+- Write with destructive full-history replacement when ticker changes: `npm run db:market:prefer-de-primary -- --write --replace-history`
 
 ## Unknown Asset Queue
 
