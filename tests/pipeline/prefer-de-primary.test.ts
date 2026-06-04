@@ -85,6 +85,8 @@ describe("prefer .DE primary plan", () => {
             newPrimarySymbol: "BMW.DE",
             requiresFullHistoryReplacement: true,
             oldPriceRowCountToDelete: 123,
+            isCurrencyFix: true,
+            isVenueOnlySwitch: false,
         });
     });
 
@@ -160,6 +162,42 @@ describe("prefer .DE primary plan", () => {
             marketDataStatus: "unknown",
             oldPrimarySymbol: "IMBBF",
             newPrimarySymbol: "BMW.DE",
+            isCurrencyFix: true,
+            isVenueOnlySwitch: false,
+        });
+    });
+
+    it("marks EUR to EUR switches as venue-only instead of currency fixes", () => {
+        const plan = buildDePrimaryPreferencePlan({
+            instruments: [instrument({ isin: "GB0000000011", id: "asset-11", marketDataStatus: "active" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-11",
+                    isin: "GB0000000011",
+                    mappingId: "old-primary-eur",
+                    symbol: "L3H.F",
+                    exchange: "FRA",
+                    currency: "EUR",
+                    isPrimary: true,
+                    providerPriceRowCount: 42,
+                }),
+                mapping({
+                    assetId: "asset-11",
+                    isin: "GB0000000011",
+                    mappingId: "new-primary-de",
+                    symbol: "R6C0.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                }),
+            ],
+        });
+
+        expect(plan.switchCandidates).toHaveLength(1);
+        expect(plan.switchCandidates[0]).toMatchObject({
+            oldPrimarySymbol: "L3H.F",
+            newPrimarySymbol: "R6C0.DE",
+            isCurrencyFix: false,
+            isVenueOnlySwitch: true,
         });
     });
 

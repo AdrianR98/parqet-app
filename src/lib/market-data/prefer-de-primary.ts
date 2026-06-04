@@ -19,6 +19,8 @@ export type DePrimarySwitchCandidate = {
     oldPriceRowCountToDelete: number;
     existingNewPriceRowCount: number | null;
     requiresFullHistoryReplacement: boolean;
+    isCurrencyFix: boolean;
+    isVenueOnlySwitch: boolean;
 };
 
 export type DePrimaryPreferencePlan = {
@@ -62,6 +64,11 @@ function compareDeCandidates(
     }
 
     return left.symbol.localeCompare(right.symbol);
+}
+
+function normalizeCurrency(value: string | null): string | null {
+    const normalized = value?.trim().toUpperCase() ?? null;
+    return normalized || null;
 }
 
 export function buildDePrimaryPreferencePlan(input: {
@@ -117,6 +124,10 @@ export function buildDePrimaryPreferencePlan(input: {
             currentPrimary.mappingId !== selected.mappingId &&
             currentPrimary.symbol !== selected.symbol;
         const requiresFullHistoryReplacement = tickerChanges;
+        const oldPrimaryCurrency = normalizeCurrency(currentPrimary?.currency ?? null);
+        const newPrimaryCurrency = normalizeCurrency(selected.currency);
+        const isVenueOnlySwitch = oldPrimaryCurrency === "EUR" && newPrimaryCurrency === "EUR";
+        const isCurrencyFix = newPrimaryCurrency === "EUR" && oldPrimaryCurrency !== "EUR";
         if (requiresFullHistoryReplacement) {
             assetsRequiringFullHistoryReplacement += 1;
         }
@@ -138,6 +149,8 @@ export function buildDePrimaryPreferencePlan(input: {
             existingNewPriceRowCount:
                 currentPrimary?.mappingId === selected.mappingId ? selected.providerPriceRowCount : null,
             requiresFullHistoryReplacement,
+            isCurrencyFix,
+            isVenueOnlySwitch,
         });
     }
 

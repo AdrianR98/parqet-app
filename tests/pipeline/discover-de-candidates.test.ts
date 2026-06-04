@@ -1,10 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const { queryMock, withClientMock } = vi.hoisted(() => ({
+    queryMock: vi.fn(),
+    withClientMock: vi.fn(),
+}));
+
+vi.mock("../../src/lib/db/postgres-core", () => ({
+    PostgresConfigError: class PostgresConfigError extends Error {},
+    queryPostgres: queryMock,
+    withPostgresClient: withClientMock,
+}));
 
 import {
     buildDeCandidateDiscoveryPlan,
+    classifyDeCandidateReportStatus,
     classifyDeCandidateValidation,
     decideDeCandidateWriteAction,
 } from "../../src/lib/market-data/discover-de-candidates";
+import { storeVerifiedSymbolMappingCandidate } from "../../src/lib/market-data/db/repository";
 import { buildDePrimaryPreferencePlan } from "../../src/lib/market-data/prefer-de-primary";
 import type {
     DbMarketInstrument,
@@ -81,6 +96,11 @@ function reference(overrides: Partial<DbMarketReferenceInstrument>): DbMarketRef
 }
 
 describe("discover .DE candidates", () => {
+    beforeEach(() => {
+        queryMock.mockReset();
+        withClientMock.mockReset();
+    });
+
     it("reports assets without verified .DE as missing candidate", () => {
         const plan = buildDeCandidateDiscoveryPlan([
             {
@@ -205,7 +225,11 @@ describe("discover .DE candidates", () => {
         });
 
         expect(preferPlan.switchCandidates).toHaveLength(1);
-        expect(preferPlan.switchCandidates[0]?.newPrimarySymbol).toBe("BMW.DE");
+        expect(preferPlan.switchCandidates[0]).toMatchObject({
+            newPrimarySymbol: "BMW.DE",
+            isCurrencyFix: true,
+            isVenueOnlySwitch: false,
+        });
     });
 
     it("rejected or ambiguous validations are not promoted", () => {
@@ -238,5 +262,126 @@ describe("discover .DE candidates", () => {
 
         expect(decideDeCandidateWriteAction({ write: true, validate: true, validationDecision: rejected }).action).toBe("none");
         expect(decideDeCandidateWriteAction({ write: true, validate: true, validationDecision: ambiguous }).action).toBe("none");
+    });
+
+    it("classifies verified candidate write results and same-symbol conflicts distinctly", () => {
+        expect(
+            classifyDeCandidateReportStatus({
+                storeStatus: "written_verified",
+            }),
+        ).toBe("written_verified");
+
+        expect(
+            classifyDeCandidateReportStatus({
+                storeStatus: "skipped_existing_other_asset",
+            }),
+        ).toBe("skipped_existing_other_asset");
+    });
+
+    it("reports rejected and ambiguous candidates separately when they are not written", () => {
+        const rejected = classifyDeCandidateValidation(
+            {
+                isin: "US0000000005",
+                symbol: "R6C0.DE",
+                hasHistory: false,
+                pointCount: 0,
+                lastDate: null,
+                latestClose: null,
+                currency: "EUR",
+                error: "missing history",
+            },
+            new Date("2026-06-04T00:00:00.000Z"),
+        );
+        const ambiguous = classifyDeCandidateValidation(
+            {
+                isin: "US0000000006",
+                symbol: "R6C0.DE",
+                hasHistory: true,
+                pointCount: 20,
+                lastDate: "2026-05-01",
+                latestClose: 65,
+                currency: "EUR",
+                error: null,
+            },
+            new Date("2026-06-04T00:00:00.000Z"),
+        );
+
+        expect(classifyDeCandidateReportStatus({ validationDecision: rejected })).toBe("rejected");
+        expect(classifyDeCandidateReportStatus({ validationDecision: ambiguous })).toBe("ambiguous");
+    });
+
+    it("writes a validated .DE candidate as verified for the same asset", async () => {
+        queryMock
+            .mockResolvedValueOnce({ rows: [] })
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: "mapping-written",
+                    instrument_id: "asset-validated",
+                    provider: "yfinance",
+                    symbol: "R6C0.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                    is_primary: false,
+                    is_active: true,
+                    verified_at: "2026-06-04T10:00:00.000Z",
+                    notes: "validated",
+                    created_at: "2026-06-04T10:00:00.000Z",
+                    updated_at: "2026-06-04T10:00:00.000Z",
+                }],
+            });
+
+        const result = await storeVerifiedSymbolMappingCandidate({
+            instrumentId: "asset-validated",
+            provider: "yfinance",
+            symbol: "R6C0.DE",
+            exchange: "XETRA",
+            currency: "EUR",
+            notes: "validated",
+        });
+
+        expect(result).toMatchObject({
+            status: "written_verified",
+            reason: "inserted_verified_mapping",
+            mappingId: "mapping-written",
+        });
+
+        const insertSql = queryMock.mock.calls[1]?.[0] as string;
+        const insertParams = queryMock.mock.calls[1]?.[1] as unknown[];
+        expect(insertSql).toContain("(asset_id, instrument_id, provider, provider_symbol, symbol");
+        expect(insertParams[0]).toBe("asset-validated");
+        expect(insertParams[2]).toBe("R6C0.DE");
+    });
+
+    it("reports symbol conflicts with another asset and does not write them", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                id: "mapping-conflict",
+                owner_asset_id: "asset-other",
+                owner_isin: "GB00B03MLX29",
+                owner_display_name: "Other Asset",
+                verified_at: "2026-06-04T09:00:00.000Z",
+                notes: "existing owner",
+            }],
+        });
+
+        const result = await storeVerifiedSymbolMappingCandidate({
+            instrumentId: "asset-shell",
+            provider: "yfinance",
+            symbol: "R6C0.DE",
+            exchange: "XETRA",
+            currency: "EUR",
+            notes: "validated",
+        });
+
+        expect(result).toEqual({
+            status: "skipped_existing_other_asset",
+            reason: "symbol_conflict_other_asset",
+            mappingId: null,
+            verifiedAt: null,
+            conflictAssetId: "asset-other",
+            conflictIsin: "GB00B03MLX29",
+            conflictDisplayName: "Other Asset",
+        });
+        expect(queryMock).toHaveBeenCalledTimes(1);
     });
 });

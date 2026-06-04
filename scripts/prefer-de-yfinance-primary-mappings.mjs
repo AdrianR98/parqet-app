@@ -195,6 +195,8 @@ function printCandidate(candidate) {
     console.log(`  oldAssetDailyPriceRowCountToDelete: ${candidate.oldPriceRowCountToDelete}`);
     console.log(`  existingNewDePriceRowCount: ${candidate.existingNewPriceRowCount ?? "not_distinguishable"}`);
     console.log(`  requiresFullHistoryReplacement: ${candidate.requiresFullHistoryReplacement}`);
+    console.log(`  isCurrencyFix: ${candidate.isCurrencyFix}`);
+    console.log(`  isVenueOnlySwitch: ${candidate.isVenueOnlySwitch}`);
 }
 
 async function closeDbPool() {

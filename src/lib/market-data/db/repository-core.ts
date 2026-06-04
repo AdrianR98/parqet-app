@@ -1025,18 +1025,22 @@ export async function insertSymbolMappingCandidate(input: InsertSymbolMappingCan
     try {
         const provider = input.provider.trim().toLowerCase();
         const symbol = input.symbol.trim().toUpperCase();
+        const instrumentId = String(input.instrumentId ?? "").trim();
         if (!provider || !symbol) {
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
+        }
+        if (!instrumentId) {
+            throw new MarketDataRepositoryError("invalid_input", "Instrument-ID fehlt.");
         }
 
         const result = await queryPostgres<{ id: string }>(
             `insert into asset_symbol_mappings
-                (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
+                (asset_id, instrument_id, provider, provider_symbol, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
              values
-                ($1, $2, $3, $4, $5, false, true, null, $6)
+                ($1, $1, $2, $3, $3, $4, $5, false, true, null, $6)
              on conflict do nothing
              returning id`,
-            [input.instrumentId, provider, symbol, input.exchange ?? null, input.currency ?? null, input.notes ?? null],
+            [instrumentId, provider, symbol, input.exchange ?? null, input.currency ?? null, input.notes ?? null],
         );
         return result.rows.length > 0;
     } catch (error) {
@@ -1048,20 +1052,24 @@ export async function insertManualSymbolMapping(input: InsertManualSymbolMapping
     try {
         const provider = input.provider.trim().toLowerCase();
         const symbol = input.symbol.trim().toUpperCase();
+        const instrumentId = String(input.instrumentId ?? "").trim();
         if (!provider || !symbol) {
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
+        }
+        if (!instrumentId) {
+            throw new MarketDataRepositoryError("invalid_input", "Instrument-ID fehlt.");
         }
 
         const result = await queryPostgres<Record<string, unknown>>(
             `insert into asset_symbol_mappings
-                (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
+                (asset_id, instrument_id, provider, provider_symbol, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
              values
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ($1, $1, $2, $3, $3, $4, $5, $6, $7, $8, $9)
              on conflict do nothing
              returning id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active,
                        verified_at, notes, created_at, updated_at`,
             [
-                input.instrumentId,
+                instrumentId,
                 provider,
                 symbol,
                 input.exchange ?? null,
@@ -1093,7 +1101,8 @@ export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInpu
 
         const result = await queryPostgres<Record<string, unknown>>(
             `update asset_symbol_mappings
-             set symbol = coalesce($2, symbol),
+             set provider_symbol = coalesce($2, provider_symbol),
+                 symbol = coalesce($2, symbol),
                  exchange = coalesce($3::text, exchange),
                  currency = coalesce($4::text, currency),
                  is_primary = coalesce($5::boolean, is_primary),
@@ -2336,25 +2345,60 @@ export async function storeVerifiedSymbolMappingCandidate(
         }
 
         const existing = await queryPostgres<Record<string, unknown>>(
-            `select id, notes
-             from asset_symbol_mappings
-             where instrument_id = $1
-               and provider = $2
-               and symbol = $3
-             limit 1`,
-            [instrumentId, provider, symbol],
+            `select
+                m.id,
+                coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
+                i.isin as owner_isin,
+                coalesce(i.display_name, i.name) as owner_display_name,
+                m.verified_at,
+                m.notes
+             from asset_symbol_mappings m
+             join assets i
+               on i.id = coalesce(m.asset_id, m.instrument_id)
+             where m.provider = $1
+               and coalesce(m.symbol, m.provider_symbol) = $2
+             order by
+                case when coalesce(m.asset_id, m.instrument_id) = $3 then 0 else 1 end,
+                m.verified_at desc nulls last,
+                m.created_at desc
+             limit 5`,
+            [provider, symbol, instrumentId],
         );
 
-        if (existing.rows.length > 0) {
-            const current = existing.rows[0];
+        const conflictingOwner = existing.rows.find((row) => String(row.owner_asset_id) !== instrumentId) ?? null;
+        if (conflictingOwner) {
+            return {
+                status: "skipped_existing_other_asset",
+                reason: "symbol_conflict_other_asset",
+                mappingId: null,
+                verifiedAt: null,
+                conflictAssetId: String(conflictingOwner.owner_asset_id),
+                conflictIsin: conflictingOwner.owner_isin === null ? null : String(conflictingOwner.owner_isin),
+                conflictDisplayName:
+                    conflictingOwner.owner_display_name === null ? null : String(conflictingOwner.owner_display_name),
+            };
+        }
+
+        const ownedExisting = existing.rows.find((row) => String(row.owner_asset_id) === instrumentId) ?? null;
+
+        if (ownedExisting) {
+            if (ownedExisting.verified_at) {
+                return {
+                    status: "already_verified",
+                    reason: "existing_verified_mapping",
+                    mappingId: String(ownedExisting.id),
+                    verifiedAt: String(ownedExisting.verified_at),
+                };
+            }
+
             const mergedNotes =
                 noteSuffix == null
                     ? null
-                    : current.notes == null
+                    : ownedExisting.notes == null
                         ? noteSuffix
-                        : `${String(current.notes)} | ${noteSuffix}`.slice(0, 2000);
+                        : `${String(ownedExisting.notes)} | ${noteSuffix}`.slice(0, 2000);
             const updated = await updateSymbolMappingById({
-                id: String(current.id),
+                id: String(ownedExisting.id),
                 exchange: input.exchange ?? null,
                 currency: input.currency ?? null,
                 isActive: true,
@@ -2367,7 +2411,8 @@ export async function storeVerifiedSymbolMappingCandidate(
             }
 
             return {
-                status: "updated",
+                status: "written_verified",
+                reason: "existing_mapping_verified",
                 mappingId: updated.id,
                 verifiedAt: updated.verifiedAt,
             };
@@ -2385,15 +2430,54 @@ export async function storeVerifiedSymbolMappingCandidate(
             notes: noteSuffix,
         });
 
-        if (!inserted?.verifiedAt) {
-            throw new MarketDataRepositoryError("db_error", "Verifiziertes Mapping konnte nicht erstellt werden.");
+        if (inserted?.verifiedAt) {
+            return {
+                status: "written_verified",
+                reason: "inserted_verified_mapping",
+                mappingId: inserted.id,
+                verifiedAt: inserted.verifiedAt,
+            };
         }
 
-        return {
-            status: "inserted",
-            mappingId: inserted.id,
-            verifiedAt: inserted.verifiedAt,
-        };
+        const fallbackOwner = await queryPostgres<Record<string, unknown>>(
+            `select
+                m.id,
+                coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
+                i.isin as owner_isin,
+                coalesce(i.display_name, i.name) as owner_display_name,
+                m.verified_at
+             from asset_symbol_mappings m
+             join assets i
+               on i.id = coalesce(m.asset_id, m.instrument_id)
+             where m.provider = $1
+               and coalesce(m.symbol, m.provider_symbol) = $2
+             limit 1`,
+            [provider, symbol],
+        );
+        const fallback = fallbackOwner.rows[0] ?? null;
+
+        if (fallback && String(fallback.owner_asset_id) !== instrumentId) {
+            return {
+                status: "skipped_existing_other_asset",
+                reason: "symbol_conflict_other_asset",
+                mappingId: null,
+                verifiedAt: null,
+                conflictAssetId: String(fallback.owner_asset_id),
+                conflictIsin: fallback.owner_isin === null ? null : String(fallback.owner_isin),
+                conflictDisplayName: fallback.owner_display_name === null ? null : String(fallback.owner_display_name),
+            };
+        }
+
+        if (fallback?.verified_at) {
+            return {
+                status: "already_verified",
+                reason: "existing_verified_mapping",
+                mappingId: String(fallback.id),
+                verifiedAt: String(fallback.verified_at),
+            };
+        }
+
+        throw new MarketDataRepositoryError("db_error", "Verifiziertes Mapping konnte nicht erstellt werden.");
     } catch (error) {
         handleRepositoryError(error);
     }
@@ -2434,9 +2518,9 @@ export async function listSymbolMappingsForPrimaryPreference(
                 coalesce(pp.provider_price_row_count, 0) as provider_price_row_count,
                 pp.provider_latest_price_date
              from asset_symbol_mappings m
-             join assets a on a.id = m.asset_id
+             join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
              left join provider_prices pp
-               on pp.asset_id = m.asset_id
+               on pp.asset_id = coalesce(m.asset_id, m.instrument_id)
               and pp.provider = m.provider
              where m.provider = $1
                and m.is_active = true

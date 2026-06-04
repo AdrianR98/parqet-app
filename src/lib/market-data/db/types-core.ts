@@ -669,7 +669,11 @@ export type StoreVerifiedSymbolMappingCandidateInput = {
 };
 
 export type StoreVerifiedSymbolMappingCandidateResult = {
-    status: "inserted" | "updated";
-    mappingId: string;
-    verifiedAt: string;
+    status: "written_verified" | "already_verified" | "skipped_existing_other_asset";
+    reason: string;
+    mappingId: string | null;
+    verifiedAt: string | null;
+    conflictAssetId?: string | null;
+    conflictIsin?: string | null;
+    conflictDisplayName?: string | null;
 };

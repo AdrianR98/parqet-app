@@ -63,6 +63,34 @@ export type DeCandidateWriteDecision = {
     reason: string;
 };
 
+export type DeCandidateWriteReportStatus =
+    | "written_verified"
+    | "already_verified"
+    | "skipped_existing_other_asset"
+    | "rejected"
+    | "ambiguous"
+    | "failed";
+
+export function classifyDeCandidateReportStatus(input: {
+    validationDecision?: DeCandidateValidationDecision | null;
+    writeError?: boolean;
+    storeStatus?: "written_verified" | "already_verified" | "skipped_existing_other_asset" | null;
+}): DeCandidateWriteReportStatus {
+    if (input.writeError) {
+        return "failed";
+    }
+    if (input.storeStatus) {
+        return input.storeStatus;
+    }
+    if (input.validationDecision?.status === "rejected") {
+        return "rejected";
+    }
+    if (input.validationDecision?.status === "ambiguous") {
+        return "ambiguous";
+    }
+    return "failed";
+}
+
 export function isGermanYfinanceSymbol(symbol: string): boolean {
     return symbol.trim().toUpperCase().endsWith(".DE");
 }

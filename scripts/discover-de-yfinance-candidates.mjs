@@ -144,6 +144,11 @@ function formatProposals(proposals) {
     return proposals.map((proposal) => `${proposal.symbol} [${proposal.sourceKey}/${proposal.sourceType}]`).join("; ");
 }
 
+function incrementReasonCount(target, reason) {
+    const key = String(reason ?? "unspecified");
+    target.set(key, (target.get(key) ?? 0) + 1);
+}
+
 async function validateProposals({ python, proposals }) {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "parqet-discover-de-"));
     const inputPath = path.join(tempDir, "candidates.json");
@@ -201,6 +206,7 @@ async function run() {
     } = await import("../src/lib/market-data/db/repository-core.ts");
     const {
         buildDeCandidateDiscoveryPlan,
+        classifyDeCandidateReportStatus,
         classifyDeCandidateValidation,
         decideDeCandidateWriteAction,
     } = await import("../src/lib/market-data/discover-de-candidates.ts");
@@ -284,7 +290,11 @@ async function run() {
     let rejectedCandidates = 0;
     let ambiguousCandidates = 0;
     let writtenVerifiedCandidates = 0;
+    let alreadyVerifiedCandidates = 0;
+    let skippedWriteCount = 0;
     const validationBySymbol = new Map();
+    const writeReasonCounts = new Map();
+    const writeResults = [];
 
     if (options.validate && proposalRows.length > 0) {
         const validationResults = await validateProposals({
@@ -323,6 +333,16 @@ async function run() {
             });
             const instrument = await getInstrumentByIsin(proposal.isin);
             if (!instrument) {
+                skippedWriteCount += 1;
+                incrementReasonCount(writeReasonCounts, "instrument_not_found");
+                writeResults.push({
+                    assetId: null,
+                    isin: proposal.isin,
+                    symbol: proposal.symbol,
+                    source: `${proposal.sourceKey}/${proposal.sourceType}`,
+                    status: "failed",
+                    reason: "instrument_not_found",
+                });
                 continue;
             }
 
@@ -339,18 +359,62 @@ async function run() {
             }
 
             if (writeDecision.action === "store_verified") {
-                const stored = await storeVerifiedSymbolMappingCandidate({
-                    instrumentId: instrument.id,
-                    provider: "yfinance",
-                    symbol: proposal.symbol,
-                    exchange: proposal.exchange ?? null,
-                    currency: proposal.currency ?? null,
-                    notes: `validated:yfinance; status=verified; source=discover_de_candidate; validation_reason=${validation.decision.reason}; proposal_source=${proposal.sourceKey}`,
-                });
-                if (stored.status === "inserted" || stored.status === "updated") {
-                    writtenVerifiedCandidates += 1;
+                try {
+                    const stored = await storeVerifiedSymbolMappingCandidate({
+                        instrumentId: instrument.id,
+                        provider: "yfinance",
+                        symbol: proposal.symbol,
+                        exchange: proposal.exchange ?? null,
+                        currency: proposal.currency ?? null,
+                        notes: `validated:yfinance; status=verified; source=discover_de_candidate; validation_reason=${validation.decision.reason}; proposal_source=${proposal.sourceKey}`,
+                    });
+                    if (stored.status === "written_verified") {
+                        writtenVerifiedCandidates += 1;
+                    } else if (stored.status === "already_verified") {
+                        alreadyVerifiedCandidates += 1;
+                    } else {
+                        skippedWriteCount += 1;
+                        incrementReasonCount(writeReasonCounts, stored.reason);
+                    }
+                    writeResults.push({
+                        assetId: instrument.id,
+                        isin: proposal.isin,
+                        symbol: proposal.symbol,
+                        source: `${proposal.sourceKey}/${proposal.sourceType}`,
+                        status: stored.status,
+                        reason:
+                            stored.status === "skipped_existing_other_asset"
+                                ? `${stored.reason}; existingAssetId=${stored.conflictAssetId ?? "-"}; existingIsin=${stored.conflictIsin ?? "-"}; existingDisplayName=${stored.conflictDisplayName ?? "-"}`
+                                : stored.reason,
+                    });
+                } catch (error) {
+                    skippedWriteCount += 1;
+                    incrementReasonCount(writeReasonCounts, "store_failed");
+                    writeResults.push({
+                        assetId: instrument.id,
+                        isin: proposal.isin,
+                        symbol: proposal.symbol,
+                        source: `${proposal.sourceKey}/${proposal.sourceType}`,
+                        status: "failed",
+                        reason: safeMessage(error),
+                    });
                 }
+                continue;
             }
+
+            skippedWriteCount += 1;
+            const status = classifyDeCandidateReportStatus({
+                validationDecision: validation?.decision ?? null,
+            });
+            incrementReasonCount(writeReasonCounts, writeDecision.reason);
+            writeResults.push({
+                assetId: instrument.id,
+                isin: proposal.isin,
+                symbol: proposal.symbol,
+                source: `${proposal.sourceKey}/${proposal.sourceType}`,
+                status,
+                reason: validation?.decision?.reason ?? writeDecision.reason,
+            });
         }
     }
 
@@ -359,8 +423,29 @@ async function run() {
     console.log(`- rejected candidates: ${rejectedCandidates}`);
     console.log(`- ambiguous candidates: ${ambiguousCandidates}`);
     console.log(`- written verified candidates: ${writtenVerifiedCandidates}`);
+    console.log(`- already verified candidates: ${alreadyVerifiedCandidates}`);
+    console.log(`- skipped write count: ${skippedWriteCount}`);
     console.log(`- remaining without .DE: ${Math.max(plan.assetsMissingDe - writtenVerifiedCandidates, 0)}`);
     console.log(`- DB writes: ${options.write ? "enabled (--write)" : "disabled (dry-run)"}`);
+
+    if (writeReasonCounts.size > 0) {
+        console.log("Skipped write reasons:");
+        for (const [reason, count] of [...writeReasonCounts.entries()].sort((left, right) => left[0].localeCompare(right[0]))) {
+            console.log(`- ${reason}: ${count}`);
+        }
+    }
+
+    if (writeResults.length > 0) {
+        console.log("Candidate write results:");
+        for (const row of writeResults) {
+            console.log(`- assetId: ${row.assetId ?? "-"}`);
+            console.log(`  ISIN: ${row.isin}`);
+            console.log(`  symbol: ${row.symbol}`);
+            console.log(`  source: ${row.source}`);
+            console.log(`  status: ${row.status}`);
+            console.log(`  reason: ${row.reason}`);
+        }
+    }
 }
 
 run()
