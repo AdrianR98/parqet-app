@@ -641,6 +641,22 @@ export type PrimaryMappingForBackfill = {
     verifiedAt: string;
 };
 
+export type PrimaryMappingPriceQualityRow = {
+    assetId: string;
+    isin: string;
+    displayName: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    provider: string;
+    primarySymbol: string;
+    primaryExchange: string | null;
+    primaryCurrency: string | null;
+    priceRowCount: number;
+    minPriceDate: string | null;
+    latestPriceDate: string | null;
+    latestCurrency: string | null;
+    longestGapDays: number;
+};
+
 export type ReplacePrimaryMappingPriceHistoryInput = {
     isin: string;
     provider: string;

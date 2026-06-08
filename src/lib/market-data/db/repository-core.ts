@@ -20,6 +20,7 @@ import type {
     MarketDataStatusSummary,
     VerifiedMappingForPromotion,
     PrimaryMappingForBackfill,
+    PrimaryMappingPriceQualityRow,
     MarketDataInstrumentStatus,
     MarketInstrumentStatusSummaryRow,
     UpdateMarketInstrumentStatusInput,
@@ -2573,6 +2574,105 @@ export async function listSymbolMappingsForPrimaryPreference(
             providerPriceRowCount: Number(row.provider_price_row_count ?? 0),
             providerLatestPriceDate:
                 row.provider_latest_price_date === null ? null : normalizeDbDateValue(row.provider_latest_price_date),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listPrimaryMappingPriceQuality(
+    provider = "yfinance",
+    isin?: string,
+): Promise<PrimaryMappingPriceQualityRow[]> {
+    try {
+        const normalizedProvider = provider.trim().toLowerCase();
+        const normalizedIsin = isin ? assertIsin(isin) : null;
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with primary_mappings as (
+                select
+                    a.id as asset_id,
+                    a.isin,
+                    coalesce(a.display_name, a.name) as display_name,
+                    a.market_data_status,
+                    m.provider,
+                    coalesce(m.symbol, m.provider_symbol) as primary_symbol,
+                    m.exchange as primary_exchange,
+                    m.currency as primary_currency
+                from asset_symbol_mappings m
+                join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+                where m.provider = $1
+                  and m.is_active = true
+                  and m.is_primary = true
+                  and a.asset_key_type = 'isin'
+                  and a.isin is not null
+                  and ($2::text is null or a.isin = $2)
+            ),
+            price_rows as (
+                select
+                    pm.asset_id,
+                    pm.provider,
+                    p.price_date,
+                    p.currency,
+                    lag(p.price_date) over (partition by pm.asset_id, pm.provider order by p.price_date) as previous_price_date
+                from primary_mappings pm
+                left join asset_daily_prices p
+                  on p.asset_id = pm.asset_id
+                 and p.provider = pm.provider
+            ),
+            price_stats as (
+                select
+                    asset_id,
+                    provider,
+                    count(price_date)::int as price_row_count,
+                    min(price_date) as min_price_date,
+                    max(price_date) as latest_price_date,
+                    (
+                        array_agg(currency order by price_date desc)
+                        filter (where price_date is not null and currency is not null)
+                    )[1] as latest_currency,
+                    coalesce(max((price_date - previous_price_date)), 0)::int as longest_gap_days
+                from price_rows
+                group by asset_id, provider
+            )
+            select
+                pm.asset_id,
+                pm.isin,
+                pm.display_name,
+                pm.market_data_status,
+                pm.provider,
+                pm.primary_symbol,
+                pm.primary_exchange,
+                pm.primary_currency,
+                coalesce(ps.price_row_count, 0) as price_row_count,
+                ps.min_price_date,
+                ps.latest_price_date,
+                ps.latest_currency,
+                coalesce(ps.longest_gap_days, 0) as longest_gap_days
+            from primary_mappings pm
+            left join price_stats ps
+              on ps.asset_id = pm.asset_id
+             and ps.provider = pm.provider
+            order by pm.isin asc`,
+            [normalizedProvider, normalizedIsin],
+        );
+
+        return result.rows.map((row) => ({
+            assetId: String(row.asset_id),
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            marketDataStatus:
+                row.market_data_status === null
+                    ? null
+                    : (String(row.market_data_status).toLowerCase() as MarketDataInstrumentStatus),
+            provider: String(row.provider),
+            primarySymbol: String(row.primary_symbol),
+            primaryExchange: row.primary_exchange === null ? null : String(row.primary_exchange),
+            primaryCurrency: row.primary_currency === null ? null : String(row.primary_currency),
+            priceRowCount: Number(row.price_row_count ?? 0),
+            minPriceDate: row.min_price_date === null ? null : normalizeDbDateValue(row.min_price_date),
+            latestPriceDate: row.latest_price_date === null ? null : normalizeDbDateValue(row.latest_price_date),
+            latestCurrency: row.latest_currency === null ? null : String(row.latest_currency),
+            longestGapDays: Number(row.longest_gap_days ?? 0),
         }));
     } catch (error) {
         handleRepositoryError(error);
