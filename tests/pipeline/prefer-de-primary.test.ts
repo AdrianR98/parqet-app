@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { executeSelectedCandidates, parseArgs } from "../../scripts/prefer-de-yfinance-primary-mappings.mjs";
+import {
+    createConsoleProgressReporter,
+    createProviderTimeoutError,
+    executeSelectedCandidates,
+    parseArgs,
+    printCandidates,
+    runCommand,
+} from "../../scripts/prefer-de-yfinance-primary-mappings.mjs";
 import {
     buildDePrimaryPreferencePlan,
     buildDePrimaryPreferenceSelection,
@@ -69,6 +76,13 @@ describe("prefer .DE primary plan", () => {
         const options = parseArgs(["--continue-on-error"]);
 
         expect(options.continueOnError).toBe(true);
+    });
+
+    it("accepts the compact and provider-timeout flags", () => {
+        const options = parseArgs(["--compact", "--provider-timeout-seconds", "45"]);
+
+        expect(options.compact).toBe(true);
+        expect(options.providerTimeoutSeconds).toBe(45);
     });
 
     it("prefers verified .DE mappings over non-DE primary mappings", () => {
@@ -587,6 +601,223 @@ describe("prefer .DE primary plan", () => {
                 failureReason: "prep failed",
             }),
         ]);
+    });
+
+    it("continues after a provider timeout with --continue-on-error", async () => {
+        const candidateA = {
+            assetId: "asset-a",
+            isin: "US0000000500",
+            displayName: "Candidate A",
+            marketDataStatus: "active",
+            oldPrimarySymbol: "OLDA",
+            oldPrimaryMappingId: "old-a",
+            oldPrimaryExchange: "NYSE",
+            oldPrimaryCurrency: "USD",
+            newPrimarySymbol: "NEWA.DE",
+            newPrimaryMappingId: "new-a",
+            newPrimaryExchange: "XETRA",
+            newPrimaryCurrency: "EUR",
+            oldPriceRowCountToDelete: 10,
+            existingNewPriceRowCount: null,
+            requiresFullHistoryReplacement: true,
+            isCurrencyFix: true,
+            isVenueOnlySwitch: false,
+            selectionStatus: "selected",
+        };
+        const candidateB = { ...candidateA, isin: "US0000000501", displayName: "Candidate B", newPrimaryMappingId: "new-b", newPrimarySymbol: "NEWB.DE" };
+        const prepareMock = async (candidate) => {
+            if (candidate.newPrimaryMappingId === "new-a") {
+                throw createProviderTimeoutError({ label: "yfinance export US0000000500/NEWA.DE", timeoutSeconds: 1 });
+            }
+            return { currency: "EUR", points: [{ date: "2026-06-08", close: 2 }] };
+        };
+        const replaceMock = vi.fn(async () => ({
+            deletedPriceRows: 5,
+            insertedPriceRows: 2,
+            latestPriceDate: "2026-06-08",
+        }));
+
+        const result = await executeSelectedCandidates({
+            selectedCandidates: [candidateA, candidateB],
+            continueOnError: true,
+            prepareReplacementHistory: prepareMock,
+            replacePrimaryMappingPriceHistory: replaceMock,
+            setPrimarySymbolMappingByIsin: async () => undefined,
+            nowIso: "2026-06-08T00:00:00.000Z",
+        });
+
+        expect(replaceMock).toHaveBeenCalledTimes(1);
+        expect(result.executionSummary).toMatchObject({
+            attemptedReplacements: 2,
+            succeededReplacements: 1,
+            failedReplacements: 1,
+        });
+        expect(result.failures).toEqual([
+            expect.objectContaining({
+                isin: "US0000000500",
+                failureStage: "prepare_history",
+                failureCode: "provider_timeout",
+            }),
+        ]);
+    });
+
+    it("emits progress events for prepare and replace lifecycle transitions", async () => {
+        const candidateA = {
+            assetId: "asset-a",
+            isin: "US0000000600",
+            displayName: "Candidate A",
+            marketDataStatus: "active",
+            oldPrimarySymbol: "OLDA",
+            oldPrimaryMappingId: "old-a",
+            oldPrimaryExchange: "NYSE",
+            oldPrimaryCurrency: "USD",
+            newPrimarySymbol: "NEWA.DE",
+            newPrimaryMappingId: "new-a",
+            newPrimaryExchange: "XETRA",
+            newPrimaryCurrency: "EUR",
+            oldPriceRowCountToDelete: 10,
+            existingNewPriceRowCount: null,
+            requiresFullHistoryReplacement: true,
+            isCurrencyFix: true,
+            isVenueOnlySwitch: false,
+            selectionStatus: "selected",
+        };
+        const candidateB = { ...candidateA, isin: "US0000000601", displayName: "Candidate B", newPrimaryMappingId: "new-b", newPrimarySymbol: "NEWB.DE" };
+        const events = [];
+
+        await executeSelectedCandidates({
+            selectedCandidates: [candidateA, candidateB],
+            continueOnError: true,
+            prepareReplacementHistory: async (candidate) => {
+                if (candidate.newPrimaryMappingId === "new-b") {
+                    const error = new Error("timed out");
+                    error.code = "provider_timeout";
+                    throw error;
+                }
+                return { currency: "EUR", points: [{ date: "2026-06-08", close: 2 }] };
+            },
+            replacePrimaryMappingPriceHistory: async () => ({
+                deletedPriceRows: 5,
+                insertedPriceRows: 2,
+                latestPriceDate: "2026-06-08",
+            }),
+            setPrimarySymbolMappingByIsin: async () => undefined,
+            nowIso: "2026-06-08T00:00:00.000Z",
+            progressReporter: {
+                onPrepareStart: (event) => events.push(["prepare:start", event.index, event.candidate.isin]),
+                onPrepareOk: (event) => events.push(["prepare:ok", event.index, event.payload.points.length]),
+                onReplaceStart: (event) => events.push(["replace:start", event.index, event.candidate.isin]),
+                onReplaceOk: (event) => events.push(["replace:ok", event.index, event.result.insertedPriceRows]),
+                onFailure: (event) => events.push(["failed", event.index, event.failure.failureStage, event.failure.failureCode]),
+            },
+        });
+
+        expect(events).toEqual([
+            ["prepare:start", 1, "US0000000600"],
+            ["prepare:ok", 1, 1],
+            ["replace:start", 1, "US0000000600"],
+            ["replace:ok", 1, 2],
+            ["prepare:start", 2, "US0000000601"],
+            ["failed", 2, "prepare_history", "provider_timeout"],
+        ]);
+    });
+
+    it("compact mode suppresses full candidate blocks", () => {
+        const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+        printCandidates(
+            [
+                {
+                    assetId: "asset-a",
+                    isin: "US0000000700",
+                    displayName: "Candidate A",
+                    oldPrimarySymbol: "OLDA",
+                    oldPrimaryMappingId: "old-a",
+                    oldPrimaryExchange: "NYSE",
+                    oldPrimaryCurrency: "USD",
+                    newPrimarySymbol: "NEWA.DE",
+                    newPrimaryMappingId: "new-a",
+                    newPrimaryExchange: "XETRA",
+                    newPrimaryCurrency: "EUR",
+                    oldPriceRowCountToDelete: 10,
+                    existingNewPriceRowCount: null,
+                    requiresFullHistoryReplacement: true,
+                    isCurrencyFix: true,
+                    isVenueOnlySwitch: false,
+                    selectionStatus: "selected",
+                },
+            ],
+            { compact: true },
+        );
+
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+    });
+
+    it("runCommand times out and returns a provider_timeout error", async () => {
+        await expect(
+            runCommand(
+                process.execPath,
+                ["-e", "setTimeout(() => process.exit(0), 200);"],
+                "timeout-test",
+                { timeoutSeconds: 0.05 },
+            ),
+        ).rejects.toMatchObject({
+            code: "provider_timeout",
+        });
+    });
+
+    it("console progress reporter renders compact progress lines", () => {
+        const reporter = createConsoleProgressReporter();
+        const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+        const candidate = {
+            isin: "GB0004544929",
+            newPrimarySymbol: "ITB.DE",
+        };
+
+        reporter.onPrepareStart({ index: 1, total: 38, candidate });
+        reporter.onPrepareOk({
+            index: 1,
+            total: 38,
+            candidate,
+            payload: {
+                currency: "EUR",
+                points: [{ date: "2026-06-08", close: 1 }],
+            },
+            elapsedMs: 1200,
+        });
+        reporter.onReplaceStart({ index: 1, total: 38, candidate });
+        reporter.onReplaceOk({
+            index: 1,
+            total: 38,
+            candidate,
+            result: {
+                deletedPriceRows: 10,
+                insertedPriceRows: 20,
+                latestPriceDate: "2026-06-08",
+            },
+            elapsedMs: 900,
+        });
+        reporter.onFailure({
+            index: 1,
+            total: 38,
+            candidate,
+            failure: {
+                failureStage: "prepare_history",
+                failureCode: "provider_timeout",
+                failureReason: "timed out",
+            },
+            elapsedMs: 400,
+        });
+
+        expect(spy.mock.calls.map(([line]) => line)).toEqual([
+            "[1/38] GB0004544929 ITB.DE prepare:start",
+            "[1/38] GB0004544929 ITB.DE prepare:ok rows=1 currency=EUR latest=2026-06-08 elapsed=1.2s",
+            "[1/38] GB0004544929 ITB.DE replace:start",
+            "[1/38] GB0004544929 ITB.DE replace:ok deleted=10 inserted=20 latest=2026-06-08 elapsed=900ms",
+            "[1/38] GB0004544929 ITB.DE failed stage=prepare_history code=provider_timeout reason=timed out elapsed=400ms",
+        ]);
+        spy.mockRestore();
     });
 
     it("skips terminal statuses", () => {

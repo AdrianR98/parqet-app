@@ -35,10 +35,12 @@ function parseArgs(argv) {
         replaceHistory: false,
         currencyFixesOnly: false,
         continueOnError: false,
+        compact: false,
         limit: null,
         isins: new Set(),
         excludeIsins: new Set(),
         python: "python",
+        providerTimeoutSeconds: 120,
     };
 
     const args = [...argv];
@@ -62,6 +64,10 @@ function parseArgs(argv) {
             options.continueOnError = true;
             continue;
         }
+        if (token === "--compact" || token === "--no-candidates") {
+            options.compact = true;
+            continue;
+        }
         if (token === "--limit") {
             options.limit = parsePositiveInt(args.shift(), null, "--limit");
             continue;
@@ -76,6 +82,10 @@ function parseArgs(argv) {
         }
         if (token === "--python") {
             options.python = String(args.shift() ?? "python").trim() || "python";
+            continue;
+        }
+        if (token === "--provider-timeout-seconds") {
+            options.providerTimeoutSeconds = parsePositiveInt(args.shift(), 120, "--provider-timeout-seconds");
             continue;
         }
 
@@ -96,7 +106,13 @@ function safeMessage(error) {
     return "Unknown error";
 }
 
-function runCommand(command, args, label) {
+function createProviderTimeoutError({ label, timeoutSeconds }) {
+    const error = new Error(`${label} timed out after ${timeoutSeconds}s.`);
+    error.code = "provider_timeout";
+    return error;
+}
+
+function runCommand(command, args, label, { timeoutSeconds } = {}) {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
             cwd: process.cwd(),
@@ -106,6 +122,20 @@ function runCommand(command, args, label) {
 
         let stdout = "";
         let stderr = "";
+        let settled = false;
+        const timeoutMs = Number.isFinite(Number(timeoutSeconds)) ? Number(timeoutSeconds) * 1000 : null;
+        const timeoutId = timeoutMs && timeoutMs > 0
+            ? setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                child.kill("SIGKILL");
+                reject(createProviderTimeoutError({ label, timeoutSeconds: Number(timeoutSeconds) }));
+            }, timeoutMs)
+            : null;
+
+        const clearTimer = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
 
         child.stdout.on("data", (chunk) => {
             stdout += String(chunk);
@@ -115,10 +145,16 @@ function runCommand(command, args, label) {
         });
 
         child.on("error", (error) => {
+            if (settled) return;
+            settled = true;
+            clearTimer();
             reject(new Error(`${label} failed to start: ${safeMessage(error)}`));
         });
 
         child.on("close", (code) => {
+            if (settled) return;
+            settled = true;
+            clearTimer();
             if (code === 0) {
                 resolve({ stdout, stderr });
                 return;
@@ -128,7 +164,7 @@ function runCommand(command, args, label) {
     });
 }
 
-async function exportFullHistory({ python, isin, displayName, symbol }) {
+async function exportFullHistory({ python, isin, displayName, symbol, timeoutSeconds }) {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "parqet-prefer-de-"));
     const outPath = path.join(tempDir, `${isin}-${symbol}.json`);
 
@@ -149,6 +185,7 @@ async function exportFullHistory({ python, isin, displayName, symbol }) {
                 "max",
             ],
             `yfinance export ${isin}/${symbol}`,
+            { timeoutSeconds },
         );
 
         const payload = JSON.parse(await readFile(outPath, "utf8"));
@@ -194,6 +231,18 @@ async function exportFullHistory({ python, isin, displayName, symbol }) {
         };
     } finally {
         await rm(tempDir, { recursive: true, force: true });
+    }
+}
+
+function shouldPrintCandidateList({ compact }) {
+    return !compact;
+}
+
+function printCandidates(candidates, { compact }) {
+    if (!shouldPrintCandidateList({ compact }) || candidates.length === 0) return;
+    console.log("Switch candidates:");
+    for (const candidate of candidates) {
+        printCandidate(candidate);
     }
 }
 
@@ -312,6 +361,46 @@ function describeFailure(candidate, error, failureStage) {
     };
 }
 
+function formatElapsedMs(elapsedMs) {
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return "0ms";
+    if (elapsedMs < 1000) return `${Math.round(elapsedMs)}ms`;
+    return `${(elapsedMs / 1000).toFixed(elapsedMs < 10000 ? 1 : 0)}s`;
+}
+
+function findLatestPointDate(points) {
+    const dates = points
+        .map((point) => String(point?.date ?? ""))
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+        .sort();
+    return dates.at(-1) ?? null;
+}
+
+function createConsoleProgressReporter() {
+    return {
+        onPrepareStart({ index, total, candidate }) {
+            console.log(`[${index}/${total}] ${candidate.isin} ${candidate.newPrimarySymbol} prepare:start`);
+        },
+        onPrepareOk({ index, total, candidate, payload, elapsedMs }) {
+            console.log(
+                `[${index}/${total}] ${candidate.isin} ${candidate.newPrimarySymbol} prepare:ok rows=${payload.points.length} currency=${payload.currency ?? "-"} latest=${findLatestPointDate(payload.points) ?? "-"} elapsed=${formatElapsedMs(elapsedMs)}`,
+            );
+        },
+        onReplaceStart({ index, total, candidate }) {
+            console.log(`[${index}/${total}] ${candidate.isin} ${candidate.newPrimarySymbol} replace:start`);
+        },
+        onReplaceOk({ index, total, candidate, result, elapsedMs }) {
+            console.log(
+                `[${index}/${total}] ${candidate.isin} ${candidate.newPrimarySymbol} replace:ok deleted=${result.deletedPriceRows} inserted=${result.insertedPriceRows} latest=${result.latestPriceDate ?? "-"} elapsed=${formatElapsedMs(elapsedMs)}`,
+            );
+        },
+        onFailure({ index, total, candidate, failure, elapsedMs }) {
+            console.log(
+                `[${index}/${total}] ${candidate.isin} ${candidate.newPrimarySymbol} failed stage=${failure.failureStage} code=${failure.failureCode} reason=${failure.failureReason} elapsed=${formatElapsedMs(elapsedMs)}`,
+            );
+        },
+    };
+}
+
 async function executeSelectedCandidates({
     selectedCandidates,
     continueOnError,
@@ -320,28 +409,45 @@ async function executeSelectedCandidates({
     setPrimarySymbolMappingByIsin,
     nowIso,
     skippedReplacements = 0,
+    progressReporter = null,
 }) {
     const executionSummary = createExecutionSummary(selectedCandidates);
     executionSummary.skippedReplacements = skippedReplacements;
     const failures = [];
+    const total = selectedCandidates.length;
 
-    for (const candidate of selectedCandidates) {
+    for (const [candidateIndex, candidate] of selectedCandidates.entries()) {
+        const progress = { index: candidateIndex + 1, total, candidate };
         if (candidate.requiresFullHistoryReplacement) {
             executionSummary.attemptedReplacements += 1;
             let payload;
+            const prepareStartedAt = Date.now();
+            progressReporter?.onPrepareStart?.(progress);
             try {
                 payload = await prepareReplacementHistory(candidate);
+                progressReporter?.onPrepareOk?.({
+                    ...progress,
+                    payload,
+                    elapsedMs: Date.now() - prepareStartedAt,
+                });
             } catch (error) {
                 const wrappedError = buildPreparationBlocker(candidate, error);
                 const failure = describeFailure(candidate, wrappedError, "prepare_history");
                 executionSummary.failedReplacements += 1;
                 failures.push(failure);
+                progressReporter?.onFailure?.({
+                    ...progress,
+                    failure,
+                    elapsedMs: Date.now() - prepareStartedAt,
+                });
                 if (!continueOnError) {
                     throw { error: wrappedError, summary: executionSummary, failures };
                 }
                 continue;
             }
 
+            const replaceStartedAt = Date.now();
+            progressReporter?.onReplaceStart?.(progress);
             try {
                 const result = await replacePrimaryMappingPriceHistory({
                     isin: candidate.isin,
@@ -358,10 +464,20 @@ async function executeSelectedCandidates({
                 if (result.latestPriceDate) {
                     executionSummary.latestPricesVerified += 1;
                 }
+                progressReporter?.onReplaceOk?.({
+                    ...progress,
+                    result,
+                    elapsedMs: Date.now() - replaceStartedAt,
+                });
             } catch (error) {
                 executionSummary.failedReplacements += 1;
                 const failure = describeFailure(candidate, error, "replace_history");
                 failures.push(failure);
+                progressReporter?.onFailure?.({
+                    ...progress,
+                    failure,
+                    elapsedMs: Date.now() - replaceStartedAt,
+                });
                 if (!continueOnError) {
                     throw { error: buildExecutionBlocker(candidate, error, executionSummary), summary: executionSummary, failures };
                 }
@@ -390,6 +506,7 @@ async function executeSelectedCandidates({
 }
 
 export { executeSelectedCandidates };
+export { createProviderTimeoutError, runCommand, shouldPrintCandidateList, printCandidates, createConsoleProgressReporter };
 
 async function closeDbPool() {
     try {
@@ -441,12 +558,7 @@ async function run() {
         limit: options.limit,
     });
 
-    if (selection.candidates.length > 0) {
-        console.log("Switch candidates:");
-        for (const candidate of selection.candidates) {
-            printCandidate(candidate);
-        }
-    }
+    printCandidates(selection.candidates, { compact: options.compact });
 
     if (!options.write) {
         console.log("Summary:");
@@ -492,12 +604,14 @@ async function run() {
                     isin: candidate.isin,
                     displayName: candidate.displayName,
                     symbol: candidate.newPrimarySymbol,
+                    timeoutSeconds: options.providerTimeoutSeconds,
                 });
             },
             replacePrimaryMappingPriceHistory,
             setPrimarySymbolMappingByIsin,
             nowIso,
             skippedReplacements,
+            progressReporter: options.replaceHistory ? createConsoleProgressReporter() : null,
         }));
     } catch (result) {
         printExecutionSummary(result.summary);
