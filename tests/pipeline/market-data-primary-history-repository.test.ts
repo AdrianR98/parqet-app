@@ -19,6 +19,7 @@ import {
     replacePrimaryMappingPriceHistory,
     setPrimarySymbolMappingById,
     setPrimarySymbolMappingByIsin,
+    upsertMarketActions,
 } from "../../src/lib/market-data/db/repository";
 
 describe("replace primary mapping price history", () => {
@@ -368,5 +369,59 @@ describe("replace primary mapping price history", () => {
             }),
         ]);
         expect(queryMock).toHaveBeenCalledWith(expect.any(String), ["yfinance", "US0000000001"]);
+    });
+
+    it("upserts corporate actions with matching placeholder and parameter counts", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                id: "asset-1",
+                isin: "GB00B10RZP78",
+                name: "Unilever",
+                display_name: "Unilever",
+                asset_type: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadata_source: null,
+                metadata_updated_at: null,
+                name_source: null,
+                display_name_source: null,
+                display_metadata_updated_at: null,
+                market_data_status: "active",
+                market_data_status_reason: null,
+                market_data_successor_isin: null,
+                market_data_successor_symbol: null,
+                market_data_status_updated_at: null,
+                created_at: "2026-06-04T00:00:00.000Z",
+                updated_at: "2026-06-04T00:00:00.000Z",
+            }],
+        });
+
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        const result = await upsertMarketActions({
+            isin: "GB00B10RZP78",
+            provider: "yfinance",
+            symbol: "UNA.AS",
+            source: "yfinance",
+            actions: [
+                {
+                    actionType: "split",
+                    date: "2026-06-03",
+                    amount: null,
+                    currency: "EUR",
+                    ratio: "1:2",
+                } as never,
+            ],
+        });
+
+        expect(result).toEqual({ upserted: 1 });
+        expect(clientQuery.mock.calls[1]?.[0]).toContain("insert into corporate_action_events");
+        expect(clientQuery.mock.calls[1]?.[1]).toHaveLength(8);
     });
 });

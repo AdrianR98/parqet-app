@@ -3450,7 +3450,6 @@ export async function upsertMarketActions(input: UpsertMarketActionsInput): Prom
                     const normalizedDate = toDateString(action.date);
                     const normalizedAmount = toNullableNumber(action.amount);
                     const normalizedCurrency = action.currency ?? null;
-                    const source = input.source ?? null;
 
                     if (actionType === "dividend" || actionType === "capital_gain") {
                         await client.query(
@@ -3493,7 +3492,6 @@ export async function upsertMarketActions(input: UpsertMarketActionsInput): Prom
                             ratioTo,
                             normalizedAmount,
                             normalizedCurrency,
-                            source,
                         ],
                     );
                 }

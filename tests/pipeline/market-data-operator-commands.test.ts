@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildZeroPlanWarning, parseArgs as parseBackfillArgs } from "../../scripts/backfill-primary-market-data.mjs";
+import {
+    buildZeroPlanWarning,
+    classifyBackfillOutcome,
+    parseArgs as parseBackfillArgs,
+} from "../../scripts/backfill-primary-market-data.mjs";
 import {
     buildProposalRows,
     getWriteModeGuardError,
@@ -157,5 +161,62 @@ describe("market data operator commands", () => {
                 tier: "other_eur_fallback",
             }),
         ]);
+    });
+
+    it("reports partial backfill success when prices succeed but actions fail", () => {
+        const outcome = classifyBackfillOutcome({
+            row: { isin: "GB00B10RZP78", symbol: "UNA.AS" },
+            pricesResult: { upserted: 1409 },
+            actionsResult: { upserted: 0 },
+            actionsError: new Error("action failed"),
+            priceError: null,
+        });
+
+        expect(outcome).toMatchObject({
+            priceSuccessCount: 1,
+            priceFailedCount: 0,
+            actionSuccessCount: 0,
+            actionFailedCount: 1,
+        });
+        expect(outcome.message).toContain("Backfill teilweise erfolgreich");
+        expect(outcome.message).toContain("prices=1409");
+        expect(outcome.message).toContain("actions_failed=1");
+    });
+
+    it("reports full backfill success when prices and actions succeed", () => {
+        const outcome = classifyBackfillOutcome({
+            row: { isin: "GB00B10RZP78", symbol: "UNA.AS" },
+            pricesResult: { upserted: 1409 },
+            actionsResult: { upserted: 2 },
+            actionsError: null,
+            priceError: null,
+        });
+
+        expect(outcome).toMatchObject({
+            priceSuccessCount: 1,
+            priceFailedCount: 0,
+            actionSuccessCount: 1,
+            actionFailedCount: 0,
+        });
+        expect(outcome.message).toContain("Backfill erfolgreich");
+        expect(outcome.message).toContain("actions=2");
+    });
+
+    it("reports price failures as failed backfills", () => {
+        const outcome = classifyBackfillOutcome({
+            row: { isin: "GB00B10RZP78", symbol: "UNA.AS" },
+            pricesResult: null,
+            actionsResult: null,
+            actionsError: null,
+            priceError: new Error("price failed"),
+        });
+
+        expect(outcome).toMatchObject({
+            priceSuccessCount: 0,
+            priceFailedCount: 1,
+            actionSuccessCount: 0,
+            actionFailedCount: 0,
+        });
+        expect(outcome.message).toContain("Backfill fehlgeschlagen");
     });
 });
