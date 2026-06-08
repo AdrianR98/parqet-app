@@ -1,18 +1,28 @@
 import { describe, expect, it } from "vitest";
 
+import { getWriteModeGuardError, parseArgs as parseResolveArgs } from "../../scripts/market-data-resolve-primary.mjs";
 import { parseArgs as parseRebuildArgs } from "../../scripts/market-data-rebuild-prices.mjs";
-import { parseArgs as parseResolveArgs } from "../../scripts/market-data-resolve-primary.mjs";
 
 describe("market data operator commands", () => {
     it("parses resolve-primary validate mode", () => {
-        const options = parseResolveArgs(["--validate", "--write", "--isin", "GB00BP6MXD84"]);
+        const options = parseResolveArgs(["--validate", "--write", "--continue-on-error", "--isin", "GB00BP6MXD84"]);
 
         expect(options).toMatchObject({
             validate: true,
             write: true,
+            continueOnError: true,
             help: false,
+            isin: "GB00BP6MXD84",
         });
-        expect(options.passthrough).toEqual(["--validate", "--write", "--isin", "GB00BP6MXD84"]);
+        expect(options.passthrough).toEqual(["--validate", "--write", "--continue-on-error", "--isin", "GB00BP6MXD84"]);
+    });
+
+    it("rejects resolve-primary write mode without explicit validation", () => {
+        const dryWrite = parseResolveArgs(["--write"]);
+        const validatedWrite = parseResolveArgs(["--validate", "--write"]);
+
+        expect(getWriteModeGuardError(dryWrite)).toBe("db:market:resolve-primary refuses --write without --validate.");
+        expect(getWriteModeGuardError(validatedWrite)).toBeNull();
     });
 
     it("parses rebuild-prices reset guard flags", () => {
