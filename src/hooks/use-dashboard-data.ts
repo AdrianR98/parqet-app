@@ -78,7 +78,10 @@ type UseDashboardDataResult = {
 
   togglePortfolio: (portfolioId: string) => void;
   resetPortfolioSelection: () => void;
-  loadAssets: (nextSelectedPortfolioIds?: string[]) => Promise<void>;
+  loadAssets: (
+    nextSelectedPortfolioIds?: string[],
+    options?: { explicitRefresh?: boolean },
+  ) => Promise<void>;
   startReconnect: () => void;
 };
 
@@ -349,7 +352,10 @@ export function useDashboardData(): UseDashboardDataResult {
     return resolvedScope.selectedPortfolioIds;
   }, [selectedPortfolioIds, portfolios, portfolioScope]);
 
-  const loadAssets = useCallback(async function loadAssets(nextSelectedPortfolioIds?: string[]) {
+  const loadAssets = useCallback(async function loadAssets(
+    nextSelectedPortfolioIds?: string[],
+    options?: { explicitRefresh?: boolean },
+  ) {
     if (assetLoadInFlightRef.current) {
       return;
     }
@@ -369,7 +375,9 @@ export function useDashboardData(): UseDashboardDataResult {
         params.append("portfolioId", portfolioId);
       }
 
-      params.set("refresh", "1");
+      if (options?.explicitRefresh) {
+        params.set("refresh", "1");
+      }
 
       const res = await fetch(`/api/parqet/assets?${params.toString()}`);
       const rawText = await res.text();
@@ -520,7 +528,9 @@ export function useDashboardData(): UseDashboardDataResult {
     }
 
     autoRefreshExecutedKeysRef.current.add(decision.executionKey);
-    void loadAssets(effectiveSelectedPortfolioIds);
+    void loadAssets(effectiveSelectedPortfolioIds, {
+      explicitRefresh: decision.reason !== "cached_revalidate",
+    });
   }, [
     loadingPortfolios,
     loadingAssets,

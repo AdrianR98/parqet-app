@@ -98,6 +98,14 @@ afterEach(() => {
 });
 
 describe("dashboard cache hardening", () => {
+  it("ignores stale cache entries from the previous dashboard cache key version", () => {
+    installWindowWithLocalStorage({
+      "parqet-dashboard-cache-v3": JSON.stringify(createCache()),
+    });
+
+    expect(loadDashboardCache()).toBeNull();
+  });
+
   it("returns null and removes cache for oversized raw payload before JSON.parse", () => {
     const oversized = "x".repeat(LOCAL_STORAGE_LIMITS.maxRawPayloadChars + 1);
     const localStorage = installWindowWithLocalStorage({

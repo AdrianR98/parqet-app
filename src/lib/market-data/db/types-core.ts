@@ -230,7 +230,7 @@ export type DbMarketReferenceInstrument = {
 };
 
 export type EnrichMarketInstrumentsFromReferencesInput = {
-    sourceKey: string;
+    sourceKey?: string;
     isin?: string;
     limit?: number;
     forceName?: boolean;

@@ -32,6 +32,7 @@
     "db:market:discover-de-candidates": "tsx scripts/discover-de-yfinance-candidates.mjs",
     "db:market:prefer-de-primary": "tsx scripts/prefer-de-yfinance-primary-mappings.mjs",
     "db:market:resolve-primary": "tsx scripts/market-data-resolve-primary.mjs",
+    "db:market:hydrate-metadata": "tsx scripts/hydrate-market-asset-metadata.mjs",
     "db:market:backfill:primary": "tsx scripts/backfill-primary-market-data.mjs",
     "db:market:rebuild-prices": "tsx scripts/market-data-rebuild-prices.mjs",
     "db:market:update:primary": "tsx scripts/update-primary-market-data-incremental.mjs",

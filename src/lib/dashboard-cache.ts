@@ -28,10 +28,10 @@ import {
  * Zentraler localStorage-Key fuer den Dashboard-Cache.
  *
  * WICHTIG:
- * Version auf v3 erhoeht, weil portfolioBreakdown fuer
- * ISIN-basierte Assets verpflichtend geworden ist.
+ * Version auf v4 erhoeht, damit defekte Asset-Metadaten-Caches
+ * nach der Markt-Metadaten-Reparatur nicht weiterverwendet werden.
  */
-export const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v3";
+export const DASHBOARD_CACHE_KEY = "parqet-dashboard-cache-v4";
 export const DASHBOARD_CACHE_CHANGED_EVENT = "assettrace:dashboard-cache-changed";
 
 /**

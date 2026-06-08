@@ -407,6 +407,82 @@ function normalizeNonEmptyText(value: string | null | undefined): string | null 
     return normalized ? normalized : null;
 }
 
+function normalizeMeaningfulMetadataText(value: string | null | undefined): string | null {
+    const normalized = normalizeNonEmptyText(value);
+    if (!normalized) return null;
+    if (normalized === "0") return null;
+    return normalized;
+}
+
+function looksLikeSymbolOnlyFallback(value: string | null | undefined): boolean {
+    const normalized = normalizeMeaningfulMetadataText(value);
+    if (!normalized) return false;
+    if (/[a-z]/.test(normalized)) return false;
+    return /^[A-Z0-9][A-Z0-9 .&/-]{0,15}$/.test(normalized);
+}
+
+export function isMeaningfulStoredInstrumentName(value: string | null | undefined, isin: string): boolean {
+    const normalized = normalizeMeaningfulMetadataText(value);
+    if (!normalized) return false;
+    if (normalized.toUpperCase() === isin.trim().toUpperCase()) return false;
+    if (isLikelyPlaceholderName(normalized)) return false;
+    if (looksLikeSymbolOnlyFallback(normalized)) return false;
+    return true;
+}
+
+type InstrumentUpsertMetadataState = Pick<
+    DbMarketInstrument,
+    "name" | "displayName" | "assetType" | "currency" | "wkn" | "metadataSource" | "nameSource" | "displayNameSource"
+>;
+
+export function prepareInstrumentMetadataUpsert(
+    existing: Partial<InstrumentUpsertMetadataState> | null,
+    input: UpsertInstrumentInput,
+): InstrumentUpsertMetadataState {
+    const normalizedIsin = assertIsin(input.isin);
+    const existingName = normalizeMeaningfulMetadataText(existing?.name);
+    const existingDisplayName = normalizeMeaningfulMetadataText(existing?.displayName);
+    const existingAssetType = normalizeMeaningfulMetadataText(existing?.assetType);
+    const existingCurrency = normalizeMeaningfulMetadataText(existing?.currency)?.toUpperCase() ?? null;
+    const existingWkn = normalizeMeaningfulMetadataText(existing?.wkn)?.toUpperCase() ?? null;
+    const existingMetadataSource = normalizeMeaningfulMetadataText(existing?.metadataSource);
+    const existingNameSource = normalizeMeaningfulMetadataText(existing?.nameSource);
+    const existingDisplayNameSource = normalizeMeaningfulMetadataText(existing?.displayNameSource);
+
+    const inputName = normalizeMeaningfulMetadataText(input.name);
+    const inputDisplayName = normalizeMeaningfulMetadataText(input.displayName);
+    const inputAssetType = normalizeMeaningfulMetadataText(input.assetType);
+    const inputCurrency = normalizeMeaningfulMetadataText(input.currency)?.toUpperCase() ?? null;
+    const inputWkn = normalizeMeaningfulMetadataText(input.wkn)?.toUpperCase() ?? null;
+    const inputMetadataSource = normalizeMeaningfulMetadataText(input.metadataSource);
+    const inputNameSource = normalizeMeaningfulMetadataText(input.nameSource);
+    const inputDisplayNameSource = normalizeMeaningfulMetadataText(input.displayNameSource);
+
+    const nextName = isMeaningfulStoredInstrumentName(existingName, normalizedIsin)
+        ? existingName
+        : (isMeaningfulInstrumentName(inputName, normalizedIsin) && !looksLikeSymbolOnlyFallback(inputName) ? inputName : existingName);
+    const nextDisplayName = isMeaningfulStoredInstrumentName(existingDisplayName, normalizedIsin)
+        ? existingDisplayName
+        : (isMeaningfulInstrumentName(inputDisplayName, normalizedIsin) && !looksLikeSymbolOnlyFallback(inputDisplayName) ? inputDisplayName : existingDisplayName);
+    const nextAssetType = existingAssetType ?? inputAssetType ?? null;
+    const nextCurrency = existingCurrency ?? inputCurrency ?? null;
+    const nextWkn = existingWkn ?? inputWkn ?? null;
+    const nextMetadataSource = existingMetadataSource ?? inputMetadataSource ?? null;
+    const nextNameSource = existingNameSource ?? inputNameSource ?? null;
+    const nextDisplayNameSource = existingDisplayNameSource ?? inputDisplayNameSource ?? null;
+
+    return {
+        name: nextName ?? null,
+        displayName: nextDisplayName ?? null,
+        assetType: nextAssetType,
+        currency: nextCurrency,
+        wkn: nextWkn,
+        metadataSource: nextMetadataSource,
+        nameSource: nextNameSource,
+        displayNameSource: nextDisplayNameSource,
+    };
+}
+
 function normalizeMarketDataRequestStatus(status: string): MarketDataRequestStatus {
     const normalized = status.trim().toLowerCase() as MarketDataRequestStatus;
     if (!MARKET_DATA_REQUEST_STATUSES.has(normalized)) {
@@ -600,6 +676,8 @@ export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrum
 export async function upsertInstrument(input: UpsertInstrumentInput): Promise<DbMarketInstrument> {
     try {
         const normalizedIsin = assertIsin(input.isin);
+        const existing = await getInstrumentByIsin(normalizedIsin);
+        const prepared = prepareInstrumentMetadataUpsert(existing, input);
         const result = await queryPostgres<Record<string, unknown>>(
             `insert into assets
                 (asset_key_type, asset_key_value, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at, name_source, display_name_source, display_metadata_updated_at)
@@ -613,25 +691,33 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
                asset_type = excluded.asset_type,
                currency = excluded.currency,
                wkn = excluded.wkn,
-               metadata_source = excluded.metadata_source,
-               metadata_updated_at = case when excluded.metadata_source is null then assets.metadata_updated_at else now() end,
-               name_source = excluded.name_source,
-               display_name_source = excluded.display_name_source,
-               display_metadata_updated_at = case when excluded.display_name_source is null then assets.display_metadata_updated_at else now() end,
+               metadata_source = coalesce(assets.metadata_source, excluded.metadata_source),
+               metadata_updated_at = case
+                   when assets.metadata_source is not null then assets.metadata_updated_at
+                   when excluded.metadata_source is null then assets.metadata_updated_at
+                   else now()
+               end,
+               name_source = coalesce(assets.name_source, excluded.name_source),
+               display_name_source = coalesce(assets.display_name_source, excluded.display_name_source),
+               display_metadata_updated_at = case
+                   when assets.display_name_source is not null then assets.display_metadata_updated_at
+                   when excluded.display_name_source is null then assets.display_metadata_updated_at
+                   else now()
+               end,
                updated_at = now()
              returning id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
                        name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
                        market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at`,
             [
                 normalizedIsin,
-                input.name ?? null,
-                input.displayName ?? null,
-                input.assetType ?? null,
-                input.currency ?? null,
-                input.wkn ?? null,
-                input.metadataSource ?? null,
-                input.nameSource ?? null,
-                input.displayNameSource ?? null,
+                prepared.name,
+                prepared.displayName,
+                prepared.assetType,
+                prepared.currency,
+                prepared.wkn,
+                prepared.metadataSource,
+                prepared.nameSource,
+                prepared.displayNameSource,
             ],
         );
         return mapInstrumentRow(result.rows[0]);
@@ -1174,10 +1260,10 @@ export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInpu
 }
 
 export async function enrichMarketInstrumentsFromReferences(
-    input: EnrichMarketInstrumentsFromReferencesInput,
+    input: EnrichMarketInstrumentsFromReferencesInput = {},
 ): Promise<EnrichMarketInstrumentsFromReferencesResult> {
     try {
-        const sourceKey = normalizeSourceKey(input.sourceKey);
+        const sourceKey = normalizeSourceKey(input.sourceKey ?? "xetra_all_tradable_instruments");
         const normalizedIsin = input.isin ? assertIsin(input.isin) : null;
         const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 100000;
         const forceName = Boolean(input.forceName);

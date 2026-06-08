@@ -1,7 +1,8 @@
 export type DashboardAutoRefreshReason =
   | "missing_cache"
   | "stale_cache"
-  | "portfolios_missing_from_cache";
+  | "portfolios_missing_from_cache"
+  | "cached_revalidate";
 
 export type DashboardAutoRefreshDecision = {
   shouldRefresh: boolean;
@@ -46,7 +47,7 @@ export function shouldAutoRefreshDashboardData(
       ? "portfolios_missing_from_cache"
       : input.isCacheStale
         ? "stale_cache"
-        : null;
+        : "cached_revalidate";
 
   if (!reason) {
     return { shouldRefresh: false, reason: null, executionKey: null };

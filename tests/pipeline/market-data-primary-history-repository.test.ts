@@ -27,6 +27,34 @@ describe("replace primary mapping price history", () => {
     beforeEach(() => {
         queryMock.mockReset();
         withClientMock.mockReset();
+        queryMock.mockImplementation(async (sql: string) => {
+            if (String(sql).includes("returning id, isin, name, display_name")) {
+                return {
+                    rows: [{
+                        id: "asset-1",
+                        isin: "US0000000001",
+                        name: null,
+                        display_name: null,
+                        asset_type: null,
+                        currency: "EUR",
+                        wkn: null,
+                        metadata_source: null,
+                        metadata_updated_at: null,
+                        name_source: null,
+                        display_name_source: null,
+                        display_metadata_updated_at: null,
+                        market_data_status: "active",
+                        market_data_status_reason: null,
+                        market_data_successor_isin: null,
+                        market_data_successor_symbol: null,
+                        market_data_status_updated_at: null,
+                        created_at: "2026-06-04T00:00:00.000Z",
+                        updated_at: "2026-06-04T00:00:00.000Z",
+                    }],
+                };
+            }
+            return { rows: [] };
+        });
     });
 
     it("rejects empty replacement history", async () => {

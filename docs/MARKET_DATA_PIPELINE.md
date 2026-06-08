@@ -50,6 +50,7 @@ The normal operator workflow is reduced to four commands:
 2. `npm run db:market:resolve-primary`
 3. `npm run db:market:rebuild-prices -- --write --reset-yfinance-prices --continue-on-error --compact`
 4. `npm run db:market:update-prices`
+5. `npm run db:market:hydrate-metadata`
 
 Principles:
 
@@ -107,6 +108,15 @@ Incremental price update from current primary mappings.
 
 - Thin alias for the current incremental primary update workflow.
 - Default mode is dry-run only.
+
+### `db:market:hydrate-metadata`
+
+DB-only metadata hydration from existing reference rows.
+
+- Default mode is dry-run only.
+- Reuses stored `trading_universe` and Xetra/reference candidates.
+- Fills only missing/weak metadata fields.
+- Never overwrites meaningful `name`, `display_name`, `wkn`, `asset_type`, or `currency`.
 
 ## `.DE` Primary Preference Workflow
 

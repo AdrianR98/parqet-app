@@ -129,9 +129,9 @@ describe("shouldAutoRefreshDashboardData", () => {
         });
 
         expect(decision).toEqual({
-            shouldRefresh: false,
-            reason: null,
-            executionKey: null,
+            shouldRefresh: true,
+            reason: "cached_revalidate",
+            executionKey: "cached_revalidate:p1|p2",
         });
     });
 
@@ -166,5 +166,25 @@ describe("shouldAutoRefreshDashboardData", () => {
         });
 
         expect(decision.shouldRefresh).toBe(false);
+    });
+
+    it("revalidates cached data once per reload even when the cache is not stale", () => {
+        const decision = shouldAutoRefreshDashboardData({
+            loadingPortfolios: false,
+            loadingAssets: false,
+            refreshingAssets: false,
+            hasPortfolios: true,
+            selectedPortfolioIds: ["p7"],
+            hasCachedData: true,
+            isCacheStale: false,
+            hasPortfoliosMissingFromCache: false,
+            alreadyExecutedKeys: new Set<string>(),
+        });
+
+        expect(decision).toEqual({
+            shouldRefresh: true,
+            reason: "cached_revalidate",
+            executionKey: "cached_revalidate:p7",
+        });
     });
 });

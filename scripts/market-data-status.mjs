@@ -753,6 +753,17 @@ async function run() {
     console.log(`- instruments with name_source=trading_universe: ${allInstruments.filter((item) => item.nameSource === "trading_universe").length}`);
     console.log(`- instruments with display_name_source=trading_universe: ${allInstruments.filter((item) => item.displayNameSource === "trading_universe").length}`);
 
+    const displayNameCount = allInstruments.filter((item) => item.displayName && item.displayName.trim()).length;
+    const wknCount = allInstruments.filter((item) => item.wkn && item.wkn.trim()).length;
+    const hasReferenceRows = sourceCounts.some((item) => item.rowCount > 0);
+    if (hasReferenceRows && allInstruments.length > 0 && (displayNameCount <= 1 || wknCount === 0)) {
+        console.log("Warning:");
+        console.log("- metadata_completeness_regression");
+        console.log(`- display_name_count=${displayNameCount}`);
+        console.log(`- wkn_count=${wknCount}`);
+        console.log("- reference data exists but asset metadata completeness is unexpectedly low");
+    }
+
     if (sourceCounts.length > 0) {
         console.log("- reference source counts:");
         for (const item of sourceCounts) {
