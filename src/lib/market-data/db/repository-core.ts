@@ -2585,7 +2585,7 @@ export async function setPrimarySymbolMappingByIsin(
                     [normalizedIsin, normalizedProvider],
                 );
 
-                await client.query(
+                const setPrimaryResult = await client.query(
                     `update asset_symbol_mappings m
                      set is_primary = true,
                          notes = case
@@ -2601,6 +2601,10 @@ export async function setPrimarySymbolMappingByIsin(
                        and m.symbol = $3`,
                     [normalizedIsin, normalizedProvider, normalizedSymbol, noteSuffix ?? null],
                 );
+
+                if ((setPrimaryResult.rowCount ?? 0) !== 1) {
+                    throw new MarketDataRepositoryError("db_error", "Primäres Symbol-Mapping konnte nicht eindeutig gesetzt werden.");
+                }
 
                 await client.query("commit");
             } catch (error) {
@@ -2635,13 +2639,13 @@ export async function replacePrimaryMappingPriceHistory(
                 const mappingResult = await client.query<Record<string, unknown>>(
                     `select
                         m.id,
-                        m.asset_id,
+                        coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
                         m.provider,
                         coalesce(m.symbol, m.provider_symbol) as symbol,
                         m.currency,
                         a.isin
                      from asset_symbol_mappings m
-                     join assets a on a.id = m.asset_id
+                     join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
                      where m.id = $1
                        and m.provider = $2
                        and a.isin = $3
@@ -2653,7 +2657,7 @@ export async function replacePrimaryMappingPriceHistory(
                     throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping nicht gefunden.");
                 }
 
-                const assetId = String(targetMapping.asset_id);
+                const assetId = String(targetMapping.owner_asset_id);
                 const latestReplacementDate = input.replacementPoints.reduce<string | null>((latest, point) => {
                     const normalizedDate = toDateString(point.date);
                     if (!latest || normalizedDate > latest) {
@@ -2671,7 +2675,7 @@ export async function replacePrimaryMappingPriceHistory(
                     [assetId, normalizedProvider],
                 );
 
-                await client.query(
+                const setPrimaryResult = await client.query(
                     `update asset_symbol_mappings
                      set is_primary = true,
                          notes = case
@@ -2683,6 +2687,10 @@ export async function replacePrimaryMappingPriceHistory(
                      where id = $1`,
                     [normalizedTargetMappingId, input.noteSuffix ?? null],
                 );
+
+                if ((setPrimaryResult.rowCount ?? 0) !== 1) {
+                    throw new MarketDataRepositoryError("db_error", "Ziel-Mapping konnte nicht als primär markiert werden.");
+                }
 
                 const deleteResult = await client.query(
                     `delete from asset_daily_prices

@@ -216,6 +216,43 @@ function printCandidate(candidate) {
     console.log(`  selectionStatus: ${candidate.selectionStatus ?? "selected"}`);
 }
 
+function createExecutionSummary(selectedCandidates) {
+    return {
+        selectedReplacements: selectedCandidates.filter((candidate) => candidate.requiresFullHistoryReplacement).length,
+        attemptedReplacements: 0,
+        succeededReplacements: 0,
+        failedReplacements: 0,
+        primaryMappingsSwitched: 0,
+        oldPriceRowsDeleted: 0,
+        newPriceRowsInserted: 0,
+        latestPricesVerified: 0,
+    };
+}
+
+function printExecutionSummary(summary) {
+    console.log("Execution summary:");
+    console.log(`- selected replacements: ${summary.selectedReplacements}`);
+    console.log(`- attempted replacements: ${summary.attemptedReplacements}`);
+    console.log(`- succeeded replacements: ${summary.succeededReplacements}`);
+    console.log(`- failed replacements: ${summary.failedReplacements}`);
+    console.log(`- primary mappings switched: ${summary.primaryMappingsSwitched}`);
+    console.log(`- old price rows deleted: ${summary.oldPriceRowsDeleted}`);
+    console.log(`- new price rows inserted: ${summary.newPriceRowsInserted}`);
+    console.log(`- latest prices verified: ${summary.latestPricesVerified}`);
+}
+
+function buildPreparationBlocker(candidate, error) {
+    return new Error(
+        `Replacement preparation failed for ${candidate.isin} / ${candidate.newPrimarySymbol}. No DB mutation was performed. ${safeMessage(error)}`,
+    );
+}
+
+function buildExecutionBlocker(candidate, error, summary) {
+    return new Error(
+        `Replacement execution failed for ${candidate.isin} / ${candidate.newPrimarySymbol} after ${summary.primaryMappingsSwitched} primary switch(es). ${safeMessage(error)}`,
+    );
+}
+
 async function closeDbPool() {
     try {
         const { endPostgresPool } = await import("../src/lib/db/postgres-core.ts");
@@ -279,6 +316,14 @@ async function run() {
         return;
     }
 
+    if (selection.selectedCandidates.length === 0) {
+        const executionSummary = createExecutionSummary(selection.selectedCandidates);
+        printExecutionSummary(executionSummary);
+        console.log("Summary:");
+        console.log(`- DB writes: enabled (--write${options.replaceHistory ? " --replace-history" : ""})`);
+        return;
+    }
+
     const blockingCandidates = selection.selectedCandidates.filter(
         (candidate) => candidate.requiresFullHistoryReplacement && candidate.oldPriceRowCountToDelete > 0,
     );
@@ -289,38 +334,52 @@ async function run() {
     }
 
     const replacementPayloads = new Map();
+    const executionSummary = createExecutionSummary(selection.selectedCandidates);
     if (options.replaceHistory) {
         for (const candidate of selection.selectedCandidates.filter((item) => item.requiresFullHistoryReplacement)) {
-            const payload = await exportFullHistory({
-                python: options.python,
-                isin: candidate.isin,
-                displayName: candidate.displayName,
-                symbol: candidate.newPrimarySymbol,
-            });
-            replacementPayloads.set(candidate.newPrimaryMappingId, payload);
+            try {
+                const payload = await exportFullHistory({
+                    python: options.python,
+                    isin: candidate.isin,
+                    displayName: candidate.displayName,
+                    symbol: candidate.newPrimarySymbol,
+                });
+                replacementPayloads.set(candidate.newPrimaryMappingId, payload);
+            } catch (error) {
+                throw buildPreparationBlocker(candidate, error);
+            }
         }
     }
 
-    let switched = 0;
-    let replaced = 0;
-
     for (const candidate of selection.selectedCandidates) {
         if (candidate.requiresFullHistoryReplacement) {
+            executionSummary.attemptedReplacements += 1;
             const payload = replacementPayloads.get(candidate.newPrimaryMappingId);
             if (!payload) {
                 throw new Error(`Missing prepared replacement history for ${candidate.isin} / ${candidate.newPrimarySymbol}.`);
             }
 
-            await replacePrimaryMappingPriceHistory({
-                isin: candidate.isin,
-                provider: "yfinance",
-                targetMappingId: candidate.newPrimaryMappingId,
-                noteSuffix: `prefer_de_primary_switch_at=${new Date().toISOString()}; replace_history=true`,
-                replacementCurrency: payload.currency ?? candidate.newPrimaryCurrency ?? null,
-                replacementPoints: payload.points,
-            });
-            switched += 1;
-            replaced += 1;
+            try {
+                const result = await replacePrimaryMappingPriceHistory({
+                    isin: candidate.isin,
+                    provider: "yfinance",
+                    targetMappingId: candidate.newPrimaryMappingId,
+                    noteSuffix: `prefer_de_primary_switch_at=${new Date().toISOString()}; replace_history=true`,
+                    replacementCurrency: payload.currency ?? candidate.newPrimaryCurrency ?? null,
+                    replacementPoints: payload.points,
+                });
+                executionSummary.succeededReplacements += 1;
+                executionSummary.primaryMappingsSwitched += 1;
+                executionSummary.oldPriceRowsDeleted += result.deletedPriceRows;
+                executionSummary.newPriceRowsInserted += result.insertedPriceRows;
+                if (result.latestPriceDate) {
+                    executionSummary.latestPricesVerified += 1;
+                }
+            } catch (error) {
+                executionSummary.failedReplacements += 1;
+                printExecutionSummary(executionSummary);
+                throw buildExecutionBlocker(candidate, error, executionSummary);
+            }
             continue;
         }
 
@@ -330,12 +389,11 @@ async function run() {
             candidate.newPrimarySymbol,
             `prefer_de_primary_switch_at=${new Date().toISOString()}; replace_history=false`,
         );
-        switched += 1;
+        executionSummary.primaryMappingsSwitched += 1;
     }
 
+    printExecutionSummary(executionSummary);
     console.log("Summary:");
-    console.log(`- switched primary mappings: ${switched}`);
-    console.log(`- full history replacements: ${replaced}`);
     console.log(`- DB writes: enabled (--write${options.replaceHistory ? " --replace-history" : ""})`);
 }
 
