@@ -655,6 +655,9 @@ export type PrimaryMappingPriceQualityRow = {
     latestPriceDate: string | null;
     latestCurrency: string | null;
     longestGapDays: number;
+    distinctHistoricalCurrencies: string[];
+    priceCurrencyBreakdown: Record<string, number>;
+    nonEurPriceRowCount: number;
 };
 
 export type ReplacePrimaryMappingPriceHistoryInput = {

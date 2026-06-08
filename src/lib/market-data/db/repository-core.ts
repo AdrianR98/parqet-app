@@ -307,6 +307,18 @@ function mapActionRow(row: Record<string, unknown>): DbMarketAction {
     };
 }
 
+function mapJsonObjectNumberRecord(value: unknown): Record<string, number> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return {};
+    }
+
+    const entries = Object.entries(value as Record<string, unknown>)
+        .map(([key, raw]) => [String(key), Number(raw)] as const)
+        .filter(([, count]) => Number.isFinite(count));
+
+    return Object.fromEntries(entries);
+}
+
 function describeRepositoryError(error: unknown): string | null {
     if (error instanceof Error) {
         const message = error.message.replace(/\s+/g, " ").trim();
@@ -2619,7 +2631,18 @@ export async function listPrimaryMappingPriceQuality(
                   on p.asset_id = pm.asset_id
                  and p.provider = pm.provider
             ),
-            price_stats as (
+            currency_counts as (
+                select
+                    asset_id,
+                    provider,
+                    currency,
+                    count(*)::int as row_count
+                from price_rows
+                where price_date is not null
+                  and currency is not null
+                group by asset_id, provider, currency
+            ),
+            price_stats_base as (
                 select
                     asset_id,
                     provider,
@@ -2632,6 +2655,22 @@ export async function listPrimaryMappingPriceQuality(
                     )[1] as latest_currency,
                     coalesce(max((price_date - previous_price_date)), 0)::int as longest_gap_days
                 from price_rows
+                group by asset_id, provider
+            ),
+            price_currency_stats as (
+                select
+                    asset_id,
+                    provider,
+                    coalesce(
+                        array_agg(distinct cc.currency) filter (where cc.currency is not null),
+                        array[]::text[]
+                    ) as distinct_historical_currencies,
+                    coalesce(
+                        jsonb_object_agg(cc.currency, cc.row_count) filter (where cc.currency is not null),
+                        '{}'::jsonb
+                    ) as price_currency_breakdown,
+                    coalesce(sum(case when cc.currency is not null and upper(cc.currency) <> 'EUR' then cc.row_count else 0 end), 0)::int as non_eur_price_row_count
+                from currency_counts cc
                 group by asset_id, provider
             )
             select
@@ -2647,11 +2686,17 @@ export async function listPrimaryMappingPriceQuality(
                 ps.min_price_date,
                 ps.latest_price_date,
                 ps.latest_currency,
-                coalesce(ps.longest_gap_days, 0) as longest_gap_days
+                coalesce(ps.longest_gap_days, 0) as longest_gap_days,
+                coalesce(pcs.distinct_historical_currencies, array[]::text[]) as distinct_historical_currencies,
+                coalesce(pcs.price_currency_breakdown, '{}'::jsonb) as price_currency_breakdown,
+                coalesce(pcs.non_eur_price_row_count, 0) as non_eur_price_row_count
             from primary_mappings pm
-            left join price_stats ps
+            left join price_stats_base ps
               on ps.asset_id = pm.asset_id
              and ps.provider = pm.provider
+            left join price_currency_stats pcs
+              on pcs.asset_id = pm.asset_id
+             and pcs.provider = pm.provider
             order by pm.isin asc`,
             [normalizedProvider, normalizedIsin],
         );
@@ -2673,6 +2718,11 @@ export async function listPrimaryMappingPriceQuality(
             latestPriceDate: row.latest_price_date === null ? null : normalizeDbDateValue(row.latest_price_date),
             latestCurrency: row.latest_currency === null ? null : String(row.latest_currency),
             longestGapDays: Number(row.longest_gap_days ?? 0),
+            distinctHistoricalCurrencies: Array.isArray(row.distinct_historical_currencies)
+                ? row.distinct_historical_currencies.map((value) => String(value))
+                : [],
+            priceCurrencyBreakdown: mapJsonObjectNumberRecord(row.price_currency_breakdown),
+            nonEurPriceRowCount: Number(row.non_eur_price_row_count ?? 0),
         }));
     } catch (error) {
         handleRepositoryError(error);

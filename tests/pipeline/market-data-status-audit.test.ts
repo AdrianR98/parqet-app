@@ -68,18 +68,23 @@ function quality(overrides: Partial<PrimaryMappingPriceQualityRow>): PrimaryMapp
         latestPriceDate: "2026-06-08",
         latestCurrency: "GBP",
         longestGapDays: 3,
+        distinctHistoricalCurrencies: ["GBP"],
+        priceCurrencyBreakdown: { GBP: 100 },
+        nonEurPriceRowCount: 100,
         ...overrides,
     };
 }
 
 describe("market data status audit", () => {
     it("parses audit flags", () => {
-        const options = parseStatusArgs(["--audit-quality", "--all", "--isin", "gb0000000001"]);
+        const options = parseStatusArgs(["--audit-quality", "--all", "--isin", "gb0000000001", "--symbol", "r6c0.de", "--currency", "gbp"]);
 
         expect(options).toMatchObject({
             auditQuality: true,
             all: true,
             isin: "GB0000000001",
+            symbol: "R6C0.DE",
+            currency: "GBP",
         });
     });
 
@@ -116,6 +121,9 @@ describe("market data status audit", () => {
                     primarySymbol: "SHEL.L",
                     primaryCurrency: "GBp",
                     latestCurrency: "GBp",
+                    distinctHistoricalCurrencies: ["GBp"],
+                    priceCurrencyBreakdown: { GBp: 100 },
+                    nonEurPriceRowCount: 100,
                 }),
             ],
             dePlan: { switchCandidates: [] },
@@ -131,6 +139,8 @@ describe("market data status audit", () => {
                 verifiedDeSymbol: "R6C0.DE",
                 verifiedDeOwnershipStatus: "owned_by_same_asset",
                 latestCurrency: "GBp",
+                distinctHistoricalCurrencies: ["GBp"],
+                reasonNotSwitchable: "unknown",
             }),
         ]);
     });
@@ -151,6 +161,66 @@ describe("market data status audit", () => {
         });
 
         expect(report.nonEurLatestPrices.map((row) => row.latestCurrency)).toEqual(["GBp", "USD"]);
+    });
+
+    it("separates latest currency from historical currencies for consistency reporting", () => {
+        const report = buildAuditReport({
+            instruments: [instrument({ isin: "US0000000004", displayName: "Mixed History" })],
+            mappings: [mapping({ isin: "US0000000004", symbol: "ABC.DE", exchange: "XETRA", currency: "EUR" })],
+            primaryPriceQuality: [
+                quality({
+                    isin: "US0000000004",
+                    primarySymbol: "ABC.DE",
+                    primaryCurrency: "EUR",
+                    latestCurrency: "EUR",
+                    distinctHistoricalCurrencies: ["EUR", "USD"],
+                    priceCurrencyBreakdown: { EUR: 90, USD: 10 },
+                    nonEurPriceRowCount: 10,
+                }),
+            ],
+            dePlan: { switchCandidates: [] },
+            now: new Date("2026-06-08T00:00:00.000Z"),
+        });
+
+        expect(report.historicalCurrencyConsistency).toEqual([
+            expect.objectContaining({
+                primaryCurrency: "EUR",
+                latestCurrency: "EUR",
+                historicalCurrencies: ["EUR", "USD"],
+            }),
+        ]);
+    });
+
+    it("flags switched .DE assets with historical USD rows", () => {
+        const report = buildAuditReport({
+            instruments: [instrument({ isin: "US0000000005", displayName: "Switched Asset" })],
+            mappings: [
+                mapping({ isin: "US0000000005", symbol: "ABC.DE", exchange: "XETRA", currency: "EUR", isPrimary: true, mappingId: "primary-de" }),
+                mapping({ isin: "US0000000005", symbol: "ABC", exchange: "NYQ", currency: "USD", isPrimary: false, mappingId: "legacy-us", verifiedAt: "2026-06-01T00:00:00.000Z" }),
+            ],
+            primaryPriceQuality: [
+                quality({
+                    isin: "US0000000005",
+                    primarySymbol: "ABC.DE",
+                    primaryExchange: "XETRA",
+                    primaryCurrency: "EUR",
+                    latestCurrency: "EUR",
+                    distinctHistoricalCurrencies: ["EUR", "USD"],
+                    priceCurrencyBreakdown: { EUR: 200, USD: 20 },
+                    nonEurPriceRowCount: 20,
+                }),
+            ],
+            dePlan: { switchCandidates: [] },
+            now: new Date("2026-06-08T00:00:00.000Z"),
+        });
+
+        expect(report.switchedDeIntegrity).toEqual([
+            expect.objectContaining({
+                isin: "US0000000005",
+                hasNonEurHistoricalRows: true,
+                latestPriceNonEur: false,
+            }),
+        ]);
     });
 
     it("reports duplicate .DE ownership conflicts without resolving them", () => {
@@ -291,6 +361,80 @@ describe("market data status audit", () => {
             expect.arrayContaining([
                 expect.objectContaining({ isin: "GB0000000001", statusClass: "terminal" }),
                 expect.objectContaining({ isin: "GB0000000002", statusClass: "manual_review" }),
+            ]),
+        );
+    });
+
+    it("reports terminal non-EUR assets separately from actionable unknown assets in row audit", () => {
+        const report = buildAuditReport({
+            instruments: [
+                instrument({ isin: "GB0000000010", displayName: "Legacy Asset", marketDataStatus: "legacy" }),
+                instrument({ isin: "GB0000000011", id: "asset-2", displayName: "Actionable Asset", marketDataStatus: "active" }),
+            ],
+            mappings: [
+                mapping({ isin: "GB0000000010", displayName: "Legacy Asset", marketDataStatus: "legacy", symbol: "LEG.L", currency: "GBP" }),
+                mapping({ assetId: "asset-2", isin: "GB0000000011", displayName: "Actionable Asset", marketDataStatus: "active", symbol: "ACT", currency: "USD" }),
+            ],
+            primaryPriceQuality: [
+                quality({ isin: "GB0000000010", displayName: "Legacy Asset", marketDataStatus: "legacy", primarySymbol: "LEG.L", distinctHistoricalCurrencies: ["GBP"], priceCurrencyBreakdown: { GBP: 100 }, nonEurPriceRowCount: 100 }),
+                quality({ assetId: "asset-2", isin: "GB0000000011", displayName: "Actionable Asset", marketDataStatus: "active", primarySymbol: "ACT", primaryCurrency: "USD", latestCurrency: "USD", distinctHistoricalCurrencies: ["USD"], priceCurrencyBreakdown: { USD: 100 }, nonEurPriceRowCount: 100 }),
+            ],
+            dePlan: { switchCandidates: [] },
+            now: new Date("2026-06-08T00:00:00.000Z"),
+        });
+
+        expect(report.nonEurPriceRowsAudit.topAssets).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ isin: "GB0000000010", statusClass: "terminal" }),
+                expect.objectContaining({ isin: "GB0000000011", statusClass: "actionable" }),
+            ]),
+        );
+    });
+
+    it("reports shell-like ownership and shell-specific rows", () => {
+        const report = buildAuditReport({
+            instruments: [
+                instrument({ id: "owner-asset", isin: "GB00B03MM408", displayName: "Royal Dutch Shell B (alt)", marketDataStatus: "legacy" }),
+                instrument({ id: "active-asset", isin: "GB00BP6MXD84", displayName: "Shell", marketDataStatus: "unknown" }),
+            ],
+            mappings: [
+                mapping({ assetId: "owner-asset", isin: "GB00B03MM408", displayName: "Royal Dutch Shell B (alt)", marketDataStatus: "legacy", symbol: "R6C0.DE", exchange: "XETRA", currency: "EUR", isPrimary: true }),
+                mapping({ assetId: "active-asset", isin: "GB00BP6MXD84", displayName: "Shell", marketDataStatus: "unknown", symbol: "SHEL.L", exchange: "LSE", currency: "GBp", isPrimary: true }),
+            ],
+            referenceCandidates: [
+                {
+                    instrumentId: "active-asset",
+                    isin: "GB00BP6MXD84",
+                    name: "Shell",
+                    candidateSymbol: "R6C0.DE",
+                    mnemonic: "R6C0",
+                    currency: "EUR",
+                    instrumentType: "stock",
+                    marketSegment: "Prime Standard",
+                    micCode: "XETR",
+                    primaryMarketMicCode: "XETR",
+                    hasVerifiedPrimary: false,
+                    hasVerifiedYfinance: false,
+                    hasAnyPrimary: true,
+                    hasExistingCandidate: false,
+                },
+            ],
+            primaryPriceQuality: [
+                quality({ assetId: "owner-asset", isin: "GB00B03MM408", displayName: "Royal Dutch Shell B (alt)", marketDataStatus: "legacy", primarySymbol: "R6C0.DE", primaryExchange: "XETRA", primaryCurrency: "EUR", latestCurrency: "EUR", distinctHistoricalCurrencies: ["EUR"], priceCurrencyBreakdown: { EUR: 100 }, nonEurPriceRowCount: 0 }),
+                quality({ assetId: "active-asset", isin: "GB00BP6MXD84", displayName: "Shell", marketDataStatus: "unknown", primarySymbol: "SHEL.L", primaryExchange: "LSE", primaryCurrency: "GBp", latestCurrency: "GBp", distinctHistoricalCurrencies: ["GBp"], priceCurrencyBreakdown: { GBp: 100 }, nonEurPriceRowCount: 100 }),
+            ],
+            dePlan: { switchCandidates: [] },
+            now: new Date("2026-06-08T00:00:00.000Z"),
+        });
+
+        expect(report.shellAudit.shellRows).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ isin: "GB00BP6MXD84", primarySymbol: "SHEL.L" }),
+            ]),
+        );
+        expect(report.shellAudit.symbolOwnership).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ symbol: "R6C0.DE", ownerIsin: "GB00B03MM408" }),
             ]),
         );
     });
