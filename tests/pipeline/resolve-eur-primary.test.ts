@@ -79,6 +79,78 @@ function reference(overrides: Partial<DbMarketReferenceInstrument>): DbMarketRef
 }
 
 describe("resolve EUR primary plan", () => {
+    it("keeps verified EUR primaries as already complete", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [instrument({ isin: "NL0000000001", id: "asset-eur-verified" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-eur-verified",
+                    isin: "NL0000000001",
+                    mappingId: "eur-primary-verified",
+                    symbol: "UNA.AS",
+                    exchange: "Amsterdam",
+                    currency: "EUR",
+                    isPrimary: true,
+                    verifiedAt: "2026-06-08T10:00:00.000Z",
+                }),
+            ],
+        });
+
+        expect(plan.items[0]).toMatchObject({
+            status: "already_eur_primary",
+            reason: "already_eur_primary",
+        });
+    });
+
+    it("treats unverified EUR primaries as repair candidates instead of already complete", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [instrument({ isin: "GB00B10RZP78", id: "asset-unilever", displayName: "Unilever" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-unilever",
+                    isin: "GB00B10RZP78",
+                    mappingId: "una-primary-unverified",
+                    symbol: "UNA.AS",
+                    exchange: "Amsterdam",
+                    currency: "EUR",
+                    isPrimary: true,
+                    verifiedAt: null,
+                }),
+                mapping({
+                    assetId: "asset-unilever",
+                    isin: "GB00B10RZP78",
+                    mappingId: "ulvr-l-verified",
+                    symbol: "ULVR.L",
+                    exchange: "LSE",
+                    currency: "GBp",
+                    isPrimary: false,
+                    verifiedAt: "2026-06-08T10:00:00.000Z",
+                }),
+            ],
+        });
+
+        expect(plan.currentEurPrimaries).toBe(0);
+        expect(plan.currentNonEurPrimaries).toBe(0);
+        expect(plan.items[0]).toMatchObject({
+            status: "manual_review",
+            reason: "unverified_eur_primary",
+            selectedCandidate: expect.objectContaining({
+                symbol: "UNA.AS",
+                mappingId: "una-primary-unverified",
+                verified: false,
+            }),
+            candidateTier: "other_eur_fallback",
+        });
+        expect(plan.items[0]?.proposalCandidates).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    symbol: "UNA.AS",
+                    mappingId: "una-primary-unverified",
+                }),
+            ]),
+        );
+    });
+
     it("prefers verified .DE candidates over German fallback candidates", () => {
         const plan = buildEurPrimaryResolutionPlan({
             instruments: [instrument({ isin: "GB0000000001", id: "asset-1" })],

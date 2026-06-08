@@ -18,6 +18,7 @@ export type EurPrimaryResolutionStatus =
 export type EurPrimaryResolutionReason =
     | "already_eur_primary"
     | "verified_candidate_available"
+    | "unverified_eur_primary"
     | "needs_validation"
     | "no_candidate"
     | "ambiguous_verified_candidates"
@@ -190,7 +191,8 @@ export function buildEurPrimaryResolutionPlan(input: {
 
         totalPrimaryMappingsInspected += 1;
         const currentPrimaryCurrency = normalizeCurrency(currentPrimary.currency);
-        if (currentPrimaryCurrency === "EUR") {
+        const currentPrimaryVerified = Boolean(currentPrimary.verifiedAt);
+        if (currentPrimaryCurrency === "EUR" && currentPrimaryVerified) {
             currentEurPrimaries += 1;
             items.push({
                 assetId: instrument.id,
@@ -210,7 +212,9 @@ export function buildEurPrimaryResolutionPlan(input: {
             continue;
         }
 
-        currentNonEurPrimaries += 1;
+        if (currentPrimaryCurrency !== "EUR") {
+            currentNonEurPrimaries += 1;
+        }
 
         if (isTerminalStatus(instrument.marketDataStatus)) {
             terminalIgnoredCases += 1;
@@ -237,6 +241,32 @@ export function buildEurPrimaryResolutionPlan(input: {
         const verifiedSeen = new Set<string>();
         const proposalSeen = new Set<string>();
         const references = input.referenceCandidatesByIsin?.get(instrument.isin) ?? [];
+
+        if (currentPrimaryCurrency === "EUR" && !currentPrimaryVerified) {
+            const currentPrimarySymbol = normalizeSymbol(currentPrimary.symbol);
+            const owners = currentPrimarySymbol
+                ? (ownershipBySymbol.get(currentPrimarySymbol) ?? []).filter((owner) => owner.assetId !== instrument.id)
+                : [];
+            const owner = owners[0] ?? null;
+            pushCandidate(
+                proposalCandidates,
+                {
+                    symbol: currentPrimary.symbol,
+                    exchange: currentPrimary.exchange,
+                    currency: currentPrimaryCurrency,
+                    tier: classifyEurCandidateTier(currentPrimary.symbol, currentPrimary.exchange),
+                    verified: false,
+                    sourceType: "existing_mapping",
+                    sourceKey: "asset_symbol_mappings",
+                    mappingId: currentPrimary.mappingId,
+                    ownerAssetId: owner?.assetId ?? null,
+                    ownerIsin: owner?.isin ?? null,
+                    ownerDisplayName: owner?.displayName ?? null,
+                    hasOwnershipConflict: owners.length > 0,
+                },
+                proposalSeen,
+            );
+        }
 
         for (const mapping of mappings) {
             if (!isEurCurrency(mapping.currency)) continue;
@@ -413,11 +443,27 @@ export function buildEurPrimaryResolutionPlan(input: {
                 status: "manual_review",
                 reason: proposalTopTierRows.length > 0 && proposalTopTierUnconflicted.length === 0
                     ? "symbol_owned_by_other_asset"
-                    : "needs_validation",
-                selectedCandidate: proposalTopTierRows.length > 0 && proposalTopTierUnconflicted.length === 0
+                    : (
+                        currentPrimaryCurrency === "EUR" && !currentPrimaryVerified
+                            ? "unverified_eur_primary"
+                            : "needs_validation"
+                    ),
+                selectedCandidate: (
+                    proposalTopTierRows.length > 0
+                        && (
+                            proposalTopTierUnconflicted.length === 0
+                            || (currentPrimaryCurrency === "EUR" && !currentPrimaryVerified)
+                        )
+                )
                     ? (proposalTopTierRows[0] ?? null)
                     : null,
-                candidateTier: proposalTopTierRows.length > 0 && proposalTopTierUnconflicted.length === 0
+                candidateTier: (
+                    proposalTopTierRows.length > 0
+                        && (
+                            proposalTopTierUnconflicted.length === 0
+                            || (currentPrimaryCurrency === "EUR" && !currentPrimaryVerified)
+                        )
+                )
                     ? proposalTopTier
                     : null,
                 verifiedCandidates: sortedVerifiedCandidates,

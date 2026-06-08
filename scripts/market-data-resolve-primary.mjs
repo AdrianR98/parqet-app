@@ -417,6 +417,25 @@ function printValidationReport(report) {
     }
 }
 
+function buildProposalRows(plan) {
+    const proposalRows = [];
+    for (const item of plan.items) {
+        if (item.status !== "manual_review") continue;
+        for (const proposal of item.proposalCandidates) {
+            proposalRows.push({
+                isin: item.isin,
+                symbol: proposal.symbol,
+                displayName: item.displayName,
+                exchange: proposal.exchange,
+                currency: proposal.currency,
+                tier: proposal.tier,
+                sourceType: proposal.sourceType,
+            });
+        }
+    }
+    return proposalRows;
+}
+
 function printWriteSummary(summary) {
     console.log("Resolve EUR Primary Write Summary");
     console.log(`- selected write candidates: ${summary.selected}`);
@@ -556,21 +575,7 @@ async function run() {
         return;
     }
 
-    const proposalRows = [];
-    for (const item of plan.items) {
-        if (item.status !== "manual_review") continue;
-        for (const proposal of item.proposalCandidates) {
-            proposalRows.push({
-                isin: item.isin,
-                symbol: proposal.symbol,
-                displayName: item.displayName,
-                exchange: proposal.exchange,
-                currency: proposal.currency,
-                tier: proposal.tier,
-                sourceType: proposal.sourceType,
-            });
-        }
-    }
+    const proposalRows = buildProposalRows(plan);
 
     const validationPayload = proposalRows.length > 0
         ? await validateProposalCandidates({ python: options.python, proposalRows })
@@ -602,6 +607,7 @@ async function run() {
 }
 
 export {
+    buildProposalRows,
     getWriteModeGuardError,
     needsVerifiedPrimaryPromotion,
     parseArgs,

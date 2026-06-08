@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { buildZeroPlanWarning, parseArgs as parseBackfillArgs } from "../../scripts/backfill-primary-market-data.mjs";
 import {
+    buildProposalRows,
     getWriteModeGuardError,
     needsVerifiedPrimaryPromotion,
     parseArgs as parseResolveArgs,
 } from "../../scripts/market-data-resolve-primary.mjs";
 import { parseArgs as parseRebuildArgs } from "../../scripts/market-data-rebuild-prices.mjs";
+import { buildEurPrimaryResolutionPlan } from "../../src/lib/market-data/resolve-eur-primary";
 
 describe("market data operator commands", () => {
     it("parses resolve-primary validate mode", () => {
@@ -102,5 +104,58 @@ describe("market data operator commands", () => {
         expect(needsVerifiedPrimaryPromotion({ verified: false, mappingId: "existing-unverified" })).toBe(true);
         expect(needsVerifiedPrimaryPromotion({ verified: false, mappingId: null })).toBe(true);
         expect(needsVerifiedPrimaryPromotion({ verified: true, mappingId: "verified-row" })).toBe(false);
+    });
+
+    it("includes current unverified EUR primaries in validation proposal rows", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [{
+                id: "asset-unilever",
+                isin: "GB00B10RZP78",
+                name: "Unilever",
+                displayName: "Unilever",
+                assetType: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadataSource: null,
+                metadataUpdatedAt: null,
+                nameSource: null,
+                displayNameSource: null,
+                displayMetadataUpdatedAt: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                marketDataSuccessorIsin: null,
+                marketDataSuccessorSymbol: null,
+                marketDataStatusUpdatedAt: null,
+                createdAt: "2026-06-04T00:00:00.000Z",
+                updatedAt: "2026-06-04T00:00:00.000Z",
+            }],
+            mappings: [
+                {
+                    assetId: "asset-unilever",
+                    isin: "GB00B10RZP78",
+                    displayName: "Unilever",
+                    marketDataStatus: "active",
+                    mappingId: "una-primary-unverified",
+                    provider: "yfinance",
+                    symbol: "UNA.AS",
+                    exchange: "Amsterdam",
+                    currency: "EUR",
+                    isPrimary: true,
+                    isActive: true,
+                    verifiedAt: null,
+                    notes: null,
+                    providerPriceRowCount: 0,
+                    providerLatestPriceDate: null,
+                },
+            ],
+        });
+
+        expect(buildProposalRows(plan)).toEqual([
+            expect.objectContaining({
+                isin: "GB00B10RZP78",
+                symbol: "UNA.AS",
+                tier: "other_eur_fallback",
+            }),
+        ]);
     });
 });
