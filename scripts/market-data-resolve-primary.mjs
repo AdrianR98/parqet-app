@@ -129,7 +129,7 @@ function formatCandidate(candidate) {
 
 function formatCandidateList(candidates, limit = 3) {
     if (!candidates || candidates.length === 0) return "-";
-    return candidates.slice(0, limit).map((candidate) => candidate.symbol).join(", ");
+    return candidates.slice(0, limit).map((candidate) => `${candidate.symbol}[${candidate.sourceType}]`).join(", ");
 }
 
 function printPlan(plan) {
@@ -421,6 +421,7 @@ function buildProposalRows(plan) {
     const proposalRows = [];
     for (const item of plan.items) {
         if (item.status !== "manual_review") continue;
+        if (item.validationBlocked) continue;
         for (const proposal of item.proposalCandidates) {
             proposalRows.push({
                 isin: item.isin,
@@ -534,6 +535,13 @@ async function run() {
     const {
         classifyDeCandidateValidation,
     } = await import("../src/lib/market-data/discover-de-candidates.ts");
+    const manualCandidatesPayload = JSON.parse(
+        await readFile(
+            path.resolve(process.cwd(), "src", "data", "manual-eur-symbol-candidates.json"),
+            "utf8",
+        ),
+    );
+    const manualCandidatesByIsin = new Map(Object.entries(manualCandidatesPayload));
 
     const instruments = await listMarketInstruments({ limit: 50000 });
     const filteredInstruments = instruments.filter((instrument) => {
@@ -542,7 +550,7 @@ async function run() {
         if (options.excludeIsins.has(isin)) return false;
         return true;
     });
-    const mappings = await listSymbolMappingsForPrimaryPreference("yfinance", options.isin ?? undefined);
+    const mappings = await listSymbolMappingsForPrimaryPreference("yfinance");
     const filteredMappings = mappings.filter((mapping) => !options.excludeIsins.has(normalizeIsin(mapping.isin)));
 
     const referenceCandidatesByIsin = new Map();
@@ -568,6 +576,7 @@ async function run() {
         instruments: filteredInstruments,
         mappings: filteredMappings,
         referenceCandidatesByIsin,
+        manualCandidatesByIsin,
     });
 
     if (!options.validate) {

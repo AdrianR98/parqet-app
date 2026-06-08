@@ -163,6 +163,173 @@ describe("market data operator commands", () => {
         ]);
     });
 
+    it("includes manual EUR candidates in validation proposal rows for former no-candidate cases", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [{
+                id: "asset-bitfarms",
+                isin: "CA09173B1076",
+                name: "Bitfarms",
+                displayName: "Bitfarms",
+                assetType: "stock",
+                currency: "CAD",
+                wkn: null,
+                metadataSource: null,
+                metadataUpdatedAt: null,
+                nameSource: null,
+                displayNameSource: null,
+                displayMetadataUpdatedAt: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                marketDataSuccessorIsin: null,
+                marketDataSuccessorSymbol: null,
+                marketDataStatusUpdatedAt: null,
+                createdAt: "2026-06-04T00:00:00.000Z",
+                updatedAt: "2026-06-04T00:00:00.000Z",
+            }],
+            mappings: [
+                {
+                    assetId: "asset-bitfarms",
+                    isin: "CA09173B1076",
+                    displayName: "Bitfarms",
+                    marketDataStatus: "active",
+                    mappingId: "bitfarms-primary",
+                    provider: "yfinance",
+                    symbol: "BITF",
+                    exchange: "NASDAQ",
+                    currency: "USD",
+                    isPrimary: true,
+                    isActive: true,
+                    verifiedAt: "2026-06-04T00:00:00.000Z",
+                    notes: null,
+                    providerPriceRowCount: 0,
+                    providerLatestPriceDate: null,
+                },
+            ],
+            manualCandidatesByIsin: new Map([
+                ["CA09173B1076", {
+                    name: "Bitfarms",
+                    candidates: ["1B2.F", "1B2.DU", "1B2.HM", "1B2.MU"],
+                }],
+            ]),
+        });
+
+        expect(buildProposalRows(plan)).toEqual([
+            expect.objectContaining({
+                isin: "CA09173B1076",
+                symbol: "1B2.DU",
+                sourceType: "manual_eur_candidate",
+            }),
+            expect.objectContaining({
+                isin: "CA09173B1076",
+                symbol: "1B2.F",
+                sourceType: "manual_eur_candidate",
+            }),
+            expect.objectContaining({
+                isin: "CA09173B1076",
+                symbol: "1B2.HM",
+                sourceType: "manual_eur_candidate",
+            }),
+            expect.objectContaining({
+                isin: "CA09173B1076",
+                symbol: "1B2.MU",
+                sourceType: "manual_eur_candidate",
+            }),
+        ]);
+    });
+
+    it("skips validation proposal rows for manual-review-only blocked curated candidates", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [{
+                id: "asset-shell",
+                isin: "GB00BP6MXD84",
+                name: "Shell plc",
+                displayName: "Shell plc",
+                assetType: "stock",
+                currency: "GBP",
+                wkn: null,
+                metadataSource: null,
+                metadataUpdatedAt: null,
+                nameSource: null,
+                displayNameSource: null,
+                displayMetadataUpdatedAt: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                marketDataSuccessorIsin: null,
+                marketDataSuccessorSymbol: null,
+                marketDataStatusUpdatedAt: null,
+                createdAt: "2026-06-04T00:00:00.000Z",
+                updatedAt: "2026-06-04T00:00:00.000Z",
+            }, {
+                id: "asset-owner",
+                isin: "GB00B03MLX29",
+                name: "Legacy Shell",
+                displayName: "Legacy Shell",
+                assetType: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadataSource: null,
+                metadataUpdatedAt: null,
+                nameSource: null,
+                displayNameSource: null,
+                displayMetadataUpdatedAt: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                marketDataSuccessorIsin: null,
+                marketDataSuccessorSymbol: null,
+                marketDataStatusUpdatedAt: null,
+                createdAt: "2026-06-04T00:00:00.000Z",
+                updatedAt: "2026-06-04T00:00:00.000Z",
+            }],
+            mappings: [
+                {
+                    assetId: "asset-shell",
+                    isin: "GB00BP6MXD84",
+                    displayName: "Shell plc",
+                    marketDataStatus: "active",
+                    mappingId: "shell-primary",
+                    provider: "yfinance",
+                    symbol: "SHEL.L",
+                    exchange: "LSE",
+                    currency: "GBp",
+                    isPrimary: true,
+                    isActive: true,
+                    verifiedAt: "2026-06-04T00:00:00.000Z",
+                    notes: null,
+                    providerPriceRowCount: 0,
+                    providerLatestPriceDate: null,
+                },
+                {
+                    assetId: "asset-owner",
+                    isin: "GB00B03MLX29",
+                    displayName: "Legacy Shell",
+                    marketDataStatus: "active",
+                    mappingId: "owner-primary",
+                    provider: "yfinance",
+                    symbol: "R6C0.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                    isPrimary: true,
+                    isActive: true,
+                    verifiedAt: "2026-06-04T00:00:00.000Z",
+                    notes: null,
+                    providerPriceRowCount: 0,
+                    providerLatestPriceDate: null,
+                },
+            ],
+            manualCandidatesByIsin: new Map([
+                ["GB00BP6MXD84", {
+                    name: "Shell",
+                    manualReview: true,
+                    manualReviewReason: "R6C0.DE ownership conflict with GB00B03MLX29",
+                    candidates: ["SHELL.AS", "R6C0.DE", "R6C0.F", "R6C0.DU", "R6C0.HM", "R6C0.MU", "R6C0.SW"],
+                }],
+            ]),
+        });
+
+        expect(plan.items[0]?.validationBlocked).toBe(true);
+        expect(buildProposalRows(plan)).toEqual([]);
+    });
+
     it("reports partial backfill success when prices succeed but actions fail", () => {
         const outcome = classifyBackfillOutcome({
             row: { isin: "GB00B10RZP78", symbol: "UNA.AS" },

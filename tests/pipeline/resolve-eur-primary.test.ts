@@ -79,6 +79,47 @@ function reference(overrides: Partial<DbMarketReferenceInstrument>): DbMarketRef
 }
 
 describe("resolve EUR primary plan", () => {
+    it("uses manual EUR candidates for former no-candidate cases without treating them as verified", () => {
+        const manualCandidatesByIsin = new Map([
+            ["CA09173B1076", {
+                name: "Bitfarms",
+                candidates: ["1B2.F", "1B2.DU", "1B2.HM", "1B2.MU"],
+            }],
+        ]);
+
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [instrument({ isin: "CA09173B1076", id: "asset-bitfarms", displayName: "Bitfarms" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-bitfarms",
+                    isin: "CA09173B1076",
+                    mappingId: "bitfarms-primary",
+                    symbol: "BITF",
+                    exchange: "NASDAQ",
+                    currency: "USD",
+                    isPrimary: true,
+                }),
+            ],
+            manualCandidatesByIsin,
+        });
+
+        expect(plan.items[0]).toMatchObject({
+            status: "manual_review",
+            reason: "needs_validation",
+            selectedCandidate: null,
+            validationBlocked: false,
+        });
+        expect(plan.items[0]?.proposalCandidates).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    symbol: "1B2.F",
+                    sourceType: "manual_eur_candidate",
+                    verified: false,
+                }),
+            ]),
+        );
+    });
+
     it("keeps verified EUR primaries as already complete", () => {
         const plan = buildEurPrimaryResolutionPlan({
             instruments: [instrument({ isin: "NL0000000001", id: "asset-eur-verified" })],
@@ -228,6 +269,71 @@ describe("resolve EUR primary plan", () => {
         expect(plan.items.find((item) => item.isin === "GB0000000002")?.selectedCandidate?.symbol).toBe("FOO.F");
     });
 
+    it("prefers manual .DE proposals over German EUR fallbacks", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [instrument({ isin: "US7561091049", id: "asset-o", displayName: "Realty Income" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-o",
+                    isin: "US7561091049",
+                    mappingId: "o-primary",
+                    symbol: "O",
+                    exchange: "NYSE",
+                    currency: "USD",
+                    isPrimary: true,
+                }),
+            ],
+            manualCandidatesByIsin: new Map([
+                ["US7561091049", {
+                    name: "Realty Income",
+                    candidates: ["RY6.DE", "RY6.F", "RY6.SW"],
+                }],
+            ]),
+        });
+
+        expect(plan.items[0]?.proposalCandidates.map((candidate) => candidate.symbol)).toEqual([
+            "RY6.DE",
+            "RY6.F",
+            "RY6.SW",
+        ]);
+        expect(plan.items[0]?.proposalCandidates[0]).toMatchObject({
+            symbol: "RY6.DE",
+            tier: "de",
+        });
+    });
+
+    it("prefers German EUR fallback manual proposals over other EUR fallbacks", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [instrument({ isin: "AU000000DRO2", id: "asset-dro", displayName: "DroneShield" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-dro",
+                    isin: "AU000000DRO2",
+                    mappingId: "dro-primary",
+                    symbol: "DRO.AX",
+                    exchange: "ASX",
+                    currency: "AUD",
+                    isPrimary: true,
+                }),
+            ],
+            manualCandidatesByIsin: new Map([
+                ["AU000000DRO2", {
+                    name: "DroneShield",
+                    candidates: ["DRH.F", "DRH.DU", "DRH.HM", "DRH.MU", "DRO.SW"],
+                }],
+            ]),
+        });
+
+        expect(plan.items[0]?.proposalCandidates[0]).toMatchObject({
+            symbol: "DRH.DU",
+            tier: "german_eur_fallback",
+        });
+        expect(plan.items[0]?.proposalCandidates.at(-1)).toMatchObject({
+            symbol: "DRO.SW",
+            tier: "other_eur_fallback",
+        });
+    });
+
     it("selects other EUR fallback only when no German EUR fallback exists", () => {
         const plan = buildEurPrimaryResolutionPlan({
             instruments: [instrument({ isin: "GB0000000003", id: "asset-3" })],
@@ -333,12 +439,66 @@ describe("resolve EUR primary plan", () => {
         expect(plan.items.find((item) => item.isin === "GB00BP6MXD84")).toMatchObject({
             status: "manual_review",
             reason: "symbol_owned_by_other_asset",
+            validationBlocked: false,
             selectedCandidate: expect.objectContaining({
                 symbol: "R6C0.DE",
                 ownerIsin: "GB00B03MLX29",
                 hasOwnershipConflict: true,
             }),
         });
+    });
+
+    it("keeps Shell manual-review conflicts visible from manual candidates", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [
+                instrument({ isin: "GB00BP6MXD84", id: "asset-shell", displayName: "Shell plc" }),
+                instrument({ isin: "GB00B03MLX29", id: "asset-owner", displayName: "Legacy Shell" }),
+            ],
+            mappings: [
+                mapping({
+                    assetId: "asset-shell",
+                    isin: "GB00BP6MXD84",
+                    mappingId: "shell-primary",
+                    symbol: "SHEL.L",
+                    exchange: "LSE",
+                    currency: "GBp",
+                    isPrimary: true,
+                }),
+                mapping({
+                    assetId: "asset-owner",
+                    isin: "GB00B03MLX29",
+                    mappingId: "owner-primary",
+                    symbol: "R6C0.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                    isPrimary: true,
+                }),
+            ],
+            manualCandidatesByIsin: new Map([
+                ["GB00BP6MXD84", {
+                    name: "Shell",
+                    manualReview: true,
+                    manualReviewReason: "R6C0.DE ownership conflict with GB00B03MLX29",
+                    candidates: ["SHELL.AS", "R6C0.DE", "R6C0.F", "R6C0.DU", "R6C0.HM", "R6C0.MU", "R6C0.SW"],
+                }],
+            ]),
+        });
+
+        expect(plan.items[0]).toMatchObject({
+            status: "manual_review",
+            reason: "symbol_owned_by_other_asset",
+            validationBlocked: true,
+            selectedCandidate: expect.objectContaining({
+                symbol: "R6C0.DE",
+                sourceType: "manual_eur_candidate",
+                ownerIsin: "GB00B03MLX29",
+            }),
+        });
+        expect(plan.items[0]?.proposalCandidates).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ symbol: "SHELL.AS", sourceType: "manual_eur_candidate" }),
+            ]),
+        );
     });
 
     it("classifies conflicting reference-only proposals as manual review", () => {
@@ -389,6 +549,39 @@ describe("resolve EUR primary plan", () => {
                 ownerIsin: "GB00B03MLX29",
             }),
         });
+    });
+
+    it("keeps SNDK as manual review with no candidate when the curated list is empty", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [instrument({ isin: "US80004C2008", id: "asset-sndk", displayName: "SanDisk / SNDK" })],
+            mappings: [
+                mapping({
+                    assetId: "asset-sndk",
+                    isin: "US80004C2008",
+                    mappingId: "sndk-primary",
+                    symbol: "SNDK",
+                    exchange: "NASDAQ",
+                    currency: "USD",
+                    isPrimary: true,
+                }),
+            ],
+            manualCandidatesByIsin: new Map([
+                ["US80004C2008", {
+                    name: "SanDisk / SNDK",
+                    manualReview: true,
+                    manualReviewReason: "No EUR candidate provided from Parqet list",
+                    candidates: [],
+                }],
+            ]),
+        });
+
+        expect(plan.items[0]).toMatchObject({
+            status: "manual_review",
+            reason: "no_candidate",
+            selectedCandidate: null,
+            validationBlocked: true,
+        });
+        expect(plan.items[0]?.proposalCandidates).toEqual([]);
     });
 
     it("counts existing EUR primaries separately from remaining non-EUR primaries", () => {

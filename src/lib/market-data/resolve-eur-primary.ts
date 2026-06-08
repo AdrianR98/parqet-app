@@ -31,13 +31,20 @@ export type EurPrimaryCandidate = {
     currency: string | null;
     tier: EurPrimaryCandidateTier;
     verified: boolean;
-    sourceType: "verified_mapping" | "existing_mapping" | "reference_symbol" | "xetra_mnemonic";
+    sourceType: "verified_mapping" | "existing_mapping" | "reference_symbol" | "xetra_mnemonic" | "manual_eur_candidate";
     sourceKey: string;
     mappingId: string | null;
     ownerAssetId: string | null;
     ownerIsin: string | null;
     ownerDisplayName: string | null;
     hasOwnershipConflict: boolean;
+};
+
+export type ManualEurSymbolCandidateEntry = {
+    name?: string | null;
+    manualReview?: boolean;
+    manualReviewReason?: string | null;
+    candidates: string[];
 };
 
 export type EurPrimaryResolutionItem = {
@@ -54,6 +61,7 @@ export type EurPrimaryResolutionItem = {
     candidateTier: EurPrimaryCandidateTier | null;
     verifiedCandidates: EurPrimaryCandidate[];
     proposalCandidates: EurPrimaryCandidate[];
+    validationBlocked: boolean;
 };
 
 export type EurPrimaryResolutionPlan = {
@@ -154,6 +162,7 @@ export function buildEurPrimaryResolutionPlan(input: {
     instruments: DbMarketInstrument[];
     mappings: SymbolMappingForPrimaryPreference[];
     referenceCandidatesByIsin?: Map<string, DbMarketReferenceInstrument[]>;
+    manualCandidatesByIsin?: Map<string, ManualEurSymbolCandidateEntry>;
 }): EurPrimaryResolutionPlan {
     const mappingsByIsin = new Map<string, SymbolMappingForPrimaryPreference[]>();
     for (const mapping of input.mappings) {
@@ -208,6 +217,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 candidateTier: null,
                 verifiedCandidates: [],
                 proposalCandidates: [],
+                validationBlocked: false,
             });
             continue;
         }
@@ -232,6 +242,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 candidateTier: null,
                 verifiedCandidates: [],
                 proposalCandidates: [],
+                validationBlocked: false,
             });
             continue;
         }
@@ -241,6 +252,7 @@ export function buildEurPrimaryResolutionPlan(input: {
         const verifiedSeen = new Set<string>();
         const proposalSeen = new Set<string>();
         const references = input.referenceCandidatesByIsin?.get(instrument.isin) ?? [];
+        const manualEntry = input.manualCandidatesByIsin?.get(instrument.isin) ?? null;
 
         if (currentPrimaryCurrency === "EUR" && !currentPrimaryVerified) {
             const currentPrimarySymbol = normalizeSymbol(currentPrimary.symbol);
@@ -351,6 +363,33 @@ export function buildEurPrimaryResolutionPlan(input: {
             }
         }
 
+        if (manualEntry) {
+            for (const rawSymbol of manualEntry.candidates) {
+                const symbol = normalizeSymbol(rawSymbol);
+                if (!symbol || symbol === normalizeSymbol(currentPrimary.symbol)) continue;
+                const owners = (ownershipBySymbol.get(symbol) ?? []).filter((owner) => owner.assetId !== instrument.id);
+                const owner = owners[0] ?? null;
+                pushCandidate(
+                    proposalCandidates,
+                    {
+                        symbol,
+                        exchange: null,
+                        currency: "EUR",
+                        tier: classifyEurCandidateTier(symbol, null),
+                        verified: false,
+                        sourceType: "manual_eur_candidate",
+                        sourceKey: "manual_eur_symbol_candidates",
+                        mappingId: null,
+                        ownerAssetId: owner?.assetId ?? null,
+                        ownerIsin: owner?.isin ?? null,
+                        ownerDisplayName: owner?.displayName ?? null,
+                        hasOwnershipConflict: owners.length > 0,
+                    },
+                    proposalSeen,
+                );
+            }
+        }
+
         const sortedVerifiedCandidates = [...verifiedCandidates].sort((left, right) => {
             const tierDiff = tierPriority(left.tier) - tierPriority(right.tier);
             if (tierDiff !== 0) return tierDiff;
@@ -384,6 +423,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 candidateTier: selectedCandidate.tier,
                 verifiedCandidates: sortedVerifiedCandidates,
                 proposalCandidates,
+                validationBlocked: false,
             };
         } else if (topTierVerifiedCandidates.length > 0 && topTierUnconflicted.length === 0) {
             manualReviewCases += 1;
@@ -401,6 +441,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 candidateTier: topTier,
                 verifiedCandidates: sortedVerifiedCandidates,
                 proposalCandidates,
+                validationBlocked: false,
             };
         } else if (topTierUnconflicted.length > 1) {
             manualReviewCases += 1;
@@ -418,6 +459,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 candidateTier: topTier,
                 verifiedCandidates: sortedVerifiedCandidates,
                 proposalCandidates,
+                validationBlocked: false,
             };
         } else if (proposalCandidates.length > 0) {
             const sortedProposalCandidates = proposalCandidates.sort((left, right) => {
@@ -432,6 +474,8 @@ export function buildEurPrimaryResolutionPlan(input: {
             const proposalTopTierUnconflicted = proposalTopTierRows.filter((candidate) => !candidate.hasOwnershipConflict);
 
             manualReviewCases += 1;
+            const validationBlocked = Boolean(manualEntry?.manualReview);
+            const conflictOnly = proposalTopTierRows.length > 0 && proposalTopTierUnconflicted.length === 0;
             item = {
                 assetId: instrument.id,
                 isin: instrument.isin,
@@ -441,33 +485,36 @@ export function buildEurPrimaryResolutionPlan(input: {
                 currentPrimaryExchange: currentPrimary.exchange,
                 currentPrimaryCurrency,
                 status: "manual_review",
-                reason: proposalTopTierRows.length > 0 && proposalTopTierUnconflicted.length === 0
+                reason: conflictOnly
                     ? "symbol_owned_by_other_asset"
                     : (
                         currentPrimaryCurrency === "EUR" && !currentPrimaryVerified
                             ? "unverified_eur_primary"
-                            : "needs_validation"
+                            : (validationBlocked && sortedProposalCandidates.length === 0 ? "no_candidate" : "needs_validation")
                     ),
                 selectedCandidate: (
                     proposalTopTierRows.length > 0
-                        && (
-                            proposalTopTierUnconflicted.length === 0
+                    && (
+                            conflictOnly
                             || (currentPrimaryCurrency === "EUR" && !currentPrimaryVerified)
+                            || validationBlocked
                         )
                 )
                     ? (proposalTopTierRows[0] ?? null)
                     : null,
                 candidateTier: (
                     proposalTopTierRows.length > 0
-                        && (
-                            proposalTopTierUnconflicted.length === 0
+                    && (
+                            conflictOnly
                             || (currentPrimaryCurrency === "EUR" && !currentPrimaryVerified)
+                            || validationBlocked
                         )
                 )
                     ? proposalTopTier
                     : null,
                 verifiedCandidates: sortedVerifiedCandidates,
                 proposalCandidates: sortedProposalCandidates,
+                validationBlocked,
             };
         } else {
             manualReviewCases += 1;
@@ -485,6 +532,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 candidateTier: null,
                 verifiedCandidates: sortedVerifiedCandidates,
                 proposalCandidates: [],
+                validationBlocked: Boolean(manualEntry?.manualReview),
             };
         }
 
