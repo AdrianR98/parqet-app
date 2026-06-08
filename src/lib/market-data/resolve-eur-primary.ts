@@ -38,6 +38,7 @@ export type EurPrimaryCandidate = {
     ownerIsin: string | null;
     ownerDisplayName: string | null;
     hasOwnershipConflict: boolean;
+    manualCandidateOrder: number | null;
 };
 
 export type ManualEurSymbolCandidateEntry = {
@@ -78,6 +79,17 @@ export type EurPrimaryResolutionPlan = {
 };
 
 const GERMAN_SUFFIXES = new Set([".DE", ".F", ".HM", ".BE", ".DU", ".HA", ".MU", ".SG"]);
+const CANDIDATE_SUFFIX_PRIORITY = new Map<string, number>([
+    [".DE", 0],
+    [".F", 1],
+    [".DU", 2],
+    [".HM", 3],
+    [".MU", 4],
+    [".SG", 5],
+    [".AS", 6],
+    [".VI", 7],
+    [".SW", 8],
+]);
 const GERMAN_EXCHANGES = new Set([
     "XETRA",
     "FRA",
@@ -114,6 +126,12 @@ function normalizeExchange(value: string | null | undefined): string | null {
     return normalized || null;
 }
 
+function normalizeSuffix(symbol: string | null | undefined): string | null {
+    const normalizedSymbol = normalizeSymbol(symbol);
+    if (!normalizedSymbol?.includes(".")) return null;
+    return normalizedSymbol.slice(normalizedSymbol.lastIndexOf("."));
+}
+
 function isTerminalStatus(status: DbMarketInstrument["marketDataStatus"]): boolean {
     return status === "excluded" || status === "legacy" || status === "derivative";
 }
@@ -143,6 +161,33 @@ function tierPriority(tier: EurPrimaryCandidateTier): number {
     if (tier === "de") return 0;
     if (tier === "german_eur_fallback") return 1;
     return 2;
+}
+
+export function getEurCandidatePolicyRank(candidate: Pick<EurPrimaryCandidate, "symbol" | "tier">): number {
+    const suffix = normalizeSuffix(candidate.symbol);
+    const exactRank = suffix ? CANDIDATE_SUFFIX_PRIORITY.get(suffix) : undefined;
+    if (exactRank !== undefined) {
+        return exactRank;
+    }
+
+    if (candidate.tier === "de") return 0;
+    if (candidate.tier === "german_eur_fallback") return 20;
+    return 30;
+}
+
+export function compareEurCandidatesByPolicy(
+    left: Pick<EurPrimaryCandidate, "symbol" | "tier" | "manualCandidateOrder">,
+    right: Pick<EurPrimaryCandidate, "symbol" | "tier" | "manualCandidateOrder">,
+): number {
+    const rankDiff = getEurCandidatePolicyRank(left) - getEurCandidatePolicyRank(right);
+    if (rankDiff !== 0) return rankDiff;
+
+    if (left.manualCandidateOrder !== null && right.manualCandidateOrder !== null) {
+        const manualOrderDiff = left.manualCandidateOrder - right.manualCandidateOrder;
+        if (manualOrderDiff !== 0) return manualOrderDiff;
+    }
+
+    return left.symbol.localeCompare(right.symbol);
 }
 
 function pushCandidate(
@@ -275,6 +320,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                     ownerIsin: owner?.isin ?? null,
                     ownerDisplayName: owner?.displayName ?? null,
                     hasOwnershipConflict: owners.length > 0,
+                    manualCandidateOrder: null,
                 },
                 proposalSeen,
             );
@@ -300,6 +346,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 ownerIsin: owner?.isin ?? null,
                 ownerDisplayName: owner?.displayName ?? null,
                 hasOwnershipConflict: owners.length > 0,
+                manualCandidateOrder: null,
             };
 
             if (candidate.verified) {
@@ -357,6 +404,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                         ownerIsin: owner?.isin ?? null,
                         ownerDisplayName: owner?.displayName ?? null,
                         hasOwnershipConflict: owners.length > 0,
+                        manualCandidateOrder: null,
                     },
                     proposalSeen,
                 );
@@ -364,7 +412,7 @@ export function buildEurPrimaryResolutionPlan(input: {
         }
 
         if (manualEntry) {
-            for (const rawSymbol of manualEntry.candidates) {
+            for (const [manualCandidateOrder, rawSymbol] of manualEntry.candidates.entries()) {
                 const symbol = normalizeSymbol(rawSymbol);
                 if (!symbol || symbol === normalizeSymbol(currentPrimary.symbol)) continue;
                 const owners = (ownershipBySymbol.get(symbol) ?? []).filter((owner) => owner.assetId !== instrument.id);
@@ -384,17 +432,14 @@ export function buildEurPrimaryResolutionPlan(input: {
                         ownerIsin: owner?.isin ?? null,
                         ownerDisplayName: owner?.displayName ?? null,
                         hasOwnershipConflict: owners.length > 0,
+                        manualCandidateOrder,
                     },
                     proposalSeen,
                 );
             }
         }
 
-        const sortedVerifiedCandidates = [...verifiedCandidates].sort((left, right) => {
-            const tierDiff = tierPriority(left.tier) - tierPriority(right.tier);
-            if (tierDiff !== 0) return tierDiff;
-            return left.symbol.localeCompare(right.symbol);
-        });
+        const sortedVerifiedCandidates = [...verifiedCandidates].sort(compareEurCandidatesByPolicy);
 
         const topTier = sortedVerifiedCandidates[0]?.tier ?? null;
         const topTierVerifiedCandidates = topTier
@@ -462,11 +507,7 @@ export function buildEurPrimaryResolutionPlan(input: {
                 validationBlocked: false,
             };
         } else if (proposalCandidates.length > 0) {
-            const sortedProposalCandidates = proposalCandidates.sort((left, right) => {
-                const tierDiff = tierPriority(left.tier) - tierPriority(right.tier);
-                if (tierDiff !== 0) return tierDiff;
-                return left.symbol.localeCompare(right.symbol);
-            });
+            const sortedProposalCandidates = proposalCandidates.sort(compareEurCandidatesByPolicy);
             const proposalTopTier = sortedProposalCandidates[0]?.tier ?? null;
             const proposalTopTierRows = proposalTopTier
                 ? sortedProposalCandidates.filter((candidate) => candidate.tier === proposalTopTier)

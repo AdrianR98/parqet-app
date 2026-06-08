@@ -325,7 +325,7 @@ describe("resolve EUR primary plan", () => {
         });
 
         expect(plan.items[0]?.proposalCandidates[0]).toMatchObject({
-            symbol: "DRH.DU",
+            symbol: "DRH.F",
             tier: "german_eur_fallback",
         });
         expect(plan.items[0]?.proposalCandidates.at(-1)).toMatchObject({

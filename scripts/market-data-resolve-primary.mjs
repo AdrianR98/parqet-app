@@ -4,6 +4,10 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import nextEnv from "@next/env";
+import {
+    compareEurCandidatesByPolicy,
+    getEurCandidatePolicyRank,
+} from "../src/lib/market-data/resolve-eur-primary.ts";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -234,6 +238,26 @@ function runCommand(command, args, label) {
     });
 }
 
+function chooseCandidateFromSameRank(candidates) {
+    if (candidates.length <= 1) {
+        return candidates[0] ?? null;
+    }
+
+    const withManualOrder = candidates.filter((candidate) => candidate.manualCandidateOrder !== null);
+    if (withManualOrder.length !== candidates.length) {
+        return null;
+    }
+
+    const sortedByManualOrder = [...withManualOrder].sort((left, right) => left.manualCandidateOrder - right.manualCandidateOrder);
+    const topOrder = sortedByManualOrder[0]?.manualCandidateOrder ?? null;
+    if (topOrder === null) {
+        return null;
+    }
+
+    const topOrderRows = sortedByManualOrder.filter((candidate) => candidate.manualCandidateOrder === topOrder);
+    return topOrderRows.length === 1 ? topOrderRows[0] : null;
+}
+
 function chooseCandidateByTier(candidates) {
     if (!candidates || candidates.length === 0) {
         return {
@@ -244,32 +268,29 @@ function chooseCandidateByTier(candidates) {
         };
     }
 
-    const priority = { de: 0, german_eur_fallback: 1, other_eur_fallback: 2 };
-    const sorted = [...candidates].sort((left, right) => {
-        const tierDiff = priority[left.tier] - priority[right.tier];
-        if (tierDiff !== 0) return tierDiff;
-        return left.symbol.localeCompare(right.symbol);
-    });
-    const topTier = sorted[0].tier;
-    const topTierRows = sorted.filter((candidate) => candidate.tier === topTier);
-    const topTierUnconflicted = topTierRows.filter((candidate) => !candidate.hasOwnershipConflict);
+    const sorted = [...candidates].sort(compareEurCandidatesByPolicy);
+    const topRank = getEurCandidatePolicyRank(sorted[0]);
+    const topRankRows = sorted.filter((candidate) => getEurCandidatePolicyRank(candidate) === topRank);
+    const topRankUnconflicted = topRankRows.filter((candidate) => !candidate.hasOwnershipConflict);
+    const selectedUnconflicted = chooseCandidateFromSameRank(topRankUnconflicted);
 
-    if (topTierUnconflicted.length === 1) {
+    if (selectedUnconflicted) {
         return {
-            status: topTier === "de"
+            status: selectedUnconflicted.tier === "de"
                 ? "verified_de"
-                : (topTier === "german_eur_fallback" ? "verified_german_eur_fallback" : "verified_other_eur_fallback"),
+                : (selectedUnconflicted.tier === "german_eur_fallback" ? "verified_german_eur_fallback" : "verified_other_eur_fallback"),
             reason: "validated_verified_candidate",
-            selectedCandidate: topTierUnconflicted[0],
+            selectedCandidate: selectedUnconflicted,
             validatedCandidates: sorted,
         };
     }
 
-    if (topTierRows.length > 0 && topTierUnconflicted.length === 0) {
+    if (topRankRows.length > 0 && topRankUnconflicted.length === 0) {
+        const selectedConflict = chooseCandidateFromSameRank(topRankRows);
         return {
             status: "conflict",
             reason: "symbol_owned_by_other_asset",
-            selectedCandidate: topTierRows[0],
+            selectedCandidate: selectedConflict,
             validatedCandidates: sorted,
         };
     }
@@ -617,6 +638,8 @@ async function run() {
 
 export {
     buildProposalRows,
+    buildValidationReport,
+    chooseCandidateByTier,
     getWriteModeGuardError,
     needsVerifiedPrimaryPromotion,
     parseArgs,

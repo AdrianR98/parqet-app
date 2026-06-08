@@ -7,6 +7,8 @@ import {
 } from "../../scripts/backfill-primary-market-data.mjs";
 import {
     buildProposalRows,
+    buildValidationReport,
+    chooseCandidateByTier,
     getWriteModeGuardError,
     needsVerifiedPrimaryPromotion,
     parseArgs as parseResolveArgs,
@@ -216,12 +218,12 @@ describe("market data operator commands", () => {
         expect(buildProposalRows(plan)).toEqual([
             expect.objectContaining({
                 isin: "CA09173B1076",
-                symbol: "1B2.DU",
+                symbol: "1B2.F",
                 sourceType: "manual_eur_candidate",
             }),
             expect.objectContaining({
                 isin: "CA09173B1076",
-                symbol: "1B2.F",
+                symbol: "1B2.DU",
                 sourceType: "manual_eur_candidate",
             }),
             expect.objectContaining({
@@ -328,6 +330,283 @@ describe("market data operator commands", () => {
 
         expect(plan.items[0]?.validationBlocked).toBe(true);
         expect(buildProposalRows(plan)).toEqual([]);
+    });
+
+    it("selects .DE over .F for validated candidates", () => {
+        const selection = chooseCandidateByTier([
+            {
+                symbol: "RY6.F",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 1,
+            },
+            {
+                symbol: "RY6.DE",
+                tier: "de",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 0,
+            },
+        ]);
+
+        expect(selection).toMatchObject({
+            status: "verified_de",
+            reason: "validated_verified_candidate",
+            selectedCandidate: expect.objectContaining({ symbol: "RY6.DE" }),
+        });
+    });
+
+    it("selects .F over .DU for validated candidates", () => {
+        const selection = chooseCandidateByTier([
+            {
+                symbol: "1B2.DU",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 1,
+            },
+            {
+                symbol: "1B2.F",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 0,
+            },
+        ]);
+
+        expect(selection).toMatchObject({
+            status: "verified_german_eur_fallback",
+            selectedCandidate: expect.objectContaining({ symbol: "1B2.F" }),
+        });
+    });
+
+    it("selects German fallback over .AS/.VI/.SW validated candidates", () => {
+        const selection = chooseCandidateByTier([
+            {
+                symbol: "DRO.SW",
+                tier: "other_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 4,
+            },
+            {
+                symbol: "DRH.DU",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 1,
+            },
+        ]);
+
+        expect(selection).toMatchObject({
+            status: "verified_german_eur_fallback",
+            selectedCandidate: expect.objectContaining({ symbol: "DRH.DU" }),
+        });
+    });
+
+    it("uses manual candidate order to break same-rank validated ties", () => {
+        const selection = chooseCandidateByTier([
+            {
+                symbol: "BY6.HM",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 2,
+            },
+            {
+                symbol: "BY6.DU",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: 1,
+            },
+        ]);
+
+        expect(selection).toMatchObject({
+            status: "verified_german_eur_fallback",
+            selectedCandidate: expect.objectContaining({ symbol: "BY6.DU" }),
+        });
+    });
+
+    it("keeps true same-rank validated ties ambiguous when no manual ordering can resolve them", () => {
+        const selection = chooseCandidateByTier([
+            {
+                symbol: "AAA.DU",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: null,
+            },
+            {
+                symbol: "BBB.DU",
+                tier: "german_eur_fallback",
+                hasOwnershipConflict: false,
+                manualCandidateOrder: null,
+            },
+        ]);
+
+        expect(selection).toMatchObject({
+            status: "ambiguous",
+            reason: "ambiguous_verified_candidates",
+            selectedCandidate: null,
+        });
+    });
+
+    it("keeps Shell as conflict in validation reporting", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [{
+                id: "asset-shell",
+                isin: "GB00BP6MXD84",
+                name: "Shell plc",
+                displayName: "Shell plc",
+                assetType: "stock",
+                currency: "GBP",
+                wkn: null,
+                metadataSource: null,
+                metadataUpdatedAt: null,
+                nameSource: null,
+                displayNameSource: null,
+                displayMetadataUpdatedAt: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                marketDataSuccessorIsin: null,
+                marketDataSuccessorSymbol: null,
+                marketDataStatusUpdatedAt: null,
+                createdAt: "2026-06-04T00:00:00.000Z",
+                updatedAt: "2026-06-04T00:00:00.000Z",
+            }, {
+                id: "asset-owner",
+                isin: "GB00B03MLX29",
+                name: "Legacy Shell",
+                displayName: "Legacy Shell",
+                assetType: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadataSource: null,
+                metadataUpdatedAt: null,
+                nameSource: null,
+                displayNameSource: null,
+                displayMetadataUpdatedAt: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                marketDataSuccessorIsin: null,
+                marketDataSuccessorSymbol: null,
+                marketDataStatusUpdatedAt: null,
+                createdAt: "2026-06-04T00:00:00.000Z",
+                updatedAt: "2026-06-04T00:00:00.000Z",
+            }],
+            mappings: [
+                {
+                    assetId: "asset-shell",
+                    isin: "GB00BP6MXD84",
+                    displayName: "Shell plc",
+                    marketDataStatus: "active",
+                    mappingId: "shell-primary",
+                    provider: "yfinance",
+                    symbol: "SHEL.L",
+                    exchange: "LSE",
+                    currency: "GBp",
+                    isPrimary: true,
+                    isActive: true,
+                    verifiedAt: "2026-06-04T00:00:00.000Z",
+                    notes: null,
+                    providerPriceRowCount: 0,
+                    providerLatestPriceDate: null,
+                },
+                {
+                    assetId: "asset-owner",
+                    isin: "GB00B03MLX29",
+                    displayName: "Legacy Shell",
+                    marketDataStatus: "active",
+                    mappingId: "owner-primary",
+                    provider: "yfinance",
+                    symbol: "R6C0.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                    isPrimary: true,
+                    isActive: true,
+                    verifiedAt: "2026-06-04T00:00:00.000Z",
+                    notes: null,
+                    providerPriceRowCount: 0,
+                    providerLatestPriceDate: null,
+                },
+            ],
+            manualCandidatesByIsin: new Map([
+                ["GB00BP6MXD84", {
+                    name: "Shell",
+                    manualReview: true,
+                    manualReviewReason: "R6C0.DE ownership conflict with GB00B03MLX29",
+                    candidates: ["SHELL.AS", "R6C0.DE", "R6C0.F"],
+                }],
+            ]),
+        });
+
+        const report = buildValidationReport({
+            plan,
+            validationResultsByKey: new Map(),
+        });
+
+        expect(report[0]).toMatchObject({
+            status: "conflict",
+            reason: "symbol_owned_by_other_asset",
+            selectedCandidate: expect.objectContaining({ symbol: "R6C0.DE" }),
+        });
+    });
+
+    it("keeps SNDK as no_candidate in validation reporting", () => {
+        const plan = buildEurPrimaryResolutionPlan({
+            instruments: [{
+                id: "asset-sndk",
+                isin: "US80004C2008",
+                name: "SanDisk / SNDK",
+                displayName: "SanDisk / SNDK",
+                assetType: "stock",
+                currency: "USD",
+                wkn: null,
+                metadataSource: null,
+                metadataUpdatedAt: null,
+                nameSource: null,
+                displayNameSource: null,
+                displayMetadataUpdatedAt: null,
+                marketDataStatus: "active",
+                marketDataStatusReason: null,
+                marketDataSuccessorIsin: null,
+                marketDataSuccessorSymbol: null,
+                marketDataStatusUpdatedAt: null,
+                createdAt: "2026-06-04T00:00:00.000Z",
+                updatedAt: "2026-06-04T00:00:00.000Z",
+            }],
+            mappings: [
+                {
+                    assetId: "asset-sndk",
+                    isin: "US80004C2008",
+                    displayName: "SanDisk / SNDK",
+                    marketDataStatus: "active",
+                    mappingId: "sndk-primary",
+                    provider: "yfinance",
+                    symbol: "SNDK",
+                    exchange: "NASDAQ",
+                    currency: "USD",
+                    isPrimary: true,
+                    isActive: true,
+                    verifiedAt: "2026-06-04T00:00:00.000Z",
+                    notes: null,
+                    providerPriceRowCount: 0,
+                    providerLatestPriceDate: null,
+                },
+            ],
+            manualCandidatesByIsin: new Map([
+                ["US80004C2008", {
+                    name: "SanDisk / SNDK",
+                    manualReview: true,
+                    manualReviewReason: "No EUR candidate provided from Parqet list",
+                    candidates: [],
+                }],
+            ]),
+        });
+
+        const report = buildValidationReport({
+            plan,
+            validationResultsByKey: new Map(),
+        });
+
+        expect(report[0]).toMatchObject({
+            status: "no_candidate",
+            reason: "no_candidate",
+            selectedCandidate: null,
+        });
     });
 
     it("reports partial backfill success when prices succeed but actions fail", () => {
