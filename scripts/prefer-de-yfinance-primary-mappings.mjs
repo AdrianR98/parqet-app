@@ -314,8 +314,8 @@ function describeFailure(candidate, error, failureStage) {
 
 async function executeSelectedCandidates({
     selectedCandidates,
-    replacementPayloads,
     continueOnError,
+    prepareReplacementHistory,
     replacePrimaryMappingPriceHistory,
     setPrimarySymbolMappingByIsin,
     nowIso,
@@ -328,16 +328,16 @@ async function executeSelectedCandidates({
     for (const candidate of selectedCandidates) {
         if (candidate.requiresFullHistoryReplacement) {
             executionSummary.attemptedReplacements += 1;
-            const payload = replacementPayloads.get(candidate.newPrimaryMappingId);
-            if (!payload) {
-                const error = new Error(`Missing prepared replacement history for ${candidate.isin} / ${candidate.newPrimarySymbol}.`);
-                error.failureCode = "missing_prepared_history";
-                error.failureReason = error.message;
-                const failure = describeFailure(candidate, error, "prepare_history");
+            let payload;
+            try {
+                payload = await prepareReplacementHistory(candidate);
+            } catch (error) {
+                const wrappedError = buildPreparationBlocker(candidate, error);
+                const failure = describeFailure(candidate, wrappedError, "prepare_history");
                 executionSummary.failedReplacements += 1;
                 failures.push(failure);
                 if (!continueOnError) {
-                    throw { error: buildExecutionBlocker(candidate, error, executionSummary), summary: executionSummary, failures };
+                    throw { error: wrappedError, summary: executionSummary, failures };
                 }
                 continue;
             }
@@ -471,22 +471,6 @@ async function run() {
         );
     }
 
-    const replacementPayloads = new Map();
-    if (options.replaceHistory) {
-        for (const candidate of selection.selectedCandidates.filter((item) => item.requiresFullHistoryReplacement)) {
-            try {
-                const payload = await exportFullHistory({
-                    python: options.python,
-                    isin: candidate.isin,
-                    displayName: candidate.displayName,
-                    symbol: candidate.newPrimarySymbol,
-                });
-                replacementPayloads.set(candidate.newPrimaryMappingId, payload);
-            } catch (error) {
-                throw buildPreparationBlocker(candidate, error);
-            }
-        }
-    }
     const skippedReplacements = selection.candidates.filter(
         (candidate) => candidate.requiresFullHistoryReplacement && candidate.selectionStatus !== "selected",
     ).length;
@@ -496,8 +480,20 @@ async function run() {
     try {
         ({ executionSummary, failures } = await executeSelectedCandidates({
             selectedCandidates: selection.selectedCandidates,
-            replacementPayloads,
             continueOnError: options.continueOnError,
+            prepareReplacementHistory: async (candidate) => {
+                if (!options.replaceHistory) {
+                    const error = new Error(`Missing prepared replacement history for ${candidate.isin} / ${candidate.newPrimarySymbol}.`);
+                    error.code = "missing_prepared_history";
+                    throw error;
+                }
+                return exportFullHistory({
+                    python: options.python,
+                    isin: candidate.isin,
+                    displayName: candidate.displayName,
+                    symbol: candidate.newPrimarySymbol,
+                });
+            },
             replacePrimaryMappingPriceHistory,
             setPrimarySymbolMappingByIsin,
             nowIso,
