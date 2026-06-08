@@ -5,6 +5,8 @@ import {
   buildDashboardAssetsUrl,
   getOrCreateSharedDashboardRequest,
   resolveDashboardBootPolicy,
+  shouldSkipRecentDashboardAssetsRequest,
+  shouldUseProviderRefreshForDashboardLoad,
 } from "../../src/hooks/use-dashboard-data";
 
 describe("shouldAutoRefreshDashboardData", () => {
@@ -235,6 +237,36 @@ describe("shouldAutoRefreshDashboardData", () => {
             bootPolicy: "no_local_bootstrap",
             shouldFetchProviderPortfolios: false,
         });
+    });
+
+    it("does not use provider refresh for normal dashboard loads", () => {
+        expect(shouldUseProviderRefreshForDashboardLoad()).toBe(false);
+    });
+
+    it("skips a recent same-scope local asset request when cache is fresh", () => {
+        const completedAtByKey = new Map<string, number>([["assets:p1", 1_000]]);
+        expect(shouldSkipRecentDashboardAssetsRequest({
+            requestKey: "assets:p1",
+            explicitRefresh: false,
+            hasCachedData: true,
+            isCacheStale: false,
+            now: 5_000,
+            cooldownMs: 10_000,
+            completedAtByKey,
+        })).toBe(true);
+    });
+
+    it("does not skip recent same-scope requests when cache is stale", () => {
+        const completedAtByKey = new Map<string, number>([["assets:p1", 1_000]]);
+        expect(shouldSkipRecentDashboardAssetsRequest({
+            requestKey: "assets:p1",
+            explicitRefresh: false,
+            hasCachedData: true,
+            isCacheStale: true,
+            now: 5_000,
+            cooldownMs: 10_000,
+            completedAtByKey,
+        })).toBe(false);
     });
 
     it("reuses the same in-flight request promise for duplicate scope loads", async () => {

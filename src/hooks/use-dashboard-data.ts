@@ -37,6 +37,8 @@ import {
 import { usePortfolioFilter } from "./use-portfolio-filter";
 
 const sharedDashboardRequestRegistry = new Map<string, Promise<unknown>>();
+const completedDashboardAssetRequestTimestamps = new Map<string, number>();
+const DASHBOARD_LOCAL_ASSET_REQUEST_COOLDOWN_MS = 15_000;
 
 export type DashboardBootPolicy = "local_known_portfolios" | "local_cache_only" | "no_local_bootstrap";
 
@@ -181,6 +183,34 @@ export function buildDashboardAssetsUrl(
   }
 
   return `/api/parqet/assets?${params.toString()}`;
+}
+
+export function shouldUseProviderRefreshForDashboardLoad(): boolean {
+  return false;
+}
+
+export function shouldSkipRecentDashboardAssetsRequest(input: {
+  requestKey: string;
+  explicitRefresh: boolean;
+  hasCachedData: boolean;
+  isCacheStale: boolean;
+  now?: number;
+  cooldownMs?: number;
+  completedAtByKey?: Map<string, number>;
+}): boolean {
+  if (input.explicitRefresh || !input.hasCachedData || input.isCacheStale) {
+    return false;
+  }
+
+  const completedAtByKey = input.completedAtByKey ?? completedDashboardAssetRequestTimestamps;
+  const completedAt = completedAtByKey.get(input.requestKey);
+  if (typeof completedAt !== "number") {
+    return false;
+  }
+
+  const now = input.now ?? Date.now();
+  const cooldownMs = input.cooldownMs ?? DASHBOARD_LOCAL_ASSET_REQUEST_COOLDOWN_MS;
+  return now - completedAt < cooldownMs;
 }
 
 export function getOrCreateSharedDashboardRequest<T>(
@@ -422,6 +452,20 @@ export function useDashboardData(): UseDashboardDataResult {
     }
 
     const portfolioIdsForLoad = nextSelectedPortfolioIds ?? selectedPortfolioIdsRef.current;
+    const explicitRefresh = options?.explicitRefresh === true;
+    const requestKey = buildDashboardAssetRequestKey(
+      portfolioIdsForLoad,
+      explicitRefresh,
+    );
+
+    if (shouldSkipRecentDashboardAssetsRequest({
+      requestKey,
+      explicitRefresh,
+      hasCachedData,
+      isCacheStale: isDashboardDataStale(lastUpdatedAt),
+    })) {
+      return;
+    }
 
     assetLoadInFlightRef.current = true;
     const hasVisibleData = activeAssets.length > 0 || closedAssets.length > 0;
@@ -432,15 +476,12 @@ export function useDashboardData(): UseDashboardDataResult {
     try {
       const data = await getOrCreateSharedDashboardRequest(
         sharedDashboardRequestRegistry,
-        buildDashboardAssetRequestKey(
-          portfolioIdsForLoad,
-          options?.explicitRefresh === true,
-        ),
+        requestKey,
         async () => {
           const res = await fetch(
             buildDashboardAssetsUrl(
               portfolioIdsForLoad,
-              options?.explicitRefresh === true,
+              explicitRefresh,
             ),
           );
           const rawText = await res.text();
@@ -482,6 +523,7 @@ export function useDashboardData(): UseDashboardDataResult {
       setLastUpdatedAt(preparedCacheWrite.generatedAt);
       setLastLoadedPortfolioIds(portfolioIdsForLoad);
       setHasCachedData(true);
+      completedDashboardAssetRequestTimestamps.set(requestKey, Date.now());
 
     } catch (error) {
       setErrorMessage(
@@ -499,6 +541,8 @@ export function useDashboardData(): UseDashboardDataResult {
     activeAssets.length,
     closedAssets.length,
     guardedGlobalAssetProductEnabled,
+    hasCachedData,
+    lastUpdatedAt,
   ]);
 
   function resetPortfolioSelectionToAll() {
@@ -606,7 +650,7 @@ export function useDashboardData(): UseDashboardDataResult {
 
     autoRefreshExecutedKeysRef.current.add(decision.executionKey);
     void loadAssets(effectiveSelectedPortfolioIds, {
-      explicitRefresh: decision.reason !== "cached_revalidate",
+      explicitRefresh: shouldUseProviderRefreshForDashboardLoad(),
     });
   }, [
     loadingPortfolios,
