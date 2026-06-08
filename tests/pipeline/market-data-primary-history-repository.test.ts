@@ -171,6 +171,45 @@ describe("replace primary mapping price history", () => {
         ).rejects.toThrow(/Latest-Price-Verifikation fehlgeschlagen/);
     });
 
+    it("normalizes DB date objects without timezone drift during latest-price verification", async () => {
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: "mapping-1",
+                    owner_asset_id: "instrument-1",
+                    provider: "yfinance",
+                    symbol: "BMW.DE",
+                    currency: "EUR",
+                    isin: "US0000000001",
+                }],
+            })
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ is_primary: true }] })
+            .mockResolvedValueOnce({ rowCount: 8 })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ inserted_count: 1 }] })
+            .mockResolvedValueOnce({ rows: [{ latest_price_date: new Date(2026, 5, 8, 0, 0, 0) }] })
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        const result = await replacePrimaryMappingPriceHistory({
+            isin: "US0000000001",
+            provider: "yfinance",
+            targetMappingId: "mapping-1",
+            replacementCurrency: "EUR",
+            replacementPoints: [
+                { date: "2026-06-08T00:00:00+02:00", close: 102.5, currency: "EUR" },
+            ],
+        });
+
+        expect(result.latestPriceDate).toBe("2026-06-08");
+    });
+
     it("fails clearly when the target primary mapping cannot be set", async () => {
         const clientQuery = vi
             .fn()

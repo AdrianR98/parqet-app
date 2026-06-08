@@ -109,37 +109,59 @@ function toNullableNumber(value: unknown): number | null {
     return Number.isFinite(numeric) ? numeric : null;
 }
 
+function extractCalendarDatePrefix(value: string): string | null {
+    const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})(?:[T\s].*)?$/);
+    return match?.[1] ?? null;
+}
+
+function formatLocalDateParts(value: Date): string {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
 function toDateString(value: string): string {
+    const prefixedDate = extractCalendarDatePrefix(value);
+    if (prefixedDate) {
+        return prefixedDate;
+    }
+
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
         throw new MarketDataRepositoryError("invalid_input", "Ungültiges Datum.");
     }
-    return date.toISOString().slice(0, 10);
+    return formatLocalDateParts(date);
 }
 
 function normalizeDbDateValue(value: unknown): string {
     if (typeof value === "string") {
         const normalized = value.trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-            return normalized;
+        const prefixedDate = extractCalendarDatePrefix(normalized);
+        if (prefixedDate) {
+            return prefixedDate;
         }
 
         const parsed = new Date(normalized);
         if (!Number.isNaN(parsed.getTime())) {
-            return parsed.toISOString().slice(0, 10);
+            return formatLocalDateParts(parsed);
         }
 
         return normalized;
     }
 
     if (value instanceof Date) {
-        return value.toISOString().slice(0, 10);
+        return formatLocalDateParts(value);
     }
 
     const fallback = String(value ?? "");
+    const prefixedDate = extractCalendarDatePrefix(fallback);
+    if (prefixedDate) {
+        return prefixedDate;
+    }
     const parsed = new Date(fallback);
     if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toISOString().slice(0, 10);
+        return formatLocalDateParts(parsed);
     }
 
     return fallback;

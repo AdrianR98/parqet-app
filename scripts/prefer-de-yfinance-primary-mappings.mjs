@@ -34,6 +34,7 @@ function parseArgs(argv) {
         write: false,
         replaceHistory: false,
         currencyFixesOnly: false,
+        continueOnError: false,
         limit: null,
         isins: new Set(),
         excludeIsins: new Set(),
@@ -55,6 +56,10 @@ function parseArgs(argv) {
         }
         if (token === "--currency-fixes-only") {
             options.currencyFixesOnly = true;
+            continue;
+        }
+        if (token === "--continue-on-error") {
+            options.continueOnError = true;
             continue;
         }
         if (token === "--limit") {
@@ -240,6 +245,7 @@ function createExecutionSummary(selectedCandidates) {
         attemptedReplacements: 0,
         succeededReplacements: 0,
         failedReplacements: 0,
+        skippedReplacements: 0,
         primaryMappingsSwitched: 0,
         oldPriceRowsDeleted: 0,
         newPriceRowsInserted: 0,
@@ -253,23 +259,137 @@ function printExecutionSummary(summary) {
     console.log(`- attempted replacements: ${summary.attemptedReplacements}`);
     console.log(`- succeeded replacements: ${summary.succeededReplacements}`);
     console.log(`- failed replacements: ${summary.failedReplacements}`);
+    console.log(`- skipped replacements: ${summary.skippedReplacements}`);
     console.log(`- primary mappings switched: ${summary.primaryMappingsSwitched}`);
     console.log(`- old price rows deleted: ${summary.oldPriceRowsDeleted}`);
     console.log(`- new price rows inserted: ${summary.newPriceRowsInserted}`);
     console.log(`- latest prices verified: ${summary.latestPricesVerified}`);
 }
 
+function printFailedAssets(failures) {
+    if (failures.length === 0) return;
+    console.log("Failed assets:");
+    for (const failure of failures) {
+        console.log(`- isin: ${failure.isin}`);
+        console.log(`  displayName: ${failure.displayName ?? "-"}`);
+        console.log(`  oldPrimarySymbol: ${failure.oldPrimarySymbol ?? "-"}`);
+        console.log(`  newPrimarySymbol: ${failure.newPrimarySymbol}`);
+        console.log(`  failureStage: ${failure.failureStage}`);
+        console.log(`  failureCode: ${failure.failureCode}`);
+        console.log(`  failureReason: ${failure.failureReason}`);
+    }
+}
+
 function buildPreparationBlocker(candidate, error) {
-    return new Error(
+    const wrapped = new Error(
         `Replacement preparation failed for ${candidate.isin} / ${candidate.newPrimarySymbol}. No DB mutation was performed. ${safeMessage(error)}`,
     );
+    wrapped.failureStage = "prepare_history";
+    wrapped.failureCode = error?.code ?? "preparation_failed";
+    wrapped.failureReason = safeMessage(error);
+    return wrapped;
 }
 
 function buildExecutionBlocker(candidate, error, summary) {
-    return new Error(
+    const wrapped = new Error(
         `Replacement execution failed for ${candidate.isin} / ${candidate.newPrimarySymbol} after ${summary.primaryMappingsSwitched} primary switch(es). ${safeMessage(error)}`,
     );
+    wrapped.failureStage = "replace_history";
+    wrapped.failureCode = error?.code ?? "execution_failed";
+    wrapped.failureReason = safeMessage(error);
+    return wrapped;
 }
+
+function describeFailure(candidate, error, failureStage) {
+    return {
+        isin: candidate.isin,
+        displayName: candidate.displayName,
+        oldPrimarySymbol: candidate.oldPrimarySymbol,
+        newPrimarySymbol: candidate.newPrimarySymbol,
+        failureStage,
+        failureCode: error?.failureCode ?? error?.code ?? (error?.name === "MarketDataRepositoryError" ? "db_error" : "unknown_error"),
+        failureReason: error?.failureReason ?? safeMessage(error),
+    };
+}
+
+async function executeSelectedCandidates({
+    selectedCandidates,
+    replacementPayloads,
+    continueOnError,
+    replacePrimaryMappingPriceHistory,
+    setPrimarySymbolMappingByIsin,
+    nowIso,
+    skippedReplacements = 0,
+}) {
+    const executionSummary = createExecutionSummary(selectedCandidates);
+    executionSummary.skippedReplacements = skippedReplacements;
+    const failures = [];
+
+    for (const candidate of selectedCandidates) {
+        if (candidate.requiresFullHistoryReplacement) {
+            executionSummary.attemptedReplacements += 1;
+            const payload = replacementPayloads.get(candidate.newPrimaryMappingId);
+            if (!payload) {
+                const error = new Error(`Missing prepared replacement history for ${candidate.isin} / ${candidate.newPrimarySymbol}.`);
+                error.failureCode = "missing_prepared_history";
+                error.failureReason = error.message;
+                const failure = describeFailure(candidate, error, "prepare_history");
+                executionSummary.failedReplacements += 1;
+                failures.push(failure);
+                if (!continueOnError) {
+                    throw { error: buildExecutionBlocker(candidate, error, executionSummary), summary: executionSummary, failures };
+                }
+                continue;
+            }
+
+            try {
+                const result = await replacePrimaryMappingPriceHistory({
+                    isin: candidate.isin,
+                    provider: "yfinance",
+                    targetMappingId: candidate.newPrimaryMappingId,
+                    noteSuffix: `prefer_de_primary_switch_at=${nowIso}; replace_history=true`,
+                    replacementCurrency: payload.currency ?? candidate.newPrimaryCurrency ?? null,
+                    replacementPoints: payload.points,
+                });
+                executionSummary.succeededReplacements += 1;
+                executionSummary.primaryMappingsSwitched += 1;
+                executionSummary.oldPriceRowsDeleted += result.deletedPriceRows;
+                executionSummary.newPriceRowsInserted += result.insertedPriceRows;
+                if (result.latestPriceDate) {
+                    executionSummary.latestPricesVerified += 1;
+                }
+            } catch (error) {
+                executionSummary.failedReplacements += 1;
+                const failure = describeFailure(candidate, error, "replace_history");
+                failures.push(failure);
+                if (!continueOnError) {
+                    throw { error: buildExecutionBlocker(candidate, error, executionSummary), summary: executionSummary, failures };
+                }
+            }
+            continue;
+        }
+
+        try {
+            await setPrimarySymbolMappingByIsin(
+                candidate.isin,
+                "yfinance",
+                candidate.newPrimarySymbol,
+                `prefer_de_primary_switch_at=${nowIso}; replace_history=false`,
+            );
+            executionSummary.primaryMappingsSwitched += 1;
+        } catch (error) {
+            const failure = describeFailure(candidate, error, "switch_primary");
+            failures.push(failure);
+            if (!continueOnError) {
+                throw { error, summary: executionSummary, failures };
+            }
+        }
+    }
+
+    return { executionSummary, failures };
+}
+
+export { executeSelectedCandidates };
 
 async function closeDbPool() {
     try {
@@ -352,7 +472,6 @@ async function run() {
     }
 
     const replacementPayloads = new Map();
-    const executionSummary = createExecutionSummary(selection.selectedCandidates);
     if (options.replaceHistory) {
         for (const candidate of selection.selectedCandidates.filter((item) => item.requiresFullHistoryReplacement)) {
             try {
@@ -368,49 +487,32 @@ async function run() {
             }
         }
     }
-
-    for (const candidate of selection.selectedCandidates) {
-        if (candidate.requiresFullHistoryReplacement) {
-            executionSummary.attemptedReplacements += 1;
-            const payload = replacementPayloads.get(candidate.newPrimaryMappingId);
-            if (!payload) {
-                throw new Error(`Missing prepared replacement history for ${candidate.isin} / ${candidate.newPrimarySymbol}.`);
-            }
-
-            try {
-                const result = await replacePrimaryMappingPriceHistory({
-                    isin: candidate.isin,
-                    provider: "yfinance",
-                    targetMappingId: candidate.newPrimaryMappingId,
-                    noteSuffix: `prefer_de_primary_switch_at=${new Date().toISOString()}; replace_history=true`,
-                    replacementCurrency: payload.currency ?? candidate.newPrimaryCurrency ?? null,
-                    replacementPoints: payload.points,
-                });
-                executionSummary.succeededReplacements += 1;
-                executionSummary.primaryMappingsSwitched += 1;
-                executionSummary.oldPriceRowsDeleted += result.deletedPriceRows;
-                executionSummary.newPriceRowsInserted += result.insertedPriceRows;
-                if (result.latestPriceDate) {
-                    executionSummary.latestPricesVerified += 1;
-                }
-            } catch (error) {
-                executionSummary.failedReplacements += 1;
-                printExecutionSummary(executionSummary);
-                throw buildExecutionBlocker(candidate, error, executionSummary);
-            }
-            continue;
-        }
-
-        await setPrimarySymbolMappingByIsin(
-            candidate.isin,
-            "yfinance",
-            candidate.newPrimarySymbol,
-            `prefer_de_primary_switch_at=${new Date().toISOString()}; replace_history=false`,
-        );
-        executionSummary.primaryMappingsSwitched += 1;
+    const skippedReplacements = selection.candidates.filter(
+        (candidate) => candidate.requiresFullHistoryReplacement && candidate.selectionStatus !== "selected",
+    ).length;
+    const nowIso = new Date().toISOString();
+    let executionSummary;
+    let failures;
+    try {
+        ({ executionSummary, failures } = await executeSelectedCandidates({
+            selectedCandidates: selection.selectedCandidates,
+            replacementPayloads,
+            continueOnError: options.continueOnError,
+            replacePrimaryMappingPriceHistory,
+            setPrimarySymbolMappingByIsin,
+            nowIso,
+            skippedReplacements,
+        }));
+    } catch (result) {
+        printExecutionSummary(result.summary);
+        printFailedAssets(result.failures);
+        throw result.error;
     }
-
     printExecutionSummary(executionSummary);
+    printFailedAssets(failures);
+    if (failures.length > 0) {
+        throw new Error(`Replacement batch completed with ${failures.length} failed asset(s).`);
+    }
     console.log("Summary:");
     console.log(`- DB writes: enabled (--write${options.replaceHistory ? " --replace-history" : ""})`);
 }

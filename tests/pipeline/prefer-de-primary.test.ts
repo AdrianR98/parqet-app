@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseArgs } from "../../scripts/prefer-de-yfinance-primary-mappings.mjs";
+import { executeSelectedCandidates, parseArgs } from "../../scripts/prefer-de-yfinance-primary-mappings.mjs";
 import {
     buildDePrimaryPreferencePlan,
     buildDePrimaryPreferenceSelection,
@@ -63,6 +63,12 @@ describe("prefer .DE primary plan", () => {
         expect(options.currencyFixesOnly).toBe(true);
         expect(options.write).toBe(false);
         expect(options.replaceHistory).toBe(false);
+    });
+
+    it("accepts the --continue-on-error CLI flag", () => {
+        const options = parseArgs(["--continue-on-error"]);
+
+        expect(options.continueOnError).toBe(true);
     });
 
     it("prefers verified .DE mappings over non-DE primary mappings", () => {
@@ -343,6 +349,122 @@ describe("prefer .DE primary plan", () => {
                 }),
             ]),
         );
+    });
+
+    it("stops after the first replacement failure in fail-fast mode", async () => {
+        const candidateA = {
+            assetId: "asset-a",
+            isin: "US0000000100",
+            displayName: "Candidate A",
+            marketDataStatus: "active",
+            oldPrimarySymbol: "OLDA",
+            oldPrimaryMappingId: "old-a",
+            oldPrimaryExchange: "NYSE",
+            oldPrimaryCurrency: "USD",
+            newPrimarySymbol: "NEWA.DE",
+            newPrimaryMappingId: "new-a",
+            newPrimaryExchange: "XETRA",
+            newPrimaryCurrency: "EUR",
+            oldPriceRowCountToDelete: 10,
+            existingNewPriceRowCount: null,
+            requiresFullHistoryReplacement: true,
+            isCurrencyFix: true,
+            isVenueOnlySwitch: false,
+            selectionStatus: "selected",
+        };
+        const candidateB = { ...candidateA, isin: "US0000000101", displayName: "Candidate B", newPrimaryMappingId: "new-b", newPrimarySymbol: "NEWB.DE" };
+        const replaceMock = async ({ targetMappingId }) => {
+            if (targetMappingId === "new-a") {
+                const error = new Error("first failure");
+                error.code = "db_error";
+                throw error;
+            }
+            return { deletedPriceRows: 5, insertedPriceRows: 2, latestPriceDate: "2026-06-08" };
+        };
+
+        await expect(
+            executeSelectedCandidates({
+                selectedCandidates: [candidateA, candidateB],
+                replacementPayloads: new Map([
+                    ["new-a", { currency: "EUR", points: [{ date: "2026-06-08", close: 1 }] }],
+                    ["new-b", { currency: "EUR", points: [{ date: "2026-06-08", close: 1 }] }],
+                ]),
+                continueOnError: false,
+                replacePrimaryMappingPriceHistory: replaceMock,
+                setPrimarySymbolMappingByIsin: async () => undefined,
+                nowIso: "2026-06-08T00:00:00.000Z",
+            }),
+        ).rejects.toMatchObject({
+            summary: expect.objectContaining({
+                attemptedReplacements: 1,
+                succeededReplacements: 0,
+                failedReplacements: 1,
+            }),
+        });
+    });
+
+    it("continues after a replacement failure with --continue-on-error and records later successes", async () => {
+        const candidateA = {
+            assetId: "asset-a",
+            isin: "US0000000200",
+            displayName: "Candidate A",
+            marketDataStatus: "active",
+            oldPrimarySymbol: "OLDA",
+            oldPrimaryMappingId: "old-a",
+            oldPrimaryExchange: "NYSE",
+            oldPrimaryCurrency: "USD",
+            newPrimarySymbol: "NEWA.DE",
+            newPrimaryMappingId: "new-a",
+            newPrimaryExchange: "XETRA",
+            newPrimaryCurrency: "EUR",
+            oldPriceRowCountToDelete: 10,
+            existingNewPriceRowCount: null,
+            requiresFullHistoryReplacement: true,
+            isCurrencyFix: true,
+            isVenueOnlySwitch: false,
+            selectionStatus: "selected",
+        };
+        const candidateB = { ...candidateA, isin: "US0000000201", displayName: "Candidate B", newPrimaryMappingId: "new-b", newPrimarySymbol: "NEWB.DE" };
+        const replaceMock = async ({ targetMappingId }) => {
+            if (targetMappingId === "new-a") {
+                const error = new Error("first failure");
+                error.code = "db_error";
+                throw error;
+            }
+            return { deletedPriceRows: 5, insertedPriceRows: 2, latestPriceDate: "2026-06-08" };
+        };
+
+        const result = await executeSelectedCandidates({
+            selectedCandidates: [candidateA, candidateB],
+            replacementPayloads: new Map([
+                ["new-a", { currency: "EUR", points: [{ date: "2026-06-08", close: 1 }] }],
+                ["new-b", { currency: "EUR", points: [{ date: "2026-06-08", close: 1 }] }],
+            ]),
+            continueOnError: true,
+            replacePrimaryMappingPriceHistory: replaceMock,
+            setPrimarySymbolMappingByIsin: async () => undefined,
+            nowIso: "2026-06-08T00:00:00.000Z",
+            skippedReplacements: 1,
+        });
+
+        expect(result.executionSummary).toMatchObject({
+            selectedReplacements: 2,
+            attemptedReplacements: 2,
+            succeededReplacements: 1,
+            failedReplacements: 1,
+            skippedReplacements: 1,
+            primaryMappingsSwitched: 1,
+            oldPriceRowsDeleted: 5,
+            newPriceRowsInserted: 2,
+            latestPricesVerified: 1,
+        });
+        expect(result.failures).toEqual([
+            expect.objectContaining({
+                isin: "US0000000200",
+                failureStage: "replace_history",
+                failureCode: "db_error",
+            }),
+        ]);
     });
 
     it("skips terminal statuses", () => {
