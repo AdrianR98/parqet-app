@@ -5,9 +5,9 @@ import { enrichAssetsWithMetadata } from "../lib/asset-metadata";
 import { loadDashboardCache } from "../lib/dashboard-cache";
 import { shouldAutoRefreshDashboardData } from "../lib/dashboard-auto-refresh";
 import {
+  loadKnownPortfolios,
   loadPortfolioScope,
   resolvePortfolioScope,
-  saveKnownPortfolios,
   savePortfolioScope,
   subscribeToLocalSettings,
   type PortfolioScope,
@@ -28,7 +28,6 @@ import type {
   ConsistencyReport,
   DashboardStats,
   Portfolio,
-  PortfoliosApiResponse,
   ReconciliationWarning,
 } from "../lib/types";
 import {
@@ -38,6 +37,8 @@ import {
 import { usePortfolioFilter } from "./use-portfolio-filter";
 
 const sharedDashboardRequestRegistry = new Map<string, Promise<unknown>>();
+
+export type DashboardBootPolicy = "local_known_portfolios" | "local_cache_only" | "no_local_bootstrap";
 
 type UseDashboardDataResult = {
   portfolios: Portfolio[];
@@ -106,6 +107,53 @@ function haveSameStringSet(left: string[], right: string[]): boolean {
   return haveSamePortfolioSelection(left, right);
 }
 
+function haveSamePortfolioRecords(left: Portfolio[], right: Portfolio[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const sortedLeft = [...left].sort((a, b) => a.id.localeCompare(b.id));
+  const sortedRight = [...right].sort((a, b) => a.id.localeCompare(b.id));
+
+  return sortedLeft.every((portfolio, index) => {
+    const other = sortedRight[index];
+    return other != null &&
+      portfolio.id === other.id &&
+      portfolio.name === other.name &&
+      (portfolio.currency ?? "") === (other.currency ?? "") &&
+      (portfolio.createdAt ?? "") === (other.createdAt ?? "") &&
+      haveSameStringSet(portfolio.distinctBrokers ?? [], other.distinctBrokers ?? []);
+  });
+}
+
+export function resolveDashboardBootPolicy(input: {
+  knownPortfolios: Pick<Portfolio, "id" | "name">[];
+  cachedSelectedPortfolioIds: string[];
+  hasCachedDashboardData: boolean;
+}): {
+  bootPolicy: DashboardBootPolicy;
+  shouldFetchProviderPortfolios: boolean;
+} {
+  if (input.knownPortfolios.length > 0) {
+    return {
+      bootPolicy: "local_known_portfolios",
+      shouldFetchProviderPortfolios: false,
+    };
+  }
+
+  if (input.cachedSelectedPortfolioIds.length > 0 || input.hasCachedDashboardData) {
+    return {
+      bootPolicy: "local_cache_only",
+      shouldFetchProviderPortfolios: false,
+    };
+  }
+
+  return {
+    bootPolicy: "no_local_bootstrap",
+    shouldFetchProviderPortfolios: false,
+  };
+}
+
 function buildDashboardScopeKey(portfolioIds: string[]): string {
   return [...portfolioIds].sort().join("|");
 }
@@ -116,6 +164,23 @@ export function buildDashboardAssetRequestKey(
 ): string {
   const scopeKey = buildDashboardScopeKey(portfolioIds);
   return explicitRefresh ? `assets:refresh:${scopeKey}` : `assets:${scopeKey}`;
+}
+
+export function buildDashboardAssetsUrl(
+  portfolioIds: string[],
+  explicitRefresh = false,
+): string {
+  const params = new URLSearchParams();
+
+  for (const portfolioId of portfolioIds) {
+    params.append("portfolioId", portfolioId);
+  }
+
+  if (explicitRefresh) {
+    params.set("refresh", "1");
+  }
+
+  return `/api/parqet/assets?${params.toString()}`;
 }
 
 export function getOrCreateSharedDashboardRequest<T>(
@@ -140,14 +205,14 @@ export function getOrCreateSharedDashboardRequest<T>(
 }
 
 function getResponseDiagnostic(
-  data: AssetsApiResponse | PortfoliosApiResponse,
+  data: AssetsApiResponse,
 ): ParqetApiDiagnostic | null {
   const diagnostic = (data as { diagnostic?: ParqetApiDiagnostic }).diagnostic;
   return diagnostic?.category ? diagnostic : null;
 }
 
 function getUserFacingErrorMessage(
-  data: AssetsApiResponse | PortfoliosApiResponse,
+  data: AssetsApiResponse,
   fallback: string,
 ): string {
   const diagnostic = getResponseDiagnostic(data);
@@ -183,7 +248,7 @@ function getUserFacingCaughtErrorMessage(error: unknown, fallback: string): stri
 }
 
 export function useDashboardData(): UseDashboardDataResult {
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>(() => loadKnownPortfolios());
   const [showWarningsPanel, setShowWarningsPanel] = useState(false);
 
   const {
@@ -220,7 +285,7 @@ export function useDashboardData(): UseDashboardDataResult {
   const [hasEmptyManualScopeIntersection, setHasEmptyManualScopeIntersection] =
     useState(false);
 
-  const [loadingPortfolios, setLoadingPortfolios] = useState(true);
+  const [loadingPortfolios, setLoadingPortfolios] = useState(false);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [refreshingAssets, setRefreshingAssets] = useState(false);
   const [hasCachedData, setHasCachedData] = useState(false);
@@ -271,68 +336,23 @@ export function useDashboardData(): UseDashboardDataResult {
   }
 
   useEffect(() => {
-    async function loadPortfolios() {
-      setLoadingPortfolios(true);
+    const cachedDashboard = loadDashboardCache();
+    const knownPortfolios = loadKnownPortfolios();
+    const bootPolicy = resolveDashboardBootPolicy({
+      knownPortfolios,
+      cachedSelectedPortfolioIds: cachedDashboard?.selectedPortfolioIds ?? [],
+      hasCachedDashboardData: cachedDashboard != null,
+    });
+
+    setPortfolios((current) => (
+      haveSamePortfolioRecords(current, knownPortfolios) ? current : knownPortfolios
+    ));
+    setLoadingPortfolios(false);
+
+    if (bootPolicy.shouldFetchProviderPortfolios) {
       setErrorMessage("");
-
-      try {
-        const data = await getOrCreateSharedDashboardRequest(
-          sharedDashboardRequestRegistry,
-          "portfolios",
-          async () => {
-            const res = await fetch("/api/parqet/portfolios");
-            const rawText = await res.text();
-            return JSON.parse(rawText) as PortfoliosApiResponse;
-          },
-        );
-
-        if (!data.ok) {
-          if (data.authRequired) {
-            applyAuthState(data.message, data.reconnectUrl);
-            return;
-          }
-
-          throw new Error(
-            getUserFacingErrorMessage(
-              data,
-              "Portfolios konnten nicht geladen werden. Bitte versuche es später manuell erneut.",
-            ),
-          );
-        }
-
-        clearAuthState();
-
-        const items = data.portfolios?.items ?? [];
-        setPortfolios(items);
-        saveKnownPortfolios(items);
-
-        const scope = loadPortfolioScope();
-        const resolvedScope = resolvePortfolioScope(scope, items);
-
-        setPortfolioScope(resolvedScope.scope);
-        setMissingPortfolioScopeIds(resolvedScope.missingPortfolioIds);
-        setUsedPortfolioScopeFallback(resolvedScope.usedFallback);
-        setHasEmptyManualScopeIntersection(resolvedScope.hasEmptyManualIntersection);
-        hydratePortfolioSelection(resolvedScope.selectedPortfolioIds);
-
-        if (resolvedScope.usedFallback) {
-          savePortfolioScope(resolvedScope.scope);
-        }
-
-      } catch (error) {
-        setErrorMessage(
-          getUserFacingCaughtErrorMessage(
-            error,
-            "Portfolios konnten nicht geladen werden.",
-          ),
-        );
-      } finally {
-        setLoadingPortfolios(false);
-      }
     }
-
-    loadPortfolios();
-  }, [hydratePortfolioSelection]);
+  }, []);
 
   useEffect(() => {
     const cached = loadDashboardCache();
@@ -410,16 +430,6 @@ export function useDashboardData(): UseDashboardDataResult {
     setErrorMessage("");
 
     try {
-      const params = new URLSearchParams();
-
-      for (const portfolioId of portfolioIdsForLoad) {
-        params.append("portfolioId", portfolioId);
-      }
-
-      if (options?.explicitRefresh) {
-        params.set("refresh", "1");
-      }
-
       const data = await getOrCreateSharedDashboardRequest(
         sharedDashboardRequestRegistry,
         buildDashboardAssetRequestKey(
@@ -427,7 +437,12 @@ export function useDashboardData(): UseDashboardDataResult {
           options?.explicitRefresh === true,
         ),
         async () => {
-          const res = await fetch(`/api/parqet/assets?${params.toString()}`);
+          const res = await fetch(
+            buildDashboardAssetsUrl(
+              portfolioIdsForLoad,
+              options?.explicitRefresh === true,
+            ),
+          );
           const rawText = await res.text();
           return JSON.parse(rawText) as AssetsApiResponse;
         },
@@ -490,6 +505,18 @@ export function useDashboardData(): UseDashboardDataResult {
     const allIds = portfolios.map((portfolio) => portfolio.id);
     resetPortfolioSelection(allIds);
   }
+
+  useEffect(() => {
+    function syncKnownPortfoliosFromLocalState() {
+      const knownPortfolios = loadKnownPortfolios();
+      setPortfolios((current) => (
+        haveSamePortfolioRecords(current, knownPortfolios) ? current : knownPortfolios
+      ));
+    }
+
+    syncKnownPortfoliosFromLocalState();
+    return subscribeToLocalSettings(syncKnownPortfoliosFromLocalState);
+  }, []);
 
   useEffect(() => {
     if (portfolios.length === 0) {
@@ -565,7 +592,7 @@ export function useDashboardData(): UseDashboardDataResult {
       loadingPortfolios,
       loadingAssets,
       refreshingAssets,
-      hasPortfolios: portfolios.length > 0,
+      hasPortfolios: portfolios.length > 0 || effectiveSelectedPortfolioIds.length > 0,
       selectedPortfolioIds: effectiveSelectedPortfolioIds,
       hasCachedData,
       isCacheStale: isDashboardDataStale(lastUpdatedAt),

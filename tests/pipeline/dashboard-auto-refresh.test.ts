@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { shouldAutoRefreshDashboardData } from "../../src/lib/dashboard-auto-refresh";
 import {
   buildDashboardAssetRequestKey,
+  buildDashboardAssetsUrl,
   getOrCreateSharedDashboardRequest,
+  resolveDashboardBootPolicy,
 } from "../../src/hooks/use-dashboard-data";
 
 describe("shouldAutoRefreshDashboardData", () => {
@@ -195,6 +197,44 @@ describe("shouldAutoRefreshDashboardData", () => {
     it("builds one shared request key for the same portfolio scope", () => {
         expect(buildDashboardAssetRequestKey(["p2", "p1"])).toBe("assets:p1|p2");
         expect(buildDashboardAssetRequestKey(["p1", "p2"], true)).toBe("assets:refresh:p1|p2");
+    });
+
+    it("builds the internal assets url without refresh=1 during normal reloads", () => {
+        expect(buildDashboardAssetsUrl(["p2", "p1"])).toBe("/api/parqet/assets?portfolioId=p2&portfolioId=p1");
+        expect(buildDashboardAssetsUrl(["p2", "p1"], true)).toBe("/api/parqet/assets?portfolioId=p2&portfolioId=p1&refresh=1");
+    });
+
+    it("keeps provider portfolio fetch disabled when known local portfolios exist", () => {
+        expect(resolveDashboardBootPolicy({
+            knownPortfolios: [{ id: "p1", name: "Portfolio 1" }],
+            cachedSelectedPortfolioIds: ["p1"],
+            hasCachedDashboardData: true,
+        })).toEqual({
+            bootPolicy: "local_known_portfolios",
+            shouldFetchProviderPortfolios: false,
+        });
+    });
+
+    it("keeps provider portfolio fetch disabled when only cached scope exists", () => {
+        expect(resolveDashboardBootPolicy({
+            knownPortfolios: [],
+            cachedSelectedPortfolioIds: ["p1"],
+            hasCachedDashboardData: true,
+        })).toEqual({
+            bootPolicy: "local_cache_only",
+            shouldFetchProviderPortfolios: false,
+        });
+    });
+
+    it("keeps provider portfolio fetch disabled when no local bootstrap exists", () => {
+        expect(resolveDashboardBootPolicy({
+            knownPortfolios: [],
+            cachedSelectedPortfolioIds: [],
+            hasCachedDashboardData: false,
+        })).toEqual({
+            bootPolicy: "no_local_bootstrap",
+            shouldFetchProviderPortfolios: false,
+        });
     });
 
     it("reuses the same in-flight request promise for duplicate scope loads", async () => {
