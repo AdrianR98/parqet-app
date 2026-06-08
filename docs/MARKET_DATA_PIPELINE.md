@@ -159,6 +159,7 @@ Incremental price update from current primary mappings.
 - Resolve with explicit candidate validation: `npm run db:market:resolve-primary -- --validate`
 - Dry-run full rebuild plan: `npm run db:market:rebuild-prices`
 - Destructive rebuild from current primary mappings: `npm run db:market:rebuild-prices -- --write --reset-yfinance-prices --continue-on-error --compact`
+- Resume an interrupted reset rebuild without deleting again: `npm run db:market:backfill:primary -- --write --continue-on-error --compact`
 - Incremental update: `npm run db:market:update-prices`
 - Discover missing `.DE` candidates without provider calls: `npm run db:market:discover-de-candidates`
 - Validate derived `.DE` candidates explicitly against yfinance: `npm run db:market:discover-de-candidates -- --validate`
@@ -169,6 +170,8 @@ Incremental price update from current primary mappings.
 - Write non-destructive primary changes only: `npm run db:market:prefer-de-primary -- --write`
 - Write only currency-fix candidates: `npm run db:market:prefer-de-primary -- --currency-fixes-only --write`
 - Write with destructive full-history replacement when ticker changes: `npm run db:market:prefer-de-primary -- --write --replace-history`
+
+If a full reset rebuild is interrupted after deleting yfinance price rows, continue with `db:market:backfill:primary -- --write --continue-on-error --compact`. Do not rerun `--reset-yfinance-prices` unless you intentionally want to delete and rebuild the selected scope again.
 
 ## Legacy / Internal Commands
 

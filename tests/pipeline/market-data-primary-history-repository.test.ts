@@ -19,6 +19,7 @@ import {
     replacePrimaryMappingPriceHistory,
     setPrimarySymbolMappingById,
     setPrimarySymbolMappingByIsin,
+    upsertDailyPrices,
     upsertMarketActions,
 } from "../../src/lib/market-data/db/repository";
 
@@ -369,6 +370,262 @@ describe("replace primary mapping price history", () => {
             }),
         ]);
         expect(queryMock).toHaveBeenCalledWith(expect.any(String), ["yfinance", "US0000000001"]);
+    });
+
+    it("upserts multiple daily price rows in a single batch", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                id: "asset-1",
+                isin: "US0000000001",
+                name: "Demo Asset",
+                display_name: "Demo Asset",
+                asset_type: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadata_source: null,
+                metadata_updated_at: null,
+                name_source: null,
+                display_name_source: null,
+                display_metadata_updated_at: null,
+                market_data_status: "active",
+                market_data_status_reason: null,
+                market_data_successor_isin: null,
+                market_data_successor_symbol: null,
+                market_data_status_updated_at: null,
+                created_at: "2026-06-04T00:00:00.000Z",
+                updated_at: "2026-06-04T00:00:00.000Z",
+            }],
+        });
+
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        const result = await upsertDailyPrices({
+            isin: "US0000000001",
+            provider: "yfinance",
+            symbol: "BMW.DE",
+            currency: "EUR",
+            points: [
+                { date: "2026-06-01", close: 101.5, open: 100.5, high: 102.0, low: 99.5, adjClose: 101.0, volume: 1000, currency: "EUR" },
+                { date: "2026-06-02", close: 102.5, open: 101.5, high: 103.0, low: 100.5, adjClose: 102.0, volume: 2000, currency: "EUR" },
+            ],
+        });
+
+        expect(result).toEqual({ upserted: 2 });
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("insert into asset_daily_prices");
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("($1, $2, $3::date");
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("($1, $2, $11::date");
+        expect(clientQuery.mock.calls[4]?.[1]).toEqual([
+            "asset-1",
+            "yfinance",
+            "2026-06-01",
+            100.5,
+            102,
+            99.5,
+            101.5,
+            101,
+            1000,
+            "EUR",
+            "2026-06-02",
+            101.5,
+            103,
+            100.5,
+            102.5,
+            102,
+            2000,
+            "EUR",
+        ]);
+    });
+
+    it("skips invalid close rows during daily price upsert", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                id: "asset-1",
+                isin: "US0000000001",
+                name: "Demo Asset",
+                display_name: "Demo Asset",
+                asset_type: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadata_source: null,
+                metadata_updated_at: null,
+                name_source: null,
+                display_name_source: null,
+                display_metadata_updated_at: null,
+                market_data_status: "active",
+                market_data_status_reason: null,
+                market_data_successor_isin: null,
+                market_data_successor_symbol: null,
+                market_data_status_updated_at: null,
+                created_at: "2026-06-04T00:00:00.000Z",
+                updated_at: "2026-06-04T00:00:00.000Z",
+            }],
+        });
+
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        const result = await upsertDailyPrices({
+            isin: "US0000000001",
+            provider: "yfinance",
+            symbol: "BMW.DE",
+            currency: "EUR",
+            points: [
+                { date: "2026-06-01", close: "not-a-number" as never, currency: "EUR" },
+                { date: "2026-06-02", close: 102.5, currency: "EUR" },
+            ],
+        });
+
+        expect(result).toEqual({ upserted: 1 });
+        expect(clientQuery).toHaveBeenCalledTimes(6);
+        expect(clientQuery.mock.calls[4]?.[1]).toEqual([
+            "asset-1",
+            "yfinance",
+            "2026-06-02",
+            null,
+            null,
+            null,
+            102.5,
+            null,
+            null,
+            "EUR",
+        ]);
+    });
+
+    it("updates existing daily price rows on conflict", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                id: "asset-1",
+                isin: "US0000000001",
+                name: "Demo Asset",
+                display_name: "Demo Asset",
+                asset_type: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadata_source: null,
+                metadata_updated_at: null,
+                name_source: null,
+                display_name_source: null,
+                display_metadata_updated_at: null,
+                market_data_status: "active",
+                market_data_status_reason: null,
+                market_data_successor_isin: null,
+                market_data_successor_symbol: null,
+                market_data_status_updated_at: null,
+                created_at: "2026-06-04T00:00:00.000Z",
+                updated_at: "2026-06-04T00:00:00.000Z",
+            }],
+        });
+
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        await upsertDailyPrices({
+            isin: "US0000000001",
+            provider: "yfinance",
+            symbol: "BMW.DE",
+            currency: "EUR",
+            points: [
+                { date: "2026-06-02", close: 102.5, open: 101.5, high: 103.0, low: 100.5, adjClose: 102.0, volume: 2000, currency: "EUR" },
+            ],
+        });
+
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("on conflict (asset_id, provider, price_date)");
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("do update set");
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("close_price = excluded.close_price");
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("updated_at = now()");
+    });
+
+    it("splits daily price upserts into multiple batches", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                id: "asset-1",
+                isin: "US0000000001",
+                name: "Demo Asset",
+                display_name: "Demo Asset",
+                asset_type: "stock",
+                currency: "EUR",
+                wkn: null,
+                metadata_source: null,
+                metadata_updated_at: null,
+                name_source: null,
+                display_name_source: null,
+                display_metadata_updated_at: null,
+                market_data_status: "active",
+                market_data_status_reason: null,
+                market_data_successor_isin: null,
+                market_data_successor_symbol: null,
+                market_data_status_updated_at: null,
+                created_at: "2026-06-04T00:00:00.000Z",
+                updated_at: "2026-06-04T00:00:00.000Z",
+            }],
+        });
+
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        const points = Array.from({ length: 501 }, (_, index) => ({
+            date: `2026-06-${String((index % 28) + 1).padStart(2, "0")}`,
+            close: 100 + index,
+            currency: "EUR",
+        }));
+
+        const result = await upsertDailyPrices({
+            isin: "US0000000001",
+            provider: "yfinance",
+            symbol: "BMW.DE",
+            currency: "EUR",
+            points,
+        });
+
+        expect(result).toEqual({ upserted: 501 });
+        expect(clientQuery).toHaveBeenCalledTimes(7);
+        expect(clientQuery.mock.calls[4]?.[0]).toContain("insert into asset_daily_prices");
+        expect(clientQuery.mock.calls[5]?.[0]).toContain("insert into asset_daily_prices");
+        expect(clientQuery.mock.calls[4]?.[1]).toHaveLength(4002);
+        expect(clientQuery.mock.calls[5]?.[1]).toHaveLength(10);
+    });
+
+    it("returns zero for empty daily price input without opening a transaction", async () => {
+        const result = await upsertDailyPrices({
+            isin: "US0000000001",
+            provider: "yfinance",
+            symbol: "BMW.DE",
+            currency: "EUR",
+            points: [],
+        });
+
+        expect(result).toEqual({ upserted: 0 });
+        expect(withClientMock).not.toHaveBeenCalled();
     });
 
     it("upserts corporate actions with matching placeholder and parameter counts", async () => {

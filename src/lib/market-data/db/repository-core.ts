@@ -358,6 +358,8 @@ function normalizeInstrumentStatus(status: string): MarketDataInstrumentStatus {
     return normalized as MarketDataInstrumentStatus;
 }
 
+const DAILY_PRICE_UPSERT_BATCH_SIZE = 500;
+
 function mapAssetRow(row: Record<string, unknown>): DbAsset {
     return {
         id: String(row.id),
@@ -3277,6 +3279,29 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
         }
 
+        const validPoints = input.points
+            .map((point) => {
+                const close = Number(point.close);
+                if (!Number.isFinite(close)) {
+                    return null;
+                }
+                return {
+                    priceDate: toDateString(point.date),
+                    openPrice: toNullableNumber(point.open),
+                    highPrice: toNullableNumber(point.high),
+                    lowPrice: toNullableNumber(point.low),
+                    closePrice: close,
+                    adjustedClosePrice: toNullableNumber(point.adjClose),
+                    volume: toNullableNumber(point.volume),
+                    currency: point.currency ?? input.currency ?? null,
+                };
+            })
+            .filter((point): point is NonNullable<typeof point> => point !== null);
+
+        if (validPoints.length === 0) {
+            return { upserted: 0 };
+        }
+
         await withPostgresClient(async (client) => {
             await client.query("begin");
             try {
@@ -3327,20 +3352,37 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
                         from asset_symbol_mappings
                         where provider = $2
                           and provider_symbol = $3
-                     )`,
+                    )`,
                     [assetId, provider, symbol, input.currency ?? null],
                 );
 
-                for (const point of input.points) {
-                    const close = Number(point.close);
-                    if (!Number.isFinite(close)) {
-                        continue;
+                for (let start = 0; start < validPoints.length; start += DAILY_PRICE_UPSERT_BATCH_SIZE) {
+                    const batch = validPoints.slice(start, start + DAILY_PRICE_UPSERT_BATCH_SIZE);
+                    const values: Array<string> = [];
+                    const params: Array<string | number | null> = [];
+
+                    for (const [index, point] of batch.entries()) {
+                        const offset = index * 8;
+                        values.push(
+                            `($1, $2, $${offset + 3}::date, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`,
+                        );
+                        params.push(
+                            point.priceDate,
+                            point.openPrice,
+                            point.highPrice,
+                            point.lowPrice,
+                            point.closePrice,
+                            point.adjustedClosePrice,
+                            point.volume,
+                            point.currency,
+                        );
                     }
+
                     await client.query(
                         `insert into asset_daily_prices
                             (asset_id, provider, price_date, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency)
                          values
-                            ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10)
+                            ${values.join(",\n                            ")}
                          on conflict (asset_id, provider, price_date)
                          do update set
                             open_price = excluded.open_price,
@@ -3351,18 +3393,7 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
                             volume = excluded.volume,
                             currency = excluded.currency,
                             updated_at = now()`,
-                        [
-                            assetId,
-                            provider,
-                            toDateString(point.date),
-                            toNullableNumber(point.open),
-                            toNullableNumber(point.high),
-                            toNullableNumber(point.low),
-                            close,
-                            toNullableNumber(point.adjClose),
-                            toNullableNumber(point.volume),
-                            point.currency ?? input.currency ?? null,
-                        ],
+                        [assetId, provider, ...params],
                     );
                 }
                 await client.query("commit");
@@ -3372,7 +3403,7 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
             }
         });
 
-        return { upserted: input.points.length };
+        return { upserted: validPoints.length };
     } catch (error) {
         handleRepositoryError(error, "upsertDailyPrices(asset_daily_prices)");
     }
