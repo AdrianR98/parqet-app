@@ -117,6 +117,21 @@ function sanitizeForFile(value) {
     return String(value ?? "").replace(/[^A-Za-z0-9._-]/g, "_");
 }
 
+function buildZeroPlanWarning({ requestedIsin, scannedPrimaryMappings, provider }) {
+    if (!requestedIsin || scannedPrimaryMappings > 0) {
+        return null;
+    }
+
+    return [
+        "Warning:",
+        `- requested ISIN: ${requestedIsin}`,
+        `- no verified active primary ${provider} mapping found`,
+        "- possible asset_id/instrument_id ownership issue or missing verified primary",
+    ];
+}
+
+export { buildZeroPlanWarning };
+
 function runCommand(command, args, label) {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
@@ -286,6 +301,16 @@ async function run() {
     console.log(`- already has prices skipped: ${skippedExisting}`);
     console.log(`- excluded skipped: ${skippedExcluded}`);
     console.log(`- planned: ${planned.length}`);
+    const zeroPlanWarning = buildZeroPlanWarning({
+        requestedIsin: options.isin,
+        scannedPrimaryMappings: scanned,
+        provider: options.provider,
+    });
+    if (zeroPlanWarning) {
+        for (const line of zeroPlanWarning) {
+            console.log(line);
+        }
+    }
     console.log(`- DB writes: ${options.write ? `done (success=${successCount}, failed=${failedCount})` : "skipped (dry-run)"}`);
 }
 

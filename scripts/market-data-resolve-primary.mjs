@@ -424,6 +424,10 @@ function printWriteSummary(summary) {
     console.log(`- failed primary switches: ${summary.failed}`);
 }
 
+function needsVerifiedPrimaryPromotion(candidate) {
+    return Boolean(candidate) && candidate.verified !== true;
+}
+
 async function executeWriteMode({ report, options }) {
     const {
         setPrimarySymbolMappingByIsin,
@@ -444,7 +448,7 @@ async function executeWriteMode({ report, options }) {
     for (const item of limitedSelected) {
         try {
             let finalSymbol = item.selectedCandidate.symbol;
-            if (!item.selectedCandidate.mappingId) {
+            if (needsVerifiedPrimaryPromotion(item.selectedCandidate)) {
                 const stored = await storeVerifiedSymbolMappingCandidate({
                     instrumentId: item.assetId,
                     provider: "yfinance",
@@ -596,6 +600,7 @@ async function run() {
 
 export {
     getWriteModeGuardError,
+    needsVerifiedPrimaryPromotion,
     parseArgs,
 };
 

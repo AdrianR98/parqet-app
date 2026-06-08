@@ -3009,11 +3009,11 @@ export async function listPrimaryMappingsForBackfill(provider = "yfinance", isin
                         union
                         select asset_id from corporate_action_events
                     ) a
-                    where a.asset_id = i.id
+                    where a.asset_id = coalesce(m.asset_id, m.instrument_id)
                 ) as has_actions,
                 m.verified_at
              from asset_symbol_mappings m
-             join assets i on i.id = m.instrument_id
+             join assets i on i.id = coalesce(m.asset_id, m.instrument_id)
              where m.provider = $1
                and m.is_primary = true
                and m.is_active = true

@@ -14,9 +14,10 @@ vi.mock("../../src/lib/db/postgres-core", () => ({
 }));
 
 import {
+    listPrimaryMappingsForBackfill,
     MarketDataRepositoryError,
-    setPrimarySymbolMappingByIsin,
     replacePrimaryMappingPriceHistory,
+    setPrimarySymbolMappingByIsin,
 } from "../../src/lib/market-data/db/repository";
 
 describe("replace primary mapping price history", () => {
@@ -223,5 +224,66 @@ describe("replace primary mapping price history", () => {
         await expect(
             setPrimarySymbolMappingByIsin("US0000000001", "yfinance", "BMW.DE"),
         ).rejects.toBeInstanceOf(MarketDataRepositoryError);
+    });
+
+    it("lists backfill primaries through asset_id ownership", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                isin: "GB00B10RZP78",
+                name: "Unilever",
+                provider: "yfinance",
+                symbol: "UNA.AS",
+                exchange: "AMS",
+                currency: "EUR",
+                has_prices: true,
+                has_actions: false,
+                verified_at: "2026-06-08T10:00:00.000Z",
+            }],
+        });
+
+        const result = await listPrimaryMappingsForBackfill("yfinance", "GB00B10RZP78");
+
+        expect(result).toEqual([
+            expect.objectContaining({
+                isin: "GB00B10RZP78",
+                symbol: "UNA.AS",
+                exchange: "AMS",
+                currency: "EUR",
+                hasPrices: true,
+                hasActions: false,
+            }),
+        ]);
+        expect(queryMock).toHaveBeenCalledWith(
+            expect.stringContaining("join assets i on i.id = coalesce(m.asset_id, m.instrument_id)"),
+            ["yfinance", "GB00B10RZP78"],
+        );
+    });
+
+    it("lists backfill primaries through instrument_id ownership", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{
+                isin: "US0000000001",
+                name: "Demo Asset",
+                provider: "yfinance",
+                symbol: "BMW.DE",
+                exchange: "XETRA",
+                currency: "EUR",
+                has_prices: false,
+                has_actions: true,
+                verified_at: "2026-06-08T10:00:00.000Z",
+            }],
+        });
+
+        const result = await listPrimaryMappingsForBackfill("yfinance", "US0000000001");
+
+        expect(result).toEqual([
+            expect.objectContaining({
+                isin: "US0000000001",
+                symbol: "BMW.DE",
+                hasPrices: false,
+                hasActions: true,
+            }),
+        ]);
+        expect(queryMock).toHaveBeenCalledWith(expect.any(String), ["yfinance", "US0000000001"]);
     });
 });

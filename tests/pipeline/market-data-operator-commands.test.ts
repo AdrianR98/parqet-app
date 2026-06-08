@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getWriteModeGuardError, parseArgs as parseResolveArgs } from "../../scripts/market-data-resolve-primary.mjs";
+import { buildZeroPlanWarning, parseArgs as parseBackfillArgs } from "../../scripts/backfill-primary-market-data.mjs";
+import {
+    getWriteModeGuardError,
+    needsVerifiedPrimaryPromotion,
+    parseArgs as parseResolveArgs,
+} from "../../scripts/market-data-resolve-primary.mjs";
 import { parseArgs as parseRebuildArgs } from "../../scripts/market-data-rebuild-prices.mjs";
 
 describe("market data operator commands", () => {
@@ -44,5 +49,42 @@ describe("market data operator commands", () => {
         expect(options.excludeIsins.has("US00206R1023")).toBe(true);
         expect(options.limit).toBe("5");
         expect(options.write).toBe(false);
+    });
+
+    it("parses backfill filters for resolve-primary style ownership", () => {
+        const options = parseBackfillArgs(["--isin", "GB00B10RZP78", "--force"]);
+
+        expect(options.isin).toBe("GB00B10RZP78");
+        expect(options.force).toBe(true);
+        expect(options.skipExisting).toBe(false);
+    });
+
+    it("reports a zero-plan warning for requested ISINs without a visible primary mapping", () => {
+        expect(
+            buildZeroPlanWarning({
+                requestedIsin: "GB00B10RZP78",
+                scannedPrimaryMappings: 0,
+                provider: "yfinance",
+            }),
+        ).toEqual([
+            "Warning:",
+            "- requested ISIN: GB00B10RZP78",
+            "- no verified active primary yfinance mapping found",
+            "- possible asset_id/instrument_id ownership issue or missing verified primary",
+        ]);
+
+        expect(
+            buildZeroPlanWarning({
+                requestedIsin: "GB00B10RZP78",
+                scannedPrimaryMappings: 1,
+                provider: "yfinance",
+            }),
+        ).toBeNull();
+    });
+
+    it("requires validated resolve-primary candidates to be stored as verified before switching", () => {
+        expect(needsVerifiedPrimaryPromotion({ verified: false, mappingId: "existing-unverified" })).toBe(true);
+        expect(needsVerifiedPrimaryPromotion({ verified: false, mappingId: null })).toBe(true);
+        expect(needsVerifiedPrimaryPromotion({ verified: true, mappingId: "verified-row" })).toBe(false);
     });
 });
