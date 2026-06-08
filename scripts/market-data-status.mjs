@@ -148,11 +148,13 @@ function matchesShellLikeText(value) {
     return normalized.includes("shell") || normalized.includes("royal dutch");
 }
 
-function classifyAuditCategory({ statusClass, hasNonEurHistoricalRows, latestCurrency, reasonNotSwitchable, hasConflict, suspiciousFlags }) {
+function classifyAuditCategory({ statusClass, primaryCurrency, hasNonEurHistoricalRows, latestCurrency, reasonNotSwitchable, hasConflict, suspiciousFlags }) {
     if (statusClass === "terminal") return "terminal_ignore";
     if (hasConflict) return "possible_symbol_conflict";
     if (suspiciousFlags) return "possible_stale_data";
-    if (hasNonEurHistoricalRows && latestCurrency && String(latestCurrency).toUpperCase() !== "EUR") return "needs_mapping_candidate";
+    if ((String(primaryCurrency ?? "").toUpperCase() === "EUR") && (hasNonEurHistoricalRows || (latestCurrency && String(latestCurrency).toUpperCase() !== "EUR"))) return "needs_price_rebuild";
+    if (hasNonEurHistoricalRows && latestCurrency && String(latestCurrency).toUpperCase() !== "EUR" && reasonNotSwitchable === "no_verified_de_candidate") return "needs_mapping_candidate";
+    if (hasNonEurHistoricalRows && latestCurrency && String(latestCurrency).toUpperCase() !== "EUR") return "needs_price_rebuild";
     if (hasNonEurHistoricalRows) return "possible_price_pollution";
     if (reasonNotSwitchable === "venue_only_candidate") return "needs_manual_review";
     return "OK";
@@ -278,6 +280,7 @@ function buildAuditReport({
                 reasonNotSwitchable,
                 auditCategory: classifyAuditCategory({
                     statusClass,
+                    primaryCurrency: row.primaryCurrency,
                     hasNonEurHistoricalRows,
                     latestCurrency: row.latestCurrency,
                     reasonNotSwitchable,
@@ -386,6 +389,7 @@ function buildAuditReport({
             ...row,
             auditCategory: classifyAuditCategory({
                 statusClass: row.statusClass,
+                primaryCurrency: row.primaryCurrency,
                 hasNonEurHistoricalRows: row.hasNonEurHistoricalRows,
                 latestCurrency: row.latestCurrency,
                 reasonNotSwitchable: null,

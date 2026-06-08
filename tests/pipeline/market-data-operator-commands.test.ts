@@ -82,6 +82,22 @@ describe("market data operator commands", () => {
         ).toBeNull();
     });
 
+    it("reports a visible but unverified primary as wrong-owner-or-unverified", () => {
+        expect(
+            buildZeroPlanWarning({
+                requestedIsin: "GB00B10RZP78",
+                scannedPrimaryMappings: 0,
+                provider: "yfinance",
+                visiblePrimarySymbol: "UNA.AS",
+            }),
+        ).toEqual([
+            "Warning:",
+            "- requested ISIN: GB00B10RZP78",
+            "- no verified active primary yfinance mapping found",
+            "- primary_mapping_unverified_or_wrong_owner: visible_primary=UNA.AS",
+        ]);
+    });
+
     it("requires validated resolve-primary candidates to be stored as verified before switching", () => {
         expect(needsVerifiedPrimaryPromotion({ verified: false, mappingId: "existing-unverified" })).toBe(true);
         expect(needsVerifiedPrimaryPromotion({ verified: false, mappingId: null })).toBe(true);

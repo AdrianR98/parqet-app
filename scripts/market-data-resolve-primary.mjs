@@ -430,7 +430,7 @@ function needsVerifiedPrimaryPromotion(candidate) {
 
 async function executeWriteMode({ report, options }) {
     const {
-        setPrimarySymbolMappingByIsin,
+        setPrimarySymbolMappingById,
         storeVerifiedSymbolMappingCandidate,
     } = await import("../src/lib/market-data/db/repository-core.ts");
 
@@ -447,7 +447,7 @@ async function executeWriteMode({ report, options }) {
 
     for (const item of limitedSelected) {
         try {
-            let finalSymbol = item.selectedCandidate.symbol;
+            let targetMappingId = item.selectedCandidate.mappingId ?? null;
             if (needsVerifiedPrimaryPromotion(item.selectedCandidate)) {
                 const stored = await storeVerifiedSymbolMappingCandidate({
                     instrumentId: item.assetId,
@@ -460,13 +460,16 @@ async function executeWriteMode({ report, options }) {
                 if (stored.status !== "written_verified" && stored.status !== "already_verified") {
                     throw new Error(stored.reason);
                 }
-                finalSymbol = item.selectedCandidate.symbol;
+                targetMappingId = stored.mappingId ?? null;
+            }
+            if (!targetMappingId) {
+                throw new Error("verified_mapping_id_missing");
             }
 
-            await setPrimarySymbolMappingByIsin(
-                item.isin,
+            await setPrimarySymbolMappingById(
+                targetMappingId,
                 "yfinance",
-                finalSymbol,
+                item.isin,
                 `resolve_primary_eur; old_primary=${item.currentPrimarySymbol}; resolution=${item.status}`,
             );
             summary.succeeded += 1;

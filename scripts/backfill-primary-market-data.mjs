@@ -117,7 +117,7 @@ function sanitizeForFile(value) {
     return String(value ?? "").replace(/[^A-Za-z0-9._-]/g, "_");
 }
 
-function buildZeroPlanWarning({ requestedIsin, scannedPrimaryMappings, provider }) {
+function buildZeroPlanWarning({ requestedIsin, scannedPrimaryMappings, provider, visiblePrimarySymbol = null }) {
     if (!requestedIsin || scannedPrimaryMappings > 0) {
         return null;
     }
@@ -126,7 +126,9 @@ function buildZeroPlanWarning({ requestedIsin, scannedPrimaryMappings, provider 
         "Warning:",
         `- requested ISIN: ${requestedIsin}`,
         `- no verified active primary ${provider} mapping found`,
-        "- possible asset_id/instrument_id ownership issue or missing verified primary",
+        visiblePrimarySymbol
+            ? `- primary_mapping_unverified_or_wrong_owner: visible_primary=${visiblePrimarySymbol}`
+            : "- possible asset_id/instrument_id ownership issue or missing verified primary",
     ];
 }
 
@@ -176,6 +178,7 @@ async function run() {
 
     const {
         listPrimaryMappingsForBackfill,
+        listSymbolMappingsForPrimaryPreference,
         upsertDailyPrices,
         upsertMarketActions,
     } = await import("../src/lib/market-data/db/repository-core.ts");
@@ -305,6 +308,10 @@ async function run() {
         requestedIsin: options.isin,
         scannedPrimaryMappings: scanned,
         provider: options.provider,
+        visiblePrimarySymbol: options.isin
+            ? ((await listSymbolMappingsForPrimaryPreference(options.provider, options.isin))
+                .find((mapping) => mapping.isPrimary)?.symbol ?? null)
+            : null,
     });
     if (zeroPlanWarning) {
         for (const line of zeroPlanWarning) {

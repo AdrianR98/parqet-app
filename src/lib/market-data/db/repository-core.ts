@@ -2729,6 +2729,97 @@ export async function listPrimaryMappingPriceQuality(
     }
 }
 
+export async function setPrimarySymbolMappingById(
+    mappingId: string,
+    provider: string,
+    isin: string,
+    noteSuffix?: string,
+): Promise<void> {
+    try {
+        const normalizedMappingId = String(mappingId ?? "").trim();
+        const normalizedIsin = assertIsin(isin);
+        const normalizedProvider = provider.trim().toLowerCase();
+        if (!normalizedMappingId || !normalizedProvider) {
+            throw new MarketDataRepositoryError("invalid_input", "Mapping-ID oder Provider fehlt.");
+        }
+
+        await withPostgresClient(async (client) => {
+            await client.query("begin");
+            try {
+                const targetResult = await client.query<Record<string, unknown>>(
+                    `select
+                        m.id,
+                        coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
+                        a.isin,
+                        m.provider,
+                        m.is_active,
+                        m.verified_at
+                     from asset_symbol_mappings m
+                     join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+                     where m.id = $1
+                       and m.provider = $2
+                       and a.isin = $3
+                     for update`,
+                    [normalizedMappingId, normalizedProvider, normalizedIsin],
+                );
+                const target = targetResult.rows[0] ?? null;
+                if (!target) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping für ISIN/Provider nicht gefunden.");
+                }
+                if (target.is_active !== true) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping ist nicht aktiv.");
+                }
+                if (!target.verified_at) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping ist nicht verifiziert.");
+                }
+
+                await client.query(
+                    `update asset_symbol_mappings m
+                     set is_primary = false,
+                         updated_at = now()
+                     where coalesce(m.asset_id, m.instrument_id) = $1
+                       and m.provider = $2`,
+                    [String(target.owner_asset_id), normalizedProvider],
+                );
+
+                const setPrimaryResult = await client.query(
+                    `update asset_symbol_mappings
+                     set is_primary = true,
+                         notes = case
+                             when $2::text is null then notes
+                             when notes is null then $2::text
+                             else left(notes || ' | ' || $2::text, 2000)
+                         end,
+                         updated_at = now()
+                     where id = $1`,
+                    [normalizedMappingId, noteSuffix ?? null],
+                );
+
+                if ((setPrimaryResult.rowCount ?? 0) !== 1) {
+                    throw new MarketDataRepositoryError("db_error", "Primäres Symbol-Mapping konnte nicht eindeutig gesetzt werden.");
+                }
+
+                const verifyPrimaryResult = await client.query<Record<string, unknown>>(
+                    `select is_primary, verified_at
+                     from asset_symbol_mappings
+                     where id = $1`,
+                    [normalizedMappingId],
+                );
+                if (verifyPrimaryResult.rows[0]?.is_primary !== true || !verifyPrimaryResult.rows[0]?.verified_at) {
+                    throw new MarketDataRepositoryError("db_error", "Primär-Mapping-Verifikation fehlgeschlagen.");
+                }
+
+                await client.query("commit");
+            } catch (error) {
+                await client.query("rollback");
+                throw error;
+            }
+        });
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
 export async function setPrimarySymbolMappingByIsin(
     isin: string,
     provider: string,
@@ -2743,47 +2834,24 @@ export async function setPrimarySymbolMappingByIsin(
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
         }
 
-        await withPostgresClient(async (client) => {
-            await client.query("begin");
-            try {
-                await client.query(
-                    `update asset_symbol_mappings m
-                     set is_primary = false,
-                         updated_at = now()
-                     from assets i
-                     where m.instrument_id = i.id
-                       and i.isin = $1
-                       and m.provider = $2`,
-                    [normalizedIsin, normalizedProvider],
-                );
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select m.id
+             from asset_symbol_mappings m
+             join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+             where a.isin = $1
+               and m.provider = $2
+               and coalesce(m.symbol, m.provider_symbol) = $3
+               and m.is_active = true
+               and m.verified_at is not null
+             order by m.updated_at desc, m.created_at desc
+             limit 2`,
+            [normalizedIsin, normalizedProvider, normalizedSymbol],
+        );
+        if ((result.rows?.length ?? 0) !== 1) {
+            throw new MarketDataRepositoryError("db_error", "Primäres Symbol-Mapping konnte nicht eindeutig gesetzt werden.");
+        }
 
-                const setPrimaryResult = await client.query(
-                    `update asset_symbol_mappings m
-                     set is_primary = true,
-                         notes = case
-                             when $4::text is null then m.notes
-                             when m.notes is null then $4::text
-                             else left(m.notes || ' | ' || $4::text, 2000)
-                         end,
-                         updated_at = now()
-                     from assets i
-                     where m.instrument_id = i.id
-                       and i.isin = $1
-                       and m.provider = $2
-                       and m.symbol = $3`,
-                    [normalizedIsin, normalizedProvider, normalizedSymbol, noteSuffix ?? null],
-                );
-
-                if ((setPrimaryResult.rowCount ?? 0) !== 1) {
-                    throw new MarketDataRepositoryError("db_error", "Primäres Symbol-Mapping konnte nicht eindeutig gesetzt werden.");
-                }
-
-                await client.query("commit");
-            } catch (error) {
-                await client.query("rollback");
-                throw error;
-            }
-        });
+        await setPrimarySymbolMappingById(String(result.rows[0].id), normalizedProvider, normalizedIsin, noteSuffix);
     } catch (error) {
         handleRepositoryError(error);
     }

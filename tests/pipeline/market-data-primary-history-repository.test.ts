@@ -17,6 +17,7 @@ import {
     listPrimaryMappingsForBackfill,
     MarketDataRepositoryError,
     replacePrimaryMappingPriceHistory,
+    setPrimarySymbolMappingById,
     setPrimarySymbolMappingByIsin,
 } from "../../src/lib/market-data/db/repository";
 
@@ -224,6 +225,88 @@ describe("replace primary mapping price history", () => {
         await expect(
             setPrimarySymbolMappingByIsin("US0000000001", "yfinance", "BMW.DE"),
         ).rejects.toBeInstanceOf(MarketDataRepositoryError);
+    });
+
+    it("sets the exact verified mapping id as primary", async () => {
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: "mapping-verified",
+                    owner_asset_id: "asset-1",
+                    isin: "US0000000001",
+                    provider: "yfinance",
+                    is_active: true,
+                    verified_at: "2026-06-08T10:00:00.000Z",
+                }],
+            })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ is_primary: true, verified_at: "2026-06-08T10:00:00.000Z" }] })
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        await setPrimarySymbolMappingById("mapping-verified", "yfinance", "US0000000001", "note");
+
+        expect(clientQuery.mock.calls[1]?.[0]).toContain("where m.id = $1");
+        expect(clientQuery.mock.calls[2]?.[1]).toEqual(["asset-1", "yfinance"]);
+        expect(clientQuery.mock.calls[3]?.[1]).toEqual(["mapping-verified", "note"]);
+    });
+
+    it("rejects unverified target mappings for exact primary switching", async () => {
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: "mapping-unverified",
+                    owner_asset_id: "asset-1",
+                    isin: "US0000000001",
+                    provider: "yfinance",
+                    is_active: true,
+                    verified_at: null,
+                }],
+            })
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        await expect(
+            setPrimarySymbolMappingById("mapping-unverified", "yfinance", "US0000000001"),
+        ).rejects.toBeInstanceOf(MarketDataRepositoryError);
+    });
+
+    it("resolves symbol-based primary switching through an exact verified mapping row", async () => {
+        queryMock.mockResolvedValueOnce({
+            rows: [{ id: "mapping-verified" }],
+        });
+
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: "mapping-verified",
+                    owner_asset_id: "asset-1",
+                    isin: "US0000000001",
+                    provider: "yfinance",
+                    is_active: true,
+                    verified_at: "2026-06-08T10:00:00.000Z",
+                }],
+            })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ is_primary: true, verified_at: "2026-06-08T10:00:00.000Z" }] })
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        await setPrimarySymbolMappingByIsin("US0000000001", "yfinance", "BMW.DE");
+
+        expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("m.verified_at is not null"), ["US0000000001", "yfinance", "BMW.DE"]);
+        expect(clientQuery.mock.calls[3]?.[1]).toEqual(["mapping-verified", null]);
     });
 
     it("lists backfill primaries through asset_id ownership", async () => {
