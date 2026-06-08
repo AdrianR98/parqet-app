@@ -148,6 +148,9 @@ async function exportFullHistory({ python, isin, displayName, symbol }) {
 
         const payload = JSON.parse(await readFile(outPath, "utf8"));
         const prices = Array.isArray(payload?.prices) ? payload.prices : [];
+        if (prices.length === 0) {
+            throw new Error("Provider fetch returned no price rows.");
+        }
         const validPrices = prices
             .filter((point) => point && /^\d{4}-\d{2}-\d{2}$/.test(String(point.date ?? "")) && Number.isFinite(Number(point.close)))
             .map((point) => ({
@@ -162,7 +165,22 @@ async function exportFullHistory({ python, isin, displayName, symbol }) {
             }));
 
         if (validPrices.length === 0) {
-            throw new Error("Replacement history is empty.");
+            throw new Error("Fetched rows have no usable date/close values.");
+        }
+
+        const normalizedMappingCurrency = String(payload?.mapping?.currency ?? "").trim().toUpperCase() || null;
+        const normalizedPointCurrencies = Array.from(
+            new Set(
+                validPrices
+                    .map((point) => String(point.currency ?? "").trim().toUpperCase() || null)
+                    .filter((value) => value),
+            ),
+        );
+
+        if (normalizedMappingCurrency && normalizedPointCurrencies.length > 0 && !normalizedPointCurrencies.includes(normalizedMappingCurrency)) {
+            throw new Error(
+                `Fetched rows have unexpected currency values. mapping=${normalizedMappingCurrency}; points=${normalizedPointCurrencies.join(",")}`,
+            );
         }
 
         return {

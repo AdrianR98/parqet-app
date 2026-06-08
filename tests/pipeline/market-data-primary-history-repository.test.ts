@@ -43,18 +43,21 @@ describe("replace primary mapping price history", () => {
             .mockResolvedValueOnce({
                 rows: [{
                     id: "mapping-1",
-                    asset_id: "asset-1",
+                    owner_asset_id: "instrument-1",
                     provider: "yfinance",
                     symbol: "BMW.DE",
                     currency: "EUR",
                     isin: "US0000000001",
                 }],
             })
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
             .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ is_primary: true }] })
             .mockResolvedValueOnce({ rowCount: 8 })
             .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ inserted_count: 2 }] })
             .mockResolvedValueOnce({ rows: [{ latest_price_date: "2026-06-03" }] })
             .mockResolvedValueOnce(undefined);
 
@@ -77,10 +80,10 @@ describe("replace primary mapping price history", () => {
             latestPriceDate: "2026-06-03",
         });
 
-        expect(clientQuery.mock.calls[4]?.[0]).toContain("delete from asset_daily_prices");
-        expect(clientQuery.mock.calls[5]?.[0]).toContain("insert into asset_daily_prices");
-        expect(clientQuery.mock.calls[5]?.[0]).not.toContain("inactive");
-        expect(clientQuery.mock.calls[5]?.[0]).not.toContain("soft");
+        expect(clientQuery.mock.calls[6]?.[0]).toContain("delete from asset_daily_prices");
+        expect(clientQuery.mock.calls[7]?.[0]).toContain("insert into asset_daily_prices");
+        expect(clientQuery.mock.calls[7]?.[0]).not.toContain("inactive");
+        expect(clientQuery.mock.calls[7]?.[0]).not.toContain("soft");
     });
 
     it("uses instrument_id fallback when the target mapping has no asset_id", async () => {
@@ -90,17 +93,20 @@ describe("replace primary mapping price history", () => {
             .mockResolvedValueOnce({
                 rows: [{
                     id: "mapping-1",
-                    owner_asset_id: "asset-1",
+                    owner_asset_id: "instrument-1",
                     provider: "yfinance",
                     symbol: "BMW.DE",
                     currency: "EUR",
                     isin: "US0000000001",
                 }],
             })
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
             .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce({ rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ is_primary: true }] })
             .mockResolvedValueOnce({ rowCount: 8 })
             .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ inserted_count: 1 }] })
             .mockResolvedValueOnce({ rows: [{ latest_price_date: "2026-06-03" }] })
             .mockResolvedValueOnce(undefined);
 
@@ -122,8 +128,47 @@ describe("replace primary mapping price history", () => {
             latestPriceDate: "2026-06-03",
         });
         expect(clientQuery.mock.calls[1]?.[0]).toContain("coalesce(m.asset_id, m.instrument_id)");
-        expect(clientQuery.mock.calls[2]?.[1]).toEqual(["asset-1", "yfinance"]);
-        expect(clientQuery.mock.calls[4]?.[1]?.[0]).toBe("asset-1");
+        expect(clientQuery.mock.calls[2]?.[1]).toEqual(["US0000000001"]);
+        expect(clientQuery.mock.calls[6]?.[1]).toEqual(["asset-1", "yfinance"]);
+    });
+
+    it("fails with a precise latest-price verification message", async () => {
+        const clientQuery = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: "mapping-1",
+                    owner_asset_id: "instrument-1",
+                    provider: "yfinance",
+                    symbol: "BMW.DE",
+                    currency: "EUR",
+                    isin: "US0000000001",
+                }],
+            })
+            .mockResolvedValueOnce({ rows: [{ id: "asset-1" }] })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ is_primary: true }] })
+            .mockResolvedValueOnce({ rowCount: 8 })
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ rows: [{ inserted_count: 1 }] })
+            .mockResolvedValueOnce({ rows: [{ latest_price_date: "2026-06-02" }] })
+            .mockResolvedValueOnce(undefined);
+
+        withClientMock.mockImplementation(async (fn: (client: { query: typeof clientQuery }) => Promise<unknown>) => fn({ query: clientQuery }));
+
+        await expect(
+            replacePrimaryMappingPriceHistory({
+                isin: "US0000000001",
+                provider: "yfinance",
+                targetMappingId: "mapping-1",
+                replacementCurrency: "EUR",
+                replacementPoints: [
+                    { date: "2026-06-03", close: 102.5, currency: "EUR" },
+                ],
+            }),
+        ).rejects.toThrow(/Latest-Price-Verifikation fehlgeschlagen/);
     });
 
     it("fails clearly when the target primary mapping cannot be set", async () => {

@@ -2657,7 +2657,21 @@ export async function replacePrimaryMappingPriceHistory(
                     throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping nicht gefunden.");
                 }
 
-                const assetId = String(targetMapping.owner_asset_id);
+                const canonicalAssetResult = await client.query<Record<string, unknown>>(
+                    `select id
+                     from assets
+                     where asset_key_type = 'isin'
+                       and asset_key_value = $1
+                     for update`,
+                    [normalizedIsin],
+                );
+                const canonicalAsset = canonicalAssetResult.rows[0];
+                if (!canonicalAsset?.id) {
+                    throw new MarketDataRepositoryError("db_error", "Kanonischer Preis-Asset für ISIN konnte nicht gefunden werden.");
+                }
+
+                const mappingOwnerAssetId = String(targetMapping.owner_asset_id);
+                const priceAssetId = String(canonicalAsset.id);
                 const latestReplacementDate = input.replacementPoints.reduce<string | null>((latest, point) => {
                     const normalizedDate = toDateString(point.date);
                     if (!latest || normalizedDate > latest) {
@@ -2670,9 +2684,9 @@ export async function replacePrimaryMappingPriceHistory(
                     `update asset_symbol_mappings
                      set is_primary = false,
                          updated_at = now()
-                     where asset_id = $1
+                     where coalesce(asset_id, instrument_id) = $1
                        and provider = $2`,
-                    [assetId, normalizedProvider],
+                    [mappingOwnerAssetId, normalizedProvider],
                 );
 
                 const setPrimaryResult = await client.query(
@@ -2692,11 +2706,21 @@ export async function replacePrimaryMappingPriceHistory(
                     throw new MarketDataRepositoryError("db_error", "Ziel-Mapping konnte nicht als primär markiert werden.");
                 }
 
+                const verifyPrimaryResult = await client.query<Record<string, unknown>>(
+                    `select is_primary
+                     from asset_symbol_mappings
+                     where id = $1`,
+                    [normalizedTargetMappingId],
+                );
+                if (verifyPrimaryResult.rows[0]?.is_primary !== true) {
+                    throw new MarketDataRepositoryError("db_error", "Primär-Mapping-Verifikation fehlgeschlagen.");
+                }
+
                 const deleteResult = await client.query(
                     `delete from asset_daily_prices
                      where asset_id = $1
                        and provider = $2`,
-                    [assetId, normalizedProvider],
+                    [priceAssetId, normalizedProvider],
                 );
 
                 for (const point of input.replacementPoints) {
@@ -2721,7 +2745,7 @@ export async function replacePrimaryMappingPriceHistory(
                             currency = excluded.currency,
                             updated_at = now()`,
                         [
-                            assetId,
+                            priceAssetId,
                             normalizedProvider,
                             toDateString(point.date),
                             toNullableNumber(point.open),
@@ -2735,18 +2759,39 @@ export async function replacePrimaryMappingPriceHistory(
                     );
                 }
 
+                const insertedCountResult = await client.query<Record<string, unknown>>(
+                    `select count(*)::int as inserted_count
+                     from asset_daily_prices
+                     where asset_id = $1
+                       and provider = $2`,
+                    [priceAssetId, normalizedProvider],
+                );
+                const insertedCount = Number(insertedCountResult.rows[0]?.inserted_count ?? 0);
+                if (insertedCount < input.replacementPoints.length) {
+                    throw new MarketDataRepositoryError(
+                        "db_error",
+                        `Insert-/Delete-Verifikation fehlgeschlagen: erwartete mindestens ${input.replacementPoints.length} Preiszeilen, gefunden ${insertedCount}.`,
+                    );
+                }
+
                 const latestResult = await client.query<Record<string, unknown>>(
                     `select max(price_date) as latest_price_date
                      from asset_daily_prices
                      where asset_id = $1
                        and provider = $2`,
-                    [assetId, normalizedProvider],
+                    [priceAssetId, normalizedProvider],
                 );
                 const latestPriceDate = latestResult.rows[0]?.latest_price_date;
                 const normalizedLatestPriceDate = latestPriceDate === null ? null : normalizeDbDateValue(latestPriceDate);
 
-                if (!normalizedLatestPriceDate || normalizedLatestPriceDate !== latestReplacementDate) {
-                    throw new MarketDataRepositoryError("db_error", "Ersatz-Historie konnte nicht konsistent verifiziert werden.");
+                if (!normalizedLatestPriceDate) {
+                    throw new MarketDataRepositoryError("db_error", "Latest-Price-Verifikation fehlgeschlagen: keine Preiszeilen für Asset/Provider gefunden.");
+                }
+                if (normalizedLatestPriceDate !== latestReplacementDate) {
+                    throw new MarketDataRepositoryError(
+                        "db_error",
+                        `Latest-Price-Verifikation fehlgeschlagen: erwartetes Datum ${latestReplacementDate}, gefunden ${normalizedLatestPriceDate}.`,
+                    );
                 }
 
                 await client.query("commit");
