@@ -30,6 +30,8 @@ function parseListArg(targetSet, rawValue, normalizer) {
 function parseArgs(argv) {
     const options = {
         write: false,
+        compact: false,
+        continueOnError: false,
         limit: null,
         isin: null,
         excludeIsins: new Set(),
@@ -49,6 +51,18 @@ function parseArgs(argv) {
         if (token === "--write") {
             options.write = true;
             continue;
+        }
+        if (token === "--compact") {
+            options.compact = true;
+            continue;
+        }
+        if (token === "--continue-on-error") {
+            options.continueOnError = true;
+            continue;
+        }
+        if (token === "--help") {
+            console.log("Usage: npm run db:market:backfill:primary -- [--write] [--force] [--compact] [--continue-on-error] [--isin <ISIN>] [--exclude-isin <ISIN[,ISIN]>] [--limit <N>] [--period <PERIOD>] [--provider <PROVIDER>] [--batch-size <N>] [--python <BIN>]");
+            process.exit(0);
         }
         if (token === "--limit") {
             options.limit = parsePositiveInt(args.shift(), null);
@@ -91,6 +105,8 @@ function parseArgs(argv) {
 
     return options;
 }
+
+export { parseArgs };
 
 function safeMessage(error) {
     if (error instanceof Error && error.message) return error.message;
@@ -175,9 +191,11 @@ async function run() {
         planned = planned.slice(0, options.limit);
     }
 
-    console.log("Planned Backfills:");
-    for (const row of planned) {
-        console.log(`- ${row.isin} | ${row.symbol} | ${row.exchange ?? "-"} | ${row.currency ?? "-"} | hasPrices=${row.hasPrices} | hasActions=${row.hasActions}`);
+    if (!options.compact) {
+        console.log("Planned Backfills:");
+        for (const row of planned) {
+            console.log(`- ${row.isin} | ${row.symbol} | ${row.exchange ?? "-"} | ${row.currency ?? "-"} | hasPrices=${row.hasPrices} | hasActions=${row.hasActions}`);
+        }
     }
 
     let successCount = 0;

@@ -3039,6 +3039,30 @@ export async function listPrimaryMappingsForBackfill(provider = "yfinance", isin
     }
 }
 
+export async function deleteDailyPricesForPrimaryMappings(input: {
+    provider: string;
+    isin?: string;
+}): Promise<{ deletedPriceRows: number }> {
+    try {
+        const normalizedProvider = input.provider.trim().toLowerCase();
+        const normalizedIsin = input.isin ? assertIsin(input.isin) : null;
+        const result = await queryPostgres(
+            `delete from asset_daily_prices p
+             using assets a
+             where p.asset_id = a.id
+               and p.provider = $1
+               and a.asset_key_type = 'isin'
+               and ($2::text is null or a.isin = $2)`,
+            [normalizedProvider, normalizedIsin],
+        );
+        return {
+            deletedPriceRows: result.rowCount ?? 0,
+        };
+    } catch (error) {
+        handleRepositoryError(error, "deleteDailyPricesForPrimaryMappings(asset_daily_prices)");
+    }
+}
+
 export async function upsertSymbolMapping(input: UpsertSymbolMappingInput): Promise<DbMarketSymbolMapping> {
     try {
         const instrument = await upsertInstrument({ isin: input.isin });

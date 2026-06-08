@@ -42,17 +42,71 @@ Current migrations:
 Current runtime/UI history exposure is dividend-focused.
 Corporate-action/lineage expansion is future work.
 
-## Admin/CLI Workflow (High Level)
+## Normal Workflow
 
-1. Run migrations.
-2. Sync instruments.
-3. Create/import candidate mappings.
-4. Validate candidates (yfinance).
-5. Import validation results.
-6. Promote verified primary mappings.
-7. Backfill prices/actions.
-8. Run incremental primary updates.
-9. Inspect status/unmapped/requests/runs via Admin read-only views or CLI reports.
+The normal operator workflow is reduced to four commands:
+
+1. `npm run db:market:doctor`
+2. `npm run db:market:resolve-primary`
+3. `npm run db:market:rebuild-prices -- --write --reset-yfinance-prices --continue-on-error --compact`
+4. `npm run db:market:update-prices`
+
+Principles:
+
+- `asset_symbol_mappings` is the source of truth for which ticker is used.
+- `asset_daily_prices` is treated as rebuildable cache.
+- Runtime market-data reads stay DB-only.
+- Shell / merger / ISIN-lineage / symbol-ownership conflicts stay `manual_review` and are not auto-resolved.
+
+## Operator Commands
+
+### `db:market:doctor`
+
+Read-only health and audit command.
+
+- Default mode is DB-only.
+- Wraps the current status and quality audit view.
+- Answers:
+  - missing or unhealthy primary mappings
+  - remaining non-DE / non-EUR primaries
+  - price currency inconsistencies
+  - stale / short / gappy histories
+  - manual-review cases
+  - terminal / legacy / derivative / excluded cases
+
+Useful flags:
+
+- `--all`
+- `--isin <ISIN>`
+- `--symbol <SYMBOL>`
+- `--currency <CURRENCY>`
+
+### `db:market:resolve-primary`
+
+Primary ticker decision workflow.
+
+- Default mode is dry-run and DB-only.
+- Default path reuses the current `.DE` primary-preference planner.
+- `--validate` switches into the explicit candidate-validation / discovery path.
+- `--write` is forwarded to the selected underlying workflow and remains explicit.
+- Conflict-heavy cases such as Shell / `R6C0.DE` remain manual review.
+
+### `db:market:rebuild-prices`
+
+Full price-cache rebuild from current primary mappings.
+
+- Default mode is dry-run only and provider-call-free.
+- Dry-run reuses the current primary backfill planner with `--force`.
+- Destructive write is guarded and requires `--write` plus `--reset-prices` or `--reset-yfinance-prices`.
+- Reset deletes yfinance `asset_daily_prices` rows for the selected primary-mapping scope before full-history import.
+- `--compact` and `--continue-on-error` are accepted at the operator entrypoint.
+
+### `db:market:update-prices`
+
+Incremental price update from current primary mappings.
+
+- Thin alias for the current incremental primary update workflow.
+- Default mode is dry-run only.
 
 ## `.DE` Primary Preference Workflow
 
@@ -100,6 +154,12 @@ Corporate-action/lineage expansion is future work.
 
 ### Usage
 
+- Doctor / audit: `npm run db:market:doctor`
+- Resolve current verified primary plan: `npm run db:market:resolve-primary`
+- Resolve with explicit candidate validation: `npm run db:market:resolve-primary -- --validate`
+- Dry-run full rebuild plan: `npm run db:market:rebuild-prices`
+- Destructive rebuild from current primary mappings: `npm run db:market:rebuild-prices -- --write --reset-yfinance-prices --continue-on-error --compact`
+- Incremental update: `npm run db:market:update-prices`
 - Discover missing `.DE` candidates without provider calls: `npm run db:market:discover-de-candidates`
 - Validate derived `.DE` candidates explicitly against yfinance: `npm run db:market:discover-de-candidates -- --validate`
 - Store unverified `.DE` proposals only: `npm run db:market:discover-de-candidates -- --write`
@@ -109,6 +169,30 @@ Corporate-action/lineage expansion is future work.
 - Write non-destructive primary changes only: `npm run db:market:prefer-de-primary -- --write`
 - Write only currency-fix candidates: `npm run db:market:prefer-de-primary -- --currency-fixes-only --write`
 - Write with destructive full-history replacement when ticker changes: `npm run db:market:prefer-de-primary -- --write --replace-history`
+
+## Legacy / Internal Commands
+
+The following commands remain available for advanced or exceptional workflows, but they are no longer the primary operator model:
+
+- `db:market:sync:instruments`
+- `db:market:match:symbols`
+- `db:market:create:xetra-candidates`
+- `db:market:export:candidates`
+- `db:market:import:validation`
+- `db:market:lookup:openfigi`
+- `db:market:add:candidate`
+- `db:market:transfer:mapping`
+- `db:market:set:instrument-status`
+- `db:market:set:instrument-metadata`
+- `db:market:promote:verified`
+- `db:market:discover-de-candidates`
+- `db:market:prefer-de-primary`
+- `db:market:backfill:primary`
+- `db:market:update:primary`
+- `db:market:import:reference:xetra`
+- `db:market:import:reference:trading-universe`
+- `db:market:import:manual-mappings`
+- `db:market:unmapped`
 
 ## Unknown Asset Queue
 
