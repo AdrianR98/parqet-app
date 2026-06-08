@@ -33,6 +33,24 @@ export type DePrimaryPreferencePlan = {
     assetsRequiringFullHistoryReplacement: number;
 };
 
+export type DePrimarySelectionStatus =
+    | "selected"
+    | "skipped_by_currency_fixes_only";
+
+export type DePrimarySelectedSwitchCandidate = DePrimarySwitchCandidate & {
+    selectionStatus: DePrimarySelectionStatus;
+};
+
+export type DePrimaryPreferenceSelection = {
+    totalSwitchCandidates: number;
+    currencyFixSwitchCandidates: number;
+    venueOnlySwitchCandidates: number;
+    candidates: DePrimarySelectedSwitchCandidate[];
+    selectedCandidates: DePrimarySelectedSwitchCandidate[];
+    selectedHistoryReplacementCount: number;
+    selectedDeletionRowCount: number;
+};
+
 export function isGermanYfinanceSymbol(symbol: string): boolean {
     return symbol.trim().toUpperCase().endsWith(".DE");
 }
@@ -162,5 +180,38 @@ export function buildDePrimaryPreferencePlan(input: {
         skippedNonActionable,
         actionableUnknownInspected,
         assetsRequiringFullHistoryReplacement,
+    };
+}
+
+export function buildDePrimaryPreferenceSelection(input: {
+    plan: DePrimaryPreferencePlan;
+    currencyFixesOnly?: boolean;
+    limit?: number | null;
+}): DePrimaryPreferenceSelection {
+    const currencyFixesOnly = input.currencyFixesOnly === true;
+    const candidates = input.plan.switchCandidates.map((candidate) => {
+        const selectionStatus: DePrimarySelectionStatus =
+            currencyFixesOnly && !candidate.isCurrencyFix ? "skipped_by_currency_fixes_only" : "selected";
+        return {
+            ...candidate,
+            selectionStatus,
+        };
+    });
+
+    const eligibleCandidates = candidates.filter((candidate) => candidate.selectionStatus === "selected");
+    const selectedCandidates =
+        input.limit && input.limit > 0 ? eligibleCandidates.slice(0, input.limit) : eligibleCandidates;
+
+    return {
+        totalSwitchCandidates: input.plan.switchCandidates.length,
+        currencyFixSwitchCandidates: input.plan.switchCandidates.filter((candidate) => candidate.isCurrencyFix).length,
+        venueOnlySwitchCandidates: input.plan.switchCandidates.filter((candidate) => candidate.isVenueOnlySwitch).length,
+        candidates,
+        selectedCandidates,
+        selectedHistoryReplacementCount: selectedCandidates.filter((candidate) => candidate.requiresFullHistoryReplacement).length,
+        selectedDeletionRowCount: selectedCandidates.reduce(
+            (sum, candidate) => sum + candidate.oldPriceRowCountToDelete,
+            0,
+        ),
     };
 }

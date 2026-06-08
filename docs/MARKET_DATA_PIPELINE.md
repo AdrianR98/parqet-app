@@ -105,7 +105,9 @@ Corporate-action/lineage expansion is future work.
 - Store unverified `.DE` proposals only: `npm run db:market:discover-de-candidates -- --write`
 - Store verified `.DE` candidates after validation: `npm run db:market:discover-de-candidates -- --validate --write`
 - Dry-run: `npm run db:market:prefer-de-primary`
+- Dry-run limited to currency-fix candidates while still reporting venue-only skips: `npm run db:market:prefer-de-primary -- --currency-fixes-only`
 - Write non-destructive primary changes only: `npm run db:market:prefer-de-primary -- --write`
+- Write only currency-fix candidates: `npm run db:market:prefer-de-primary -- --currency-fixes-only --write`
 - Write with destructive full-history replacement when ticker changes: `npm run db:market:prefer-de-primary -- --write --replace-history`
 
 ## Unknown Asset Queue

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDePrimaryPreferencePlan } from "../../src/lib/market-data/prefer-de-primary";
+import { parseArgs } from "../../scripts/prefer-de-yfinance-primary-mappings.mjs";
+import {
+    buildDePrimaryPreferencePlan,
+    buildDePrimaryPreferenceSelection,
+} from "../../src/lib/market-data/prefer-de-primary";
 import type {
     DbMarketInstrument,
     SymbolMappingForPrimaryPreference,
@@ -53,6 +57,14 @@ function mapping(overrides: Partial<SymbolMappingForPrimaryPreference>): SymbolM
 }
 
 describe("prefer .DE primary plan", () => {
+    it("accepts the --currency-fixes-only CLI flag", () => {
+        const options = parseArgs(["--currency-fixes-only"]);
+
+        expect(options.currencyFixesOnly).toBe(true);
+        expect(options.write).toBe(false);
+        expect(options.replaceHistory).toBe(false);
+    });
+
     it("prefers verified .DE mappings over non-DE primary mappings", () => {
         const plan = buildDePrimaryPreferencePlan({
             instruments: [instrument({ isin: "US0000000001", id: "asset-1" })],
@@ -199,6 +211,138 @@ describe("prefer .DE primary plan", () => {
             isCurrencyFix: false,
             isVenueOnlySwitch: true,
         });
+    });
+
+    it("keeps all switch candidates selected in the default dry-run selection", () => {
+        const plan = buildDePrimaryPreferencePlan({
+            instruments: [
+                instrument({ isin: "US0000000012", id: "asset-12", marketDataStatus: "active" }),
+                instrument({ isin: "GB0000000013", id: "asset-13", marketDataStatus: "active" }),
+            ],
+            mappings: [
+                mapping({
+                    assetId: "asset-12",
+                    isin: "US0000000012",
+                    mappingId: "old-primary-usd",
+                    symbol: "IMBBF",
+                    exchange: "PNK",
+                    currency: "USD",
+                    isPrimary: true,
+                    providerPriceRowCount: 123,
+                }),
+                mapping({
+                    assetId: "asset-12",
+                    isin: "US0000000012",
+                    mappingId: "new-primary-usd-de",
+                    symbol: "BMW.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                }),
+                mapping({
+                    assetId: "asset-13",
+                    isin: "GB0000000013",
+                    mappingId: "old-primary-eur-2",
+                    symbol: "L3H.F",
+                    exchange: "FRA",
+                    currency: "EUR",
+                    isPrimary: true,
+                    providerPriceRowCount: 42,
+                }),
+                mapping({
+                    assetId: "asset-13",
+                    isin: "GB0000000013",
+                    mappingId: "new-primary-eur-de-2",
+                    symbol: "R6C0.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                }),
+            ],
+        });
+
+        const selection = buildDePrimaryPreferenceSelection({ plan });
+
+        expect(selection.totalSwitchCandidates).toBe(2);
+        expect(selection.selectedCandidates).toHaveLength(2);
+        expect(selection.selectedHistoryReplacementCount).toBe(2);
+        expect(selection.selectedDeletionRowCount).toBe(165);
+        expect(selection.candidates.map((candidate) => candidate.selectionStatus)).toEqual([
+            "selected",
+            "selected",
+        ]);
+    });
+
+    it("selects only currency-fix candidates under --currency-fixes-only", () => {
+        const plan = buildDePrimaryPreferencePlan({
+            instruments: [
+                instrument({ isin: "US0000000014", id: "asset-14", marketDataStatus: "active" }),
+                instrument({ isin: "GB0000000015", id: "asset-15", marketDataStatus: "active" }),
+            ],
+            mappings: [
+                mapping({
+                    assetId: "asset-14",
+                    isin: "US0000000014",
+                    mappingId: "old-primary-usd-2",
+                    symbol: "IMBBF",
+                    exchange: "PNK",
+                    currency: "USD",
+                    isPrimary: true,
+                    providerPriceRowCount: 123,
+                }),
+                mapping({
+                    assetId: "asset-14",
+                    isin: "US0000000014",
+                    mappingId: "new-primary-usd-de-2",
+                    symbol: "BMW.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                }),
+                mapping({
+                    assetId: "asset-15",
+                    isin: "GB0000000015",
+                    mappingId: "old-primary-eur-3",
+                    symbol: "L3H.F",
+                    exchange: "FRA",
+                    currency: "EUR",
+                    isPrimary: true,
+                    providerPriceRowCount: 42,
+                }),
+                mapping({
+                    assetId: "asset-15",
+                    isin: "GB0000000015",
+                    mappingId: "new-primary-eur-de-3",
+                    symbol: "R6C0.DE",
+                    exchange: "XETRA",
+                    currency: "EUR",
+                }),
+            ],
+        });
+
+        const selection = buildDePrimaryPreferenceSelection({
+            plan,
+            currencyFixesOnly: true,
+        });
+
+        expect(selection.totalSwitchCandidates).toBe(2);
+        expect(selection.currencyFixSwitchCandidates).toBe(1);
+        expect(selection.venueOnlySwitchCandidates).toBe(1);
+        expect(selection.selectedCandidates).toHaveLength(1);
+        expect(selection.selectedCandidates[0]).toMatchObject({
+            isin: "US0000000014",
+            selectionStatus: "selected",
+            isCurrencyFix: true,
+        });
+        expect(selection.selectedHistoryReplacementCount).toBe(1);
+        expect(selection.selectedDeletionRowCount).toBe(123);
+        expect(selection.candidates).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    isin: "GB0000000015",
+                    selectionStatus: "skipped_by_currency_fixes_only",
+                    isCurrencyFix: false,
+                    isVenueOnlySwitch: true,
+                }),
+            ]),
+        );
     });
 
     it("skips terminal statuses", () => {

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import nextEnv from "@next/env";
 
 const { loadEnvConfig } = nextEnv;
@@ -32,6 +33,7 @@ function parseArgs(argv) {
     const options = {
         write: false,
         replaceHistory: false,
+        currencyFixesOnly: false,
         limit: null,
         isins: new Set(),
         excludeIsins: new Set(),
@@ -49,6 +51,10 @@ function parseArgs(argv) {
         }
         if (token === "--replace-history") {
             options.replaceHistory = true;
+            continue;
+        }
+        if (token === "--currency-fixes-only") {
+            options.currencyFixesOnly = true;
             continue;
         }
         if (token === "--limit") {
@@ -77,6 +83,8 @@ function parseArgs(argv) {
 
     return options;
 }
+
+export { parseArgs };
 
 function safeMessage(error) {
     if (error instanceof Error && error.message) return error.message;
@@ -166,17 +174,25 @@ async function exportFullHistory({ python, isin, displayName, symbol }) {
     }
 }
 
-function printPlanSummary({ plan, limitedCandidates, mode }) {
+function printPlanSummary({ plan, selection, mode, limit }) {
     console.log("Prefer .DE Primary Mapping Report");
     console.log(`- mode: ${mode}`);
     console.log(`- provider calls: ${mode === "dry-run" ? "disabled" : "enabled only with --write --replace-history"}`);
     console.log(`- total assets inspected: ${plan.totalAssetsInspected}`);
     console.log(`- already primary .DE: ${plan.alreadyPrimaryDe}`);
-    console.log(`- switch candidates non-DE -> .DE: ${limitedCandidates.length}`);
+    console.log(`- switch candidates non-DE -> .DE: ${selection.totalSwitchCandidates}`);
+    console.log(`- currency-fix switch candidates: ${selection.currencyFixSwitchCandidates}`);
+    console.log(`- venue-only switch candidates: ${selection.venueOnlySwitchCandidates}`);
+    console.log(`- selected candidates under current flags: ${selection.selectedCandidates.length}`);
+    console.log(`- selected history replacements under current flags: ${selection.selectedHistoryReplacementCount}`);
+    console.log(`- total old rows selected for deletion under current flags: ${selection.selectedDeletionRowCount}`);
     console.log(`- actionable unknown inspected: ${plan.actionableUnknownInspected}`);
     console.log(`- no .DE candidate: ${plan.noDeCandidate}`);
     console.log(`- skipped terminal/excluded/legacy/derivative assets: ${plan.skippedNonActionable}`);
-    console.log(`- assets requiring full history replacement: ${limitedCandidates.filter((item) => item.requiresFullHistoryReplacement).length}`);
+    console.log(`- assets requiring full history replacement: ${plan.assetsRequiringFullHistoryReplacement}`);
+    if (limit) {
+        console.log(`- selection limit applied: ${selection.selectedCandidates.length}`);
+    }
     console.log("- delete scope limitation: asset_daily_prices does not store the original yfinance symbol, so replacement deletes by asset + provider before inserting the full new .DE history.");
 }
 
@@ -197,6 +213,7 @@ function printCandidate(candidate) {
     console.log(`  requiresFullHistoryReplacement: ${candidate.requiresFullHistoryReplacement}`);
     console.log(`  isCurrencyFix: ${candidate.isCurrencyFix}`);
     console.log(`  isVenueOnlySwitch: ${candidate.isVenueOnlySwitch}`);
+    console.log(`  selectionStatus: ${candidate.selectionStatus ?? "selected"}`);
 }
 
 async function closeDbPool() {
@@ -214,7 +231,7 @@ async function run() {
         replacePrimaryMappingPriceHistory,
         setPrimarySymbolMappingByIsin,
     } = await import("../src/lib/market-data/db/repository-core.ts");
-    const { buildDePrimaryPreferencePlan } = await import("../src/lib/market-data/prefer-de-primary.ts");
+    const { buildDePrimaryPreferencePlan, buildDePrimaryPreferenceSelection } = await import("../src/lib/market-data/prefer-de-primary.ts");
 
     const allInstruments = await listMarketInstruments({ limit: 50000 });
     const filteredInstruments = allInstruments.filter((instrument) => {
@@ -237,16 +254,21 @@ async function run() {
         mappings: filteredMappings,
     });
 
-    const limitedCandidates = options.limit ? plan.switchCandidates.slice(0, options.limit) : plan.switchCandidates;
+    const selection = buildDePrimaryPreferenceSelection({
+        plan,
+        currencyFixesOnly: options.currencyFixesOnly,
+        limit: options.limit,
+    });
     printPlanSummary({
         plan,
-        limitedCandidates,
+        selection,
         mode: options.write ? (options.replaceHistory ? "write + replace-history" : "write") : "dry-run",
+        limit: options.limit,
     });
 
-    if (limitedCandidates.length > 0) {
+    if (selection.candidates.length > 0) {
         console.log("Switch candidates:");
-        for (const candidate of limitedCandidates) {
+        for (const candidate of selection.candidates) {
             printCandidate(candidate);
         }
     }
@@ -257,7 +279,7 @@ async function run() {
         return;
     }
 
-    const blockingCandidates = limitedCandidates.filter(
+    const blockingCandidates = selection.selectedCandidates.filter(
         (candidate) => candidate.requiresFullHistoryReplacement && candidate.oldPriceRowCountToDelete > 0,
     );
     if (blockingCandidates.length > 0 && !options.replaceHistory) {
@@ -268,7 +290,7 @@ async function run() {
 
     const replacementPayloads = new Map();
     if (options.replaceHistory) {
-        for (const candidate of limitedCandidates.filter((item) => item.requiresFullHistoryReplacement)) {
+        for (const candidate of selection.selectedCandidates.filter((item) => item.requiresFullHistoryReplacement)) {
             const payload = await exportFullHistory({
                 python: options.python,
                 isin: candidate.isin,
@@ -282,7 +304,7 @@ async function run() {
     let switched = 0;
     let replaced = 0;
 
-    for (const candidate of limitedCandidates) {
+    for (const candidate of selection.selectedCandidates) {
         if (candidate.requiresFullHistoryReplacement) {
             const payload = replacementPayloads.get(candidate.newPrimaryMappingId);
             if (!payload) {
@@ -317,11 +339,15 @@ async function run() {
     console.log(`- DB writes: enabled (--write${options.replaceHistory ? " --replace-history" : ""})`);
 }
 
-run()
-    .catch((error) => {
-        console.error(`Prefer .DE primary mapping failed: ${safeMessage(error)}`);
-        process.exitCode = 1;
-    })
-    .finally(async () => {
-        await closeDbPool();
-    });
+const isDirectExecution = process.argv[1] ? pathToFileURL(process.argv[1]).href === import.meta.url : false;
+
+if (isDirectExecution) {
+    run()
+        .catch((error) => {
+            console.error(`Prefer .DE primary mapping failed: ${safeMessage(error)}`);
+            process.exitCode = 1;
+        })
+        .finally(async () => {
+            await closeDbPool();
+        });
+}
