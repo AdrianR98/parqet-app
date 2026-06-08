@@ -90,7 +90,7 @@ export default function DashboardPage() {
         selectedPortfolioIds, showWarningsPanel,
         consistencyReport, reconciliationWarnings, selectedPortfoliosMissingInLocalLoad,
         hasEmptyManualScopeIntersection,
-        loadingAssets, refreshingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
+        loadingAssets, hasCachedData, errorMessage, authRequired, startReconnect,
         sortedActiveAssets, sortedClosedAssets,
         setShowWarningsPanel,
     } = useDashboardData();
@@ -187,7 +187,6 @@ export default function DashboardPage() {
                         allocationSegments={allocationSegments}
                     />
 
-                    {refreshingAssets ? <div className="ui-banner ui-banner-info">Manuelle Aktualisierung läuft. Der letzte geladene Stand bleibt sichtbar.</div> : null}
                     {hasCachedData && selectedPortfoliosMissingInLocalLoad.length > 0 ? (
                         <div className="ui-banner ui-banner-info">
                             Auswahl enthält noch nicht lokal geladene Portfolios.

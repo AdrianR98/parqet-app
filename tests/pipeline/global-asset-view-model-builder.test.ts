@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildGlobalAssetViewModelsFromProductReadModel } from "../../src/lib/view-models/global-asset-view-model-builder";
 import type { ProductReadModelAssets } from "../../src/lib/parqet/global-assets/product-read-model";
@@ -152,6 +152,11 @@ function createProductReadModelFixture(): ProductReadModelAssets {
 }
 
 describe("global asset PRM view-model builder", () => {
+  afterEach(() => {
+    process.env.NODE_ENV = undefined;
+    vi.restoreAllMocks();
+  });
+
   it("does not crash when portfolio breakdown valuation is missing and falls back to row valuation", () => {
     const viewModels = buildGlobalAssetViewModelsFromProductReadModel(
       createProductReadModelFixture(),
@@ -178,5 +183,26 @@ describe("global asset PRM view-model builder", () => {
       (row?.positionValue ?? 0) - (row?.remainingCostBasis ?? 0),
       6,
     );
+  });
+
+  it("deduplicates repeated missing metadata warnings for the same count", () => {
+    process.env.NODE_ENV = "development";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fixture = createProductReadModelFixture();
+    fixture.assets[0] = {
+      ...fixture.assets[0],
+      display: {
+        ...fixture.assets[0].display,
+        displayName: "DEMO00000099",
+      },
+    };
+
+    buildGlobalAssetViewModelsFromProductReadModel(fixture);
+    buildGlobalAssetViewModelsFromProductReadModel(fixture);
+
+    const matchingCalls = warnSpy.mock.calls.filter((call) => (
+      call[1] === "missing_metadata_titles_detected"
+    ));
+    expect(matchingCalls).toHaveLength(1);
   });
 });

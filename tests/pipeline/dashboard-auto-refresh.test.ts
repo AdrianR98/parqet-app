@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { shouldAutoRefreshDashboardData } from "../../src/lib/dashboard-auto-refresh";
+import {
+  buildDashboardAssetRequestKey,
+  getOrCreateSharedDashboardRequest,
+} from "../../src/hooks/use-dashboard-data";
 
 describe("shouldAutoRefreshDashboardData", () => {
     it("returns false while portfolios are loading", () => {
@@ -186,5 +190,37 @@ describe("shouldAutoRefreshDashboardData", () => {
             reason: "cached_revalidate",
             executionKey: "cached_revalidate:p7",
         });
+    });
+
+    it("builds one shared request key for the same portfolio scope", () => {
+        expect(buildDashboardAssetRequestKey(["p2", "p1"])).toBe("assets:p1|p2");
+        expect(buildDashboardAssetRequestKey(["p1", "p2"], true)).toBe("assets:refresh:p1|p2");
+    });
+
+    it("reuses the same in-flight request promise for duplicate scope loads", async () => {
+        const registry = new Map<string, Promise<unknown>>();
+        let createCount = 0;
+
+        const first = getOrCreateSharedDashboardRequest(
+            registry,
+            "assets:p1",
+            async () => {
+                createCount += 1;
+                return "done";
+            },
+        );
+        const second = getOrCreateSharedDashboardRequest(
+            registry,
+            "assets:p1",
+            async () => {
+                createCount += 1;
+                return "other";
+            },
+        );
+
+        expect(first).toBe(second);
+        await expect(first).resolves.toBe("done");
+        expect(createCount).toBe(1);
+        expect(registry.has("assets:p1")).toBe(false);
     });
 });

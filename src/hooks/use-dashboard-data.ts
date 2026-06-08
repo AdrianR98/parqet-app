@@ -37,6 +37,8 @@ import {
 } from "../lib/parqet-api-diagnostics";
 import { usePortfolioFilter } from "./use-portfolio-filter";
 
+const sharedDashboardRequestRegistry = new Map<string, Promise<unknown>>();
+
 type UseDashboardDataResult = {
   portfolios: Portfolio[];
   selectedPortfolioIds: string[];
@@ -102,6 +104,39 @@ function haveSamePortfolioSelection(left: string[], right: string[]): boolean {
 
 function haveSameStringSet(left: string[], right: string[]): boolean {
   return haveSamePortfolioSelection(left, right);
+}
+
+function buildDashboardScopeKey(portfolioIds: string[]): string {
+  return [...portfolioIds].sort().join("|");
+}
+
+export function buildDashboardAssetRequestKey(
+  portfolioIds: string[],
+  explicitRefresh = false,
+): string {
+  const scopeKey = buildDashboardScopeKey(portfolioIds);
+  return explicitRefresh ? `assets:refresh:${scopeKey}` : `assets:${scopeKey}`;
+}
+
+export function getOrCreateSharedDashboardRequest<T>(
+  registry: Map<string, Promise<unknown>>,
+  key: string,
+  createRequest: () => Promise<T>,
+): Promise<T> {
+  const existing = registry.get(key) as Promise<T> | undefined;
+
+  if (existing) {
+    return existing;
+  }
+
+  const request = createRequest().finally(() => {
+    if (registry.get(key) === request) {
+      registry.delete(key);
+    }
+  });
+
+  registry.set(key, request as Promise<unknown>);
+  return request;
 }
 
 function getResponseDiagnostic(
@@ -241,9 +276,15 @@ export function useDashboardData(): UseDashboardDataResult {
       setErrorMessage("");
 
       try {
-        const res = await fetch("/api/parqet/portfolios");
-        const rawText = await res.text();
-        const data: PortfoliosApiResponse = JSON.parse(rawText);
+        const data = await getOrCreateSharedDashboardRequest(
+          sharedDashboardRequestRegistry,
+          "portfolios",
+          async () => {
+            const res = await fetch("/api/parqet/portfolios");
+            const rawText = await res.text();
+            return JSON.parse(rawText) as PortfoliosApiResponse;
+          },
+        );
 
         if (!data.ok) {
           if (data.authRequired) {
@@ -379,9 +420,18 @@ export function useDashboardData(): UseDashboardDataResult {
         params.set("refresh", "1");
       }
 
-      const res = await fetch(`/api/parqet/assets?${params.toString()}`);
-      const rawText = await res.text();
-      const data: AssetsApiResponse = JSON.parse(rawText);
+      const data = await getOrCreateSharedDashboardRequest(
+        sharedDashboardRequestRegistry,
+        buildDashboardAssetRequestKey(
+          portfolioIdsForLoad,
+          options?.explicitRefresh === true,
+        ),
+        async () => {
+          const res = await fetch(`/api/parqet/assets?${params.toString()}`);
+          const rawText = await res.text();
+          return JSON.parse(rawText) as AssetsApiResponse;
+        },
+      );
 
       if (!data.ok) {
         if (data.authRequired) {

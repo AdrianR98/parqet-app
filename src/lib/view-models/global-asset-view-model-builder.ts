@@ -7,6 +7,8 @@ import {
   summarizeDiagnostics,
 } from "../debug/dev-diagnostics";
 
+let lastMissingMetadataWarningKey: string | null = null;
+
 function resolveLatestTradePrice(input: {
   rowValuation?: ProductReadModelAssetRow["valuation"] | null;
   breakdownValuation?: ProductReadModelAssetRow["portfolioBreakdown"][number]["valuation"] | null;
@@ -189,9 +191,15 @@ export function buildGlobalAssetViewModelsFromProductReadModel(
   }, "metadata");
 
   if (missingDisplayNameCount > 0) {
-    logDevDiagnostic("metadata", "missing_metadata_titles_detected", {
-      missingMetadataTitleCount: missingDisplayNameCount,
-    }, "warn");
+    const warningKey = `missing_metadata_titles_detected:${missingDisplayNameCount}`;
+    if (lastMissingMetadataWarningKey !== warningKey) {
+      lastMissingMetadataWarningKey = warningKey;
+      logDevDiagnostic("metadata", "missing_metadata_titles_detected", {
+        missingMetadataTitleCount: missingDisplayNameCount,
+      }, "warn");
+    }
+  } else {
+    lastMissingMetadataWarningKey = null;
   }
 
   return viewModels;
