@@ -20,6 +20,7 @@ import type {
     MarketDataStatusSummary,
     VerifiedMappingForPromotion,
     PrimaryMappingForBackfill,
+    PrimaryMappingPriceQualityRow,
     MarketDataInstrumentStatus,
     MarketInstrumentStatusSummaryRow,
     UpdateMarketInstrumentStatusInput,
@@ -41,6 +42,8 @@ import type {
     UpsertReferenceSourceInput,
     UpdateSymbolMappingValidationInput,
     UpdateSymbolMappingByIdInput,
+    ReplacePrimaryMappingPriceHistoryInput,
+    SymbolMappingForPrimaryPreference,
     UpsertDailyPricesInput,
     UpsertInstrumentInput,
     UpsertMarketActionsInput,
@@ -56,6 +59,8 @@ import type {
     ListMarketDataRequestsResult,
     MarketDataRequestStatus,
     RecordMarketDataRequestInput,
+    StoreVerifiedSymbolMappingCandidateInput,
+    StoreVerifiedSymbolMappingCandidateResult,
 } from "./types-core";
 
 export class MarketDataRepositoryError extends Error {
@@ -105,37 +110,59 @@ function toNullableNumber(value: unknown): number | null {
     return Number.isFinite(numeric) ? numeric : null;
 }
 
+function extractCalendarDatePrefix(value: string): string | null {
+    const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})(?:[T\s].*)?$/);
+    return match?.[1] ?? null;
+}
+
+function formatLocalDateParts(value: Date): string {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
 function toDateString(value: string): string {
+    const prefixedDate = extractCalendarDatePrefix(value);
+    if (prefixedDate) {
+        return prefixedDate;
+    }
+
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
         throw new MarketDataRepositoryError("invalid_input", "Ungültiges Datum.");
     }
-    return date.toISOString().slice(0, 10);
+    return formatLocalDateParts(date);
 }
 
 function normalizeDbDateValue(value: unknown): string {
     if (typeof value === "string") {
         const normalized = value.trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-            return normalized;
+        const prefixedDate = extractCalendarDatePrefix(normalized);
+        if (prefixedDate) {
+            return prefixedDate;
         }
 
         const parsed = new Date(normalized);
         if (!Number.isNaN(parsed.getTime())) {
-            return parsed.toISOString().slice(0, 10);
+            return formatLocalDateParts(parsed);
         }
 
         return normalized;
     }
 
     if (value instanceof Date) {
-        return value.toISOString().slice(0, 10);
+        return formatLocalDateParts(value);
     }
 
     const fallback = String(value ?? "");
+    const prefixedDate = extractCalendarDatePrefix(fallback);
+    if (prefixedDate) {
+        return prefixedDate;
+    }
     const parsed = new Date(fallback);
     if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toISOString().slice(0, 10);
+        return formatLocalDateParts(parsed);
     }
 
     return fallback;
@@ -280,6 +307,18 @@ function mapActionRow(row: Record<string, unknown>): DbMarketAction {
     };
 }
 
+function mapJsonObjectNumberRecord(value: unknown): Record<string, number> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return {};
+    }
+
+    const entries = Object.entries(value as Record<string, unknown>)
+        .map(([key, raw]) => [String(key), Number(raw)] as const)
+        .filter(([, count]) => Number.isFinite(count));
+
+    return Object.fromEntries(entries);
+}
+
 function describeRepositoryError(error: unknown): string | null {
     if (error instanceof Error) {
         const message = error.message.replace(/\s+/g, " ").trim();
@@ -318,6 +357,8 @@ function normalizeInstrumentStatus(status: string): MarketDataInstrumentStatus {
     }
     return normalized as MarketDataInstrumentStatus;
 }
+
+const DAILY_PRICE_UPSERT_BATCH_SIZE = 500;
 
 function mapAssetRow(row: Record<string, unknown>): DbAsset {
     return {
@@ -364,6 +405,82 @@ function normalizeNonEmptyText(value: string | null | undefined): string | null 
     if (typeof value !== "string") return null;
     const normalized = value.trim();
     return normalized ? normalized : null;
+}
+
+function normalizeMeaningfulMetadataText(value: string | null | undefined): string | null {
+    const normalized = normalizeNonEmptyText(value);
+    if (!normalized) return null;
+    if (normalized === "0") return null;
+    return normalized;
+}
+
+function looksLikeSymbolOnlyFallback(value: string | null | undefined): boolean {
+    const normalized = normalizeMeaningfulMetadataText(value);
+    if (!normalized) return false;
+    if (/[a-z]/.test(normalized)) return false;
+    return /^[A-Z0-9][A-Z0-9 .&/-]{0,15}$/.test(normalized);
+}
+
+export function isMeaningfulStoredInstrumentName(value: string | null | undefined, isin: string): boolean {
+    const normalized = normalizeMeaningfulMetadataText(value);
+    if (!normalized) return false;
+    if (normalized.toUpperCase() === isin.trim().toUpperCase()) return false;
+    if (isLikelyPlaceholderName(normalized)) return false;
+    if (looksLikeSymbolOnlyFallback(normalized)) return false;
+    return true;
+}
+
+type InstrumentUpsertMetadataState = Pick<
+    DbMarketInstrument,
+    "name" | "displayName" | "assetType" | "currency" | "wkn" | "metadataSource" | "nameSource" | "displayNameSource"
+>;
+
+export function prepareInstrumentMetadataUpsert(
+    existing: Partial<InstrumentUpsertMetadataState> | null,
+    input: UpsertInstrumentInput,
+): InstrumentUpsertMetadataState {
+    const normalizedIsin = assertIsin(input.isin);
+    const existingName = normalizeMeaningfulMetadataText(existing?.name);
+    const existingDisplayName = normalizeMeaningfulMetadataText(existing?.displayName);
+    const existingAssetType = normalizeMeaningfulMetadataText(existing?.assetType);
+    const existingCurrency = normalizeMeaningfulMetadataText(existing?.currency)?.toUpperCase() ?? null;
+    const existingWkn = normalizeMeaningfulMetadataText(existing?.wkn)?.toUpperCase() ?? null;
+    const existingMetadataSource = normalizeMeaningfulMetadataText(existing?.metadataSource);
+    const existingNameSource = normalizeMeaningfulMetadataText(existing?.nameSource);
+    const existingDisplayNameSource = normalizeMeaningfulMetadataText(existing?.displayNameSource);
+
+    const inputName = normalizeMeaningfulMetadataText(input.name);
+    const inputDisplayName = normalizeMeaningfulMetadataText(input.displayName);
+    const inputAssetType = normalizeMeaningfulMetadataText(input.assetType);
+    const inputCurrency = normalizeMeaningfulMetadataText(input.currency)?.toUpperCase() ?? null;
+    const inputWkn = normalizeMeaningfulMetadataText(input.wkn)?.toUpperCase() ?? null;
+    const inputMetadataSource = normalizeMeaningfulMetadataText(input.metadataSource);
+    const inputNameSource = normalizeMeaningfulMetadataText(input.nameSource);
+    const inputDisplayNameSource = normalizeMeaningfulMetadataText(input.displayNameSource);
+
+    const nextName = isMeaningfulStoredInstrumentName(existingName, normalizedIsin)
+        ? existingName
+        : (isMeaningfulInstrumentName(inputName, normalizedIsin) && !looksLikeSymbolOnlyFallback(inputName) ? inputName : existingName);
+    const nextDisplayName = isMeaningfulStoredInstrumentName(existingDisplayName, normalizedIsin)
+        ? existingDisplayName
+        : (isMeaningfulInstrumentName(inputDisplayName, normalizedIsin) && !looksLikeSymbolOnlyFallback(inputDisplayName) ? inputDisplayName : existingDisplayName);
+    const nextAssetType = existingAssetType ?? inputAssetType ?? null;
+    const nextCurrency = existingCurrency ?? inputCurrency ?? null;
+    const nextWkn = existingWkn ?? inputWkn ?? null;
+    const nextMetadataSource = existingMetadataSource ?? inputMetadataSource ?? null;
+    const nextNameSource = existingNameSource ?? inputNameSource ?? null;
+    const nextDisplayNameSource = existingDisplayNameSource ?? inputDisplayNameSource ?? null;
+
+    return {
+        name: nextName ?? null,
+        displayName: nextDisplayName ?? null,
+        assetType: nextAssetType,
+        currency: nextCurrency,
+        wkn: nextWkn,
+        metadataSource: nextMetadataSource,
+        nameSource: nextNameSource,
+        displayNameSource: nextDisplayNameSource,
+    };
 }
 
 function normalizeMarketDataRequestStatus(status: string): MarketDataRequestStatus {
@@ -559,6 +676,8 @@ export async function getInstrumentByIsin(isin: string): Promise<DbMarketInstrum
 export async function upsertInstrument(input: UpsertInstrumentInput): Promise<DbMarketInstrument> {
     try {
         const normalizedIsin = assertIsin(input.isin);
+        const existing = await getInstrumentByIsin(normalizedIsin);
+        const prepared = prepareInstrumentMetadataUpsert(existing, input);
         const result = await queryPostgres<Record<string, unknown>>(
             `insert into assets
                 (asset_key_type, asset_key_value, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at, name_source, display_name_source, display_metadata_updated_at)
@@ -572,25 +691,33 @@ export async function upsertInstrument(input: UpsertInstrumentInput): Promise<Db
                asset_type = excluded.asset_type,
                currency = excluded.currency,
                wkn = excluded.wkn,
-               metadata_source = excluded.metadata_source,
-               metadata_updated_at = case when excluded.metadata_source is null then assets.metadata_updated_at else now() end,
-               name_source = excluded.name_source,
-               display_name_source = excluded.display_name_source,
-               display_metadata_updated_at = case when excluded.display_name_source is null then assets.display_metadata_updated_at else now() end,
+               metadata_source = coalesce(assets.metadata_source, excluded.metadata_source),
+               metadata_updated_at = case
+                   when assets.metadata_source is not null then assets.metadata_updated_at
+                   when excluded.metadata_source is null then assets.metadata_updated_at
+                   else now()
+               end,
+               name_source = coalesce(assets.name_source, excluded.name_source),
+               display_name_source = coalesce(assets.display_name_source, excluded.display_name_source),
+               display_metadata_updated_at = case
+                   when assets.display_name_source is not null then assets.display_metadata_updated_at
+                   when excluded.display_name_source is null then assets.display_metadata_updated_at
+                   else now()
+               end,
                updated_at = now()
              returning id, isin, name, display_name, asset_type, currency, wkn, metadata_source, metadata_updated_at,
                        name_source, display_name_source, display_metadata_updated_at, market_data_status, market_data_status_reason,
                        market_data_successor_isin, market_data_successor_symbol, market_data_status_updated_at, created_at, updated_at`,
             [
                 normalizedIsin,
-                input.name ?? null,
-                input.displayName ?? null,
-                input.assetType ?? null,
-                input.currency ?? null,
-                input.wkn ?? null,
-                input.metadataSource ?? null,
-                input.nameSource ?? null,
-                input.displayNameSource ?? null,
+                prepared.name,
+                prepared.displayName,
+                prepared.assetType,
+                prepared.currency,
+                prepared.wkn,
+                prepared.metadataSource,
+                prepared.nameSource,
+                prepared.displayNameSource,
             ],
         );
         return mapInstrumentRow(result.rows[0]);
@@ -1021,18 +1148,22 @@ export async function insertSymbolMappingCandidate(input: InsertSymbolMappingCan
     try {
         const provider = input.provider.trim().toLowerCase();
         const symbol = input.symbol.trim().toUpperCase();
+        const instrumentId = String(input.instrumentId ?? "").trim();
         if (!provider || !symbol) {
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
+        }
+        if (!instrumentId) {
+            throw new MarketDataRepositoryError("invalid_input", "Instrument-ID fehlt.");
         }
 
         const result = await queryPostgres<{ id: string }>(
             `insert into asset_symbol_mappings
-                (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
+                (asset_id, instrument_id, provider, provider_symbol, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
              values
-                ($1, $2, $3, $4, $5, false, true, null, $6)
+                ($1, $1, $2, $3, $3, $4, $5, false, true, null, $6)
              on conflict do nothing
              returning id`,
-            [input.instrumentId, provider, symbol, input.exchange ?? null, input.currency ?? null, input.notes ?? null],
+            [instrumentId, provider, symbol, input.exchange ?? null, input.currency ?? null, input.notes ?? null],
         );
         return result.rows.length > 0;
     } catch (error) {
@@ -1044,20 +1175,24 @@ export async function insertManualSymbolMapping(input: InsertManualSymbolMapping
     try {
         const provider = input.provider.trim().toLowerCase();
         const symbol = input.symbol.trim().toUpperCase();
+        const instrumentId = String(input.instrumentId ?? "").trim();
         if (!provider || !symbol) {
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
+        }
+        if (!instrumentId) {
+            throw new MarketDataRepositoryError("invalid_input", "Instrument-ID fehlt.");
         }
 
         const result = await queryPostgres<Record<string, unknown>>(
             `insert into asset_symbol_mappings
-                (instrument_id, provider, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
+                (asset_id, instrument_id, provider, provider_symbol, symbol, exchange, currency, is_primary, is_active, verified_at, notes)
              values
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ($1, $1, $2, $3, $3, $4, $5, $6, $7, $8, $9)
              on conflict do nothing
              returning id, instrument_id, provider, symbol, exchange, currency, is_primary, is_active,
                        verified_at, notes, created_at, updated_at`,
             [
-                input.instrumentId,
+                instrumentId,
                 provider,
                 symbol,
                 input.exchange ?? null,
@@ -1089,7 +1224,8 @@ export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInpu
 
         const result = await queryPostgres<Record<string, unknown>>(
             `update asset_symbol_mappings
-             set symbol = coalesce($2, symbol),
+             set provider_symbol = coalesce($2, provider_symbol),
+                 symbol = coalesce($2, symbol),
                  exchange = coalesce($3::text, exchange),
                  currency = coalesce($4::text, currency),
                  is_primary = coalesce($5::boolean, is_primary),
@@ -1124,10 +1260,10 @@ export async function updateSymbolMappingById(input: UpdateSymbolMappingByIdInpu
 }
 
 export async function enrichMarketInstrumentsFromReferences(
-    input: EnrichMarketInstrumentsFromReferencesInput,
+    input: EnrichMarketInstrumentsFromReferencesInput = {},
 ): Promise<EnrichMarketInstrumentsFromReferencesResult> {
     try {
-        const sourceKey = normalizeSourceKey(input.sourceKey);
+        const sourceKey = normalizeSourceKey(input.sourceKey ?? "xetra_all_tradable_instruments");
         const normalizedIsin = input.isin ? assertIsin(input.isin) : null;
         const limit = Number.isFinite(input.limit) && (input.limit ?? 0) > 0 ? Math.floor(input.limit as number) : 100000;
         const forceName = Boolean(input.forceName);
@@ -2318,6 +2454,460 @@ export async function listVerifiedMappingsForPromotion(provider = "yfinance", is
     }
 }
 
+export async function storeVerifiedSymbolMappingCandidate(
+    input: StoreVerifiedSymbolMappingCandidateInput,
+): Promise<StoreVerifiedSymbolMappingCandidateResult> {
+    try {
+        const instrumentId = String(input.instrumentId ?? "").trim();
+        const provider = input.provider.trim().toLowerCase();
+        const symbol = input.symbol.trim().toUpperCase();
+        const noteSuffix = normalizeNonEmptyText(input.notes);
+
+        if (!instrumentId || !provider || !symbol) {
+            throw new MarketDataRepositoryError("invalid_input", "Instrument-ID, Provider oder Symbol fehlt.");
+        }
+
+        const existing = await queryPostgres<Record<string, unknown>>(
+            `select
+                m.id,
+                coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
+                i.isin as owner_isin,
+                coalesce(i.display_name, i.name) as owner_display_name,
+                m.verified_at,
+                m.notes
+             from asset_symbol_mappings m
+             join assets i
+               on i.id = coalesce(m.asset_id, m.instrument_id)
+             where m.provider = $1
+               and coalesce(m.symbol, m.provider_symbol) = $2
+             order by
+                case when coalesce(m.asset_id, m.instrument_id) = $3 then 0 else 1 end,
+                m.verified_at desc nulls last,
+                m.created_at desc
+             limit 5`,
+            [provider, symbol, instrumentId],
+        );
+
+        const conflictingOwner = existing.rows.find((row) => String(row.owner_asset_id) !== instrumentId) ?? null;
+        if (conflictingOwner) {
+            return {
+                status: "skipped_existing_other_asset",
+                reason: "symbol_conflict_other_asset",
+                mappingId: null,
+                verifiedAt: null,
+                conflictAssetId: String(conflictingOwner.owner_asset_id),
+                conflictIsin: conflictingOwner.owner_isin === null ? null : String(conflictingOwner.owner_isin),
+                conflictDisplayName:
+                    conflictingOwner.owner_display_name === null ? null : String(conflictingOwner.owner_display_name),
+            };
+        }
+
+        const ownedExisting = existing.rows.find((row) => String(row.owner_asset_id) === instrumentId) ?? null;
+
+        if (ownedExisting) {
+            if (ownedExisting.verified_at) {
+                return {
+                    status: "already_verified",
+                    reason: "existing_verified_mapping",
+                    mappingId: String(ownedExisting.id),
+                    verifiedAt: String(ownedExisting.verified_at),
+                };
+            }
+
+            const mergedNotes =
+                noteSuffix == null
+                    ? null
+                    : ownedExisting.notes == null
+                        ? noteSuffix
+                        : `${String(ownedExisting.notes)} | ${noteSuffix}`.slice(0, 2000);
+            const updated = await updateSymbolMappingById({
+                id: String(ownedExisting.id),
+                exchange: input.exchange ?? null,
+                currency: input.currency ?? null,
+                isActive: true,
+                verifiedAt: new Date().toISOString(),
+                notes: mergedNotes,
+            });
+
+            if (!updated?.verifiedAt) {
+                throw new MarketDataRepositoryError("db_error", "Verifiziertes Mapping konnte nicht aktualisiert werden.");
+            }
+
+            return {
+                status: "written_verified",
+                reason: "existing_mapping_verified",
+                mappingId: updated.id,
+                verifiedAt: updated.verifiedAt,
+            };
+        }
+
+        const inserted = await insertManualSymbolMapping({
+            instrumentId,
+            provider,
+            symbol,
+            exchange: input.exchange ?? null,
+            currency: input.currency ?? null,
+            isPrimary: false,
+            isActive: true,
+            verifiedAt: new Date().toISOString(),
+            notes: noteSuffix,
+        });
+
+        if (inserted?.verifiedAt) {
+            return {
+                status: "written_verified",
+                reason: "inserted_verified_mapping",
+                mappingId: inserted.id,
+                verifiedAt: inserted.verifiedAt,
+            };
+        }
+
+        const fallbackOwner = await queryPostgres<Record<string, unknown>>(
+            `select
+                m.id,
+                coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
+                i.isin as owner_isin,
+                coalesce(i.display_name, i.name) as owner_display_name,
+                m.verified_at
+             from asset_symbol_mappings m
+             join assets i
+               on i.id = coalesce(m.asset_id, m.instrument_id)
+             where m.provider = $1
+               and coalesce(m.symbol, m.provider_symbol) = $2
+             limit 1`,
+            [provider, symbol],
+        );
+        const fallback = fallbackOwner.rows[0] ?? null;
+
+        if (fallback && String(fallback.owner_asset_id) !== instrumentId) {
+            return {
+                status: "skipped_existing_other_asset",
+                reason: "symbol_conflict_other_asset",
+                mappingId: null,
+                verifiedAt: null,
+                conflictAssetId: String(fallback.owner_asset_id),
+                conflictIsin: fallback.owner_isin === null ? null : String(fallback.owner_isin),
+                conflictDisplayName: fallback.owner_display_name === null ? null : String(fallback.owner_display_name),
+            };
+        }
+
+        if (fallback?.verified_at) {
+            return {
+                status: "already_verified",
+                reason: "existing_verified_mapping",
+                mappingId: String(fallback.id),
+                verifiedAt: String(fallback.verified_at),
+            };
+        }
+
+        throw new MarketDataRepositoryError("db_error", "Verifiziertes Mapping konnte nicht erstellt werden.");
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listSymbolMappingsForPrimaryPreference(
+    provider = "yfinance",
+    isin?: string,
+): Promise<SymbolMappingForPrimaryPreference[]> {
+    try {
+        const normalizedProvider = provider.trim().toLowerCase();
+        const normalizedIsin = isin ? assertIsin(isin) : null;
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with provider_prices as (
+                select
+                    p.asset_id,
+                    p.provider,
+                    count(*)::int as provider_price_row_count,
+                    max(p.price_date) as provider_latest_price_date
+                from asset_daily_prices p
+                where p.provider = $1
+                group by p.asset_id, p.provider
+            )
+            select
+                a.id as asset_id,
+                a.isin,
+                coalesce(a.display_name, a.name) as display_name,
+                a.market_data_status,
+                m.id as mapping_id,
+                m.provider,
+                coalesce(m.symbol, m.provider_symbol) as symbol,
+                m.exchange,
+                m.currency,
+                m.is_primary,
+                m.is_active,
+                m.verified_at,
+                m.notes,
+                coalesce(pp.provider_price_row_count, 0) as provider_price_row_count,
+                pp.provider_latest_price_date
+             from asset_symbol_mappings m
+             join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+             left join provider_prices pp
+               on pp.asset_id = coalesce(m.asset_id, m.instrument_id)
+              and pp.provider = m.provider
+             where m.provider = $1
+               and m.is_active = true
+               and a.asset_key_type = 'isin'
+               and a.isin is not null
+               and ($2::text is null or a.isin = $2)
+             order by a.isin asc, m.is_primary desc, coalesce(m.symbol, m.provider_symbol) asc`,
+            [normalizedProvider, normalizedIsin],
+        );
+
+        return result.rows.map((row) => ({
+            assetId: String(row.asset_id),
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            marketDataStatus:
+                row.market_data_status === null
+                    ? null
+                    : (String(row.market_data_status).toLowerCase() as MarketDataInstrumentStatus),
+            mappingId: String(row.mapping_id),
+            provider: String(row.provider),
+            symbol: String(row.symbol),
+            exchange: row.exchange === null ? null : String(row.exchange),
+            currency: row.currency === null ? null : String(row.currency),
+            isPrimary: Boolean(row.is_primary),
+            isActive: Boolean(row.is_active),
+            verifiedAt: row.verified_at === null ? null : String(row.verified_at),
+            notes: row.notes === null ? null : String(row.notes),
+            providerPriceRowCount: Number(row.provider_price_row_count ?? 0),
+            providerLatestPriceDate:
+                row.provider_latest_price_date === null ? null : normalizeDbDateValue(row.provider_latest_price_date),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function listPrimaryMappingPriceQuality(
+    provider = "yfinance",
+    isin?: string,
+): Promise<PrimaryMappingPriceQualityRow[]> {
+    try {
+        const normalizedProvider = provider.trim().toLowerCase();
+        const normalizedIsin = isin ? assertIsin(isin) : null;
+        const result = await queryPostgres<Record<string, unknown>>(
+            `with primary_mappings as (
+                select
+                    a.id as asset_id,
+                    a.isin,
+                    coalesce(a.display_name, a.name) as display_name,
+                    a.market_data_status,
+                    m.provider,
+                    coalesce(m.symbol, m.provider_symbol) as primary_symbol,
+                    m.exchange as primary_exchange,
+                    m.currency as primary_currency
+                from asset_symbol_mappings m
+                join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+                where m.provider = $1
+                  and m.is_active = true
+                  and m.is_primary = true
+                  and a.asset_key_type = 'isin'
+                  and a.isin is not null
+                  and ($2::text is null or a.isin = $2)
+            ),
+            price_rows as (
+                select
+                    pm.asset_id,
+                    pm.provider,
+                    p.price_date,
+                    p.currency,
+                    lag(p.price_date) over (partition by pm.asset_id, pm.provider order by p.price_date) as previous_price_date
+                from primary_mappings pm
+                left join asset_daily_prices p
+                  on p.asset_id = pm.asset_id
+                 and p.provider = pm.provider
+            ),
+            currency_counts as (
+                select
+                    asset_id,
+                    provider,
+                    currency,
+                    count(*)::int as row_count
+                from price_rows
+                where price_date is not null
+                  and currency is not null
+                group by asset_id, provider, currency
+            ),
+            price_stats_base as (
+                select
+                    asset_id,
+                    provider,
+                    count(price_date)::int as price_row_count,
+                    min(price_date) as min_price_date,
+                    max(price_date) as latest_price_date,
+                    (
+                        array_agg(currency order by price_date desc)
+                        filter (where price_date is not null and currency is not null)
+                    )[1] as latest_currency,
+                    coalesce(max((price_date - previous_price_date)), 0)::int as longest_gap_days
+                from price_rows
+                group by asset_id, provider
+            ),
+            price_currency_stats as (
+                select
+                    asset_id,
+                    provider,
+                    coalesce(
+                        array_agg(distinct cc.currency) filter (where cc.currency is not null),
+                        array[]::text[]
+                    ) as distinct_historical_currencies,
+                    coalesce(
+                        jsonb_object_agg(cc.currency, cc.row_count) filter (where cc.currency is not null),
+                        '{}'::jsonb
+                    ) as price_currency_breakdown,
+                    coalesce(sum(case when cc.currency is not null and upper(cc.currency) <> 'EUR' then cc.row_count else 0 end), 0)::int as non_eur_price_row_count
+                from currency_counts cc
+                group by asset_id, provider
+            )
+            select
+                pm.asset_id,
+                pm.isin,
+                pm.display_name,
+                pm.market_data_status,
+                pm.provider,
+                pm.primary_symbol,
+                pm.primary_exchange,
+                pm.primary_currency,
+                coalesce(ps.price_row_count, 0) as price_row_count,
+                ps.min_price_date,
+                ps.latest_price_date,
+                ps.latest_currency,
+                coalesce(ps.longest_gap_days, 0) as longest_gap_days,
+                coalesce(pcs.distinct_historical_currencies, array[]::text[]) as distinct_historical_currencies,
+                coalesce(pcs.price_currency_breakdown, '{}'::jsonb) as price_currency_breakdown,
+                coalesce(pcs.non_eur_price_row_count, 0) as non_eur_price_row_count
+            from primary_mappings pm
+            left join price_stats_base ps
+              on ps.asset_id = pm.asset_id
+             and ps.provider = pm.provider
+            left join price_currency_stats pcs
+              on pcs.asset_id = pm.asset_id
+             and pcs.provider = pm.provider
+            order by pm.isin asc`,
+            [normalizedProvider, normalizedIsin],
+        );
+
+        return result.rows.map((row) => ({
+            assetId: String(row.asset_id),
+            isin: String(row.isin),
+            displayName: row.display_name === null ? null : String(row.display_name),
+            marketDataStatus:
+                row.market_data_status === null
+                    ? null
+                    : (String(row.market_data_status).toLowerCase() as MarketDataInstrumentStatus),
+            provider: String(row.provider),
+            primarySymbol: String(row.primary_symbol),
+            primaryExchange: row.primary_exchange === null ? null : String(row.primary_exchange),
+            primaryCurrency: row.primary_currency === null ? null : String(row.primary_currency),
+            priceRowCount: Number(row.price_row_count ?? 0),
+            minPriceDate: row.min_price_date === null ? null : normalizeDbDateValue(row.min_price_date),
+            latestPriceDate: row.latest_price_date === null ? null : normalizeDbDateValue(row.latest_price_date),
+            latestCurrency: row.latest_currency === null ? null : String(row.latest_currency),
+            longestGapDays: Number(row.longest_gap_days ?? 0),
+            distinctHistoricalCurrencies: Array.isArray(row.distinct_historical_currencies)
+                ? row.distinct_historical_currencies.map((value) => String(value))
+                : [],
+            priceCurrencyBreakdown: mapJsonObjectNumberRecord(row.price_currency_breakdown),
+            nonEurPriceRowCount: Number(row.non_eur_price_row_count ?? 0),
+        }));
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function setPrimarySymbolMappingById(
+    mappingId: string,
+    provider: string,
+    isin: string,
+    noteSuffix?: string,
+): Promise<void> {
+    try {
+        const normalizedMappingId = String(mappingId ?? "").trim();
+        const normalizedIsin = assertIsin(isin);
+        const normalizedProvider = provider.trim().toLowerCase();
+        if (!normalizedMappingId || !normalizedProvider) {
+            throw new MarketDataRepositoryError("invalid_input", "Mapping-ID oder Provider fehlt.");
+        }
+
+        await withPostgresClient(async (client) => {
+            await client.query("begin");
+            try {
+                const targetResult = await client.query<Record<string, unknown>>(
+                    `select
+                        m.id,
+                        coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
+                        a.isin,
+                        m.provider,
+                        m.is_active,
+                        m.verified_at
+                     from asset_symbol_mappings m
+                     join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+                     where m.id = $1
+                       and m.provider = $2
+                       and a.isin = $3
+                     for update`,
+                    [normalizedMappingId, normalizedProvider, normalizedIsin],
+                );
+                const target = targetResult.rows[0] ?? null;
+                if (!target) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping für ISIN/Provider nicht gefunden.");
+                }
+                if (target.is_active !== true) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping ist nicht aktiv.");
+                }
+                if (!target.verified_at) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping ist nicht verifiziert.");
+                }
+
+                await client.query(
+                    `update asset_symbol_mappings m
+                     set is_primary = false,
+                         updated_at = now()
+                     where coalesce(m.asset_id, m.instrument_id) = $1
+                       and m.provider = $2`,
+                    [String(target.owner_asset_id), normalizedProvider],
+                );
+
+                const setPrimaryResult = await client.query(
+                    `update asset_symbol_mappings
+                     set is_primary = true,
+                         notes = case
+                             when $2::text is null then notes
+                             when notes is null then $2::text
+                             else left(notes || ' | ' || $2::text, 2000)
+                         end,
+                         updated_at = now()
+                     where id = $1`,
+                    [normalizedMappingId, noteSuffix ?? null],
+                );
+
+                if ((setPrimaryResult.rowCount ?? 0) !== 1) {
+                    throw new MarketDataRepositoryError("db_error", "Primäres Symbol-Mapping konnte nicht eindeutig gesetzt werden.");
+                }
+
+                const verifyPrimaryResult = await client.query<Record<string, unknown>>(
+                    `select is_primary, verified_at
+                     from asset_symbol_mappings
+                     where id = $1`,
+                    [normalizedMappingId],
+                );
+                if (verifyPrimaryResult.rows[0]?.is_primary !== true || !verifyPrimaryResult.rows[0]?.verified_at) {
+                    throw new MarketDataRepositoryError("db_error", "Primär-Mapping-Verifikation fehlgeschlagen.");
+                }
+
+                await client.query("commit");
+            } catch (error) {
+                await client.query("rollback");
+                throw error;
+            }
+        });
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
 export async function setPrimarySymbolMappingByIsin(
     isin: string,
     provider: string,
@@ -2332,45 +2922,220 @@ export async function setPrimarySymbolMappingByIsin(
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
         }
 
-        await withPostgresClient(async (client) => {
+        const result = await queryPostgres<Record<string, unknown>>(
+            `select m.id
+             from asset_symbol_mappings m
+             join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+             where a.isin = $1
+               and m.provider = $2
+               and coalesce(m.symbol, m.provider_symbol) = $3
+               and m.is_active = true
+               and m.verified_at is not null
+             order by m.updated_at desc, m.created_at desc
+             limit 2`,
+            [normalizedIsin, normalizedProvider, normalizedSymbol],
+        );
+        if ((result.rows?.length ?? 0) !== 1) {
+            throw new MarketDataRepositoryError("db_error", "Primäres Symbol-Mapping konnte nicht eindeutig gesetzt werden.");
+        }
+
+        await setPrimarySymbolMappingById(String(result.rows[0].id), normalizedProvider, normalizedIsin, noteSuffix);
+    } catch (error) {
+        handleRepositoryError(error);
+    }
+}
+
+export async function replacePrimaryMappingPriceHistory(
+    input: ReplacePrimaryMappingPriceHistoryInput,
+): Promise<{ deletedPriceRows: number; insertedPriceRows: number; latestPriceDate: string | null }> {
+    try {
+        if (input.replacementPoints.length === 0) {
+            throw new MarketDataRepositoryError("invalid_input", "Ersatz-Historie fehlt.");
+        }
+
+        const normalizedIsin = assertIsin(input.isin);
+        const normalizedProvider = input.provider.trim().toLowerCase();
+        const normalizedTargetMappingId = input.targetMappingId.trim();
+
+        if (!normalizedProvider || !normalizedTargetMappingId) {
+            throw new MarketDataRepositoryError("invalid_input", "Provider oder Mapping-ID fehlt.");
+        }
+
+        return await withPostgresClient(async (client) => {
             await client.query("begin");
             try {
+                const mappingResult = await client.query<Record<string, unknown>>(
+                    `select
+                        m.id,
+                        coalesce(m.asset_id, m.instrument_id) as owner_asset_id,
+                        m.provider,
+                        coalesce(m.symbol, m.provider_symbol) as symbol,
+                        m.currency,
+                        a.isin
+                     from asset_symbol_mappings m
+                     join assets a on a.id = coalesce(m.asset_id, m.instrument_id)
+                     where m.id = $1
+                       and m.provider = $2
+                       and a.isin = $3
+                     for update`,
+                    [normalizedTargetMappingId, normalizedProvider, normalizedIsin],
+                );
+                const targetMapping = mappingResult.rows[0];
+                if (!targetMapping) {
+                    throw new MarketDataRepositoryError("invalid_input", "Ziel-Mapping nicht gefunden.");
+                }
+
+                const canonicalAssetResult = await client.query<Record<string, unknown>>(
+                    `select id
+                     from assets
+                     where asset_key_type = 'isin'
+                       and asset_key_value = $1
+                     for update`,
+                    [normalizedIsin],
+                );
+                const canonicalAsset = canonicalAssetResult.rows[0];
+                if (!canonicalAsset?.id) {
+                    throw new MarketDataRepositoryError("db_error", "Kanonischer Preis-Asset für ISIN konnte nicht gefunden werden.");
+                }
+
+                const mappingOwnerAssetId = String(targetMapping.owner_asset_id);
+                const priceAssetId = String(canonicalAsset.id);
+                const latestReplacementDate = input.replacementPoints.reduce<string | null>((latest, point) => {
+                    const normalizedDate = toDateString(point.date);
+                    if (!latest || normalizedDate > latest) {
+                        return normalizedDate;
+                    }
+                    return latest;
+                }, null);
+
                 await client.query(
-                    `update asset_symbol_mappings m
+                    `update asset_symbol_mappings
                      set is_primary = false,
                          updated_at = now()
-                     from assets i
-                     where m.instrument_id = i.id
-                       and i.isin = $1
-                       and m.provider = $2`,
-                    [normalizedIsin, normalizedProvider],
+                     where coalesce(asset_id, instrument_id) = $1
+                       and provider = $2`,
+                    [mappingOwnerAssetId, normalizedProvider],
                 );
 
-                await client.query(
-                    `update asset_symbol_mappings m
+                const setPrimaryResult = await client.query(
+                    `update asset_symbol_mappings
                      set is_primary = true,
                          notes = case
-                             when $4::text is null then m.notes
-                             when m.notes is null then $4::text
-                             else left(m.notes || ' | ' || $4::text, 2000)
+                             when $2::text is null then notes
+                             when notes is null then $2::text
+                             else left(notes || ' | ' || $2::text, 2000)
                          end,
                          updated_at = now()
-                     from assets i
-                     where m.instrument_id = i.id
-                       and i.isin = $1
-                       and m.provider = $2
-                       and m.symbol = $3`,
-                    [normalizedIsin, normalizedProvider, normalizedSymbol, noteSuffix ?? null],
+                     where id = $1`,
+                    [normalizedTargetMappingId, input.noteSuffix ?? null],
                 );
 
+                if ((setPrimaryResult.rowCount ?? 0) !== 1) {
+                    throw new MarketDataRepositoryError("db_error", "Ziel-Mapping konnte nicht als primär markiert werden.");
+                }
+
+                const verifyPrimaryResult = await client.query<Record<string, unknown>>(
+                    `select is_primary
+                     from asset_symbol_mappings
+                     where id = $1`,
+                    [normalizedTargetMappingId],
+                );
+                if (verifyPrimaryResult.rows[0]?.is_primary !== true) {
+                    throw new MarketDataRepositoryError("db_error", "Primär-Mapping-Verifikation fehlgeschlagen.");
+                }
+
+                const deleteResult = await client.query(
+                    `delete from asset_daily_prices
+                     where asset_id = $1
+                       and provider = $2`,
+                    [priceAssetId, normalizedProvider],
+                );
+
+                for (const point of input.replacementPoints) {
+                    const close = Number(point.close);
+                    if (!Number.isFinite(close)) {
+                        throw new MarketDataRepositoryError("invalid_input", "Ersatz-Historie enthält ungültigen Schlusskurs.");
+                    }
+
+                    await client.query(
+                        `insert into asset_daily_prices
+                            (asset_id, provider, price_date, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency)
+                         values
+                            ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10)
+                         on conflict (asset_id, provider, price_date)
+                         do update set
+                            open_price = excluded.open_price,
+                            high_price = excluded.high_price,
+                            low_price = excluded.low_price,
+                            close_price = excluded.close_price,
+                            adjusted_close_price = excluded.adjusted_close_price,
+                            volume = excluded.volume,
+                            currency = excluded.currency,
+                            updated_at = now()`,
+                        [
+                            priceAssetId,
+                            normalizedProvider,
+                            toDateString(point.date),
+                            toNullableNumber(point.open),
+                            toNullableNumber(point.high),
+                            toNullableNumber(point.low),
+                            close,
+                            toNullableNumber(point.adjClose),
+                            toNullableNumber(point.volume),
+                            point.currency ?? input.replacementCurrency ?? targetMapping.currency ?? null,
+                        ],
+                    );
+                }
+
+                const insertedCountResult = await client.query<Record<string, unknown>>(
+                    `select count(*)::int as inserted_count
+                     from asset_daily_prices
+                     where asset_id = $1
+                       and provider = $2`,
+                    [priceAssetId, normalizedProvider],
+                );
+                const insertedCount = Number(insertedCountResult.rows[0]?.inserted_count ?? 0);
+                if (insertedCount < input.replacementPoints.length) {
+                    throw new MarketDataRepositoryError(
+                        "db_error",
+                        `Insert-/Delete-Verifikation fehlgeschlagen: erwartete mindestens ${input.replacementPoints.length} Preiszeilen, gefunden ${insertedCount}.`,
+                    );
+                }
+
+                const latestResult = await client.query<Record<string, unknown>>(
+                    `select max(price_date) as latest_price_date
+                     from asset_daily_prices
+                     where asset_id = $1
+                       and provider = $2`,
+                    [priceAssetId, normalizedProvider],
+                );
+                const latestPriceDate = latestResult.rows[0]?.latest_price_date;
+                const normalizedLatestPriceDate = latestPriceDate === null ? null : normalizeDbDateValue(latestPriceDate);
+
+                if (!normalizedLatestPriceDate) {
+                    throw new MarketDataRepositoryError("db_error", "Latest-Price-Verifikation fehlgeschlagen: keine Preiszeilen für Asset/Provider gefunden.");
+                }
+                if (normalizedLatestPriceDate !== latestReplacementDate) {
+                    throw new MarketDataRepositoryError(
+                        "db_error",
+                        `Latest-Price-Verifikation fehlgeschlagen: erwartetes Datum ${latestReplacementDate}, gefunden ${normalizedLatestPriceDate}.`,
+                    );
+                }
+
                 await client.query("commit");
+
+                return {
+                    deletedPriceRows: deleteResult.rowCount ?? 0,
+                    insertedPriceRows: input.replacementPoints.length,
+                    latestPriceDate: normalizedLatestPriceDate,
+                };
             } catch (error) {
                 await client.query("rollback");
                 throw error;
             }
         });
     } catch (error) {
-        handleRepositoryError(error);
+        handleRepositoryError(error, "replacePrimaryMappingPriceHistory(asset_daily_prices)");
     }
 }
 
@@ -2400,11 +3165,11 @@ export async function listPrimaryMappingsForBackfill(provider = "yfinance", isin
                         union
                         select asset_id from corporate_action_events
                     ) a
-                    where a.asset_id = i.id
+                    where a.asset_id = coalesce(m.asset_id, m.instrument_id)
                 ) as has_actions,
                 m.verified_at
              from asset_symbol_mappings m
-             join assets i on i.id = m.instrument_id
+             join assets i on i.id = coalesce(m.asset_id, m.instrument_id)
              where m.provider = $1
                and m.is_primary = true
                and m.is_active = true
@@ -2427,6 +3192,30 @@ export async function listPrimaryMappingsForBackfill(provider = "yfinance", isin
         }));
     } catch (error) {
         handleRepositoryError(error);
+    }
+}
+
+export async function deleteDailyPricesForPrimaryMappings(input: {
+    provider: string;
+    isin?: string;
+}): Promise<{ deletedPriceRows: number }> {
+    try {
+        const normalizedProvider = input.provider.trim().toLowerCase();
+        const normalizedIsin = input.isin ? assertIsin(input.isin) : null;
+        const result = await queryPostgres(
+            `delete from asset_daily_prices p
+             using assets a
+             where p.asset_id = a.id
+               and p.provider = $1
+               and a.asset_key_type = 'isin'
+               and ($2::text is null or a.isin = $2)`,
+            [normalizedProvider, normalizedIsin],
+        );
+        return {
+            deletedPriceRows: result.rowCount ?? 0,
+        };
+    } catch (error) {
+        handleRepositoryError(error, "deleteDailyPricesForPrimaryMappings(asset_daily_prices)");
     }
 }
 
@@ -2576,6 +3365,29 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
             throw new MarketDataRepositoryError("invalid_input", "Provider oder Symbol fehlt.");
         }
 
+        const validPoints = input.points
+            .map((point) => {
+                const close = Number(point.close);
+                if (!Number.isFinite(close)) {
+                    return null;
+                }
+                return {
+                    priceDate: toDateString(point.date),
+                    openPrice: toNullableNumber(point.open),
+                    highPrice: toNullableNumber(point.high),
+                    lowPrice: toNullableNumber(point.low),
+                    closePrice: close,
+                    adjustedClosePrice: toNullableNumber(point.adjClose),
+                    volume: toNullableNumber(point.volume),
+                    currency: point.currency ?? input.currency ?? null,
+                };
+            })
+            .filter((point): point is NonNullable<typeof point> => point !== null);
+
+        if (validPoints.length === 0) {
+            return { upserted: 0 };
+        }
+
         await withPostgresClient(async (client) => {
             await client.query("begin");
             try {
@@ -2626,20 +3438,37 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
                         from asset_symbol_mappings
                         where provider = $2
                           and provider_symbol = $3
-                     )`,
+                    )`,
                     [assetId, provider, symbol, input.currency ?? null],
                 );
 
-                for (const point of input.points) {
-                    const close = Number(point.close);
-                    if (!Number.isFinite(close)) {
-                        continue;
+                for (let start = 0; start < validPoints.length; start += DAILY_PRICE_UPSERT_BATCH_SIZE) {
+                    const batch = validPoints.slice(start, start + DAILY_PRICE_UPSERT_BATCH_SIZE);
+                    const values: Array<string> = [];
+                    const params: Array<string | number | null> = [];
+
+                    for (const [index, point] of batch.entries()) {
+                        const offset = index * 8;
+                        values.push(
+                            `($1, $2, $${offset + 3}::date, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`,
+                        );
+                        params.push(
+                            point.priceDate,
+                            point.openPrice,
+                            point.highPrice,
+                            point.lowPrice,
+                            point.closePrice,
+                            point.adjustedClosePrice,
+                            point.volume,
+                            point.currency,
+                        );
                     }
+
                     await client.query(
                         `insert into asset_daily_prices
                             (asset_id, provider, price_date, open_price, high_price, low_price, close_price, adjusted_close_price, volume, currency)
                          values
-                            ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10)
+                            ${values.join(",\n                            ")}
                          on conflict (asset_id, provider, price_date)
                          do update set
                             open_price = excluded.open_price,
@@ -2650,18 +3479,7 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
                             volume = excluded.volume,
                             currency = excluded.currency,
                             updated_at = now()`,
-                        [
-                            assetId,
-                            provider,
-                            toDateString(point.date),
-                            toNullableNumber(point.open),
-                            toNullableNumber(point.high),
-                            toNullableNumber(point.low),
-                            close,
-                            toNullableNumber(point.adjClose),
-                            toNullableNumber(point.volume),
-                            point.currency ?? input.currency ?? null,
-                        ],
+                        [assetId, provider, ...params],
                     );
                 }
                 await client.query("commit");
@@ -2671,7 +3489,7 @@ export async function upsertDailyPrices(input: UpsertDailyPricesInput): Promise<
             }
         });
 
-        return { upserted: input.points.length };
+        return { upserted: validPoints.length };
     } catch (error) {
         handleRepositoryError(error, "upsertDailyPrices(asset_daily_prices)");
     }
@@ -2749,7 +3567,6 @@ export async function upsertMarketActions(input: UpsertMarketActionsInput): Prom
                     const normalizedDate = toDateString(action.date);
                     const normalizedAmount = toNullableNumber(action.amount);
                     const normalizedCurrency = action.currency ?? null;
-                    const source = input.source ?? null;
 
                     if (actionType === "dividend" || actionType === "capital_gain") {
                         await client.query(
@@ -2792,7 +3609,6 @@ export async function upsertMarketActions(input: UpsertMarketActionsInput): Prom
                             ratioTo,
                             normalizedAmount,
                             normalizedCurrency,
-                            source,
                         ],
                     );
                 }
