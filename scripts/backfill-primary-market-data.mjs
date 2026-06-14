@@ -30,6 +30,8 @@ function parseListArg(targetSet, rawValue, normalizer) {
 function parseArgs(argv) {
     const options = {
         write: false,
+        compact: false,
+        continueOnError: false,
         limit: null,
         isin: null,
         excludeIsins: new Set(),
@@ -49,6 +51,18 @@ function parseArgs(argv) {
         if (token === "--write") {
             options.write = true;
             continue;
+        }
+        if (token === "--compact") {
+            options.compact = true;
+            continue;
+        }
+        if (token === "--continue-on-error") {
+            options.continueOnError = true;
+            continue;
+        }
+        if (token === "--help") {
+            console.log("Usage: npm run db:market:backfill:primary -- [--write] [--force] [--compact] [--continue-on-error] [--isin <ISIN>] [--exclude-isin <ISIN[,ISIN]>] [--limit <N>] [--period <PERIOD>] [--provider <PROVIDER>] [--batch-size <N>] [--python <BIN>]");
+            process.exit(0);
         }
         if (token === "--limit") {
             options.limit = parsePositiveInt(args.shift(), null);
@@ -92,6 +106,8 @@ function parseArgs(argv) {
     return options;
 }
 
+export { parseArgs };
+
 function safeMessage(error) {
     if (error instanceof Error && error.message) return error.message;
     return "Unbekannter Fehler";
@@ -100,6 +116,54 @@ function safeMessage(error) {
 function sanitizeForFile(value) {
     return String(value ?? "").replace(/[^A-Za-z0-9._-]/g, "_");
 }
+
+function classifyBackfillOutcome({ row, pricesResult, actionsResult, actionsError, priceError }) {
+    if (priceError) {
+        return {
+            message: `Backfill fehlgeschlagen: ${row.isin} / ${row.symbol} (${safeMessage(priceError)})`,
+            priceSuccessCount: 0,
+            priceFailedCount: 1,
+            actionSuccessCount: 0,
+            actionFailedCount: 0,
+        };
+    }
+
+    if (actionsError) {
+        return {
+            message: `Backfill teilweise erfolgreich: ${row.isin} / ${row.symbol} (prices=${pricesResult?.upserted ?? 0}, actions_failed=1, reason=${safeMessage(actionsError)})`,
+            priceSuccessCount: 1,
+            priceFailedCount: 0,
+            actionSuccessCount: 0,
+            actionFailedCount: 1,
+        };
+    }
+
+    return {
+        message: `Backfill erfolgreich: ${row.isin} / ${row.symbol} (prices=${pricesResult?.upserted ?? 0}, actions=${actionsResult?.upserted ?? 0})`,
+        priceSuccessCount: 1,
+        priceFailedCount: 0,
+        actionSuccessCount: 1,
+        actionFailedCount: 0,
+    };
+}
+
+function buildZeroPlanWarning({ requestedIsin, scannedPrimaryMappings, provider, visiblePrimarySymbol = null }) {
+    if (!requestedIsin || scannedPrimaryMappings > 0) {
+        return null;
+    }
+
+    return [
+        "Warning:",
+        `- requested ISIN: ${requestedIsin}`,
+        `- no verified active primary ${provider} mapping found`,
+        visiblePrimarySymbol
+            ? `- primary_mapping_unverified_or_wrong_owner: visible_primary=${visiblePrimarySymbol}`
+            : "- possible asset_id/instrument_id ownership issue or missing verified primary",
+    ];
+}
+
+export { buildZeroPlanWarning };
+export { classifyBackfillOutcome };
 
 function runCommand(command, args, label) {
     return new Promise((resolve, reject) => {
@@ -145,6 +209,7 @@ async function run() {
 
     const {
         listPrimaryMappingsForBackfill,
+        listSymbolMappingsForPrimaryPreference,
         upsertDailyPrices,
         upsertMarketActions,
     } = await import("../src/lib/market-data/db/repository-core.ts");
@@ -175,13 +240,17 @@ async function run() {
         planned = planned.slice(0, options.limit);
     }
 
-    console.log("Planned Backfills:");
-    for (const row of planned) {
-        console.log(`- ${row.isin} | ${row.symbol} | ${row.exchange ?? "-"} | ${row.currency ?? "-"} | hasPrices=${row.hasPrices} | hasActions=${row.hasActions}`);
+    if (!options.compact) {
+        console.log("Planned Backfills:");
+        for (const row of planned) {
+            console.log(`- ${row.isin} | ${row.symbol} | ${row.exchange ?? "-"} | ${row.currency ?? "-"} | hasPrices=${row.hasPrices} | hasActions=${row.hasActions}`);
+        }
     }
 
-    let successCount = 0;
-    let failedCount = 0;
+    let priceSuccessCount = 0;
+    let priceFailedCount = 0;
+    let actionSuccessCount = 0;
+    let actionFailedCount = 0;
 
     if (options.write) {
         const baseDir = path.resolve(process.cwd(), ".market-data", "backfill");
@@ -234,31 +303,55 @@ async function run() {
                         })),
                 });
 
-                const actionsResult = await upsertMarketActions({
-                    isin: row.isin,
-                    provider: options.provider,
-                    symbol: row.symbol,
-                    source: options.provider,
-                    actions: actions
-                        .filter((action) => action && String(action.actionType ?? "").trim() && String(action.date ?? "").trim())
-                        .map((action) => ({
-                            actionType: String(action.actionType ?? "").toLowerCase(),
-                            date: String(action.date),
-                            amount: action.amount ?? null,
-                            ratioFrom: action.ratioFrom ?? null,
-                            ratioTo: action.ratioTo ?? null,
-                            currency: action.currency ?? row.currency ?? null,
-                            notes: action.notes ?? null,
-                        })),
-                });
+                let actionsResult = { upserted: 0 };
+                let actionsError = null;
+                try {
+                    actionsResult = await upsertMarketActions({
+                        isin: row.isin,
+                        provider: options.provider,
+                        symbol: row.symbol,
+                        source: options.provider,
+                        actions: actions
+                            .filter((action) => action && String(action.actionType ?? "").trim() && String(action.date ?? "").trim())
+                            .map((action) => ({
+                                actionType: String(action.actionType ?? "").toLowerCase(),
+                                date: String(action.date),
+                                amount: action.amount ?? null,
+                                ratioFrom: action.ratioFrom ?? null,
+                                ratioTo: action.ratioTo ?? null,
+                                currency: action.currency ?? row.currency ?? null,
+                                notes: action.notes ?? null,
+                            })),
+                    });
+                } catch (error) {
+                    actionsError = error;
+                }
 
-                successCount += 1;
-                console.log(
-                    `Backfill erfolgreich: ${row.isin} / ${row.symbol} (prices=${pricesResult.upserted}, actions=${actionsResult.upserted})`,
-                );
+                const outcome = classifyBackfillOutcome({
+                    row,
+                    pricesResult,
+                    actionsResult,
+                    actionsError,
+                    priceError: null,
+                });
+                priceSuccessCount += outcome.priceSuccessCount;
+                priceFailedCount += outcome.priceFailedCount;
+                actionSuccessCount += outcome.actionSuccessCount;
+                actionFailedCount += outcome.actionFailedCount;
+                console.log(outcome.message);
             } catch (error) {
-                failedCount += 1;
-                console.log(`Backfill fehlgeschlagen: ${row.isin} / ${row.symbol} (${safeMessage(error)})`);
+                const outcome = classifyBackfillOutcome({
+                    row,
+                    pricesResult: null,
+                    actionsResult: null,
+                    actionsError: null,
+                    priceError: error,
+                });
+                priceSuccessCount += outcome.priceSuccessCount;
+                priceFailedCount += outcome.priceFailedCount;
+                actionSuccessCount += outcome.actionSuccessCount;
+                actionFailedCount += outcome.actionFailedCount;
+                console.log(outcome.message);
             }
         }
     }
@@ -268,7 +361,21 @@ async function run() {
     console.log(`- already has prices skipped: ${skippedExisting}`);
     console.log(`- excluded skipped: ${skippedExcluded}`);
     console.log(`- planned: ${planned.length}`);
-    console.log(`- DB writes: ${options.write ? `done (success=${successCount}, failed=${failedCount})` : "skipped (dry-run)"}`);
+    const zeroPlanWarning = buildZeroPlanWarning({
+        requestedIsin: options.isin,
+        scannedPrimaryMappings: scanned,
+        provider: options.provider,
+        visiblePrimarySymbol: options.isin
+            ? ((await listSymbolMappingsForPrimaryPreference(options.provider, options.isin))
+                .find((mapping) => mapping.isPrimary)?.symbol ?? null)
+            : null,
+    });
+    if (zeroPlanWarning) {
+        for (const line of zeroPlanWarning) {
+            console.log(line);
+        }
+    }
+    console.log(`- DB writes: ${options.write ? `done (price_success=${priceSuccessCount}, price_failed=${priceFailedCount}, action_success=${actionSuccessCount}, action_failed=${actionFailedCount})` : "skipped (dry-run)"}`);
 }
 
 run()

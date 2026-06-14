@@ -230,7 +230,7 @@ export type DbMarketReferenceInstrument = {
 };
 
 export type EnrichMarketInstrumentsFromReferencesInput = {
-    sourceKey: string;
+    sourceKey?: string;
     isin?: string;
     limit?: number;
     forceName?: boolean;
@@ -611,6 +611,24 @@ export type VerifiedMappingForPromotion = {
     notes: string | null;
 };
 
+export type SymbolMappingForPrimaryPreference = {
+    assetId: string;
+    isin: string;
+    displayName: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    mappingId: string;
+    provider: string;
+    symbol: string;
+    exchange: string | null;
+    currency: string | null;
+    isPrimary: boolean;
+    isActive: boolean;
+    verifiedAt: string | null;
+    notes: string | null;
+    providerPriceRowCount: number;
+    providerLatestPriceDate: string | null;
+};
+
 export type PrimaryMappingForBackfill = {
     isin: string;
     name: string | null;
@@ -621,4 +639,60 @@ export type PrimaryMappingForBackfill = {
     hasPrices: boolean;
     hasActions: boolean;
     verifiedAt: string;
+};
+
+export type PrimaryMappingPriceQualityRow = {
+    assetId: string;
+    isin: string;
+    displayName: string | null;
+    marketDataStatus: MarketDataInstrumentStatus | null;
+    provider: string;
+    primarySymbol: string;
+    primaryExchange: string | null;
+    primaryCurrency: string | null;
+    priceRowCount: number;
+    minPriceDate: string | null;
+    latestPriceDate: string | null;
+    latestCurrency: string | null;
+    longestGapDays: number;
+    distinctHistoricalCurrencies: string[];
+    priceCurrencyBreakdown: Record<string, number>;
+    nonEurPriceRowCount: number;
+};
+
+export type ReplacePrimaryMappingPriceHistoryInput = {
+    isin: string;
+    provider: string;
+    targetMappingId: string;
+    noteSuffix?: string | null;
+    replacementCurrency?: string | null;
+    replacementPoints: Array<{
+        date: string;
+        open?: number | null;
+        high?: number | null;
+        low?: number | null;
+        close: number;
+        adjClose?: number | null;
+        volume?: number | null;
+        currency?: string | null;
+    }>;
+};
+
+export type StoreVerifiedSymbolMappingCandidateInput = {
+    instrumentId: string;
+    provider: string;
+    symbol: string;
+    exchange?: string | null;
+    currency?: string | null;
+    notes?: string | null;
+};
+
+export type StoreVerifiedSymbolMappingCandidateResult = {
+    status: "written_verified" | "already_verified" | "skipped_existing_other_asset";
+    reason: string;
+    mappingId: string | null;
+    verifiedAt: string | null;
+    conflictAssetId?: string | null;
+    conflictIsin?: string | null;
+    conflictDisplayName?: string | null;
 };
