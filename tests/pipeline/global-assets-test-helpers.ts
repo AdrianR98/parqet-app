@@ -70,7 +70,10 @@ export function runGlobalAssetPipeline(activities: ParqetActivityWithPortfolioCo
 };
 export function runGlobalAssetPipeline(
   activities: ParqetActivityWithPortfolioContext[],
-  options?: { marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin },
+  options?: {
+    marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin;
+    reportingCurrency?: string | null;
+  },
 ): {
   normalization: ReturnType<typeof normalizeActivities>;
   aggregation: GlobalAssetAggregationResult;

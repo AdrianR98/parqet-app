@@ -129,6 +129,175 @@ describe("global asset synthetic fixtures", () => {
     expect(aggregation.assets[0]?.warnings.some((warning) => warning.code === "MARKET_PRICE_FALLBACK_USED")).toBe(false);
   });
 
+  it("market_price_overlay_eur_reporting: leaves native EUR prices unconverted", () => {
+    const normalization = normalizeActivities([
+      createSyntheticActivity({
+        activityId: "activity_eur_native_1",
+        type: "buy",
+        datetime: "2026-06-01T10:00:00.000Z",
+        isin: "DE000EUR0001",
+        shares: 2,
+        currency: "EUR",
+        price: 100,
+        amount: 200,
+        amountNet: 200,
+      }),
+    ]);
+
+    const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
+      reportingCurrency: "EUR",
+      marketPriceOverlaysByIsin: {
+        DE000EUR0001: {
+          priceAmount: 120,
+          currency: "EUR",
+          reportingCurrency: "EUR",
+          priceDate: "2026-06-03",
+          priceTimestamp: "2026-06-03T17:00:00.000Z",
+          priceSource: "market_data_db",
+        },
+      },
+    });
+
+    const valuation = aggregation.assets[0]?.valuation;
+
+    expect(valuation?.nativeMarketPrice).toEqual({ amount: 120, currency: "EUR" });
+    expect(valuation?.reportingMarketPrice).toEqual({ amount: 120, currency: "EUR" });
+    expect(valuation?.fxStatus).toBe("not_required");
+    expect(aggregation.assets[0]?.totals.marketValue?.amount).toBe(240);
+    expect(aggregation.assets[0]?.warnings.some((warning) => warning.code === "FX_RATE_MISSING")).toBe(false);
+  });
+
+  it("market_price_overlay_usd_reporting: converts SPCX USD market price to EUR reporting value", () => {
+    const normalization = normalizeActivities([
+      createSyntheticActivity({
+        activityId: "activity_spcx_usd_1",
+        type: "buy",
+        datetime: "2026-06-01T10:00:00.000Z",
+        isin: "US84615Q1031",
+        shares: 10,
+        currency: "EUR",
+        price: 100,
+        amount: 1000,
+        amountNet: 1000,
+      }),
+    ]);
+
+    const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
+      reportingCurrency: "EUR",
+      marketPriceOverlaysByIsin: {
+        US84615Q1031: {
+          priceAmount: 100,
+          currency: "USD",
+          reportingCurrency: "EUR",
+          fxRate: {
+            fromCurrency: "USD",
+            toCurrency: "EUR",
+            rate: 0.92,
+            rateDate: "2026-06-03",
+            provider: "ecb",
+            source: "manual_fixture",
+          },
+          priceDate: "2026-06-03",
+          priceTimestamp: "2026-06-03T17:00:00.000Z",
+          priceSource: "market_data_db",
+        },
+      },
+    });
+
+    const asset = aggregation.assets[0];
+
+    expect(asset?.valuation?.nativeMarketPrice).toEqual({ amount: 100, currency: "USD" });
+    expect(asset?.valuation?.marketPrice).toEqual({ amount: 92, currency: "EUR" });
+    expect(asset?.valuation?.fxStatus).toBe("converted");
+    expect(asset?.totals.marketValue?.amount).toBe(920);
+    expect(asset?.totals.marketValue?.currency).toBe("EUR");
+    expect(asset?.totals.unrealizedPnL?.amount).toBe(-80);
+  });
+
+  it("market_price_overlay_usd_reporting: blocks EUR valuation when the USD/EUR FX rate is missing", () => {
+    const normalization = normalizeActivities([
+      createSyntheticActivity({
+        activityId: "activity_spcx_missing_fx_1",
+        type: "buy",
+        datetime: "2026-06-01T10:00:00.000Z",
+        isin: "US84615Q1031",
+        shares: 10,
+        currency: "EUR",
+        price: 100,
+        amount: 1000,
+        amountNet: 1000,
+      }),
+    ]);
+
+    const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
+      reportingCurrency: "EUR",
+      marketPriceOverlaysByIsin: {
+        US84615Q1031: {
+          priceAmount: 100,
+          currency: "USD",
+          reportingCurrency: "EUR",
+          priceDate: "2026-06-03",
+          priceTimestamp: "2026-06-03T17:00:00.000Z",
+          priceSource: "market_data_db",
+        },
+      },
+    });
+
+    const asset = aggregation.assets[0];
+    const fxWarning = asset?.warnings.find((warning) => warning.code === "FX_RATE_MISSING");
+
+    expect(asset?.valuation?.nativeMarketPrice).toEqual({ amount: 100, currency: "USD" });
+    expect(asset?.valuation?.marketPrice).toBeNull();
+    expect(asset?.valuation?.fxStatus).toBe("missing_rate");
+    expect(asset?.totals.marketValue).toBeNull();
+    expect(asset?.totals.unrealizedPnL).toBeNull();
+    expect(fxWarning?.blockedMetrics).toEqual(expect.arrayContaining(["market_value", "unrealized_pnl"]));
+  });
+
+  it("market_price_overlay_usd_reporting: does not mutate native USD price rows during conversion", () => {
+    const normalization = normalizeActivities([
+      createSyntheticActivity({
+        activityId: "activity_spcx_no_mutation_1",
+        type: "buy",
+        datetime: "2026-06-01T10:00:00.000Z",
+        isin: "US84615Q1031",
+        shares: 1,
+        currency: "EUR",
+        price: 100,
+        amount: 100,
+        amountNet: 100,
+      }),
+    ]);
+    const overlay = {
+      priceAmount: 100,
+      currency: "USD",
+      reportingCurrency: "EUR",
+      fxRate: {
+        fromCurrency: "USD",
+        toCurrency: "EUR",
+        rate: 0.92,
+        rateDate: "2026-06-03",
+        provider: "ecb",
+        source: "manual_fixture",
+      },
+      priceDate: "2026-06-03",
+      priceTimestamp: "2026-06-03T17:00:00.000Z",
+      priceSource: "market_data_db",
+    } as const;
+
+    const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
+      reportingCurrency: "EUR",
+      marketPriceOverlaysByIsin: {
+        US84615Q1031: overlay,
+      },
+    });
+
+    expect(overlay.priceAmount).toBe(100);
+    expect(overlay.currency).toBe("USD");
+    expect(aggregation.assets[0]?.valuation?.nativeMarketPrice).toEqual({ amount: 100, currency: "USD" });
+    expect(aggregation.assets[0]?.valuation?.reportingMarketPrice).toEqual({ amount: 92, currency: "EUR" });
+  });
+
   it("market_price_overlay_vanguard_regression: derives market value and unrealized pnl from current market price", () => {
     const normalization = normalizeActivities([
       createSyntheticActivity({

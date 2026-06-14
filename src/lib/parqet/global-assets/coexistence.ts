@@ -109,6 +109,7 @@ export function buildGlobalAssetProductReadModelFromActivityContext(input: {
   requestedPortfolioIds: string[];
   generatedAt?: string;
   marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin;
+  reportingCurrency?: string | null;
 }): ProductReadModelAssets | null {
   const requestedPortfolioIds = normalizePortfolioIds(input.requestedPortfolioIds);
   const availablePortfolioIds = normalizePortfolioIds(
@@ -123,6 +124,7 @@ export function buildGlobalAssetProductReadModelFromActivityContext(input: {
   const normalization = normalizeActivities(contextualActivities);
   const aggregation = buildGlobalAssetsFromNormalizationResult(normalization, {
     marketPriceOverlaysByIsin: input.marketPriceOverlaysByIsin,
+    reportingCurrency: input.reportingCurrency,
   });
   const freshnessAt =
     input.activityContext.freshness.updatedAt ?? input.activityContext.freshness.loadedAt ?? null;

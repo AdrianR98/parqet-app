@@ -11,6 +11,15 @@ export type MoneyValue = {
   currency: string;
 };
 
+export type FxRateSnapshot = {
+  fromCurrency: string;
+  toCurrency: string;
+  rate: number;
+  rateDate: string;
+  provider?: string | null;
+  source?: string | null;
+};
+
 export type ActivityType =
   | "buy"
   | "sell"
@@ -68,6 +77,7 @@ export type ReconciliationWarningCode =
   | "MISSING_PORTFOLIO_BREAKDOWN"
   | "TOTALS_BLOCKED_BY_MIXED_CURRENCIES"
   | "MARKET_PRICE_FALLBACK_USED"
+  | "FX_RATE_MISSING"
   | "MISSING_MARKET_PRICE"
   | "STALE_MARKET_PRICE";
 
@@ -276,7 +286,12 @@ export type GlobalAssetValuationFreshnessState =
 
 export type GlobalAssetValuationSnapshot = {
   marketPrice?: MoneyValue | null;
+  nativeMarketPrice?: MoneyValue | null;
+  reportingMarketPrice?: MoneyValue | null;
   latestTradePrice?: MoneyValue | null;
+  reportingCurrency?: string | null;
+  fxRate?: FxRateSnapshot | null;
+  fxStatus?: "not_requested" | "not_required" | "converted" | "missing_rate";
   priceDate?: string | null;
   priceTimestamp?: string | null;
   priceSource?: string | null;

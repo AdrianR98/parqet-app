@@ -20,6 +20,7 @@ import {
   GlobalAssetOverrideDecisionType,
   GlobalAssetStatus,
   GlobalAssetTimelineEntry,
+  FxRateSnapshot,
   MoneyValue,
   NegativeQuantityCause,
   NegativeQuantityCauseType,
@@ -41,12 +42,19 @@ import {
 export type GlobalAssetMarketPriceOverlay = {
   priceAmount: number;
   currency: string | null;
+  reportingCurrency?: string | null;
+  fxRate?: FxRateSnapshot | null;
   priceDate: string | null;
   priceTimestamp: string | null;
   priceSource: string | null;
 };
 
 export type GlobalAssetMarketPriceOverlaysByIsin = Record<string, GlobalAssetMarketPriceOverlay>;
+
+type GlobalAssetAggregationOptions = {
+  marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin;
+  reportingCurrency?: string | null;
+};
 
 const QUANTITY_EPSILON = 0.000001;
 const RATIO_TOLERANCE = 0.0001;
@@ -223,6 +231,11 @@ function getActivityCurrency(activity: NormalizedActivity): string | null {
   );
 }
 
+function normalizeCurrencyCode(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toUpperCase();
+  return normalized ? normalized : null;
+}
+
 function getCostBasisAmountForBuy(activity: NormalizedActivity): number | null {
   return activity.amounts.amountNet?.amount ?? activity.amounts.amount?.amount ?? null;
 }
@@ -272,23 +285,62 @@ function buildValuationSnapshot(input: {
   overlay: GlobalAssetMarketPriceOverlay | null;
   fallbackLatestTradePrice: number | null;
   fallbackCurrency: string | null;
+  reportingCurrency?: string | null;
 }): GlobalAssetValuationSnapshot {
   if (input.overlay) {
-    const overlayCurrency = input.overlay.currency ?? input.fallbackCurrency ?? null;
+    const nativeCurrency = normalizeCurrencyCode(input.overlay.currency ?? input.fallbackCurrency);
+    const reportingCurrency =
+      normalizeCurrencyCode(input.overlay.reportingCurrency) ??
+      normalizeCurrencyCode(input.reportingCurrency);
+    const nativeMarketPrice = nativeCurrency
+      ? {
+          amount: input.overlay.priceAmount,
+          currency: nativeCurrency,
+        }
+      : null;
+    const fxRate = input.overlay.fxRate ?? null;
+    const fxRateMatchesUsdEur =
+      fxRate != null &&
+      normalizeCurrencyCode(fxRate.fromCurrency) === "USD" &&
+      normalizeCurrencyCode(fxRate.toCurrency) === "EUR" &&
+      Number.isFinite(fxRate.rate) &&
+      fxRate.rate > 0;
+    const requiresUsdEurConversion =
+      nativeMarketPrice?.currency === "USD" && reportingCurrency === "EUR";
+    const marketPrice =
+      nativeMarketPrice == null
+        ? null
+        : !reportingCurrency || nativeMarketPrice.currency === reportingCurrency
+          ? nativeMarketPrice
+          : requiresUsdEurConversion && fxRateMatchesUsdEur
+            ? {
+                amount: nativeMarketPrice.amount * fxRate.rate,
+                currency: reportingCurrency,
+              }
+            : null;
+    const fxStatus =
+      nativeMarketPrice == null || !reportingCurrency
+        ? "not_requested"
+        : nativeMarketPrice.currency === reportingCurrency
+          ? "not_required"
+          : marketPrice
+            ? "converted"
+            : "missing_rate";
+
     return {
-      marketPrice: overlayCurrency
-        ? {
-            amount: input.overlay.priceAmount,
-            currency: overlayCurrency,
-          }
-        : null,
+      marketPrice,
+      nativeMarketPrice,
+      reportingMarketPrice: marketPrice,
       latestTradePrice:
         input.fallbackLatestTradePrice != null && input.fallbackCurrency
           ? {
               amount: input.fallbackLatestTradePrice,
-              currency: input.fallbackCurrency,
+              currency: normalizeCurrencyCode(input.fallbackCurrency) ?? input.fallbackCurrency,
             }
           : null,
+      reportingCurrency: reportingCurrency ?? marketPrice?.currency ?? nativeMarketPrice?.currency ?? null,
+      fxRate: fxStatus === "converted" ? fxRate : null,
+      fxStatus,
       priceDate: input.overlay.priceDate,
       priceTimestamp: input.overlay.priceTimestamp,
       priceSource: input.overlay.priceSource,
@@ -328,6 +380,24 @@ function getEffectiveValuationCurrency(input: {
   fallbackCurrency: string | null;
 }): string | null {
   return input.valuation.marketPrice?.currency ?? input.valuation.latestTradePrice?.currency ?? input.fallbackCurrency;
+}
+
+function pushMissingFxRateWarning(input: {
+  warnings: ReconciliationWarning[];
+  assetKey: GlobalAssetKey;
+  portfolioId?: string | null;
+}) {
+  input.warnings.push(
+    createAggregationWarning({
+      code: "FX_RATE_MISSING",
+      severity: "Warning",
+      message: "FX rate is missing, so reporting-currency valuation metrics are blocked.",
+      debugMessage: "USD market prices require a USD->EUR daily FX rate before EUR reporting values can be calculated.",
+      assetKey: input.assetKey,
+      portfolioId: input.portfolioId,
+      blockedMetrics: ["market_value", "unrealized_pnl", "confidence"],
+    }),
+  );
 }
 
 function buildValuationDrivenMoneyMetrics(input: {
@@ -512,6 +582,7 @@ function buildPortfolioBreakdowns(input: {
   unresolvedDecisionCandidates: UnresolvedDecisionCandidate[];
   marketPriceOverlay: GlobalAssetMarketPriceOverlay | null;
   assetLatestTradePrice: number | null;
+  reportingCurrency?: string | null;
 }): PortfolioBreakdown[] {
   const groups = new Map<string, NormalizedActivity[]>();
 
@@ -643,7 +714,15 @@ function buildPortfolioBreakdowns(input: {
       overlay: input.marketPriceOverlay,
       fallbackLatestTradePrice: input.assetLatestTradePrice,
       fallbackCurrency: tradeCurrency,
+      reportingCurrency: input.reportingCurrency,
     });
+    if (valuation.fxStatus === "missing_rate") {
+      pushMissingFxRateWarning({
+        warnings: breakdownWarnings,
+        assetKey: input.assetKey,
+        portfolioId,
+      });
+    }
     const valuationCurrency = getEffectiveValuationCurrency({
       valuation,
       fallbackCurrency: tradeCurrency,
@@ -725,6 +804,7 @@ function buildAsset(
   assetKey: GlobalAssetKey,
   activities: NormalizedActivity[],
   marketPriceOverlaysByIsin: GlobalAssetMarketPriceOverlaysByIsin = {},
+  reportingCurrency?: string | null,
 ): GlobalAsset {
   const warnings: ReconciliationWarning[] = [];
   const unresolvedDecisionCandidates: UnresolvedDecisionCandidate[] = [];
@@ -778,6 +858,7 @@ function buildAsset(
     unresolvedDecisionCandidates,
     marketPriceOverlay,
     assetLatestTradePrice: latestTradePrice,
+    reportingCurrency,
   });
   const rawTotalQuantity = portfolioBreakdowns.reduce((sum, breakdown) => sum + (breakdown.quantity ?? 0), 0);
   const totalQuantity = normalizeQuantityForStatus(rawTotalQuantity);
@@ -809,6 +890,7 @@ function buildAsset(
     overlay: marketPriceOverlay,
     fallbackLatestTradePrice: latestTradePrice,
     fallbackCurrency: currencies.length === 1 ? currencies[0] : null,
+    reportingCurrency,
   });
 
   if (valuation.sourceKind === "latest_trade_price_fallback") {
@@ -822,6 +904,11 @@ function buildAsset(
         blockedMetrics: ["confidence"],
       }),
     );
+  } else if (valuation.fxStatus === "missing_rate") {
+    pushMissingFxRateWarning({
+      warnings,
+      assetKey,
+    });
   } else if (valuation.sourceKind === "missing") {
     warnings.push(
       createAggregationWarning({
@@ -958,7 +1045,7 @@ function buildAsset(
 
 export function buildGlobalAssets(
   activities: NormalizedActivity[],
-  options: { marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin } = {},
+  options: GlobalAssetAggregationOptions = {},
 ): GlobalAssetAggregationResult {
   const overrideResult = applyGlobalAssetPositionOverrides(activities);
   const activitiesWithOverrides = overrideResult.activities;
@@ -997,6 +1084,7 @@ export function buildGlobalAssets(
       group.assetKey,
       group.activities,
       options.marketPriceOverlaysByIsin,
+      options.reportingCurrency,
     ),
   );
 
@@ -1101,7 +1189,7 @@ export function buildGlobalAssets(
 
 export function buildGlobalAssetsFromNormalizationResult(
   result: ActivitiesNormalizationResult,
-  options: { marketPriceOverlaysByIsin?: GlobalAssetMarketPriceOverlaysByIsin } = {},
+  options: GlobalAssetAggregationOptions = {},
 ): GlobalAssetAggregationResult {
   const aggregation = buildGlobalAssets(result.activities, options);
 

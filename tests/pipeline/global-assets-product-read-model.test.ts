@@ -697,4 +697,100 @@ describe("global asset product read-model valuation invariants", () => {
       6,
     );
   });
+
+  it("exposes native and reporting prices separately for USD market data", () => {
+    const { aggregation } = runGlobalAssetPipeline(
+      [
+        createSyntheticActivity({
+          activityId: "activity_prm_usd_fx_1",
+          type: "buy",
+          datetime: "2026-06-01T10:00:00.000Z",
+          isin: "US84615Q1031",
+          shares: 10,
+          price: 100,
+          currency: "EUR",
+          amount: 1000,
+          amountNet: 1000,
+        }),
+      ],
+      {
+        reportingCurrency: "EUR",
+        marketPriceOverlaysByIsin: {
+          US84615Q1031: {
+            priceAmount: 100,
+            currency: "USD",
+            reportingCurrency: "EUR",
+            fxRate: {
+              fromCurrency: "USD",
+              toCurrency: "EUR",
+              rate: 0.92,
+              rateDate: "2026-06-03",
+              provider: "ecb",
+              source: "manual_fixture",
+            },
+            priceDate: "2026-06-03",
+            priceTimestamp: "2026-06-03T17:00:00.000Z",
+            priceSource: "market_data_db",
+          },
+        },
+      },
+    );
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const row = projected.assets[0];
+
+    expect(row?.valuation.nativeMarketPrice).toMatchObject({ amount: 100, currency: "USD" });
+    expect(row?.valuation.reportingMarketPrice).toMatchObject({ amount: 92, currency: "EUR" });
+    expect(row?.valuation.marketPrice).toMatchObject({ amount: 92, currency: "EUR" });
+    expect(row?.marketValue).toMatchObject({ amount: 920, currency: "EUR" });
+  });
+
+  it("marks missing USD/EUR FX as blocked in the product read model", () => {
+    const { aggregation } = runGlobalAssetPipeline(
+      [
+        createSyntheticActivity({
+          activityId: "activity_prm_missing_fx_1",
+          type: "buy",
+          datetime: "2026-06-01T10:00:00.000Z",
+          isin: "US84615Q1031",
+          shares: 10,
+          price: 100,
+          currency: "EUR",
+          amount: 1000,
+          amountNet: 1000,
+        }),
+      ],
+      {
+        reportingCurrency: "EUR",
+        marketPriceOverlaysByIsin: {
+          US84615Q1031: {
+            priceAmount: 100,
+            currency: "USD",
+            reportingCurrency: "EUR",
+            priceDate: "2026-06-03",
+            priceTimestamp: "2026-06-03T17:00:00.000Z",
+            priceSource: "market_data_db",
+          },
+        },
+      },
+    );
+
+    const projected = projectGlobalAssetsProductReadModel({
+      aggregation,
+      freshnessState: "fresh",
+      scopeState: "scope_match",
+    });
+    const row = projected.assets[0];
+
+    expect(row?.valuation.nativeMarketPrice).toMatchObject({ amount: 100, currency: "USD" });
+    expect(row?.valuation.marketPrice.amount).toBeNull();
+    expect(row?.valuation.fxStatus).toBe("missing_rate");
+    expect(row?.marketValue.valueClassification).toBe("blocked");
+    expect(row?.unrealizedPnL.valueClassification).toBe("blocked");
+    expect(row?.blockedMetrics).toEqual(expect.arrayContaining(["market_value", "unrealized_pnl"]));
+  });
 });

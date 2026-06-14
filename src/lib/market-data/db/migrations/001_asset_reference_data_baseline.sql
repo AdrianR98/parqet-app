@@ -210,6 +210,23 @@ create index if not exists idx_asset_daily_prices_provider_asset_date_desc
     on public.asset_daily_prices (provider, asset_id, price_date desc)
     include (close_price, currency, price_timestamp);
 
+create table if not exists public.fx_daily_rates (
+    id uuid primary key default gen_random_uuid(),
+    provider text not null,
+    base_currency text not null,
+    quote_currency text not null,
+    rate_date date not null,
+    rate numeric not null check (rate > 0),
+    source text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (provider, base_currency, quote_currency, rate_date)
+);
+
+create index if not exists idx_fx_daily_rates_pair_date_desc
+    on public.fx_daily_rates (base_currency, quote_currency, rate_date desc)
+    include (rate, provider);
+
 create table if not exists public.dividend_events (
     id uuid primary key default gen_random_uuid(),
     asset_id uuid not null references public.assets(id) on delete restrict,
@@ -694,6 +711,7 @@ where asset.id = backfill.id
 alter table public.assets enable row level security;
 alter table public.asset_symbol_mappings enable row level security;
 alter table public.asset_daily_prices enable row level security;
+alter table public.fx_daily_rates enable row level security;
 alter table public.dividend_events enable row level security;
 alter table public.corporate_action_events enable row level security;
 alter table public.reference_data_sources enable row level security;

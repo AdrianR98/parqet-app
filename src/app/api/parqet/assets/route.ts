@@ -41,12 +41,17 @@ import {
 import { buildConsistencyReport } from "../../../../lib/parqet-assets/consistency";
 import { buildCorrectedAssets } from "../../../../lib/parqet-assets/build-corrected-assets";
 import { buildGlobalAssetProductReadModelFromActivityContext } from "../../../../lib/parqet/global-assets/coexistence";
+import type { GlobalAssetMarketPriceOverlaysByIsin } from "../../../../lib/parqet/global-assets/aggregate";
 import {
   enrichGlobalAssetsProductReadModelMetrics,
   type ProductReadModelAssets,
 } from "../../../../lib/parqet/global-assets/product-read-model";
 import { selectPrmDisplayNameForMetadataOverlay } from "../../../../lib/parqet/global-assets/display-fallback";
 import { getLatestMarketPricesByIsins } from "../../../../lib/market-data/service";
+import {
+  getUsdEurFxRatesByDates,
+  type UsdEurFxRatesByDate,
+} from "../../../../lib/market-data/fx-rates";
 import {
   chooseCuratedDisplayName,
   getMarketInstrumentMetadataByIsins,
@@ -66,6 +71,7 @@ import {
 } from "../../../../lib/debug/dev-diagnostics";
 
 const CLOSED_POSITION_EPSILON = 1e-8;
+const REPORTING_CURRENCY = "EUR";
 const INSTRUMENT_METADATA_MISSING_TITLE = "Stammdaten fehlen";
 const INSTRUMENT_DB_UNAVAILABLE_MESSAGE = "Instrumenten-Stammdaten konnten nicht aus der Datenbank geladen werden";
 const ASSETS_API_BUDGET = buildActivityScanBudgetInfo({
@@ -224,28 +230,20 @@ function normalizeLookupIsin(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, "").toUpperCase();
 }
 
+function normalizeCurrencyCode(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toUpperCase();
+  return normalized ? normalized : null;
+}
+
 function mapMarketPriceSnapshotsByIsin(
   snapshotsByIsin: Record<string, AssetLatestMarketPriceSnapshot>,
-): Record<
-  string,
-  {
-    priceAmount: number;
-    currency: string | null;
-    priceDate: string | null;
-    priceTimestamp: string | null;
-    priceSource: string | null;
-  }
-> {
-  const mapped: Record<
-    string,
-    {
-      priceAmount: number;
-      currency: string | null;
-      priceDate: string | null;
-      priceTimestamp: string | null;
-      priceSource: string | null;
-    }
-  > = {};
+  options: {
+    reportingCurrency?: string | null;
+    usdEurFxRatesByDate?: UsdEurFxRatesByDate;
+  } = {},
+): GlobalAssetMarketPriceOverlaysByIsin {
+  const mapped: GlobalAssetMarketPriceOverlaysByIsin = {};
+  const reportingCurrency = normalizeCurrencyCode(options.reportingCurrency);
 
   for (const snapshot of Object.values(snapshotsByIsin)) {
     const rawIsin =
@@ -257,9 +255,17 @@ function mapMarketPriceSnapshotsByIsin(
       continue;
     }
 
+    const currency = normalizeCurrencyCode(snapshot.currency);
+    const fxRate =
+      reportingCurrency === "EUR" && currency === "USD" && snapshot.priceDate
+        ? options.usdEurFxRatesByDate?.[snapshot.priceDate] ?? null
+        : null;
+
     mapped[normalizedIsin] = {
       priceAmount: snapshot.priceAmount,
-      currency: snapshot.currency ?? null,
+      currency,
+      reportingCurrency,
+      fxRate,
       priceDate: snapshot.priceDate ?? null,
       priceTimestamp: snapshot.priceTimestamp ?? null,
       priceSource: snapshot.provider ?? null,
@@ -818,6 +824,25 @@ export async function GET(req: Request) {
           console.warn("[parqet-assets] market price overlay failed");
         }
       }
+      let usdEurFxRatesByDate: UsdEurFxRatesByDate = {};
+      const usdMarketPriceDates = Object.values(marketPriceSnapshotsByIsin)
+        .filter((snapshot) => normalizeCurrencyCode(snapshot.currency) === "USD")
+        .map((snapshot) => snapshot.priceDate)
+        .filter((date): date is string => Boolean(date));
+      try {
+        usdEurFxRatesByDate = await getUsdEurFxRatesByDates({
+          dates: usdMarketPriceDates,
+        });
+      } catch (error) {
+        if (error instanceof MarketDataRepositoryError) {
+          console.warn(
+            "[parqet-assets] USD/EUR FX rates unavailable:",
+            error.code,
+          );
+        } else {
+          console.warn("[parqet-assets] USD/EUR FX rates failed");
+        }
+      }
       const activeAssetsWithPositiveShares = correctedAssets.filter(
         (asset: GlobalAssetViewModel) => asset.netShares > CLOSED_POSITION_EPSILON,
       );
@@ -954,7 +979,12 @@ export async function GET(req: Request) {
           generatedAt,
           marketPriceOverlaysByIsin: mapMarketPriceSnapshotsByIsin(
             marketPriceSnapshotsByIsin,
+            {
+              reportingCurrency: REPORTING_CURRENCY,
+              usdEurFxRatesByDate,
+            },
           ),
+          reportingCurrency: REPORTING_CURRENCY,
         });
       const globalAssetProductReadModel =
         overlayGlobalAssetProductDisplayFromMarketMetadata({

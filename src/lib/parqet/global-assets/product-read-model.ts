@@ -5,6 +5,7 @@ import type {
   GlobalAsset,
   GlobalAssetAggregationResult,
   GlobalAssetKey,
+  FxRateSnapshot,
   MoneyValue,
   ReconciliationWarning,
   ReconciliationWarningSeverity,
@@ -721,9 +722,16 @@ export type ProductReadModelAssetMoneyMetric = {
   blockedMetrics: BlockedMetric[];
 };
 
+export type ProductReadModelFxRate = FxRateSnapshot;
+
 export type ProductReadModelAssetValuation = {
   marketPrice: ProductReadModelAssetMoneyMetric;
+  nativeMarketPrice: ProductReadModelAssetMoneyMetric;
+  reportingMarketPrice: ProductReadModelAssetMoneyMetric;
   latestTradePrice: ProductReadModelAssetMoneyMetric;
+  reportingCurrency: string | null;
+  fxRate: ProductReadModelFxRate | null;
+  fxStatus: "not_requested" | "not_required" | "converted" | "missing_rate";
   priceDate: string | null;
   priceTimestamp: string | null;
   priceSource: string | null;
@@ -1947,7 +1955,16 @@ function mapValuationSnapshot(
 ): ProductReadModelAssetValuation {
   return {
     marketPrice: mapMoneyMetric(valuation?.marketPrice, []),
+    nativeMarketPrice: mapMoneyMetric(valuation?.nativeMarketPrice ?? valuation?.marketPrice, []),
+    reportingMarketPrice: mapMoneyMetric(valuation?.reportingMarketPrice ?? valuation?.marketPrice, []),
     latestTradePrice: mapMoneyMetric(valuation?.latestTradePrice, []),
+    reportingCurrency:
+      valuation?.reportingCurrency ??
+      valuation?.reportingMarketPrice?.currency ??
+      valuation?.marketPrice?.currency ??
+      null,
+    fxRate: valuation?.fxRate ?? null,
+    fxStatus: valuation?.fxStatus ?? "not_requested",
     priceDate: valuation?.priceDate ?? null,
     priceTimestamp: valuation?.priceTimestamp ?? null,
     priceSource: valuation?.priceSource ?? null,
